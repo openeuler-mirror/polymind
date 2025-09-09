@@ -1,0 +1,11 @@
+{
+  "app_image_path": "/opt/polymind/DeepChat-0.2.7-linux-x86_64.AppImage",
+  "default": "pose3",
+  "up": "up",
+  "down": "down",
+  "left": "left",
+  "right": "right",
+  "random_act": [
+    ["pose2", "pose1" ]
+  ]
+}

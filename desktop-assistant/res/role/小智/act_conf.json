@@ -1,0 +1,60 @@
+{
+  "default": {
+    "images": [2011, 2062]
+  },
+  "up" : {
+    "images": [0, 44],
+    "act_num": 45,
+    "need_move": true,
+    "direction": "up"
+  },
+  "down" : {
+    "images": [0, 44],
+    "act_num": 45,
+    "need_move": true,
+    "direction": "down",
+    "frame_move": 30,
+    "frame_refresh": 0.1
+  },
+  "left": {
+    "images": [0, 44],
+    "act_num": 45,
+    "need_move": true,
+    "direction": "left"
+  },
+  "right": {
+    "images": [0, 44],
+    "act_num": 45,
+    "need_move": true,
+    "direction": "right"
+  },
+  "left_down": {
+    "images": [0, 44],
+    "act_num": 45,
+    "need_move": true,
+    "direction": "left_down",
+    "frame_move": 30,
+    "frame_refresh": 0.08
+  },
+  "left_walk": {
+    "images": [0, 44],
+    "act_num": 45,
+    "need_move": true,
+    "direction": "left"
+  },
+  "right_walk": {
+    "images": [0, 44],
+    "act_num": 45,
+    "need_move": true,
+    "direction": "right"
+  },
+  "pose1": {
+    "images": [1061, 1160]
+  },
+  "pose2" : {
+    "images": [1061, 1160]
+  },
+  "pose3" : {
+    "images": [2011, 2062]
+  }
+}
