@@ -1,29 +1,16 @@
-<p align='center'>
-<img src='./build/icon.png' width="150" height="150" alt="DeepChat AI助手图标" />
-</p>
+<h1 align="center">PolyMind - DevStation开发者AI智能助手</h1>
 
-<h1 align="center">DeepChat - 强大的开源多模型AI聊天平台</h1>
-
-<p align="center">DeepChat是一个功能丰富的开源AI聊天平台，支持多种云端和本地大语言模型，提供强大的搜索增强和工具调用能力。</p>
-
-<p align="center">
-  <a href="https://github.com/ThinkInAIXYZ/deepchat/stargazers"><img src="https://img.shields.io/github/stars/ThinkInAIXYZ/deepchat" alt="Stars Badge"/></a>
-  <a href="https://github.com/ThinkInAIXYZ/deepchat/network/members"><img src="https://img.shields.io/github/forks/ThinkInAIXYZ/deepchat" alt="Forks Badge"/></a>
-  <a href="https://github.com/ThinkInAIXYZ/deepchat/pulls"><img src="https://img.shields.io/github/issues-pr/ThinkInAIXYZ/deepchat" alt="Pull Requests Badge"/></a>
-  <a href="https://github.com/ThinkInAIXYZ/deepchat/issues"><img src="https://img.shields.io/github/issues/ThinkInAIXYZ/deepchat" alt="Issues Badge"/></a>
-  <a href="https://github.com/ThinkInAIXYZ/deepchat/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ThinkInAIXYZ/deepchat" alt="License Badge"/></a>
-  <a href="https://deepwiki.com/ThinkInAIXYZ/deepchat"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
-</p>
+<p align="center">PolyMind是一个功能丰富的AI助手，支持主流语言模型，为DevStation发行版提供环境感知和强大的工具调度能力。</p>
 
 <div align="center">
-  <a href="./README.zh.md">中文</a> / <a href="./README.md">English</a> / <a href="./README.jp.md">日本語</a>
+  <a href="./README.zh.md">中文</a> / <a href="./README.md">English</a> 
 </div>
 
 ## 📑 目录
 
 - [📑 目录](#-目录)
 - [🚀 项目简介](#-项目简介)
-- [💡 为什么选择DeepChat](#-为什么选择deepchat)
+- [💡 为什么选择PolyMind](#-为什么选择PolyMind)
 - [🔥 主要功能](#-主要功能)
 - [🤖 支持的模型提供商](#-支持的模型提供商)
   - [兼容任何OpenAI/Gemini/Anthropic API格式的模型提供商](#兼容任何openaigeminianthropic-api格式的模型提供商)
@@ -43,33 +30,19 @@
 
 ## 🚀 项目简介
 
-DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种大语言模型交互的统一界面。无论是云端API如OpenAI、Gemini、Anthropic，还是本地部署的Ollama模型，DeepChat都能提供流畅的用户体验。
+PolyMind是一款基于[DeepChat](https://github.com/thinkinaixyz/deepchat)开发的AI智能助手，为DevStation发行版提供环境感知和强大的工具调度能力。
 
-作为一个跨平台的AI助手应用，DeepChat不仅支持基础的聊天功能，还提供了搜索增强、工具调用、多模态交互等高级特性，让AI能力的应用更加便捷和高效。
+作为一个跨平台的AI助手应用，不仅支持基础的聊天功能，还提供了搜索增强、工具调用、多模态交互等高级特性，让AI能力的应用更加便捷和高效。
 
-<table align="center">
-  <tr>
-    <td align="center" style="padding: 10px;">
-      <img src='https://github.com/user-attachments/assets/086c4545-6d07-497d-9655-106d00e82ae6' alt="DeepChat Light" width="400"/>
-      <br/>
-    </td>
-    <td align="center" style="padding: 10px;">
-      <img src='https://github.com/user-attachments/assets/5c3a5e7a-ebe6-4833-8809-9982d8541190' alt="DeepChat Dark" width="400"/>
-      <br/>
-    </td>
-  </tr>
-</table>
+## 💡 为什么选择PolyMind
 
-## 💡 为什么选择DeepChat
-
-与其他AI工具相比，DeepChat具有以下独特优势：
+与其他AI工具相比，PolyMind具有以下独特优势：
 
 - **多模型统一管理**：一个应用支持几乎所有主流LLM，无需在多个应用间切换
 - **本地模型无缝集成**：内置Ollama支持，无需命令行操作即可管理和使用本地模型
 - **高级工具调用**：内置MCP支持，无需额外配置即可使用代码执行、网络访问等工具
-- **强大的搜索增强**：支持多种搜索引擎，让AI回答更加准确和及时，提供了非标网页搜索范式，可以快速定制
-- **注重隐私保护**：本地数据存储，支持网络代理，减少信息泄露风险
-- **开源友好**：基于 Apache License 2.0 协议，适合商业和个人使用
+- **openEuler社区友好**：集成DevStore、openEuler Intelligence等openEuler社区开源项目
+- **系统提示词管理**：强大的系统提示词管理，让通用AI更加高效和智能
 
 ## 🔥 主要功能
 
@@ -221,7 +194,7 @@ DeepChat是一个功能强大的开源AI聊天平台，为用户提供与多种�
 
 ## 🔍 使用场景
 
-DeepChat适用于多种AI应用场景：
+PolyMind适用于多种AI应用场景：
 
 - **日常助手**：回答问题、提供建议、辅助写作和创作
 - **开发辅助**：代码生成、调试、技术问题解答
@@ -233,7 +206,7 @@ DeepChat适用于多种AI应用场景：
 
 ### 下载安装
 
-从[GitHub Releases](https://github.com/ThinkInAIXYZ/deepchat/releases)页面下载适合您系统的最新版本：
+从[Gitee Releases](https://gitee.com/openeuler/polymind/releases)页面下载适合您系统的最新版本：
 
 - Windows: `.exe`安装文件
 - macOS: `.dmg`安装文件
@@ -241,7 +214,7 @@ DeepChat适用于多种AI应用场景：
 
 ### 配置模型
 
-1. 启动DeepChat应用
+1. 启动polymind应用
 2. 点击设置图标
 3. 选择"模型提供商"选项卡
 4. 添加您的API密钥或配置本地Ollama
@@ -255,9 +228,6 @@ DeepChat适用于多种AI应用场景：
 ## 💻 开发指南
 
 请阅读[贡献指南](./CONTRIBUTING.md)
-
-Windows和Linux通过GitHub Action打包。
-对于Mac相关的签名和打包，请参考[Mac发布指南](https://github.com/ThinkInAIXYZ/deepchat/wiki/Mac-Release-Guide)。
 
 ### 安装依赖
 
@@ -299,32 +269,24 @@ $ pnpm run build:linux:arm64
 
 ## 👥 社区与贡献
 
-DeepChat是一个活跃的开源社区项目，我们欢迎各种形式的贡献：
+欢迎各种形式的贡献：
 
-- 🐛 [报告问题](https://github.com/ThinkInAIXYZ/deepchat/issues)
-- 💡 [提交功能建议](https://github.com/ThinkInAIXYZ/deepchat/issues)
-- 🔧 [提交代码改进](https://github.com/ThinkInAIXYZ/deepchat/pulls)
-- 📚 [完善文档](https://github.com/ThinkInAIXYZ/deepchat/wiki)
-- 🌍 [帮助翻译](https://github.com/ThinkInAIXYZ/deepchat/tree/main/locales)
+- 🐛 [报告问题](https://gitee.com/openeuler/polymind/issues)
+- 💡 [提交功能建议](https://gitee.com/openeuler/polymind/issues)
+- 🔧 [提交代码改进](https://gitee.com/openeuler/polymind/pulls)
+- 📚 [完善文档](https://gitee.com/openeuler/polymind/wikis)
 
 查看[贡献指南](./CONTRIBUTING.md)了解更多参与项目的方式。
 
-## ⭐ Star历史
-
-[![Star History Chart](https://api.star-history.com/svg?repos=ThinkInAIXYZ/deepchat&type=Timeline)](https://www.star-history.com/#ThinkInAIXYZ/deepchat&Timeline)
-
 ## 👨‍💻 贡献者
 
-感谢您考虑为deepchat做出贡献！贡献指南可以在[贡献指南](./CONTRIBUTING.md)中找到。
-
-<a href="https://openomy.com/thinkinaixyz/deepchat" target="_blank" style="display: block; width: 100%;" align="center">
-  <img src="https://openomy.com/svg?repo=thinkinaixyz/deepchat&chart=bubble&latestMonth=3" target="_blank" alt="Contribution Leaderboard" style="display: block; width: 100%;" />
-</a>
+感谢您考虑为polymind做出贡献！贡献指南可以在[贡献指南](./CONTRIBUTING.md)中找到。
 
 ## 🙏🏻 致谢
 
 本项目的构建得益于这些优秀的开源库：
 
+- [deepchat](https://github.com/thinkinaixyz/deepchat)
 - [Vue](https://vuejs.org/)
 - [Electron](https://www.electronjs.org/)
 - [Electron-Vite](https://electron-vite.org/)
