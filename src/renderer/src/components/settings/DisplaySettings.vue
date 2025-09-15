@@ -182,8 +182,8 @@ const languageOptions = [
   { value: 'system', label: t('common.languageSystem') || '跟随系统' }, // 使用i18n key 或 默认值
   { value: 'zh-CN', label: '简体中文' },
   { value: 'en-US', label: 'English (US)' },
-  { value: 'zh-TW', label: '繁體中文（台灣）' },
-  { value: 'zh-HK', label: '繁體中文（香港）' },
+  { value: 'zh-TW', label: '繁體中文（中国台灣）' },
+  { value: 'zh-HK', label: '繁體中文（中国香港）' },
   { value: 'ko-KR', label: '한국어' },
   { value: 'ru-RU', label: 'Русский' },
   { value: 'ja-JP', label: '日本語' },
