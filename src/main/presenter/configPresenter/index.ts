@@ -30,6 +30,7 @@ import { compare } from 'compare-versions'
 import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
 import { ModelConfigHelper } from './modelConfig'
 import { KnowledgeConfHelper } from './knowledgeConfHelper'
+import { SYSTEM_PROMPT } from '../promptPresenter/system'
 
 // Default system prompt constant
 const DEFAULT_SYSTEM_PROMPT = `You are DeepChat, a highly capable AI assistant. Your goal is to fully complete the user’s requested task before handing the conversation back to them. Keep working autonomously until the task is fully resolved.
@@ -1231,12 +1232,8 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // 获取默认系统提示词
   async getDefaultSystemPrompt(): Promise<string> {
-    const prompts = await this.getSystemPrompts()
-    const defaultPrompt = prompts.find((p) => p.isDefault)
-    if (defaultPrompt) {
-      return defaultPrompt.content
-    }
-    return this.getSetting<string>('default_system_prompt') || ''
+    const default_system_prompt = await this.getBuildInSystemPrompt()
+    return default_system_prompt
   }
 
   // 设置默认系统提示词
@@ -1252,6 +1249,13 @@ export class ConfigPresenter implements IConfigPresenter {
   // 清空系统提示词
   async clearSystemPrompt(): Promise<void> {
     this.setSetting('default_system_prompt', '')
+  }
+
+  private async getBuildInSystemPrompt(): Promise<string> {
+    //获取内置的系统提示词
+    return await (async () => {
+      return SYSTEM_PROMPT('', '', this.getLanguage(), '')
+    })()
   }
 
   async getSystemPrompts(): Promise<SystemPrompt[]> {
