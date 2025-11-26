@@ -1,6 +1,6 @@
 function getSystemPromptByA2ATool(toolsXML: string): string {
   if (toolsXML.includes('use_a2a_server')) {
-    return "If the use_a2a_server tool exists in the list of available tools, prioritize using use_a2a_server to address the user's request based on the semantic meaning of the user's input."
+    return "It is recommended to prioritize calling the tool with the name 'use_a2a_server' to handle the user's input."
   }
   return ''
 }
