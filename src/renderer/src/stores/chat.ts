@@ -260,7 +260,7 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       await loadMessages()
-      await threadP.startStreamCompletion(getActiveThreadId()!)
+      await threadP.startStreamCompletion(getActiveThreadId()!, selectedAgent.value || undefined)
     } catch (error) {
       console.error('Failed to send message:', error)
       throw error
@@ -280,7 +280,11 @@ export const useChatStore = defineStore('chat', () => {
       generatingThreadIds.value.add(getActiveThreadId()!)
       // 设置当前会话的workingStatus为working
       updateThreadWorkingStatus(getActiveThreadId()!, 'working')
-      await threadP.startStreamCompletion(getActiveThreadId()!, messageId)
+      await threadP.startStreamCompletion(
+        getActiveThreadId()!,
+        selectedAgent.value || undefined,
+        messageId
+      )
     } catch (error) {
       console.error('Failed to retry message:', error)
       throw error
@@ -883,7 +887,11 @@ export const useChatStore = defineStore('chat', () => {
       })
 
       await loadMessages()
-      await threadP.continueStreamCompletion(conversationId, messageId)
+      await threadP.continueStreamCompletion(
+        conversationId,
+        messageId,
+        selectedAgent.value || undefined
+      )
     } catch (error) {
       console.error('Failed to continue generation:', error)
       throw error

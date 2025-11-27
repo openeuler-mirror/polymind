@@ -654,7 +654,8 @@ export interface ILlmProviderPresenter {
     verbosity?: 'low' | 'medium' | 'high',
     enableSearch?: boolean,
     forcedSearch?: boolean,
-    searchStrategy?: 'turbo' | 'max'
+    searchStrategy?: 'turbo' | 'max',
+    currentAgent?: Agent | null
   ): AsyncGenerator<LLMAgentEvent, void, unknown>
   generateCompletion(
     providerId: string,
@@ -934,7 +935,11 @@ export interface IThreadPresenter {
     pageSize: number
   ): Promise<{ total: number; list: MESSAGE[] }>
   sendMessage(conversationId: string, content: string, role: MESSAGE_ROLE): Promise<MESSAGE | null>
-  startStreamCompletion(conversationId: string, queryMsgId?: string): Promise<void>
+  startStreamCompletion(
+    conversationId: string,
+    currentAgent?: Agent,
+    queryMsgId?: string
+  ): Promise<void>
   editMessage(messageId: string, content: string): Promise<MESSAGE>
   deleteMessage(messageId: string): Promise<void>
   retryMessage(messageId: string, modelId?: string): Promise<MESSAGE>
@@ -964,7 +969,11 @@ export interface IThreadPresenter {
   setSearchAssistantModel(model: MODEL_META, providerId: string): void
   getMainMessageByParentId(conversationId: string, parentId: string): Promise<Message | null>
   destroy(): void
-  continueStreamCompletion(conversationId: string, queryMsgId: string): Promise<AssistantMessage>
+  continueStreamCompletion(
+    conversationId: string,
+    queryMsgId: string,
+    currentAgent?: Agent
+  ): Promise<AssistantMessage>
   toggleConversationPinned(conversationId: string, isPinned: boolean): Promise<void>
   findTabForConversation(conversationId: string): Promise<number | null>
   generateAiScript(
@@ -979,7 +988,8 @@ export interface IThreadPresenter {
     toolCallId: string,
     granted: boolean,
     permissionType: 'read' | 'write' | 'all',
-    remember?: boolean
+    remember?: boolean,
+    currentAgent?: Agent
   ): Promise<void>
   exportConversation(
     conversationId: string,
@@ -1237,24 +1247,24 @@ export interface ProgressResponse {
 
 //
 export interface IBuiltInToolsPresenter {
-  convertToolsToXml(useBuiltInToolsEnabled: boolean): any
-  getBuiltInToolDefinitions(enabled?: boolean): any
+  convertToolsToXml(useBuiltInToolsEnabled: boolean, currentAgent?: Agent): Promise<string>
+  getBuiltInToolDefinitions(enabled?: boolean, currentAgent?: Agent | null): any
 
   /**
    * 获取所有内置工具的定义
    */
-  getBuiltInTools(): Promise<Tool[]>
+  getBuiltInTools(agent?: Agent | null): Promise<Tool[]>
 
   /**
    * 获取工具的描述信息
    * @param toolName 工具名称
    */
-  getToolDescription(toolName: string): Promise<string | null>
+  getToolDescription(toolName: string, agent?: Agent | null): Promise<string | null>
 
   /**
    * 检查给定名称是否为内置工具
    */
-  isBuiltInTool(toolName: string): boolean
+  isBuiltInTool(toolName: string, agent?: Agent | null): boolean
 
   /**
    * 直接执行内置工具（返回底层执行结果，包含 rawData）
@@ -1262,7 +1272,8 @@ export interface IBuiltInToolsPresenter {
   executeBuiltInTool(
     toolName: string,
     args: any,
-    toolCallId: string
+    toolCallId: string,
+    currentAgent?: Agent
   ): Promise<{
     toolCallId: string
     content: string
@@ -1271,7 +1282,10 @@ export interface IBuiltInToolsPresenter {
     rawData: MCPToolResponse
   }>
 
-  callTool(toolCall: MCPToolCall): Promise<{
+  callTool(
+    toolCall: MCPToolCall,
+    currentAgent?: Agent | null
+  ): Promise<{
     content: string
     rawData: MCPToolResponse
   }>

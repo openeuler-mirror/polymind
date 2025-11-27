@@ -81,15 +81,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref,computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@/components/ui/button'
 import { usePresenter } from '@/composables/usePresenter'
 import { AssistantMessageBlock } from '@shared/chat'
+import { useChatStore } from '@/stores/chat'
 
 const { t } = useI18n()
+const chatStore = useChatStore()
 const threadPresenter = usePresenter('threadPresenter')
+const selectedAgent = computed(() => chatStore.selectedAgent || null)
 
 const props = defineProps<{
   block: AssistantMessageBlock
@@ -228,7 +231,8 @@ const grantPermission = async () => {
       props.block.tool_call.id,
       true,
       (props.block.extra?.permissionType as 'read' | 'write' | 'all') || 'write',
-      true
+      true,
+      selectedAgent.value || undefined
     )
   } catch (error) {
     console.error('Failed to grant permission:', error)
@@ -247,7 +251,8 @@ const denyPermission = async () => {
       props.block.tool_call.id,
       false,
       (props.block.extra?.permissionType as 'read' | 'write' | 'all') || 'write',
-      false
+      false,
+      selectedAgent.value || undefined
     )
   } catch (error) {
     console.error('Failed to deny permission:', error)

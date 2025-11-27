@@ -1271,18 +1271,8 @@ export class ConfigPresenter implements IConfigPresenter {
 
   private async getBuildInSystemPrompt(agent?: Agent): Promise<string> {
     // 获取内置的系统提示词
-    let roleDefinition = ''
-    if (agent) {
-      roleDefinition += `Your name is ${agent.name},${agent.description}.`
-      if (agent.skills.length > 0) {
-        roleDefinition += `You have the following skills:\n`
-        for (const skill of agent.skills || []) {
-          roleDefinition += `- ${skill.name}=>${skill.description}\n`
-        }
-      }
-    }
     const useBuiltInToolsEnabled = this.getUseBuiltInToolsEnabled()
-    return await SYSTEM_PROMPT('', '', this.getLanguage(), '', useBuiltInToolsEnabled, roleDefinition)
+    return await SYSTEM_PROMPT('', '', this.getLanguage(), '', useBuiltInToolsEnabled, agent)
   }
 
   async getSystemPrompts(): Promise<SystemPrompt[]> {

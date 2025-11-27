@@ -1,5 +1,6 @@
 import { ShowResponse } from 'ollama'
 import { ChatMessage, LLMAgentEvent } from '../core/chat'
+import { Agent } from './legacy.presenters'
 import { ModelType } from '../core/model'
 
 /**
@@ -156,7 +157,8 @@ export interface ILlmProviderPresenter {
     verbosity?: 'low' | 'medium' | 'high',
     enableSearch?: boolean,
     forcedSearch?: boolean,
-    searchStrategy?: 'turbo' | 'max'
+    searchStrategy?: 'turbo' | 'max',
+    agent?: Agent | null
   ): AsyncGenerator<LLMAgentEvent, void, unknown>
   generateCompletion(
     providerId: string,

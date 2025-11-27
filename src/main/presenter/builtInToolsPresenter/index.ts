@@ -1,10 +1,18 @@
 import { jsonrepair } from 'jsonrepair'
-import { Tool, MCPToolDefinition, MCPToolCall, MCPToolResponse } from '@shared/presenter'
+import {
+  Tool,
+  MCPToolDefinition,
+  MCPToolCall,
+  MCPToolResponse,
+  Agent,
+  IBuiltInToolsPresenter
+} from '@shared/presenter'
 import { BuiltInToolDefinition, BuiltInToolResponse, validateToolArgs, buildRawData } from './base'
 import { readFileTool, executeReadFileTool } from './readFileTool'
 import { writeFileTool, executeWriteFileTool } from './writeFileTool'
 import { listFilesTool, executeListFilesTool } from './listFilesTool'
 import { executeCommandTool, executeCommandToolHandler } from './executeCommandTool'
+import { useA2AServerTool, executeUseA2AServerToolHandler } from './useA2AServerTool'
 
 export const BUILT_IN_TOOL_SERVER_NAME = 'polymind-builtin'
 export const BUILT_IN_TOOL_SERVER_DESCRIPTION = 'PolyMind built-in tools'
@@ -24,6 +32,14 @@ const builtInToolExecutors: Record<string, BuiltInExecutor> = {
   [executeCommandTool.name]: executeCommandToolHandler
 }
 
+const a2aBuiltInTools: Record<string, BuiltInToolDefinition> = {
+  [useA2AServerTool.name]: useA2AServerTool
+}
+
+const a2aBuiltInToolExecutors: Record<string, BuiltInExecutor> = {
+  [useA2AServerTool.name]: executeUseA2AServerToolHandler
+}
+
 class BuiltInToolCallError extends Error {
   rawData: MCPToolResponse
 
@@ -34,13 +50,36 @@ class BuiltInToolCallError extends Error {
   }
 }
 
-export class BuiltInToolsPresenter {
+export class BuiltInToolsPresenter implements IBuiltInToolsPresenter {
+  private getToolRegistry(currentAgent?: Agent): {
+    tools: Record<string, BuiltInToolDefinition>
+    executors: Record<string, BuiltInExecutor>
+  } {
+    const tools = { ...builtInTools }
+    const executors = { ...builtInToolExecutors }
+    if (currentAgent?.type === 'A2A') {
+      useA2AServerTool.description = currentAgent.description
+      if (currentAgent.skills.length > 0) {
+        useA2AServerTool.description += ` Proficient in the following skills: \n${currentAgent.skills
+          .map((skill) => {
+            return `${skill.name}=>${skill.description}`
+          })
+          .join('\n')}.`
+      }
+      Object.assign(tools, a2aBuiltInTools)
+      Object.assign(executors, a2aBuiltInToolExecutors)
+    }
+    return { tools, executors }
+  }
+
   async executeBuiltInTool(
     toolName: string,
     args: any,
-    toolCallId: string
+    toolCallId: string,
+    currentAgent?: Agent
   ): Promise<BuiltInToolResponse> {
-    const def = builtInTools[toolName]
+    const { tools, executors } = this.getToolRegistry(currentAgent)
+    const def = tools[toolName]
     let resolvedArgs = args
     if (def) {
       const check = validateToolArgs(def, args)
@@ -58,8 +97,22 @@ export class BuiltInToolsPresenter {
       resolvedArgs = check.normalizedArgs
     }
 
-    const executor = builtInToolExecutors[toolName]
+    const executor = executors[toolName]
     if (executor) {
+      if (executor === executeUseA2AServerToolHandler) {
+        if (!currentAgent || !currentAgent.a2aURL) {
+          const failureMessage = 'use_a2a_server requires an A2A agent with a valid a2aURL'
+          const meta = { error: failureMessage, tool: toolName }
+          return {
+            toolCallId,
+            content: failureMessage,
+            success: false,
+            metadata: meta,
+            rawData: buildRawData(toolCallId, failureMessage, true, meta)
+          }
+        }
+        resolvedArgs = { ...resolvedArgs, currentAgent }
+      }
       return await executor(resolvedArgs, toolCallId)
     }
     const msg = `Unknown built-in tool: ${toolName}`
@@ -73,8 +126,9 @@ export class BuiltInToolsPresenter {
     }
   }
 
-  async getBuiltInTools(): Promise<Tool[]> {
-    const definitions = Object.values(builtInTools)
+  async getBuiltInTools(currentAgent?: Agent): Promise<Tool[]> {
+    const { tools } = this.getToolRegistry(currentAgent)
+    const definitions = Object.values(tools)
     return definitions.map((def) => ({
       name: def.name,
       description: def.description,
@@ -98,7 +152,10 @@ export class BuiltInToolsPresenter {
     return toolName in builtInTools
   }
 
-  async callTool(toolCall: MCPToolCall): Promise<{ content: string; rawData: MCPToolResponse }> {
+  async callTool(
+    toolCall: MCPToolCall,
+    currentAgent?: Agent
+  ): Promise<{ content: string; rawData: MCPToolResponse }> {
     let parsedArguments: Record<string, unknown>
 
     try {
@@ -117,7 +174,8 @@ export class BuiltInToolsPresenter {
       const response = await this.executeBuiltInTool(
         toolCall.function.name,
         parsedArguments,
-        toolCall.id
+        toolCall.id,
+        currentAgent
       )
       if (!response.success || response.rawData.isError) {
         throw new BuiltInToolCallError(response.content, response.rawData)
@@ -134,13 +192,16 @@ export class BuiltInToolsPresenter {
     }
   }
 
-  async getBuiltInToolDefinitions(enabled: boolean = true): Promise<MCPToolDefinition[]> {
+  async getBuiltInToolDefinitions(
+    enabled: boolean = true,
+    currentAgent?: Agent
+  ): Promise<MCPToolDefinition[]> {
     if (!enabled) {
       return []
     }
 
     try {
-      const tools = await this.getBuiltInTools()
+      const tools = await this.getBuiltInTools(currentAgent)
       return tools.map((tool) => this.mapToolToDefinition(tool))
     } catch (error) {
       console.error('[BuiltInToolsPresenter] Failed to load built-in tools:', error)
@@ -152,8 +213,8 @@ export class BuiltInToolsPresenter {
    * 将 MCPToolDefinition 转换为 XML 格式
    * @returns XML 格式的工具定义字符串
    */
-  async convertToolsToXml(enabled: boolean = true): Promise<string> {
-    const tools = await this.getBuiltInToolDefinitions(enabled)
+  async convertToolsToXml(enabled: boolean = true, currentAgent?: Agent): Promise<string> {
+    const tools = await this.getBuiltInToolDefinitions(enabled, currentAgent)
     const xmlTools = tools
       .map((tool) => {
         const { name, description, parameters } = tool.function

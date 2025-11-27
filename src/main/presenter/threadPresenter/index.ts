@@ -14,7 +14,8 @@ import {
   ChatMessage,
   ChatMessageContent,
   LLMAgentEventData,
-  AIScriptResult
+  AIScriptResult,
+  Agent
 } from '../../../shared/presenter'
 import { presenter } from '@/presenter'
 import { MessageManager } from './messageManager'
@@ -1813,7 +1814,7 @@ export class ThreadPresenter implements IThreadPresenter {
     return results.map((result) => JSON.parse(result.content) as SearchResult) ?? []
   }
 
-  async startStreamCompletion(conversationId: string, queryMsgId?: string) {
+  async startStreamCompletion(conversationId: string, currentAgent?: Agent, queryMsgId?: string) {
     const state = this.findGeneratingState(conversationId)
     if (!state) {
       console.warn('未找到状态，conversationId:', conversationId)
@@ -1918,7 +1919,8 @@ export class ThreadPresenter implements IThreadPresenter {
         currentVerbosity,
         currentEnableSearch,
         currentForcedSearch,
-        currentSearchStrategy
+        currentSearchStrategy,
+        currentAgent
       )
       for await (const event of stream) {
         const msg = event.data
@@ -1942,7 +1944,7 @@ export class ThreadPresenter implements IThreadPresenter {
       throw error
     }
   }
-  async continueStreamCompletion(conversationId: string, queryMsgId: string) {
+  async continueStreamCompletion(conversationId: string, queryMsgId: string, currentAgent?: Agent) {
     const state = this.findGeneratingState(conversationId)
     if (!state) {
       console.warn('未找到状态，conversationId:', conversationId)
@@ -2102,7 +2104,8 @@ export class ThreadPresenter implements IThreadPresenter {
         verbosity,
         enableSearch,
         forcedSearch,
-        searchStrategy
+        searchStrategy,
+        currentAgent
       )
       for await (const event of stream) {
         const msg = event.data
@@ -4090,7 +4093,8 @@ export class ThreadPresenter implements IThreadPresenter {
     toolCallId: string,
     granted: boolean,
     permissionType: 'read' | 'write' | 'all',
-    remember: boolean = true
+    remember: boolean = true,
+    currentAgent?: Agent
   ): Promise<void> {
     console.log(`[ThreadPresenter] Handling permission response:`, {
       messageId,
@@ -4186,7 +4190,7 @@ export class ThreadPresenter implements IThreadPresenter {
         }
 
         // 5. 现在重启agent loop
-        await this.restartAgentLoopAfterPermission(messageId)
+        await this.restartAgentLoopAfterPermission(messageId, currentAgent)
       } else {
         console.log(
           `[ThreadPresenter] Permission denied, ending generation for message: ${messageId}`
@@ -4212,7 +4216,10 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   // 重新启动agent loop (权限授予后)
-  private async restartAgentLoopAfterPermission(messageId: string): Promise<void> {
+  private async restartAgentLoopAfterPermission(
+    messageId: string,
+    currentAgent?: Agent
+  ): Promise<void> {
     console.log(
       `[ThreadPresenter] Restarting agent loop after permission for message: ${messageId}`
     )
@@ -4272,7 +4279,7 @@ export class ThreadPresenter implements IThreadPresenter {
       const state = this.generatingMessages.get(messageId)
       if (state) {
         console.log(`[ThreadPresenter] Message still in generating state, resuming from memory`)
-        await this.resumeStreamCompletion(conversationId, messageId)
+        await this.resumeStreamCompletion(conversationId, messageId, currentAgent)
         return
       }
 
@@ -4296,7 +4303,7 @@ export class ThreadPresenter implements IThreadPresenter {
       console.log(`[ThreadPresenter] Created new generating state for message: ${messageId}`)
 
       // 启动新的流式完成
-      await this.startStreamCompletion(conversationId, messageId)
+      await this.startStreamCompletion(conversationId, currentAgent, messageId)
     } catch (error) {
       console.error(`[ThreadPresenter] Failed to restart agent loop:`, error)
 
@@ -4361,13 +4368,17 @@ export class ThreadPresenter implements IThreadPresenter {
   }
 
   // 恢复流式完成 (用于内存状态存在的情况)
-  private async resumeStreamCompletion(conversationId: string, messageId: string): Promise<void> {
+  private async resumeStreamCompletion(
+    conversationId: string,
+    messageId: string,
+    currentAgent?: Agent
+  ): Promise<void> {
     const state = this.generatingMessages.get(messageId)
     if (!state) {
       console.log(
         `[ThreadPresenter] No generating state found for ${messageId}, starting fresh agent loop`
       )
-      await this.startStreamCompletion(conversationId)
+      await this.startStreamCompletion(conversationId, currentAgent)
       return
     }
 
@@ -4411,7 +4422,7 @@ export class ThreadPresenter implements IThreadPresenter {
           `[ThreadPresenter] No pending tool call found after permission grant, using normal context`
         )
         // 如果没有找到待执行的工具调用，使用正常流程
-        await this.startStreamCompletion(conversationId, messageId)
+        await this.startStreamCompletion(conversationId, currentAgent, messageId)
         return
       }
 
@@ -4454,7 +4465,8 @@ export class ThreadPresenter implements IThreadPresenter {
         verbosity,
         enableSearch,
         forcedSearch,
-        searchStrategy
+        searchStrategy,
+        currentAgent
       )
 
       for await (const event of stream) {

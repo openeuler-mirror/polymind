@@ -6,6 +6,7 @@ import {
   UserMessage
 } from '../core/chat'
 import { MODEL_META } from './llmprovider.presenter'
+import { Agent } from './legacy.presenters'
 
 /**
  * Thread/Conversation Presenter Interface
@@ -156,7 +157,11 @@ export interface IThreadPresenter {
     pageSize: number
   ): Promise<{ total: number; list: MESSAGE[] }>
   sendMessage(conversationId: string, content: string, role: MESSAGE_ROLE): Promise<MESSAGE | null>
-  startStreamCompletion(conversationId: string, queryMsgId?: string): Promise<void>
+  startStreamCompletion(
+    conversationId: string,
+    queryMsgId?: string,
+    agent?: Agent | null
+  ): Promise<void>
   editMessage(messageId: string, content: string): Promise<MESSAGE>
   deleteMessage(messageId: string): Promise<void>
   retryMessage(messageId: string, modelId?: string): Promise<MESSAGE>

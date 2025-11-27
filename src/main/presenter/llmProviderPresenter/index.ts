@@ -12,7 +12,8 @@ import {
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
   IConfigPresenter,
-  MCPToolDefinition
+  MCPToolDefinition,
+  Agent
 } from '@shared/presenter'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { BaseLLMProvider } from './baseProvider'
@@ -706,7 +707,8 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     verbosity?: 'low' | 'medium' | 'high',
     enableSearch?: boolean,
     forcedSearch?: boolean,
-    searchStrategy?: 'turbo' | 'max'
+    searchStrategy?: 'turbo' | 'max',
+    currentAgent?: Agent | null
   ): AsyncGenerator<LLMAgentEvent, void, unknown> {
     console.log(`[Agent Loop] Starting agent loop for event: ${eventId} with model: ${modelId}`)
     if (!this.canStartNewStream()) {
@@ -803,7 +805,10 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
           const useBuiltInToolsEnabled = this.configPresenter.getUseBuiltInToolsEnabled()
           const [mcpTools, builtInTools] = await Promise.all([
             presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools),
-            presenter.builtInToolsPresenter.getBuiltInToolDefinitions(useBuiltInToolsEnabled)
+            presenter.builtInToolsPresenter.getBuiltInToolDefinitions(
+              useBuiltInToolsEnabled,
+              currentAgent
+            )
           ])
           availableTools = [...mcpTools, ...builtInTools]
 
@@ -1117,7 +1122,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
               try {
                 // Execute the tool via McpPresenter or builtInToolsPresenter
                 const toolResponse = isBuiltInTools
-                  ? await presenter.builtInToolsPresenter.callTool(mcpToolInput)
+                  ? await presenter.builtInToolsPresenter.callTool(mcpToolInput, currentAgent)
                   : await presenter.mcpPresenter.callTool(mcpToolInput)
 
                 if (abortController.signal.aborted) break // Check after tool call returns
