@@ -123,7 +123,9 @@ export class AutoPromptingServer {
   }
 
   // 处理工具调用 (对应 CallToolRequestSchema)
-  private async handleToolCall(request: z.infer<typeof CallToolRequestSchema>) {
+  private async handleToolCall(request: {
+    params: { name: string; arguments?: Record<string, unknown> }
+  }) {
     const { name, arguments: args } = request.params
 
     if (name === 'list_all_prompt_template_names') {

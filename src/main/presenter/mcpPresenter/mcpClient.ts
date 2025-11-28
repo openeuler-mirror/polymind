@@ -579,11 +579,7 @@ export class McpClient {
       this.client = new Client(
         { name: 'PolyMind', version: app.getVersion() },
         {
-          capabilities: {
-            resources: {},
-            tools: {},
-            prompts: {}
-          }
+          capabilities: {}
         }
       )
 
