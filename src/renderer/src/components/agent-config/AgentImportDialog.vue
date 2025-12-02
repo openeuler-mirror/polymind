@@ -279,14 +279,7 @@ const clearA2APreview = async () => {
   const pendingPreview = a2aPreview.value
   a2aPreview.value = null
   expandedSkillMap.value = {}
-  if (!pendingPreview) {
-    return
-  }
-  try {
-    await a2aServerPresenter.removeA2AServer(pendingPreview.url)
-  } catch (error) {
-    console.warn('Failed to remove temporary A2A server:', error)
-  }
+  if (!pendingPreview) return
 }
 
 const isSkillExpanded = (name: string) => {
