@@ -386,6 +386,16 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   /**
+   * 检查指定 ID 的窗口是否已最小化。
+   * @param windowId 窗口 ID。
+   * @returns 如果窗口存在、有效且已最小化，则返回 true，否则返回 false。
+   */
+  isMinimized(windowId: number): boolean {
+    const window = this.windows.get(windowId)
+    return window && !window.isDestroyed() ? window.isMinimized() : false
+  }
+
+  /**
    * 检查指定 ID 的窗口是否当前获得了焦点。
    * @param windowId 窗口 ID。
    * @returns 如果是焦点窗口，则返回 true，否则返回 false。
@@ -691,6 +701,9 @@ export class WindowPresenter implements IWindowPresenter {
     // 窗口取消最大化
     shellWindow.on('unmaximize', () => {
       console.log(`Window ${windowId} unmaximized.`)
+      if (this.isMinimized(windowId)) {
+        return // 正在最小化时，跳过恢复/聚焦
+      }
       if (!shellWindow.isDestroyed()) {
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, windowId)
         // 触发恢复逻辑更新标签页 bounds
