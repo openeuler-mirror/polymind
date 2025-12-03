@@ -81,6 +81,16 @@ const DEFAULT_AI_SCRIPT_SYSTEM_PROMPT = `
 ## 角色定位
 你是一名专业的系统管理员和脚本开发助手，负责分析用户与助手的历史会话，识别出需要通过系统命令执行的步骤，并将这些命令整理为健壮、可执行并具备日志与错误处理的 shell 脚本。当 shell 无法实现最终目标时，你需要生成结构化的报告文档，帮助用户明确差距与可行的替代方案。
 
+## 输入处理守则
+- 不要把历史会话中的长文本、文件正文、模型生成的代码块或二进制数据原样复制；仅保留关键摘要或引用路径。
+- 对于已经生成或存在的文件，只在脚本中引用文件名/路径或必要的操作，不要把文件内容写入脚本。
+- 遇到工具调用返回的文件或超长输出，用“已截断/已摘要”说明，而不是粘贴原文。
+
+## 分发与依赖要求
+- 生成的脚本和中间产物要便于在其他环境执行；明确需要携带/下载的文件及其用途，不要把文件内容直接嵌入脚本。
+- 脚本必须检查关键依赖（命令/工具版本/权限），缺失时给出安装提示并安全退出。
+- 在 notes 中列出运行步骤、依赖项、需要打包或同步的中间文件路径，以及跨环境执行的注意事项。
+
 ## 工作流程
 1. 会话分析：阅读完整的历史会话，明确用户目标、上下文与执行限制。
 2. 命令识别：梳理需要系统命令才能完成的步骤，分析依赖关系、前置条件与潜在风险。
@@ -93,51 +103,10 @@ const DEFAULT_AI_SCRIPT_SYSTEM_PROMPT = `
 #!/bin/bash
 
 # 脚本信息
-SCRIPT_NAME="auto_generated_script.sh"
-SCRIPT_VERSION="1.0"
-AUTHOR="Auto Generated"
-
-# 颜色定义（用于输出）
-RED='\\033[0;31m'
-GREEN='\\033[0;32m'
-YELLOW='\\033[1;33m'
-BLUE='\\033[0;34m'
-NC='\\033[0m' # No Color
-
-# 日志函数
-log_info() {
-    echo -e "\${BLUE}[INFO]\${NC} $1"
-}
-
-log_success() {
-    echo -e "\${GREEN}[SUCCESS]\${NC} $1"
-}
-
-log_warning() {
-    echo -e "\${YELLOW}[WARNING]\${NC} $1"
-}
-
-log_error() {
-    echo -e "\${RED}[ERROR]\${NC} $1"
-}
-
-# 错误处理函数
-check_exit_code() {
-    local exit_code=$?
-    local command_name=$1
-
-    if [ $exit_code -ne 0 ]; then
-        log_error "命令 '$command_name' 执行失败，退出码: $exit_code"
-        exit $exit_code
-    else
-        log_success "命令 '$command_name' 执行成功"
-    fi
-}
 
 # 主执行函数
 main() {
     log_info "开始执行自动生成的脚本"
-    log_info "脚本名称: $SCRIPT_NAME"
     log_info "开始时间: $(date)"
 
     # 在这里插入从历史会话中提取的命令
@@ -151,6 +120,9 @@ main "$@"
 \`\`\`
 
 生成脚本时，请在 \`main\` 函数内部替换注释，依次插入提取出的命令。必要时可以新增辅助函数或变量，脚本执行如果需要交互，请使用 \`read\` 函数读取用户输入。
+- 在脚本开头添加依赖检查和环境准备（如命令是否存在、权限、目标目录），缺失时打印安装提示并退出。
+- 不要在脚本或 JSON 输出中粘贴会话中的长文本、文件正文或完整代码；仅引用路径、命令或摘要。
+- 如果推断出的脚本会超过 1500 行或 shell 不适合完成目标，请返回 report 而不是 shell_script。
 
 ## 无命令场景
 - 如果历史会话中未使用 shell 命令，但可以通过 shell 达成目标，请直接生成脚本。
@@ -177,8 +149,9 @@ main "$@"
 
 - 当 \`result_type\` 为 \`shell_script\` 时，必须完整填写 \`shell_script\` 字段，\`report\` 必须为 null，\`notes\`字段按步骤填写脚本的使用方式，注意换行，然后就是脚本的使用限制和参数说明（如果有）
 - 当 \`result_type\` 为 \`report\` 时，必须完整填写 \`report\` 字段，\`shell_script\` 必须为 null，\`notes\`字段填写模型对用户需求反馈的结果总结。
-- \`platform\` 需要明确脚本适用的平台（如 Linux、macOS、Windows、跨平台等）。
+- 脚本需要兼容openEuler环境
 - 所有命令需要按执行顺序出现，并结合日志与错误检测。
+- notes 必须包含：如何在目标环境运行脚本的步骤、所需依赖（命令/包/权限）、需要打包或同步的中间文件路径，以及跨环境执行的注意事项。
 
 请严格遵守上述约束。
 `
@@ -3324,7 +3297,7 @@ export class ThreadPresenter implements IThreadPresenter {
         ? relevantMessages.slice(relevantMessages.length - maxHistory)
         : relevantMessages
 
-    const transcript = this.exportToText(conversation, trimmedHistory)
+    const transcript = this.exportToText(conversation, trimmedHistory, true)
 
     const systemPrompt =
       options?.promptOverride && options.promptOverride.trim().length > 0
@@ -3355,8 +3328,8 @@ export class ThreadPresenter implements IThreadPresenter {
       '请严格输出符合约束的 JSON。'
     ].join('\n\n')
 
-    const temperature = Math.max(Math.min(conversation.settings.temperature ?? 0.2, 0.5), 0)
-    const maxTokens = Math.min(conversation.settings.maxTokens ?? 2048, 4096)
+    const temperature = Math.min(conversation.settings.temperature ?? 0.2, 0.5)
+    const maxTokens = Math.max(conversation.settings.maxTokens ?? 16385)
 
     const messages = [
       { role: 'system' as const, content: systemPrompt },
@@ -3947,7 +3920,11 @@ export class ThreadPresenter implements IThreadPresenter {
   /**
    * 导出为纯文本格式
    */
-  private exportToText(conversation: CONVERSATION, messages: Message[]): string {
+  private exportToText(
+    conversation: CONVERSATION,
+    messages: Message[],
+    is_ai_scripted: boolean = false
+  ): string {
     const lines: string[] = []
 
     // 标题和元信息
@@ -4027,9 +4004,22 @@ export class ThreadPresenter implements IThreadPresenter {
                 lines.push(`[工具调用] ${block.tool_call.name}`)
                 if (block.tool_call.params) {
                   lines.push('参数:')
-                  lines.push(block.tool_call.params)
+                  if (block.tool_call.name === 'write_file' && is_ai_scripted) {
+                    try {
+                      const parsed = JSON.parse(block.tool_call.params)
+                      const fileParams = Array.isArray(parsed) ? parsed : [parsed]
+                      fileParams.forEach((param) => {
+                        lines.push(`- file_path: ${param?.file_path || '[unknown path]'}`)
+                        lines.push(`- content: 具体写入内容省略`)
+                      })
+                    } catch {
+                      lines.push(block.tool_call.params)
+                    }
+                  } else {
+                    lines.push(block.tool_call.params)
+                  }
                 }
-                if (block.tool_call.response) {
+                if (!is_ai_scripted && block.tool_call.response) {
                   lines.push('响应:')
                   lines.push(block.tool_call.response)
                 }
