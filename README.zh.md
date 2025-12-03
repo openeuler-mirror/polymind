@@ -30,7 +30,7 @@
 
 ## 🚀 项目简介
 
-PolyMind是一款基于[PolyMind](https://gitee.com/openeuler/polymind)开发的AI智能助手，为DevStation发行版提供环境感知和强大的工具调度能力。
+PolyMind是一款基于[DeepChat](https://github.com/thinkinaixyz/deepchat)开发的AI智能助手，为DevStation发行版提供环境感知和强大的工具调度能力。
 
 作为一个跨平台的AI助手应用，不仅支持基础的聊天功能，还提供了搜索增强、工具调用、多模态交互等高级特性，让AI能力的应用更加便捷和高效。
 
