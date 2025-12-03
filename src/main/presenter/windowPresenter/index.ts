@@ -24,6 +24,16 @@ export class WindowPresenter implements IWindowPresenter {
   private configPresenter: IConfigPresenter
   // Exit flag indicating if app is in the process of quitting (set by 'before-quit' hook)
   private isQuitting: boolean = false
+  // Track windows that requested an action after leaving fullscreen to suppress restore/show
+  private fullscreenExitActions = new Set<number>()
+  // Pending transient actions (minimize/hide) to suppress restore/show handlers
+  private pendingWindowActions = new Map<
+    number,
+    {
+      action: 'minimize' | 'hide'
+      expires: number
+    }
+  >()
   // Current focused window ID (internal record)
   private focusedWindowId: number | null = null
   // Main window ID
@@ -201,7 +211,19 @@ export class WindowPresenter implements IWindowPresenter {
     const window = this.windows.get(windowId)
     if (window && !window.isDestroyed()) {
       console.log(`Minimizing window ${windowId}.`)
-      window.minimize()
+      this.setPendingWindowAction(windowId, 'minimize')
+      // When in fullscreen, exit fullscreen first to avoid flicker/reopen issues on minimize.
+      this.runAfterExitFullScreen(
+        window,
+        () => {
+          if (!window.isDestroyed()) {
+            window.minimize()
+          } else {
+            console.warn(`Window ${windowId} was destroyed before minimizing.`)
+          }
+        },
+        true
+      )
     } else {
       console.warn(`Failed to minimize window ${windowId}, window does not exist or is destroyed.`)
     }
@@ -279,22 +301,18 @@ export class WindowPresenter implements IWindowPresenter {
     if (window && !window.isDestroyed()) {
       console.log(`Hiding window ${windowId}.`)
       // 处理全屏窗口隐藏时的黑屏问题
-      if (window.isFullScreen()) {
-        console.log(`Window ${windowId} is fullscreen, exiting fullscreen before hiding.`)
-        // 退出全屏后监听 leave-full-screen 事件再隐藏
-        window.once('leave-full-screen', () => {
-          console.log(`Window ${windowId} left fullscreen, proceeding with hide.`)
+      this.setPendingWindowAction(windowId, 'hide')
+      this.runAfterExitFullScreen(
+        window,
+        () => {
           if (!window.isDestroyed()) {
             window.hide()
           } else {
-            console.warn(`Window ${windowId} was destroyed after leaving fullscreen, cannot hide.`)
+            console.warn(`Window ${windowId} was destroyed before hiding.`)
           }
-        })
-        window.setFullScreen(false) // 请求退出全屏
-      } else {
-        console.log(`Window ${windowId} is not fullscreen, hiding directly.`)
-        window.hide() // 直接隐藏
-      }
+        },
+        true
+      )
     } else {
       console.warn(`Failed to hide window ${windowId}, window does not exist or is destroyed.`)
     }
@@ -325,6 +343,13 @@ export class WindowPresenter implements IWindowPresenter {
       }
     }
 
+    if (this.hasPendingWindowAction(targetWindow.id)) {
+      console.log(
+        `Show skipped for window ${targetWindow.id} due to pending transient action (minimize/hide).`
+      )
+      return
+    }
+
     targetWindow.show()
     targetWindow.focus() // Bring to foreground
     // 触发恢复逻辑以确保活动标签页可见且位置正确
@@ -344,6 +369,14 @@ export class WindowPresenter implements IWindowPresenter {
     if (!window || window.isDestroyed()) {
       console.warn(
         `Cannot handle restore/show logic for window ${windowId}, window does not exist or is destroyed.`
+      )
+      return
+    }
+
+    // 如果存在待处理的隐藏/最小化操作，跳过恢复逻辑
+    if (this.hasPendingWindowAction(windowId)) {
+      console.log(
+        `Skipping restore/show logic for window ${windowId} because a transient action is pending.`
       )
       return
     }
@@ -706,19 +739,33 @@ export class WindowPresenter implements IWindowPresenter {
       }
       if (!shellWindow.isDestroyed()) {
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, windowId)
-        // 触发恢复逻辑更新标签页 bounds
-        this.handleWindowRestore(windowId).catch((error) => {
-          console.error(
-            `Error handling restore logic after unmaximizing window ${windowId}:`,
-            error
+        if (this.fullscreenExitActions.has(windowId)) {
+          console.log(
+            `Window ${windowId} unmaximize restore skipped (pending hide/minimize after fullscreen).`
           )
-        })
+        } else if (this.hasPendingWindowAction(windowId)) {
+          console.log(
+            `Window ${windowId} unmaximize restore skipped due to pending transient action.`
+          )
+        } else {
+          // 触发恢复逻辑更新标签页 bounds
+          this.handleWindowRestore(windowId).catch((error) => {
+            console.error(
+              `Error handling restore logic after unmaximizing window ${windowId}:`,
+              error
+            )
+          })
+        }
       }
     })
 
     // 窗口从最小化恢复 (或通过 show 显式显示)
     const handleRestore = async () => {
       console.log(`Window ${windowId} restored.`)
+      if (this.hasPendingWindowAction(windowId)) {
+        console.log(`Window ${windowId} restore skipped due to pending transient action.`)
+        return
+      }
       this.handleWindowRestore(windowId).catch((error) => {
         console.error(`Error handling restore logic for window ${windowId}:`, error)
       })
@@ -747,13 +794,19 @@ export class WindowPresenter implements IWindowPresenter {
       console.log(`Window ${windowId} left fullscreen.`)
       if (!shellWindow.isDestroyed()) {
         eventBus.sendToMain(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, windowId)
-        // 触发恢复逻辑更新标签页 bounds
-        this.handleWindowRestore(windowId).catch((error) => {
-          console.error(
-            `Error handling restore logic after leaving fullscreen for window ${windowId}:`,
-            error
+        // 触发恢复逻辑更新标签页 bounds，除非当前正在执行全屏退出后的隐藏/最小化
+        if (this.fullscreenExitActions.has(windowId)) {
+          console.log(
+            `Window ${windowId} suppressing restore after leave-full-screen (pending hide/minimize).`
           )
-        })
+        } else {
+          this.handleWindowRestore(windowId).catch((error) => {
+            console.error(
+              `Error handling restore logic after leaving fullscreen for window ${windowId}:`,
+              error
+            )
+          })
+        }
       }
     })
 
@@ -783,25 +836,21 @@ export class WindowPresenter implements IWindowPresenter {
           event.preventDefault() // 阻止默认窗口关闭行为
 
           // 处理全屏窗口隐藏时的黑屏问题 (同 hide 方法)
-          if (shellWindow.isFullScreen()) {
-            console.log(
-              `Window ${windowId} is fullscreen, exiting fullscreen before hiding (close event).`
-            )
-            shellWindow.once('leave-full-screen', () => {
-              console.log(`Window ${windowId} left fullscreen, proceeding with hide (close event).`)
+          this.setPendingWindowAction(windowId, 'hide')
+          this.runAfterExitFullScreen(
+            shellWindow,
+            () => {
               if (!shellWindow.isDestroyed()) {
+                console.log(`Window ${windowId} hiding after exit fullscreen (close event).`)
                 shellWindow.hide()
               } else {
                 console.warn(
                   `Window ${windowId} was destroyed after leaving fullscreen, cannot hide (close event).`
                 )
               }
-            })
-            shellWindow.setFullScreen(false)
-          } else {
-            console.log(`Window ${windowId} is not fullscreen, hiding directly (close event).`)
-            shellWindow.hide()
-          }
+            },
+            true
+          )
         } else {
           // 允许默认关闭行为。这将触发 'closed' 事件。
           console.log(
@@ -1206,6 +1255,80 @@ export class WindowPresenter implements IWindowPresenter {
 
   public setApplicationQuitting(isQuitting: boolean): void {
     this.isQuitting = isQuitting
+  }
+
+  /**
+   * Ensure actions run after exiting fullscreen to avoid flicker/restore loops.
+   * Falls back with a timeout in case the leave-full-screen event does not fire.
+   */
+  private runAfterExitFullScreen(
+    window: BrowserWindow,
+    action: () => void,
+    suppressRestore: boolean = false
+  ): void {
+    if (window.isDestroyed()) {
+      return
+    }
+
+    if (!window.isFullScreen()) {
+      action()
+      return
+    }
+
+    if (suppressRestore) {
+      this.fullscreenExitActions.add(window.id)
+    }
+
+    let executed = false
+    const safeExecute = () => {
+      if (executed || window.isDestroyed()) return
+      executed = true
+      action()
+      // 延迟清理标记，确保后续的 unmaximize/restore 事件也被抑制
+      const windowId = window.id
+      setTimeout(() => {
+        this.fullscreenExitActions.delete(windowId)
+      }, 1000)
+    }
+
+    // Fallback in case leave-full-screen is not emitted (platform quirks)
+    const timeout = setTimeout(() => {
+      console.log(`Fallback minimize/hide after exiting fullscreen for window ${window.id}.`)
+      safeExecute()
+    }, 500)
+
+    window.once('leave-full-screen', () => {
+      clearTimeout(timeout)
+      console.log(`Window ${window.id} left fullscreen, running pending action.`)
+      safeExecute()
+    })
+
+    window.setFullScreen(false)
+  }
+
+  private setPendingWindowAction(
+    windowId: number,
+    action: 'minimize' | 'hide',
+    ttlMs: number = 1500
+  ): void {
+    const expires = Date.now() + ttlMs
+    this.pendingWindowActions.set(windowId, { action, expires })
+    setTimeout(() => {
+      const entry = this.pendingWindowActions.get(windowId)
+      if (entry && entry.expires <= Date.now()) {
+        this.pendingWindowActions.delete(windowId)
+      }
+    }, ttlMs + 50)
+  }
+
+  private hasPendingWindowAction(windowId: number): boolean {
+    const entry = this.pendingWindowActions.get(windowId)
+    if (!entry) return false
+    if (entry.expires <= Date.now()) {
+      this.pendingWindowActions.delete(windowId)
+      return false
+    }
+    return true
   }
 
   private validateWindowPosition(
