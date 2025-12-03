@@ -1,7 +1,8 @@
 export function markdownFormattingSection(): string {
-  return `====
+  return `
+====
 
 MARKDOWN RULES
 
-ALL responses MUST show ANY \`language construct\` OR filename reference as clickable, exactly as [\`filename OR language.declaration()\`](relative/file/path.ext:line); line is required for \`syntax\` and optional for filename links. This applies to ALL markdown responses`
+ALL responses MUST show ANY \`language construct\` reference as clickable, exactly as [\`language.declaration()\`]; line is required for \`syntax\` . This applies to ALL markdown responses`
 }
