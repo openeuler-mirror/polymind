@@ -581,7 +581,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 使用窗口状态管理器恢复位置和尺寸
     const shellWindowState = windowStateManager({
-      defaultWidth: 800,
+      defaultWidth: 1032,
       defaultHeight: 620
     })
 
