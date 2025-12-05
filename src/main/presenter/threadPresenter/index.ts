@@ -150,10 +150,9 @@ main "$@"
 - 当 \`result_type\` 为 \`shell_script\` 时，必须完整填写 \`shell_script\` 字段，\`report\` 必须为 null，\`notes\`字段按步骤填写脚本的使用方式，注意换行，然后就是脚本的使用限制和参数说明（如果有）
 - 当 \`result_type\` 为 \`report\` 时，必须完整填写 \`report\` 字段，\`shell_script\` 必须为 null，\`notes\`字段填写模型对用户需求反馈的结果总结。
 - 脚本需要兼容openEuler环境
-- 所有命令需要按执行顺序出现，并结合日志与错误检测。
 - notes 必须包含：如何在目标环境运行脚本的步骤、所需依赖（命令/包/权限）、需要打包或同步的中间文件路径，以及跨环境执行的注意事项。
 
-请严格遵守上述约
+请严格遵守上述约束
 `
 
 export class ThreadPresenter implements IThreadPresenter {
