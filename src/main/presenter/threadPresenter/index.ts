@@ -17,6 +17,7 @@ import {
   AIScriptResult,
   Agent
 } from '../../../shared/presenter'
+import { jsonrepair } from 'jsonrepair'
 import { presenter } from '@/presenter'
 import { MessageManager } from './messageManager'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -81,10 +82,9 @@ const DEFAULT_AI_SCRIPT_SYSTEM_PROMPT = `
 ## 角色定位
 你是一名专业的系统管理员和脚本开发助手，负责分析用户与助手的历史会话，识别出需要通过系统命令执行的步骤，并将这些命令整理为健壮、可执行并具备日志与错误处理的 shell 脚本。当 shell 无法实现最终目标时，你需要生成结构化的报告文档，帮助用户明确差距与可行的替代方案。
 
-## 输入处理守则
-- 不要把历史会话中的长文本、文件正文、模型生成的代码块或二进制数据原样复制；仅保留关键摘要或引用路径。
-- 对于已经生成或存在的文件，只在脚本中引用文件名/路径或必要的操作，不要把文件内容写入脚本。
-- 遇到工具调用返回的文件或超长输出，用“已截断/已摘要”说明，而不是粘贴原文。
+## 输入处理守则（必须遵守）
+- 不要把历史会话中的长文本、文件正文、模型生成的代码块或二进制数据原样复制，待生成脚本中直接引用历史会话中生成的中间文件即可，且尽可能复用。
+- 对于已经生成或存在的文件，只在脚本中引用文件名/路径或必要的操作，一定不要把文件内容写入脚本。
 
 ## 分发与依赖要求
 - 生成的脚本和中间产物要便于在其他环境执行；明确需要携带/下载的文件及其用途，不要把文件内容直接嵌入脚本。
@@ -150,10 +150,9 @@ main "$@"
 - 当 \`result_type\` 为 \`shell_script\` 时，必须完整填写 \`shell_script\` 字段，\`report\` 必须为 null，\`notes\`字段按步骤填写脚本的使用方式，注意换行，然后就是脚本的使用限制和参数说明（如果有）
 - 当 \`result_type\` 为 \`report\` 时，必须完整填写 \`report\` 字段，\`shell_script\` 必须为 null，\`notes\`字段填写模型对用户需求反馈的结果总结。
 - 脚本需要兼容openEuler环境
-- 所有命令需要按执行顺序出现，并结合日志与错误检测。
 - notes 必须包含：如何在目标环境运行脚本的步骤、所需依赖（命令/包/权限）、需要打包或同步的中间文件路径，以及跨环境执行的注意事项。
 
-请严格遵守上述约束。
+请严格遵守上述约束
 `
 
 export class ThreadPresenter implements IThreadPresenter {
@@ -3328,8 +3327,8 @@ export class ThreadPresenter implements IThreadPresenter {
       '请严格输出符合约束的 JSON。'
     ].join('\n\n')
 
-    const temperature = Math.min(conversation.settings.temperature ?? 0.2, 0.5)
-    const maxTokens = Math.max(conversation.settings.maxTokens ?? 16385)
+    const temperature = Math.min(conversation.settings.temperature ?? 0)
+    const maxTokens = Math.max(conversation.settings.maxTokens ?? 8192)
 
     const messages = [
       { role: 'system' as const, content: systemPrompt },
@@ -3358,8 +3357,82 @@ export class ThreadPresenter implements IThreadPresenter {
   private parseAiScriptResponse(raw: string): AIScriptResult {
     const payload = this.extractJsonPayload(raw)
 
+    // 增强的预清洗：移除更多控制字符和问题字符
+    const sanitizedPayload = payload
+      .replace(
+        /[\u0000-\u001f\u007f-\u009f\u00ad\u0600-\u0605\u061c\u200b-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff9-\ufffb]/g,
+        ''
+      )
+      .replace(/\r\n?/g, '\n') // 统一换行符
+
+    // 增强的 JSON 修复函数
+    const tryParseWithRepair = (jsonStr: string): any => {
+      try {
+        return JSON.parse(jsonStr)
+      } catch (parseError) {
+        // 尝试修复常见 JSON 问题
+        let repaired = jsonStr
+
+        // 1. 修复未转义的控制字符（再次确保）
+        repaired = repaired.replace(/[\u0000-\u001f\u007f]/g, '')
+
+        // 2. 修复未转义的双引号（在字符串内部）
+        // 使用更稳健的方法：找到所有字符串并转义内部的双引号
+        repaired = repaired.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/g, (_match, content) => {
+          // 转义内容中的双引号，但跳过已经转义的双引号
+          const escapedContent = content.replace(/(?<!\\)"/g, '\\"')
+          return `"${escapedContent}"`
+        })
+
+        // 3. 修复未转义的反斜杠
+        repaired = repaired.replace(/\\(?![\\"\/bfnrtu])/g, '\\\\')
+
+        // 4. 修复未转义的换行符、制表符等
+        repaired = repaired.replace(/\n/g, '\\n')
+        repaired = repaired.replace(/\t/g, '\\t')
+        repaired = repaired.replace(/\r/g, '\\r')
+
+        // 5. 修复常见的 JSON 格式问题
+        // 移除尾随逗号
+        repaired = repaired.replace(/,(\s*[}\]])/g, '$1')
+        // 修复缺失的引号
+        repaired = repaired.replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3')
+
+        // 6. 使用 jsonrepair 进行最终修复
+        try {
+          repaired = jsonrepair(repaired)
+        } catch (e) {
+          // jsonrepair 失败，继续尝试原始修复
+        }
+
+        try {
+          return JSON.parse(repaired)
+        } catch (e) {
+          throw parseError // 抛出原始错误以保持错误堆栈
+        }
+      }
+    }
+
+    let data: any
     try {
-      const data = JSON.parse(payload)
+      data = tryParseWithRepair(sanitizedPayload)
+    } catch (finalError: any) {
+      console.warn('Failed to parse AI Script response after enhanced repair:', {
+        error: finalError,
+        rawLength: raw.length,
+        rawPreview: raw.substring(0, 500),
+        sanitizedPreview: sanitizedPayload.substring(0, 500),
+        payloadLength: payload.length
+      })
+      return this.buildFallbackAiScriptReport(
+        raw,
+        `模型响应解析失败: ${finalError?.message || '未知错误'}`,
+        undefined,
+        undefined
+      )
+    }
+
+    try {
       const resultType = data.result_type === 'shell_script' ? 'shell_script' : 'report'
       const objectiveSummary =
         typeof data.objective_summary === 'string' && data.objective_summary.trim().length > 0
@@ -3424,11 +3497,18 @@ export class ThreadPresenter implements IThreadPresenter {
         notes,
         rawResponse: raw
       }
-    } catch (error) {
-      console.warn('Failed to parse AI Script response:', error)
+    } catch (error: any) {
+      console.warn('Failed to parse AI Script response after JSON parsing:', {
+        error: error,
+        errorMessage: error?.message,
+        errorStack: error?.stack,
+        dataPreview: data ? JSON.stringify(data).substring(0, 500) : 'null',
+        rawLength: raw.length,
+        rawPreview: raw.substring(0, 500)
+      })
       return this.buildFallbackAiScriptReport(
         raw,
-        '模型响应不是有效的 JSON。',
+        `模型响应处理失败: ${error?.message || '未知错误'}`,
         undefined,
         undefined
       )
@@ -3440,22 +3520,60 @@ export class ThreadPresenter implements IThreadPresenter {
       return '{}'
     }
 
-    const fencedJson = raw.match(/```json\s*([\s\S]*?)```/i)
+    // 1. 首先尝试提取 JSON 代码块（支持 json 标记或无标记）
+    const fencedJson = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)
     if (fencedJson) {
       return fencedJson[1].trim()
     }
 
-    const fencedBlock = raw.match(/```[\w-]*\s*([\s\S]*?)```/)
-    if (fencedBlock) {
-      return fencedBlock[1].trim()
+    // 2. 尝试找到最可能的 JSON 对象
+    // 统计 { 和 } 的数量，找到平衡的 JSON
+    const braceMatches = Array.from(raw.matchAll(/(\{|\})/g))
+    let balance = 0
+    let start = -1
+    let end = -1
+
+    for (let i = 0; i < braceMatches.length; i++) {
+      const match = braceMatches[i]
+      if (match[0] === '{') {
+        if (balance === 0) {
+          start = match.index!
+        }
+        balance++
+      } else if (match[0] === '}') {
+        balance--
+        if (balance === 0) {
+          end = match.index! + 1
+          break
+        }
+      }
     }
 
+    if (start !== -1 && end !== -1 && end > start) {
+      const candidate = raw.slice(start, end).trim()
+      // 验证提取的内容看起来像 JSON
+      if (candidate.startsWith('{') && candidate.endsWith('}')) {
+        // 简单验证：检查是否有基本的 JSON 结构
+        const hasColon = candidate.includes(':')
+        const hasComma = candidate.includes(',')
+        if (hasColon || hasComma) {
+          return candidate
+        }
+      }
+    }
+
+    // 3. 回退到原始逻辑：找到第一个 { 和最后一个 }
     const firstBrace = raw.indexOf('{')
     const lastBrace = raw.lastIndexOf('}')
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      return raw.slice(firstBrace, lastBrace + 1).trim()
+      const candidate = raw.slice(firstBrace, lastBrace + 1).trim()
+      // 简单验证
+      if (candidate.startsWith('{') && candidate.endsWith('}') && candidate.includes(':')) {
+        return candidate
+      }
     }
 
+    // 4. 如果以上都失败，返回原始内容（清理过的）
     return raw.trim()
   }
 
