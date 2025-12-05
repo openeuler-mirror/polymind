@@ -153,30 +153,7 @@ main "$@"
 - 所有命令需要按执行顺序出现，并结合日志与错误检测。
 - notes 必须包含：如何在目标环境运行脚本的步骤、所需依赖（命令/包/权限）、需要打包或同步的中间文件路径，以及跨环境执行的注意事项。
 
-请严格遵守上述约束。
-
-# 输出格式硬性要求（再次强调）
-- 只能输出 JSON，禁止输出任何解释、Markdown、代码围栏（包括 \`\`\` 或 \`\`\`json）或额外文本。
-- JSON 必须且仅包含这些键：result_type, objective_summary, shell_script, report, notes。
-- result_type 只能是 "shell_script" 或 "report"。
-- 当 result_type="shell_script" 时，必须返回：
-  {
-    "result_type": "shell_script",
-    "objective_summary": "...",
-    "shell_script": { "instructions": "...", "script": "..." },
-    "report": null,
-    "notes": "..."
-  }
-- 当 result_type="report" 时，必须返回：
-  {
-    "result_type": "report",
-    "objective_summary": "...",
-    "shell_script": null,
-    "report": { "title": "...", "content_markdown": "...", "summary": "..." },
-    "notes": "..."
-  }
-- 字符串必须用双引号，禁止未转义的换行；若需换行使用 \\n。禁止空对象/空数组。
-- 禁止在 JSON 中包含围栏标记或额外层级，输出必须可直接被 JSON.parse 成功解析。
+请严格遵守上述约
 `
 
 export class ThreadPresenter implements IThreadPresenter {
