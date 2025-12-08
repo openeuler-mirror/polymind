@@ -40,6 +40,7 @@ import { getFileContext } from './fileContext'
 import { ContentEnricher } from './contentEnricher'
 import { CONVERSATION_EVENTS, STREAM_EVENTS, TAB_EVENTS } from '@/events'
 import { DEFAULT_SETTINGS } from './const'
+import { formatLanguage } from '@shared/language'
 
 interface GeneratingMessageState {
   message: AssistantMessage
@@ -75,7 +76,10 @@ interface GeneratingMessageState {
   throttleTimeout?: NodeJS.Timeout
   lastRendererUpdateTime?: number
 }
-
+const get_system_language = () => {
+  const languageName = formatLanguage(presenter.configPresenter.getLanguage())
+  return `# 语言偏好: \n请优先采用${languageName}语言进行思考和回答.`
+}
 const DEFAULT_AI_SCRIPT_SYSTEM_PROMPT = `
 # 历史会话总结与 Shell 脚本生成器 / Historical Conversation Shell Script Generator
 
@@ -152,8 +156,7 @@ main "$@"
 - 脚本需要兼容openEuler环境
 - notes 必须包含：如何在目标环境运行脚本的步骤、所需依赖（命令/包/权限）、需要打包或同步的中间文件路径，以及跨环境执行的注意事项。
 
-请严格遵守上述约束
-`
+请严格遵守上述约束`
 
 export class ThreadPresenter implements IThreadPresenter {
   private sqlitePresenter: ISQLitePresenter
@@ -3237,11 +3240,7 @@ export class ThreadPresenter implements IThreadPresenter {
    * @param format 导出格式 ('markdown' | 'html' | 'txt')
    * @returns 包含文件名和内容的对象
    */
-  async generateAiScript(
-    conversationId: string,
-    targetMessageId: string,
-    options?: { promptOverride?: string }
-  ): Promise<AIScriptResult> {
+  async generateAiScript(conversationId: string, targetMessageId: string): Promise<AIScriptResult> {
     const conversation = await this.getConversation(conversationId)
     if (!conversation) {
       throw new Error('Conversation not found')
@@ -3298,10 +3297,8 @@ export class ThreadPresenter implements IThreadPresenter {
 
     const transcript = this.exportToText(conversation, trimmedHistory, true)
 
-    const systemPrompt =
-      options?.promptOverride && options.promptOverride.trim().length > 0
-        ? options.promptOverride
-        : DEFAULT_AI_SCRIPT_SYSTEM_PROMPT
+    const systemPrompt = DEFAULT_AI_SCRIPT_SYSTEM_PROMPT + `\n${get_system_language()}`
+    console.log(systemPrompt)
 
     const providerId = conversation.settings.providerId
     const modelId = conversation.settings.modelId
