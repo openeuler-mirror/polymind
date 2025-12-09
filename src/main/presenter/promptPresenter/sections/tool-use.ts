@@ -7,13 +7,18 @@ function getSystemPromptByA2ATool(toolsXML: string): string {
 export function getSharedToolUseSection(toolsXML: string): string {
   return `
 ====
-# ToolUse
+# Tool Use
 You have the ability to invoke external tools to assist in resolving user problems. ${getSystemPromptByA2ATool(toolsXML)}
+## Tools
 The list of available tools is defined in the <tool_list> tag:
 
+\`\`\`xml
 <tool_list>
+
 ${toolsXML}
+
 </tool_list>
+\`\`\`
 
 ## Tool Use Formatting
 When invoking tools, your output should **only** contain the <function_call> tag and its content, without any other text, explanations or comments.
@@ -33,6 +38,7 @@ Tool uses are formatted using XML-style tags. Here's the structure:
     }
     </function_call>
 
+## Tool Use Guidelines
 **Important Constraints:**
 1. **Necessity:** Use the tool only when it cannot directly answer the user's question, and the tool can provide the necessary information or perform the necessary operation.
 
@@ -103,7 +109,6 @@ Example 2(Result is a string):
     </function_call>
 
 
----
 ### Usage and Constraint Instructions 
 
 #### 1. Explanation of the Source of Tool Invocation Records
