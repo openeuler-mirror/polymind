@@ -1,9 +1,10 @@
 {
   "name": "PolyMind",
-  "version": "0.3.5",
+  "version": "1.0.0",
   "description": "PolyMind，一个简单易用的AI客户端",
   "main": "./out/main/index.js",
-  "author": "ThinkInAIXYZ",
+  "author": "openEuler",
+  "homepage": "https://gitee.com/openeuler/polymind",
   "type": "module",
   "engines": {
     "node": ">=20.19.0",
@@ -11,6 +12,7 @@
   },
   "packageManager": "pnpm@10.13.1+sha512.37ebf1a5c7a30d5fabe0c5df44ee8da4c965ca0c5af3dbab28c3a1681b70a256218d05c81c9c0dcf767ef6b8551eb5b960042b9ed4300c59242336377e01cfad",
   "scripts": {
+    "preinstall": "npx only-allow pnpm",
     "test": "vitest",
     "test:main": "vitest --config vitest.config.ts test/main",
     "test:renderer": "vitest --config vitest.config.renderer.ts test/renderer",
@@ -34,6 +36,7 @@
     "build:win:x64": "pnpm run build && electron-builder --win --x64",
     "build:win:arm64": "pnpm run build && electron-builder --win --arm64",
     "install:sharp": "node scripts/install-sharp-for-platform.js",
+    "copy:binaries": "node scripts/copy-platform-binaries.js",
     "build:mac": "pnpm run build && electron-builder --mac",
     "build:mac:arm64": "pnpm run build && electron-builder --mac --arm64",
     "build:mac:x64": "pnpm run build && electron-builder -c electron-builder-macx64.yml --mac --x64 ",
@@ -95,7 +98,7 @@
     "undici": "^7.15.0",
     "uuid": "^13.0.0",
     "ws": "^8.18.3",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "xlsx": "^0.18.5",
     "xml2js": "^0.6.2",
     "zod": "^3.25.76"
   },
@@ -134,8 +137,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dompurify": "^3.2.6",
-    "electron": "^37.3.0",
-    "electron-builder": "26.0.12",
+    "electron": "37.10.0",
+    "electron-builder": "26.3.0",
     "electron-vite": "^4.0.0",
     "jsdom": "^26.1.0",
     "lint-staged": "^16.1.6",

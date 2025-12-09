@@ -42,24 +42,6 @@
             </div>
           </div>
         </div>
-
-        <!-- 添加助手按钮 -->
-        <Button
-          variant="ghost"
-          size="sm"
-          class="w-full justify-start h-8 px-2 text-muted-foreground hover:text-foreground"
-          @click="openAgentsPage"
-        >
-          <div class="flex items-center gap-2 w-full">
-            <div class="flex-shrink-0 w-5 h-5 rounded bg-muted flex items-center justify-center">
-              <Icon
-                icon="lucide:plus"
-                class="w-3 h-3"
-              />
-            </div>
-            <span class="text-xs font-medium truncate">添加助手</span>
-          </div>
-        </Button>
       </div>
     </div>
 
@@ -80,17 +62,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
-import { Button } from '@/components/ui/button'
 import { useI18n } from 'vue-i18n'
 import { usePresenter } from '@/composables/usePresenter'
-import { useTabStore } from '@shell/stores/tab'
 import { useChatStore } from '@/stores/chat'
 import AgentImportDialog from '@/components/agent-config/AgentImportDialog.vue'
 import AgentCreateDialog from '@/components/agent-config/AgentCreateDialog.vue'
 import type { Agent } from '@shared/presenter'
 
 const { t } = useI18n()
-const tabStore = useTabStore()
 const configPresenter = usePresenter('configPresenter')
 const chatStore = useChatStore()
 
@@ -107,23 +86,6 @@ const selectedAgent = ref<Agent | null>(null)
 // 对话框状态
 const showImportDialog = ref(false)
 const showCreateDialog = ref(false)
-
-// 打开Agent页面
-const openAgentsPage = async () => {
-  // 检查是否已经存在应用市场标签页
-  const existingAgentsMarket = tabStore.tabs.find((tab) => tab.url.includes('local://agents'))
-  if (existingAgentsMarket) {
-    // 如果已经存在应用市场标签页，切换到该标签页
-    tabStore.setCurrentTabId(existingAgentsMarket.id)
-  } else {
-    // 如果不存在应用市场标签页，创建新的
-    tabStore.addTab({
-      name: 'Agents',
-      icon: 'lucide:bot',
-      viewType: 'agents'
-    })
-  }
-}
 
 // 加载Agent数据
 const loadAgents = async () => {

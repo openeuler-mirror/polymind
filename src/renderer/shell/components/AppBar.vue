@@ -60,7 +60,7 @@
       <Button
         variant="ghost"
         class="flex-shrink-0 text-xs ml-1 font-medium px-2 h-6 bg-transparent rounded-md flex items-center justify-center hover:bg-zinc-500/20"
-        @click="openNewTab"
+        @click="openAgents"
       >
         <Icon icon="lucide:plus" class="w-4 h-4" />
       </Button>
@@ -116,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { MinusIcon, XIcon } from 'lucide-vue-next'
 import MaximizeIcon from './icons/MaximizeIcon.vue'
 import RestoreIcon from './icons/RestoreIcon.vue'
@@ -461,22 +461,6 @@ onMounted(() => {
   window.addEventListener('dragend', handleDragEnd)
 })
 
-const openNewTab = () => {
-  tabStore.addTab({
-    name: 'New Tab',
-    icon: 'lucide:plus',
-    viewType: 'chat'
-  })
-  setTimeout(() => {
-    nextTick(() => {
-      if (endOfTabs.value) {
-        console.log('newTabButton', endOfTabs.value)
-        endOfTabs.value.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-    })
-  }, 300)
-}
-
 const scrollTabContainer = (direction: 'left' | 'right') => {
   if (tabContainerWrapper.value) {
     tabContainerWrapper.value.scrollTo({
@@ -528,6 +512,23 @@ const openSettings = () => {
       name: 'Settings',
       icon: 'lucide:settings',
       viewType: 'settings'
+    })
+  }
+}
+
+// 打开Agent页面 - 将plus按钮作为固定页签处理
+const openAgents = () => {
+  // 检查是否已经存在应用市场标签页
+  const existingAgentsMarket = tabStore.tabs.find((tab) => tab.url.includes('#/agents'))
+  if (existingAgentsMarket) {
+    // 如果已经存在应用市场标签页，切换到该标签页
+    tabStore.setCurrentTabId(existingAgentsMarket.id)
+  } else {
+    // 如果不存在应用市场标签页，创建新的
+    tabStore.addTab({
+      name: 'Agents',
+      icon: 'lucide:bot',
+      viewType: 'agents'
     })
   }
 }

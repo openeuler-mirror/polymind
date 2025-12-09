@@ -30,7 +30,7 @@
 
 ## 🚀 Project Introduction
 
-PolyMind is an AI intelligent assistant developed based on [PolyMind](https://gitee.com/openeuler/polymind), providing environment awareness and powerful tool scheduling capabilities for the DevStation distribution.
+PolyMind is an AI intelligent assistant developed based on [DeepChat](https://github.com/thinkinaixyz/deepchat), providing environment awareness and powerful tool scheduling capabilities for the DevStation distribution.
 
 As a cross-platform AI assistant application, it not only supports basic chat functionality but also provides advanced features such as search enhancement, tool calling, multimodal interaction, making AI capabilities more convenient and efficient.
 

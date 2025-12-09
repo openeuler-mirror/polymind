@@ -17,6 +17,7 @@ import {
   AIScriptResult,
   Agent
 } from '../../../shared/presenter'
+import { jsonrepair } from 'jsonrepair'
 import { presenter } from '@/presenter'
 import { MessageManager } from './messageManager'
 import { eventBus, SendTarget } from '@/eventbus'
@@ -39,6 +40,7 @@ import { getFileContext } from './fileContext'
 import { ContentEnricher } from './contentEnricher'
 import { CONVERSATION_EVENTS, STREAM_EVENTS, TAB_EVENTS } from '@/events'
 import { DEFAULT_SETTINGS } from './const'
+import { formatLanguage } from '@shared/language'
 
 interface GeneratingMessageState {
   message: AssistantMessage
@@ -74,12 +76,24 @@ interface GeneratingMessageState {
   throttleTimeout?: NodeJS.Timeout
   lastRendererUpdateTime?: number
 }
-
+const get_system_language = () => {
+  const languageName = formatLanguage(presenter.configPresenter.getLanguage())
+  return `# 语言偏好: \n请优先采用${languageName}语言进行思考和回答.`
+}
 const DEFAULT_AI_SCRIPT_SYSTEM_PROMPT = `
 # 历史会话总结与 Shell 脚本生成器 / Historical Conversation Shell Script Generator
 
 ## 角色定位
 你是一名专业的系统管理员和脚本开发助手，负责分析用户与助手的历史会话，识别出需要通过系统命令执行的步骤，并将这些命令整理为健壮、可执行并具备日志与错误处理的 shell 脚本。当 shell 无法实现最终目标时，你需要生成结构化的报告文档，帮助用户明确差距与可行的替代方案。
+
+## 输入处理守则（必须遵守）
+- 不要把历史会话中的长文本、文件正文、模型生成的代码块或二进制数据原样复制，待生成脚本中直接引用历史会话中生成的中间文件即可，且尽可能复用。
+- 对于已经生成或存在的文件，只在脚本中引用文件名/路径或必要的操作，一定不要把文件内容写入脚本。
+
+## 分发与依赖要求
+- 生成的脚本和中间产物要便于在其他环境执行；明确需要携带/下载的文件及其用途，不要把文件内容直接嵌入脚本。
+- 脚本必须检查关键依赖（命令/工具版本/权限），缺失时给出安装提示并安全退出。
+- 在 notes 中列出运行步骤、依赖项、需要打包或同步的中间文件路径，以及跨环境执行的注意事项。
 
 ## 工作流程
 1. 会话分析：阅读完整的历史会话，明确用户目标、上下文与执行限制。
@@ -93,51 +107,10 @@ const DEFAULT_AI_SCRIPT_SYSTEM_PROMPT = `
 #!/bin/bash
 
 # 脚本信息
-SCRIPT_NAME="auto_generated_script.sh"
-SCRIPT_VERSION="1.0"
-AUTHOR="Auto Generated"
-
-# 颜色定义（用于输出）
-RED='\\033[0;31m'
-GREEN='\\033[0;32m'
-YELLOW='\\033[1;33m'
-BLUE='\\033[0;34m'
-NC='\\033[0m' # No Color
-
-# 日志函数
-log_info() {
-    echo -e "\${BLUE}[INFO]\${NC} $1"
-}
-
-log_success() {
-    echo -e "\${GREEN}[SUCCESS]\${NC} $1"
-}
-
-log_warning() {
-    echo -e "\${YELLOW}[WARNING]\${NC} $1"
-}
-
-log_error() {
-    echo -e "\${RED}[ERROR]\${NC} $1"
-}
-
-# 错误处理函数
-check_exit_code() {
-    local exit_code=$?
-    local command_name=$1
-
-    if [ $exit_code -ne 0 ]; then
-        log_error "命令 '$command_name' 执行失败，退出码: $exit_code"
-        exit $exit_code
-    else
-        log_success "命令 '$command_name' 执行成功"
-    fi
-}
 
 # 主执行函数
 main() {
     log_info "开始执行自动生成的脚本"
-    log_info "脚本名称: $SCRIPT_NAME"
     log_info "开始时间: $(date)"
 
     # 在这里插入从历史会话中提取的命令
@@ -151,6 +124,9 @@ main "$@"
 \`\`\`
 
 生成脚本时，请在 \`main\` 函数内部替换注释，依次插入提取出的命令。必要时可以新增辅助函数或变量，脚本执行如果需要交互，请使用 \`read\` 函数读取用户输入。
+- 在脚本开头添加依赖检查和环境准备（如命令是否存在、权限、目标目录），缺失时打印安装提示并退出。
+- 不要在脚本或 JSON 输出中粘贴会话中的长文本、文件正文或完整代码；仅引用路径、命令或摘要。
+- 如果推断出的脚本会超过 1500 行或 shell 不适合完成目标，请返回 report 而不是 shell_script。
 
 ## 无命令场景
 - 如果历史会话中未使用 shell 命令，但可以通过 shell 达成目标，请直接生成脚本。
@@ -177,11 +153,10 @@ main "$@"
 
 - 当 \`result_type\` 为 \`shell_script\` 时，必须完整填写 \`shell_script\` 字段，\`report\` 必须为 null，\`notes\`字段按步骤填写脚本的使用方式，注意换行，然后就是脚本的使用限制和参数说明（如果有）
 - 当 \`result_type\` 为 \`report\` 时，必须完整填写 \`report\` 字段，\`shell_script\` 必须为 null，\`notes\`字段填写模型对用户需求反馈的结果总结。
-- \`platform\` 需要明确脚本适用的平台（如 Linux、macOS、Windows、跨平台等）。
-- 所有命令需要按执行顺序出现，并结合日志与错误检测。
+- 脚本需要兼容openEuler环境
+- notes 必须包含：如何在目标环境运行脚本的步骤、所需依赖（命令/包/权限）、需要打包或同步的中间文件路径，以及跨环境执行的注意事项。
 
-请严格遵守上述约束。
-`
+请严格遵守上述约束`
 
 export class ThreadPresenter implements IThreadPresenter {
   private sqlitePresenter: ISQLitePresenter
@@ -3261,11 +3236,7 @@ export class ThreadPresenter implements IThreadPresenter {
    * @param format 导出格式 ('markdown' | 'html' | 'txt')
    * @returns 包含文件名和内容的对象
    */
-  async generateAiScript(
-    conversationId: string,
-    targetMessageId: string,
-    options?: { promptOverride?: string }
-  ): Promise<AIScriptResult> {
+  async generateAiScript(conversationId: string, targetMessageId: string): Promise<AIScriptResult> {
     const conversation = await this.getConversation(conversationId)
     if (!conversation) {
       throw new Error('Conversation not found')
@@ -3320,12 +3291,10 @@ export class ThreadPresenter implements IThreadPresenter {
         ? relevantMessages.slice(relevantMessages.length - maxHistory)
         : relevantMessages
 
-    const transcript = this.exportToText(conversation, trimmedHistory)
+    const transcript = this.exportToText(conversation, trimmedHistory, true)
 
-    const systemPrompt =
-      options?.promptOverride && options.promptOverride.trim().length > 0
-        ? options.promptOverride
-        : DEFAULT_AI_SCRIPT_SYSTEM_PROMPT
+    const systemPrompt = DEFAULT_AI_SCRIPT_SYSTEM_PROMPT + `\n${get_system_language()}`
+    console.log(systemPrompt)
 
     const providerId = conversation.settings.providerId
     const modelId = conversation.settings.modelId
@@ -3351,8 +3320,8 @@ export class ThreadPresenter implements IThreadPresenter {
       '请严格输出符合约束的 JSON。'
     ].join('\n\n')
 
-    const temperature = Math.max(Math.min(conversation.settings.temperature ?? 0.2, 0.5), 0)
-    const maxTokens = Math.min(conversation.settings.maxTokens ?? 2048, 4096)
+    const temperature = Math.min(conversation.settings.temperature ?? 0)
+    const maxTokens = Math.max(conversation.settings.maxTokens ?? 8192)
 
     const messages = [
       { role: 'system' as const, content: systemPrompt },
@@ -3381,8 +3350,82 @@ export class ThreadPresenter implements IThreadPresenter {
   private parseAiScriptResponse(raw: string): AIScriptResult {
     const payload = this.extractJsonPayload(raw)
 
+    // 增强的预清洗：移除更多控制字符和问题字符
+    const sanitizedPayload = payload
+      .replace(
+        /[\u0000-\u001f\u007f-\u009f\u00ad\u0600-\u0605\u061c\u200b-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff9-\ufffb]/g,
+        ''
+      )
+      .replace(/\r\n?/g, '\n') // 统一换行符
+
+    // 增强的 JSON 修复函数
+    const tryParseWithRepair = (jsonStr: string): any => {
+      try {
+        return JSON.parse(jsonStr)
+      } catch (parseError) {
+        // 尝试修复常见 JSON 问题
+        let repaired = jsonStr
+
+        // 1. 修复未转义的控制字符（再次确保）
+        repaired = repaired.replace(/[\u0000-\u001f\u007f]/g, '')
+
+        // 2. 修复未转义的双引号（在字符串内部）
+        // 使用更稳健的方法：找到所有字符串并转义内部的双引号
+        repaired = repaired.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/g, (_match, content) => {
+          // 转义内容中的双引号，但跳过已经转义的双引号
+          const escapedContent = content.replace(/(?<!\\)"/g, '\\"')
+          return `"${escapedContent}"`
+        })
+
+        // 3. 修复未转义的反斜杠
+        repaired = repaired.replace(/\\(?![\\"\/bfnrtu])/g, '\\\\')
+
+        // 4. 修复未转义的换行符、制表符等
+        repaired = repaired.replace(/\n/g, '\\n')
+        repaired = repaired.replace(/\t/g, '\\t')
+        repaired = repaired.replace(/\r/g, '\\r')
+
+        // 5. 修复常见的 JSON 格式问题
+        // 移除尾随逗号
+        repaired = repaired.replace(/,(\s*[}\]])/g, '$1')
+        // 修复缺失的引号
+        repaired = repaired.replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3')
+
+        // 6. 使用 jsonrepair 进行最终修复
+        try {
+          repaired = jsonrepair(repaired)
+        } catch (e) {
+          // jsonrepair 失败，继续尝试原始修复
+        }
+
+        try {
+          return JSON.parse(repaired)
+        } catch (e) {
+          throw parseError // 抛出原始错误以保持错误堆栈
+        }
+      }
+    }
+
+    let data: any
     try {
-      const data = JSON.parse(payload)
+      data = tryParseWithRepair(sanitizedPayload)
+    } catch (finalError: any) {
+      console.warn('Failed to parse AI Script response after enhanced repair:', {
+        error: finalError,
+        rawLength: raw.length,
+        rawPreview: raw.substring(0, 500),
+        sanitizedPreview: sanitizedPayload.substring(0, 500),
+        payloadLength: payload.length
+      })
+      return this.buildFallbackAiScriptReport(
+        raw,
+        `模型响应解析失败: ${finalError?.message || '未知错误'}`,
+        undefined,
+        undefined
+      )
+    }
+
+    try {
       const resultType = data.result_type === 'shell_script' ? 'shell_script' : 'report'
       const objectiveSummary =
         typeof data.objective_summary === 'string' && data.objective_summary.trim().length > 0
@@ -3447,11 +3490,18 @@ export class ThreadPresenter implements IThreadPresenter {
         notes,
         rawResponse: raw
       }
-    } catch (error) {
-      console.warn('Failed to parse AI Script response:', error)
+    } catch (error: any) {
+      console.warn('Failed to parse AI Script response after JSON parsing:', {
+        error: error,
+        errorMessage: error?.message,
+        errorStack: error?.stack,
+        dataPreview: data ? JSON.stringify(data).substring(0, 500) : 'null',
+        rawLength: raw.length,
+        rawPreview: raw.substring(0, 500)
+      })
       return this.buildFallbackAiScriptReport(
         raw,
-        '模型响应不是有效的 JSON。',
+        `模型响应处理失败: ${error?.message || '未知错误'}`,
         undefined,
         undefined
       )
@@ -3463,22 +3513,60 @@ export class ThreadPresenter implements IThreadPresenter {
       return '{}'
     }
 
-    const fencedJson = raw.match(/```json\s*([\s\S]*?)```/i)
+    // 1. 首先尝试提取 JSON 代码块（支持 json 标记或无标记）
+    const fencedJson = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)
     if (fencedJson) {
       return fencedJson[1].trim()
     }
 
-    const fencedBlock = raw.match(/```[\w-]*\s*([\s\S]*?)```/)
-    if (fencedBlock) {
-      return fencedBlock[1].trim()
+    // 2. 尝试找到最可能的 JSON 对象
+    // 统计 { 和 } 的数量，找到平衡的 JSON
+    const braceMatches = Array.from(raw.matchAll(/(\{|\})/g))
+    let balance = 0
+    let start = -1
+    let end = -1
+
+    for (let i = 0; i < braceMatches.length; i++) {
+      const match = braceMatches[i]
+      if (match[0] === '{') {
+        if (balance === 0) {
+          start = match.index!
+        }
+        balance++
+      } else if (match[0] === '}') {
+        balance--
+        if (balance === 0) {
+          end = match.index! + 1
+          break
+        }
+      }
     }
 
+    if (start !== -1 && end !== -1 && end > start) {
+      const candidate = raw.slice(start, end).trim()
+      // 验证提取的内容看起来像 JSON
+      if (candidate.startsWith('{') && candidate.endsWith('}')) {
+        // 简单验证：检查是否有基本的 JSON 结构
+        const hasColon = candidate.includes(':')
+        const hasComma = candidate.includes(',')
+        if (hasColon || hasComma) {
+          return candidate
+        }
+      }
+    }
+
+    // 3. 回退到原始逻辑：找到第一个 { 和最后一个 }
     const firstBrace = raw.indexOf('{')
     const lastBrace = raw.lastIndexOf('}')
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      return raw.slice(firstBrace, lastBrace + 1).trim()
+      const candidate = raw.slice(firstBrace, lastBrace + 1).trim()
+      // 简单验证
+      if (candidate.startsWith('{') && candidate.endsWith('}') && candidate.includes(':')) {
+        return candidate
+      }
     }
 
+    // 4. 如果以上都失败，返回原始内容（清理过的）
     return raw.trim()
   }
 
@@ -3943,7 +4031,11 @@ export class ThreadPresenter implements IThreadPresenter {
   /**
    * 导出为纯文本格式
    */
-  private exportToText(conversation: CONVERSATION, messages: Message[]): string {
+  private exportToText(
+    conversation: CONVERSATION,
+    messages: Message[],
+    is_ai_scripted: boolean = false
+  ): string {
     const lines: string[] = []
 
     // 标题和元信息
@@ -4023,9 +4115,22 @@ export class ThreadPresenter implements IThreadPresenter {
                 lines.push(`[工具调用] ${block.tool_call.name}`)
                 if (block.tool_call.params) {
                   lines.push('参数:')
-                  lines.push(block.tool_call.params)
+                  if (block.tool_call.name === 'write_file' && is_ai_scripted) {
+                    try {
+                      const parsed = JSON.parse(block.tool_call.params)
+                      const fileParams = Array.isArray(parsed) ? parsed : [parsed]
+                      fileParams.forEach((param) => {
+                        lines.push(`- file_path: ${param?.file_path || '[unknown path]'}`)
+                        lines.push(`- content: 具体写入内容省略`)
+                      })
+                    } catch {
+                      lines.push(block.tool_call.params)
+                    }
+                  } else {
+                    lines.push(block.tool_call.params)
+                  }
                 }
-                if (block.tool_call.response) {
+                if (!is_ai_scripted && block.tool_call.response) {
                   lines.push('响应:')
                   lines.push(block.tool_call.response)
                 }
