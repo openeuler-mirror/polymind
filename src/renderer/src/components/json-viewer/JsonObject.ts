@@ -67,7 +67,7 @@ export const JsonObject = defineComponent({
                     'span',
                     {
                       class:
-                        'inline-flex px-2 py-1 min-w-20 max-w-20 truncate rounded-md text-muted-foreground text-xs font-medium leading-6'
+                        'inline-flex px-2 py-1 min-w-fit max-w-fix truncate rounded-md text-muted-foreground text-xs font-medium leading-6'
                     },
                     key
                   ),
