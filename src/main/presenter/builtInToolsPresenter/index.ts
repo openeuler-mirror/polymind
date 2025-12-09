@@ -226,6 +226,7 @@ export class BuiltInToolsPresenter implements IBuiltInToolsPresenter {
       .map((tool) => {
         const { name, description, parameters } = tool.function
         const { properties, required = [] } = parameters
+        const serverNameAttr = tool.server?.name ? ` server_name="${tool.server.name}"` : ''
 
         const paramsXml = Object.entries(properties)
           .map(([paramName, paramDef]) => {
@@ -239,7 +240,7 @@ export class BuiltInToolsPresenter implements IBuiltInToolsPresenter {
           })
           .join('\n    ')
 
-        return `<tool name="${name}" description="${description}">
+        return `<tool name="${name}" description="${description}"${serverNameAttr}>
     ${paramsXml}
 </tool>`
       })

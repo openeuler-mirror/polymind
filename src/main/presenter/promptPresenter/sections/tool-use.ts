@@ -19,24 +19,32 @@ ${mcpToolsXML}
 # Tool Use
 You have the ability to invoke external tools to assist in resolving user problems. ${getSystemPromptByA2ATool(toolsXML)}
 ## Tools
+The list of available tools is defined in the <tool_list> tag and <mcp_tool_list> tag:
+
 \`\`\`xml
+<tool_list>
+
 ${toolsXML}
-\`\`\`
+
+</tool_list>
 
 You can prioritize using the tools listed above to solve problems. 
-The tools defined below are some MCP server tools, you should choose the appropriate tool based on the description of each tool to solve specific problems. 
+The tools defined in <mcp_tool_list> tag below are some MCP server tools, you should choose the appropriate tool based on the description of each tool to solve specific problems. 
 You can use the MCP server's tools via the \`use_mcp_tool\` tool.
+
+\`\`\`xml
+<mcp_tool_list>
 
 ${connectedServers}
 
+</mcp_tool_list>
+
 ## Tool Use Formatting
-When invoking tools, your output should **only** contain the <function_call> tag and its content, without any other text, explanations or comments.
+When invoking tools, your output should **only** contain the one <function_call> tag and its content, without any other text, explanations or comments.
 Tool uses are formatted using XML-style tags. Here's the structure:
 
-    <function_call>
     {
-      "function_call": 
-      {
+      "function_call": {
         "name": "tool_name",
         "arguments": { // The parameter object must be in valid JSON format.
           "parameter1_name": "value1",
@@ -45,7 +53,6 @@ Tool uses are formatted using XML-style tags. Here's the structure:
         }
       }
     }
-    </function_call>
 
 ## Tool Use Guidelines
 **Important Constraints:**
@@ -73,7 +80,7 @@ For example, suppose you need to call a tool named "getWeather" and provide "loc
       }
     }
     </function_call>
- 
+
 
 ## Description of the Tool Invocation Record Structure 
 You should not only be able to call various tools, but also be able to locate, extract, reuse, and reference the call return results from our conversations, extracting key information from them to answer questions.
