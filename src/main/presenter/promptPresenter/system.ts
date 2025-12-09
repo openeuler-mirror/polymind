@@ -7,8 +7,7 @@ import {
   addCustomInstructions,
   markdownFormattingSection
 } from './sections'
-import { Agent } from '@shared/presenter'
-
+import { Agent, MCPToolDefinition } from '@shared/presenter'
 
 async function generatePrompt(
   cwd?: string,
@@ -16,7 +15,8 @@ async function generatePrompt(
   language?: string,
   IgnoreInstructions?: string,
   useBuiltInToolsEnabled?: boolean,
-  agent?: Agent
+  agent?: Agent,
+  enabledMcpTools?: MCPToolDefinition[]
 ): Promise<string> {
   const promptSections: string[] = []
   if (agent) {
@@ -34,13 +34,20 @@ async function generatePrompt(
   }
   promptSections.push(markdownFormattingSection())
 
+  let toolsXML = ''
   if (useBuiltInToolsEnabled) {
-    const toolsXML = await presenter.builtInToolsPresenter.convertToolsToXml(
+    toolsXML = await presenter.builtInToolsPresenter.convertBuiltInToolsToXml(
       useBuiltInToolsEnabled,
       agent
     )
-    promptSections.push(`${getSharedToolUseSection(toolsXML)}`)
   }
+
+  let mcpToolsXML = ''
+  if (enabledMcpTools && enabledMcpTools.length > 0) {
+    mcpToolsXML = presenter.builtInToolsPresenter.convertToolsToXml(enabledMcpTools)
+  }
+
+  promptSections.push(`${getSharedToolUseSection(toolsXML, mcpToolsXML)}`)
 
   promptSections.push(getSystemInfoSection(), getObjectiveSection())
 
@@ -68,7 +75,8 @@ export const SYSTEM_PROMPT = async (
   language?: string,
   IgnoreInstructions?: string,
   useBuiltInToolsEnabled?: boolean,
-  agent?: Agent
+  agent?: Agent,
+  enabledMcpTools?: MCPToolDefinition[]
 ): Promise<string> => {
   return generatePrompt(
     cwd,
@@ -76,6 +84,7 @@ export const SYSTEM_PROMPT = async (
     language,
     IgnoreInstructions,
     useBuiltInToolsEnabled,
-    agent
+    agent,
+    enabledMcpTools
   )
 }

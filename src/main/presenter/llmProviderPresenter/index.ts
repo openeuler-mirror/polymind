@@ -12,7 +12,6 @@ import {
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
   IConfigPresenter,
-  MCPToolDefinition,
   Agent
 } from '@shared/presenter'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
@@ -701,7 +700,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     eventId: string,
     temperature: number = 0.6,
     maxTokens: number = 4096,
-    enabledMcpTools?: string[],
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
@@ -801,16 +799,11 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
         try {
           console.log(`[Agent Loop] Iteration ${toolCallCount + 1} for event: ${eventId}`)
-          let availableTools: MCPToolDefinition[] = []
           const useBuiltInToolsEnabled = this.configPresenter.getUseBuiltInToolsEnabled()
-          const [mcpTools, builtInTools] = await Promise.all([
-            presenter.mcpPresenter.getAllToolDefinitions(enabledMcpTools),
-            presenter.builtInToolsPresenter.getBuiltInToolDefinitions(
-              useBuiltInToolsEnabled,
-              currentAgent
-            )
-          ])
-          availableTools = [...mcpTools, ...builtInTools]
+          const availableTools = await presenter.builtInToolsPresenter.getBuiltInToolDefinitions(
+            useBuiltInToolsEnabled,
+            currentAgent
+          )
 
           const canExecute = this.canExecuteImmediately(providerId)
           if (!canExecute) {

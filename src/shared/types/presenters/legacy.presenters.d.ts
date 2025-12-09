@@ -648,7 +648,6 @@ export interface ILlmProviderPresenter {
     eventId: string,
     temperature?: number,
     maxTokens?: number,
-    enabledMcpTools?: string[],
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
@@ -1247,7 +1246,8 @@ export interface ProgressResponse {
 
 //
 export interface IBuiltInToolsPresenter {
-  convertToolsToXml(useBuiltInToolsEnabled: boolean, currentAgent?: Agent): Promise<string>
+  convertBuiltInToolsToXml(useBuiltInToolsEnabled: boolean, currentAgent?: Agent): Promise<string>
+  convertToolsToXml(tools: MCPToolDefinition[]): string
   getBuiltInToolDefinitions(enabled?: boolean, currentAgent?: Agent | null): any
 
   /**

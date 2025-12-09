@@ -4,21 +4,30 @@ function getSystemPromptByA2ATool(toolsXML: string): string {
   }
   return ''
 }
-export function getSharedToolUseSection(toolsXML: string): string {
+export function getSharedToolUseSection(toolsXML: string, mcpToolsXML: string): string {
+  const connectedServers = mcpToolsXML
+    ? `
+Connected MCP Servers:
+\`\`\`xml
+${mcpToolsXML}
+\`\`\`
+`
+    : '(No MCP servers currently connected)'
+
   return `
 ====
 # Tool Use
 You have the ability to invoke external tools to assist in resolving user problems. ${getSystemPromptByA2ATool(toolsXML)}
 ## Tools
-The list of available tools is defined in the <tool_list> tag:
-
 \`\`\`xml
-<tool_list>
-
 ${toolsXML}
-
-</tool_list>
 \`\`\`
+
+You can prioritize using the tools listed above to solve problems. 
+The tools defined below are some MCP server tools, you should choose the appropriate tool based on the description of each tool to solve specific problems. 
+You can use the MCP server's tools via the \`use_mcp_tool\` tool.
+
+${connectedServers}
 
 ## Tool Use Formatting
 When invoking tools, your output should **only** contain the <function_call> tag and its content, without any other text, explanations or comments.
