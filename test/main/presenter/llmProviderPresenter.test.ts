@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vite
 import { LLMProviderPresenter } from '../../../src/main/presenter/llmProviderPresenter/index'
 import { ConfigPresenter } from '../../../src/main/presenter/configPresenter/index'
 import { LLM_PROVIDER, ChatMessage, LLMAgentEvent } from '../../../src/shared/presenter'
+import { presenter } from '../../../src/main/presenter/index'
+import { OpenAICompatibleProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/openAICompatibleProvider'
 
 // Ensure electron is mocked for this suite to avoid CJS named export issues
 vi.mock('electron', () => {
@@ -57,6 +59,10 @@ vi.mock('@/presenter', () => ({
     mcpPresenter: {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn().mockResolvedValue({ content: 'Mock tool response', rawData: {} })
+    },
+    builtInToolsPresenter: {
+      getBuiltInToolDefinitions: vi.fn().mockResolvedValue([]),
+      callTool: vi.fn().mockResolvedValue({ content: 'Mock built-in tool response', rawData: {} })
     }
   }
 }))
@@ -108,7 +114,8 @@ describe('LLMProviderPresenter Integration Tests', () => {
       enableModel: vi.fn(),
       setCustomModels: vi.fn(),
       addCustomModel: vi.fn(),
-      removeCustomModel: vi.fn()
+      removeCustomModel: vi.fn(),
+      getUseBuiltInToolsEnabled: vi.fn().mockReturnValue(true)
     }
 
     mockConfigPresenter = mockConfigPresenterInstance as unknown as ConfigPresenter
@@ -117,6 +124,10 @@ describe('LLMProviderPresenter Integration Tests', () => {
   beforeEach(() => {
     // Clear all mocks before each test
     vi.clearAllMocks()
+
+    // Ensure presenter mocks are set
+    vi.mocked(presenter.mcpPresenter.getAllToolDefinitions).mockResolvedValue([])
+    vi.mocked(presenter.builtInToolsPresenter.getBuiltInToolDefinitions).mockResolvedValue([])
 
     // Reset mock implementations
     mockConfigPresenter.getProviders = vi.fn().mockReturnValue([mockProvider])
@@ -135,6 +146,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
     mockConfigPresenter.getCustomModels = vi.fn().mockReturnValue([])
     mockConfigPresenter.getProviderModels = vi.fn().mockReturnValue([])
     mockConfigPresenter.getModelStatus = vi.fn().mockReturnValue(true)
+    mockConfigPresenter.getUseBuiltInToolsEnabled = vi.fn().mockReturnValue(true)
 
     // Create new instance for each test
     llmProviderPresenter = new LLMProviderPresenter(mockConfigPresenter)
@@ -514,9 +526,17 @@ describe('LLMProviderPresenter Integration Tests', () => {
 
       llmProviderPresenter.setProviders([invalidProvider])
 
+      // 模拟 fetchOpenAIModels 以抛出可捕获的错误，避免未处理的拒绝
+      const fetchSpy = vi
+        .spyOn(OpenAICompatibleProvider.prototype as any, 'fetchOpenAIModels')
+        .mockRejectedValue(new Error('Mock network error'))
+
       const result = await llmProviderPresenter.check('invalid-test')
       expect(result.isOk).toBe(false)
       expect(result.errorMsg).toBeDefined()
+
+      // 恢复模拟
+      fetchSpy.mockRestore()
     }, 10000)
   })
 })

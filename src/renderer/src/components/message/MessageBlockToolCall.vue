@@ -88,7 +88,7 @@
               <Icon icon="lucide:arrow-up-from-dot" class="w-4 h-4 text-muted-foreground" />
               {{ t('toolCall.params') }}
             </h5>
-            <div class="text-sm rounded-md p-2 overflow-x-auto">
+            <div class="text-sm rounded-md p-2">
               <JsonObject :data="parseJson(block.tool_call.params)" />
             </div>
           </div>
