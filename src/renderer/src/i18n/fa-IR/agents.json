@@ -10,6 +10,13 @@
     "support": "پشتیبانی"
   },
   "agentCard": {
+    "edit": "ویرایش",
+    "delete": "حذف",
+    "deleteConfirm": {
+      "title": "این عامل پاک شود؟",
+      "description": "این کار برگشت‌ناپذیر است.",
+      "confirm": "پاک کردن"
+    },
     "details": {
       "basicInfo": "اطلاعات پایه",
       "version": "نسخه",
@@ -38,6 +45,14 @@
     "uninstallError": {
       "title": "حذف نصب ناموفق",
       "description": "حذف نصب {name} ناموفق بود"
+    },
+    "deleteSuccess": {
+      "title": "حذف موفق",
+      "description": "{name} با موفقیت حذف شد"
+    },
+    "deleteError": {
+      "title": "حذف ناموفق",
+      "description": "حذف {name} ناموفق بود"
     }
   },
   "search": {

@@ -10,6 +10,13 @@
     "support": "Support"
   },
   "agentCard": {
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "deleteConfirm": {
+      "title": "Supprimer cet agent ?",
+      "description": "Cette action est irréversible.",
+      "confirm": "Supprimer"
+    },
     "details": {
       "basicInfo": "Informations de base",
       "version": "Version",
@@ -38,6 +45,14 @@
     "uninstallError": {
       "title": "Échec de la désinstallation",
       "description": "Échec de la désinstallation de {name}"
+    },
+    "deleteSuccess": {
+      "title": "Suppression réussie",
+      "description": "{name} a été supprimé avec succès"
+    },
+    "deleteError": {
+      "title": "Échec de la suppression",
+      "description": "Échec de la suppression de {name}"
     }
   },
   "search": {

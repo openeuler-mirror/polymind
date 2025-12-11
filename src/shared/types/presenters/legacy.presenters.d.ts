@@ -526,6 +526,7 @@ export interface IConfigPresenter {
   addAgent(agent: Agent): Promise<void>
   installAgent(agentId: string): Promise<boolean>
   uninstallAgent(agentId: string): Promise<boolean>
+  removeAgent(agentId: string): Promise<void>
   getAgentInstallStatus(agentId: string): Promise<boolean>
   importAgentFromA2AData(agentCardData: AgentCardData): Promise<Agent>
   exportAgents(typeFilterCondition?: string): Promise<{
