@@ -1271,17 +1271,8 @@ export class ConfigPresenter implements IConfigPresenter {
 
   private async getBuildInSystemPrompt(agent?: Agent): Promise<string> {
     // 获取内置的系统提示词
-    const useBuiltInToolsEnabled = this.getUseBuiltInToolsEnabled()
     const enabledMcpTools = await presenter.mcpPresenter.getAllToolDefinitions()
-    return await SYSTEM_PROMPT(
-      '',
-      '',
-      this.getLanguage(),
-      '',
-      useBuiltInToolsEnabled,
-      agent,
-      enabledMcpTools
-    )
+    return await SYSTEM_PROMPT('', '', this.getLanguage(), '', agent, enabledMcpTools)
   }
 
   async getSystemPrompts(): Promise<SystemPrompt[]> {

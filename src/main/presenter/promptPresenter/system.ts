@@ -3,8 +3,8 @@ import { formatLanguage } from '../../../shared/language'
 import {
   getSystemInfoSection,
   getObjectiveSection,
-  getSharedToolUseSection,
   addCustomInstructions,
+  getSharedToolUseSection,
   markdownFormattingSection
 } from './sections'
 import { Agent, MCPToolDefinition } from '@shared/presenter'
@@ -14,7 +14,6 @@ async function generatePrompt(
   globalCustomInstructions?: string,
   language?: string,
   IgnoreInstructions?: string,
-  useBuiltInToolsEnabled?: boolean,
   agent?: Agent,
   enabledMcpTools?: MCPToolDefinition[]
 ): Promise<string> {
@@ -34,20 +33,14 @@ async function generatePrompt(
   }
   promptSections.push(markdownFormattingSection())
 
-  let toolsXML = ''
-  if (useBuiltInToolsEnabled) {
-    toolsXML = await presenter.builtInToolsPresenter.convertBuiltInToolsToXml(
-      useBuiltInToolsEnabled,
-      agent
-    )
-  }
+  const builtInTool = await presenter.builtInToolsPresenter.getBuiltInToolDefinitions(agent)
+  const builtInToolXML = presenter.builtInToolsPresenter.convertToolsToXml(builtInTool)
 
   let mcpToolsXML = ''
   if (enabledMcpTools && enabledMcpTools.length > 0) {
     mcpToolsXML = presenter.builtInToolsPresenter.convertToolsToXml(enabledMcpTools)
   }
-
-  promptSections.push(`${getSharedToolUseSection(toolsXML, mcpToolsXML)}`)
+  promptSections.push(`${getSharedToolUseSection(builtInToolXML, mcpToolsXML)}`)
 
   promptSections.push(getSystemInfoSection(), getObjectiveSection())
 
@@ -74,7 +67,6 @@ export const SYSTEM_PROMPT = async (
   globalCustomInstructions?: string,
   language?: string,
   IgnoreInstructions?: string,
-  useBuiltInToolsEnabled?: boolean,
   agent?: Agent,
   enabledMcpTools?: MCPToolDefinition[]
 ): Promise<string> => {
@@ -83,7 +75,6 @@ export const SYSTEM_PROMPT = async (
     globalCustomInstructions,
     language,
     IgnoreInstructions,
-    useBuiltInToolsEnabled,
     agent,
     enabledMcpTools
   )

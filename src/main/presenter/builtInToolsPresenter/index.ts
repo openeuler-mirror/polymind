@@ -195,14 +195,7 @@ export class BuiltInToolsPresenter implements IBuiltInToolsPresenter {
     }
   }
 
-  async getBuiltInToolDefinitions(
-    enabled: boolean = true,
-    currentAgent?: Agent
-  ): Promise<MCPToolDefinition[]> {
-    if (!enabled) {
-      return []
-    }
-
+  async getBuiltInToolDefinitions(currentAgent?: Agent): Promise<MCPToolDefinition[]> {
     try {
       const tools = await this.getBuiltInTools(currentAgent)
       return tools.map((tool) => this.mapToolToDefinition(tool))
@@ -210,11 +203,6 @@ export class BuiltInToolsPresenter implements IBuiltInToolsPresenter {
       console.error('[BuiltInToolsPresenter] Failed to load built-in tools:', error)
       return []
     }
-  }
-
-  async convertBuiltInToolsToXml(enabled: boolean = true, currentAgent?: Agent): Promise<string> {
-    const tools = await this.getBuiltInToolDefinitions(enabled, currentAgent)
-    return this.convertToolsToXml(tools)
   }
 
   /**
@@ -226,7 +214,7 @@ export class BuiltInToolsPresenter implements IBuiltInToolsPresenter {
       .map((tool) => {
         const { name, description, parameters } = tool.function
         const { properties, required = [] } = parameters
-        const serverNameAttr = tool.server?.name ? ` server_name="${tool.server.name}"` : ''
+        const serverName = tool.server?.name ? tool.server.name : ''
 
         const paramsXml = Object.entries(properties)
           .map(([paramName, paramDef]) => {
@@ -240,7 +228,7 @@ export class BuiltInToolsPresenter implements IBuiltInToolsPresenter {
           })
           .join('\n    ')
 
-        return `<tool name="${name}" description="${description}"${serverNameAttr}>
+        return `<tool name="${name}" description="${description}" server_name="${serverName}">
     ${paramsXml}
 </tool>`
       })

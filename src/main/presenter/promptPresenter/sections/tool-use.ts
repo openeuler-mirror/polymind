@@ -43,8 +43,10 @@ ${connectedServers}
 When invoking tools, your output should **only** contain the one <function_call> tag and its content, without any other text, explanations or comments.
 Tool uses are formatted using XML-style tags. Here's the structure:
 
+    <function_call>
     {
-      "function_call": {
+      "function_call": 
+      {
         "name": "tool_name",
         "arguments": { // The parameter object must be in valid JSON format.
           "parameter1_name": "value1",
@@ -53,6 +55,7 @@ Tool uses are formatted using XML-style tags. Here's the structure:
         }
       }
     }
+    </function_call>
 
 ## Tool Use Guidelines
 **Important Constraints:**
@@ -80,7 +83,7 @@ For example, suppose you need to call a tool named "getWeather" and provide "loc
       }
     }
     </function_call>
-
+ 
 
 ## Description of the Tool Invocation Record Structure 
 You should not only be able to call various tools, but also be able to locate, extract, reuse, and reference the call return results from our conversations, extracting key information from them to answer questions.

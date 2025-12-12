@@ -700,6 +700,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     eventId: string,
     temperature: number = 0.6,
     maxTokens: number = 4096,
+    enabledMcpTools?: string[],
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',
@@ -799,12 +800,9 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
 
         try {
           console.log(`[Agent Loop] Iteration ${toolCallCount + 1} for event: ${eventId}`)
-          const useBuiltInToolsEnabled = this.configPresenter.getUseBuiltInToolsEnabled()
-          const availableTools = await presenter.builtInToolsPresenter.getBuiltInToolDefinitions(
-            useBuiltInToolsEnabled,
-            currentAgent
-          )
 
+          const availableTools =
+            await presenter.builtInToolsPresenter.getBuiltInToolDefinitions(currentAgent)
           const canExecute = this.canExecuteImmediately(providerId)
           if (!canExecute) {
             const config = this.getProviderRateLimitConfig(providerId)
