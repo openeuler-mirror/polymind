@@ -60,7 +60,6 @@ interface IAppSettings {
   customSearchEngines?: string // Custom search engines JSON string
   soundEnabled?: boolean // Whether sound effects are enabled
   copyWithCotEnabled?: boolean
-  useBuiltInTools?: boolean
   loggingEnabled?: boolean // Whether logging is enabled
   floatingButtonEnabled?: boolean // Whether floating button is enabled
   default_system_prompt?: string // Default system prompt
@@ -127,7 +126,6 @@ export class ConfigPresenter implements IConfigPresenter {
         lastSyncTime: 0,
         soundEnabled: false,
         copyWithCotEnabled: true,
-        useBuiltInToolsEnabled: true,
         loggingEnabled: false,
         floatingButtonEnabled: false,
         default_system_prompt: '',
@@ -985,15 +983,6 @@ export class ConfigPresenter implements IConfigPresenter {
   setCopyWithCotEnabled(enabled: boolean): void {
     this.setSetting('copyWithCotEnabled', enabled)
     eventBus.sendToRenderer(CONFIG_EVENTS.COPY_WITH_COT_CHANGED, SendTarget.ALL_WINDOWS, enabled)
-  }
-
-  getUseBuiltInToolsEnabled(): boolean {
-    const value = this.getSetting<boolean>('useBuiltInToolsEnabled')
-    return value === undefined || value === null ? false : value
-  }
-
-  setUseBuiltInToolsEnabled(enabled: boolean): void {
-    this.setSetting('useBuiltInToolsEnabled', enabled)
   }
 
   // Get floating button switch status

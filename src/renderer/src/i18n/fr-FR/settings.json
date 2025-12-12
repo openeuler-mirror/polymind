@@ -40,7 +40,6 @@
     "contentProtectionRestartNotice": "La modification de ce paramètre redémarrera l'application. Voulez-vous continuer ?",
     "soundEnabled": "Activer le son",
     "copyWithCotEnabled": "Copier les infos COT",
-    "useBuiltInTools": "Utiliser les outils intégrés",
     "loggingEnabled": "Activer la journalisation",
     "loggingDialogTitle": "Confirmer le changement de paramètre de journalisation",
     "loggingEnableDesc": "L'activation de la journalisation nous aidera à diagnostiquer les problèmes et à améliorer l'application. Les fichiers journaux peuvent contenir des informations sensibles.",
