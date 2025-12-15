@@ -151,7 +151,6 @@ export interface ILlmProviderPresenter {
     eventId: string,
     temperature?: number,
     maxTokens?: number,
-    enabledMcpTools?: string[],
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',

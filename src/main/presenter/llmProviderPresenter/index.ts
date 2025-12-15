@@ -700,7 +700,6 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
     eventId: string,
     temperature: number = 0.6,
     maxTokens: number = 4096,
-    enabledMcpTools?: string[],
     thinkingBudget?: number,
     reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
     verbosity?: 'low' | 'medium' | 'high',

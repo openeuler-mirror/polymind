@@ -25,7 +25,6 @@
     "contentProtectionRestartNotice": "この設定を変更するとアプリケーションが再起動します。続行しますか？",
     "soundEnabled": "サウンドを有効にする",
     "copyWithCotEnabled": "COT情報をコピー",
-    "useBuiltInTools": "内蔵ツールを使用",
     "loggingEnabled": "ログを有効にする",
     "loggingDialogTitle": "ログ設定の変更確認",
     "loggingEnableDesc": "ログを有効にすると、問題の診断とアプリケーションの改善に役立ちます。ログファイルには機密情報が含まれる可能性があります。",

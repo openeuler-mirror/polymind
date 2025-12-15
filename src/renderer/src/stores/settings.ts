@@ -33,7 +33,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const searchPreviewEnabled = ref<boolean>(true) // 搜索预览是否启用，默认启用
   const contentProtectionEnabled = ref<boolean>(true) // 投屏保护是否启用，默认启用
   const copyWithCotEnabled = ref<boolean>(true)
-  const useBuiltInToolsEnabled = ref<boolean>(true) // 内置工具是否启用，默认启用
   const notificationsEnabled = ref<boolean>(true) // 系统通知是否启用，默认启用
   const fontSizeLevel = ref<number>(DEFAULT_FONT_SIZE_LEVEL) // 字体大小级别，默认为 1
   // Ollama 相关状态
@@ -297,7 +296,6 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       loggingEnabled.value = await configP.getLoggingEnabled()
       copyWithCotEnabled.value = await configP.getCopyWithCotEnabled()
-      useBuiltInToolsEnabled.value = await configP.getUseBuiltInToolsEnabled()
 
       // 获取全部 provider
       providers.value = await configP.getProviders()
@@ -1480,15 +1478,6 @@ export const useSettingsStore = defineStore('settings', () => {
     return await configP.getCopyWithCotEnabled()
   }
 
-  const getUseBuiltInToolsEnabled = async (): Promise<boolean> => {
-    return configP.getUseBuiltInToolsEnabled()
-  }
-
-  const setUseBuiltInToolsEnabled = async (enabled: boolean) => {
-    useBuiltInToolsEnabled.value = Boolean(enabled)
-    configP.setUseBuiltInToolsEnabled(enabled)
-  }
-
   const setupCopyWithCotEnabledListener = () => {
     window.electron.ipcRenderer.on(
       CONFIG_EVENTS.COPY_WITH_COT_CHANGED,
@@ -1712,7 +1701,6 @@ export const useSettingsStore = defineStore('settings', () => {
     searchPreviewEnabled,
     contentProtectionEnabled,
     copyWithCotEnabled,
-    useBuiltInToolsEnabled,
     notificationsEnabled, // 暴露系统通知状态
     loggingEnabled,
     updateProvider,
@@ -1762,8 +1750,6 @@ export const useSettingsStore = defineStore('settings', () => {
     setLoggingEnabled,
     getCopyWithCotEnabled,
     setCopyWithCotEnabled,
-    getUseBuiltInToolsEnabled,
-    setUseBuiltInToolsEnabled,
     setupCopyWithCotEnabledListener,
     testSearchEngine,
     refreshSearchEngines,

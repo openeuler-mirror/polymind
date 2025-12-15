@@ -219,21 +219,6 @@
         </div>
       </div>
 
-      <!-- 内置工具开关 -->
-      <div class="flex flex-row p-2 items-center gap-2 px-2">
-        <span class="flex flex-row items-center gap-2 flex-grow w-full" :dir="langStore.dir">
-          <Icon icon="lucide:wrench" class="w-4 h-4 text-muted-foreground" />
-          <span class="text-sm font-medium">{{ t('settings.common.useBuiltInTools') }}</span>
-        </span>
-        <div class="flex-shrink-0">
-          <Switch
-            id="built-in-tools-switch"
-            :checked="usebuiltInToolsEnabled"
-            @update:checked="handleBuiltInToolsChange"
-          />
-        </div>
-      </div>
-
       <!-- 复制全部（含COT）开关 -->
       <div class="flex flex-row p-2 items-center gap-2 px-2">
         <span class="flex flex-row items-center gap-2 flex-grow w-full" :dir="langStore.dir">
@@ -809,21 +794,6 @@ const soundEnabled = computed({
 // 处理音效开关状态变更
 const handleSoundChange = (value: boolean) => {
   soundStore.setSoundEnabled(value)
-}
-
-// 内置工具开关相关
-const usebuiltInToolsEnabled = computed({
-  get: () => {
-    return settingsStore.useBuiltInToolsEnabled
-  },
-  set: (value: boolean) => {
-    settingsStore.setUseBuiltInToolsEnabled(value)
-  }
-})
-
-// 处理内置工具开关状态变更
-const handleBuiltInToolsChange = (value: boolean) => {
-  settingsStore.setUseBuiltInToolsEnabled(value)
 }
 
 const copyWithCotEnabled = computed({
