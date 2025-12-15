@@ -2544,15 +2544,13 @@ export class ThreadPresenter implements IThreadPresenter {
                 }
 
                 return (
-                  '<function_call>' +
+                  '<function_call_record>' +
                   JSON.stringify({
-                    function_call_record: {
-                      name: block.tool_call.name,
-                      arguments: parsedParams,
-                      response: parsedResponse
-                    }
+                    name: block.tool_call.name,
+                    arguments: parsedParams,
+                    response: parsedResponse
                   }) +
-                  '</function_call>'
+                  '</function_call_record>'
                 )
               } else {
                 return '' // 若 tool_call 或 response、params 是 undefined 返回。只是便于调试而已，可以为空。

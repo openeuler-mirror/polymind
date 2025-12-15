@@ -1219,7 +1219,7 @@ export class LLMProviderPresenter implements ILlmProviderPresenter {
                   // Non-native FC: Add tool execution record to conversation history for next LLM turn.
 
                   // 1. Format tool execution record (including the function calling request & response) into prompt-defined text.
-                  const formattedToolRecordText = `<function_call>${JSON.stringify({ function_call_record: { name: toolCall.name, arguments: toolCall.arguments, response: toolResponse.content } })}</function_call>`
+                  const formattedToolRecordText = `<function_call_record>${JSON.stringify({ name: toolCall.name, arguments: toolCall.arguments, response: toolResponse.content })}</function_call_record>`
 
                   // 2. Add a role: 'assistant' message to conversationMessages (containing the full record text).
                   // Find or create the last assistant message to append the record text

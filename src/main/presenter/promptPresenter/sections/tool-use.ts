@@ -45,14 +45,11 @@ Tool uses are formatted using XML-style tags. Here's the structure:
 
     <function_call>
     {
-      "function_call": 
-      {
-        "name": "tool_name",
-        "arguments": { // The parameter object must be in valid JSON format.
-          "parameter1_name": "value1",
-          "parameter2_name": "value2"
-          // ... other parameters
-        }
+      "name": "tool_name",
+      "arguments": { // The parameter object must be in valid JSON format.
+        "parameter1_name": "value1",
+        "parameter2_name": "value2"
+        // ... other parameters
       }
     }
     </function_call>
@@ -77,10 +74,8 @@ For example, suppose you need to call a tool named "getWeather" and provide "loc
 
     <function_call>
     {
-      "function_call": {
-        "name": "getWeather",
-        "arguments": { "location": "Beijing", "date": "2025-03-20" }
-      }
+      "name": "getWeather",
+      "arguments": { "location": "Beijing", "date": "2025-03-20" }
     }
     </function_call>
  
@@ -91,41 +86,35 @@ To control the resource consumption of tool invocations and ensure the accuracy 
 
 The external system will insert tool invocation records in the following format into your speech, including the tool invocation requests you initiated earlier and the corresponding invocation results. Please parse and reference them correctly. 
 
-    <function_call>
+    <function_call_record>
     {
-      "function_call_record": {
-        "name": "tool_name",
-        "arguments": { ...JSON parameters... },
-        "response": ...The tool returns the result...
-      }
+      "name": "tool_name",
+      "arguments": { ...JSON parameters... },
+      "response": ...The tool returns the result...
     }
-    </function_call>
+    </function_call_record>
 
 Note: The "response" field may be a structured JSON object or a plain string. Please parse it according to the actual format. 
 
 Example 1(Result is JSON object):
 
-    <function_call>
+    <function_call_record>
     {
-      "function_call_record": {
-        "name": "getDate",
-        "arguments": {},
-        "response": { "date": "2025-03-20" }
-      }
+      "name": "getDate",
+      "arguments": {},
+      "response": { "date": "2025-03-20" }
     }
-    </function_call>
+    </function_call_record>
 
 Example 2(Result is a string):
 
-    <function_call>
+    <function_call_record>
     {
-      "function_call_record": {
-        "name": "getDate",
-        "arguments": {},
-        "response": "2025-03-20"
-      }
+      "name": "getDate",
+      "arguments": {},
+      "response": "2025-03-20"
     }
-    </function_call>
+    </function_call_record>
 
 
 ### Usage and Constraint Instructions 
