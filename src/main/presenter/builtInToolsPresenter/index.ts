@@ -13,6 +13,7 @@ import { writeFileTool, executeWriteFileTool } from './writeFileTool'
 import { listFilesTool, executeListFilesTool } from './listFilesTool'
 import { executeCommandTool, executeCommandToolHandler } from './executeCommandTool'
 import { useA2AServerTool, executeUseA2AServerToolHandler } from './useA2AServerTool'
+import { useMcpTool, executeUseMcpTool } from './useMcpTool'
 
 export const BUILT_IN_TOOL_SERVER_NAME = 'polymind-builtin'
 export const BUILT_IN_TOOL_SERVER_DESCRIPTION = 'PolyMind built-in tools'
@@ -21,7 +22,8 @@ export const builtInTools: Record<string, BuiltInToolDefinition> = {
   [readFileTool.name]: readFileTool,
   [writeFileTool.name]: writeFileTool,
   [listFilesTool.name]: listFilesTool,
-  [executeCommandTool.name]: executeCommandTool
+  [executeCommandTool.name]: executeCommandTool,
+  [useMcpTool.name]: useMcpTool
 }
 
 type BuiltInExecutor = (args: any, toolCallId: string) => Promise<BuiltInToolResponse>
@@ -29,7 +31,8 @@ const builtInToolExecutors: Record<string, BuiltInExecutor> = {
   [readFileTool.name]: executeReadFileTool,
   [writeFileTool.name]: executeWriteFileTool,
   [listFilesTool.name]: executeListFilesTool,
-  [executeCommandTool.name]: executeCommandToolHandler
+  [executeCommandTool.name]: executeCommandToolHandler,
+  [useMcpTool.name]: executeUseMcpTool
 }
 
 const a2aBuiltInTools: Record<string, BuiltInToolDefinition> = {
@@ -192,14 +195,7 @@ export class BuiltInToolsPresenter implements IBuiltInToolsPresenter {
     }
   }
 
-  async getBuiltInToolDefinitions(
-    enabled: boolean = true,
-    currentAgent?: Agent
-  ): Promise<MCPToolDefinition[]> {
-    if (!enabled) {
-      return []
-    }
-
+  async getBuiltInToolDefinitions(currentAgent?: Agent): Promise<MCPToolDefinition[]> {
     try {
       const tools = await this.getBuiltInTools(currentAgent)
       return tools.map((tool) => this.mapToolToDefinition(tool))
@@ -213,12 +209,12 @@ export class BuiltInToolsPresenter implements IBuiltInToolsPresenter {
    * 将 MCPToolDefinition 转换为 XML 格式
    * @returns XML 格式的工具定义字符串
    */
-  async convertToolsToXml(enabled: boolean = true, currentAgent?: Agent): Promise<string> {
-    const tools = await this.getBuiltInToolDefinitions(enabled, currentAgent)
+  convertToolsToXml(tools: MCPToolDefinition[]): string {
     const xmlTools = tools
       .map((tool) => {
         const { name, description, parameters } = tool.function
         const { properties, required = [] } = parameters
+        const serverName = tool.server?.name ? tool.server.name : ''
 
         const paramsXml = Object.entries(properties)
           .map(([paramName, paramDef]) => {
@@ -232,7 +228,7 @@ export class BuiltInToolsPresenter implements IBuiltInToolsPresenter {
           })
           .join('\n    ')
 
-        return `<tool name="${name}" description="${description}">
+        return `<tool name="${name}" description="${description}" server_name="${serverName}">
     ${paramsXml}
 </tool>`
       })

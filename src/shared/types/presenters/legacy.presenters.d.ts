@@ -1247,8 +1247,8 @@ export interface ProgressResponse {
 
 //
 export interface IBuiltInToolsPresenter {
-  convertToolsToXml(useBuiltInToolsEnabled: boolean, currentAgent?: Agent): Promise<string>
-  getBuiltInToolDefinitions(enabled?: boolean, currentAgent?: Agent | null): any
+  convertToolsToXml(tools: MCPToolDefinition[]): string
+  getBuiltInToolDefinitions(currentAgent?: Agent | null): any
 
   /**
    * 获取所有内置工具的定义
