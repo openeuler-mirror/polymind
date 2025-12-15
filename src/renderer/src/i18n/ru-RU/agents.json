@@ -10,6 +10,13 @@
     "support": "Поддержка"
   },
   "agentCard": {
+    "edit": "Редактировать",
+    "delete": "Удалить",
+    "deleteConfirm": {
+      "title": "Удаление агента",
+      "description": "Вы уверены, что хотите удалить этого агента? Это действие нельзя отменить.",
+      "confirm": "Удалить"
+    },
     "details": {
       "basicInfo": "Основная информация",
       "version": "Версия",
@@ -36,6 +43,14 @@
       "description": "Не удалось установить {name}"
     },
     "uninstallError": {
+      "title": "Ошибка удаления",
+      "description": "Не удалось удалить {name}"
+    },
+    "deleteSuccess": {
+      "title": "Удаление успешно",
+      "description": "{name} был успешно удалён"
+    },
+    "deleteError": {
       "title": "Ошибка удаления",
       "description": "Не удалось удалить {name}"
     }

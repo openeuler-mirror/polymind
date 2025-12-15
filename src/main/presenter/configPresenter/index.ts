@@ -1485,6 +1485,18 @@ export class ConfigPresenter implements IConfigPresenter {
    * 删除智能体
    */
   async removeAgent(agentId: string): Promise<void> {
+    // 获取代理以检查是否为 A2A 类型
+    const agents = await this.getAgents()
+    const agent = agents.find((a) => a.id === agentId)
+    presenter.a2aPresenter.getA2AClient
+    if (agent?.type === 'A2A' && agent.a2aURL) {
+      try {
+        await presenter.a2aPresenter.removeA2AServer(agent.a2aURL)
+      } catch (error) {
+        console.error(`[A2A] Failed to remove A2A server ${agent.a2aURL}:`, error)
+        throw error
+      }
+    }
     return this.agentConfHelper.removeAgent(agentId)
   }
 

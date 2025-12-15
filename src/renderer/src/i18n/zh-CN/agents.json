@@ -10,6 +10,13 @@
     "support": "客服"
   },
   "agentCard": {
+    "edit": "编辑",
+    "delete": "删除",
+    "deleteConfirm": {
+      "title": "删除智能体",
+      "description": "确定要删除这个智能体吗？此操作无法撤销。",
+      "confirm": "删除"
+    },
     "details": {
       "basicInfo": "基本信息",
       "version": "版本",
@@ -38,6 +45,14 @@
     "uninstallError": {
       "title": "卸载失败",
       "description": "{name} 卸载失败"
+    },
+    "deleteSuccess": {
+      "title": "删除成功",
+      "description": "{name} 已成功删除"
+    },
+    "deleteError": {
+      "title": "删除失败",
+      "description": "{name} 删除失败"
     }
   },
   "search": {

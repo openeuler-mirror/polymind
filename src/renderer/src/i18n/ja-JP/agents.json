@@ -10,6 +10,13 @@
     "support": "サポート"
   },
   "agentCard": {
+    "edit": "編集",
+    "delete": "削除",
+    "deleteConfirm": {
+      "title": "このエージェントを削除しますか？",
+      "description": "この操作は元に戻せません。",
+      "confirm": "削除"
+    },
     "details": {
       "basicInfo": "基本情報",
       "version": "バージョン",
@@ -38,6 +45,14 @@
     "uninstallError": {
       "title": "アンインストール失敗",
       "description": "{name} のアンインストールに失敗しました"
+    },
+    "deleteSuccess": {
+      "title": "削除成功",
+      "description": "{name} が正常に削除されました"
+    },
+    "deleteError": {
+      "title": "削除失敗",
+      "description": "{name} の削除に失敗しました"
     }
   },
   "search": {

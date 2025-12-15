@@ -16,28 +16,15 @@
       </div>
       
       <div class="flex items-center gap-2">
-        
-        <!-- 提供商信息 -->
-        <span v-if="agent.provider?.organization" class="text-xs flex items-center">
-          by
-          <a
-            v-if="agent.provider?.url"
-            :href="agent.provider.url"
-            target="_blank"
-            class="text-primary hover:underline cursor-pointer max-w-[120px] truncate ml-1"
-            @click.stop
-            :title="agent.provider.url"
-          >
-            {{ agent.provider.organization }}
-          </a>
-          <span
-            v-else
-            class="max-w-[120px] truncate ml-1"
-            :title="agent.provider.organization"
-          >
-            {{ agent.provider.organization }}
-          </span>
-        </span>
+
+        <!-- 删除按钮 -->
+        <button
+          class="p-1 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive transition-colors"
+          @click.stop="handleDelete"
+          :title="t('agents.agentCard.delete')"
+        >
+          <Icon icon="lucide:trash-2" class="w-4 h-4" />
+        </button>
       </div>
     </div>
 
@@ -75,9 +62,6 @@
         />
       </div>
     </div>
-
-    
-
   </div>
 
   <!-- Agent 配置详情对话框 -->
@@ -85,6 +69,26 @@
     v-model:show-agent-settings="showAgentSettings"
     :selected-agent="selectedAgent"
   />
+
+  <!-- 删除确认对话框 -->
+  <AlertDialog :open="showDeleteConfirm" @update:open="showDeleteConfirm = $event">
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>{{ t('agents.agentCard.deleteConfirm.title') }}</AlertDialogTitle>
+        <AlertDialogDescription>
+          {{ t('agents.agentCard.deleteConfirm.description') }}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel @click="showDeleteConfirm = false">
+          {{ t('dialog.cancel') }}
+        </AlertDialogCancel>
+        <AlertDialogAction @click="confirmDelete" class="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+          {{ t('agents.agentCard.deleteConfirm.confirm') }}
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>
 
 <script setup lang="ts">
@@ -92,7 +96,18 @@ import { Icon } from '@iconify/vue'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import AgentSettings from './AgentSettings.vue'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 import { Agent } from '@shared/presenter'
 
@@ -105,11 +120,15 @@ const emit = defineEmits<{
   configure: [agent: Agent]
   install: [agent: Agent]
   uninstall: [agent: Agent]
+  delete: [agent: Agent]
 }>()
+
+const { t } = useI18n()
 
 // 对话框状态
 const showAgentSettings = ref(false)
 const selectedAgent = ref<Agent | null>(null)
+const showDeleteConfirm = ref(false)
 
 // 切换安装状态
 const toggleInstallation = () => {
@@ -126,6 +145,17 @@ const toggleInstallation = () => {
 const showDetails = (agent: Agent) => {
   selectedAgent.value = agent
   showAgentSettings.value = true
+}
+
+// 处理删除按钮点击
+const handleDelete = () => {
+  showDeleteConfirm.value = true
+}
+
+// 确认删除
+const confirmDelete = () => {
+  emit('delete', props.agent)
+  showDeleteConfirm.value = false
 }
 </script>
 

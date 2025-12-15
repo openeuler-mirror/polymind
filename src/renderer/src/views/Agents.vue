@@ -76,6 +76,7 @@
             @install="handleInstallAgent"
             @configure="handleConfigureAgent"
             @uninstall="handleUninstallAgent"
+            @delete="handleDeleteAgent"
           />
         </div>
       </div>
@@ -269,6 +270,37 @@ const handleUninstallAgent = async (agent: Agent) => {
     toast({
       title: t('agents.toast.uninstallError.title'),
       description: t('agents.toast.uninstallError.description', { name: agent.name }),
+      variant: 'destructive',
+      duration: 5000
+    })
+  }
+}
+
+const handleDeleteAgent = async (agent: Agent) => {
+  console.log('删除智能体:', agent.name)
+  
+  try {
+    // 通过 configPresenter 删除智能体
+    const configPresenter = usePresenter('configPresenter')
+    await configPresenter.removeAgent(agent.id)
+    
+    // 从本地列表中移除
+    const agentIndex = agents.value.findIndex(a => a.id === agent.id)
+    if (agentIndex !== -1) {
+      agents.value.splice(agentIndex, 1)
+    }
+    
+    toast({
+      title: t('agents.toast.deleteSuccess.title'),
+      description: t('agents.toast.deleteSuccess.description', { name: agent.name }),
+      variant: 'default',
+      duration: 3000
+    })
+  } catch (error) {
+    console.error('Failed to delete agent:', error)
+    toast({
+      title: t('agents.toast.deleteError.title'),
+      description: t('agents.toast.deleteError.description', { name: agent.name }),
       variant: 'destructive',
       duration: 5000
     })
