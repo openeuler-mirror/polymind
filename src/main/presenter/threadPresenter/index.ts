@@ -705,8 +705,13 @@ export class ThreadPresenter implements IThreadPresenter {
             lastBlock.status = 'granted'
             return
           }
-          // 只有当上一个块不是一个正在等待结果的工具调用时，才将其标记为成功
-          if (!(lastBlock.type === 'tool_call' && lastBlock.status === 'loading')) {
+          // 两种情况不能将其标记为成功：当上一个块是一个工具调用, 状态是"正在等待结果"或者"结果报错"时
+          if (
+            !(
+              lastBlock.type === 'tool_call' &&
+              (lastBlock.status === 'loading' || lastBlock.status === 'error')
+            )
+          ) {
             lastBlock.status = 'success'
           }
         }
