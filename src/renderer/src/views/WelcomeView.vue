@@ -318,8 +318,9 @@ const isFirstStep = computed(() => currentStep.value === 0)
                     {{ t('settings.provider.getKeyTip') }}
                     <a
                       :href="
-                        settingsStore.providers.find((p) => p.id === selectedProvider)?.websites
-                          ?.apiKey || '#'
+                         settingsStore.providers.find((p) => p.id === selectedProvider)?.websites?.apiKey ||
+                         settingsStore.defaultProviders.find((p) => p.id === selectedProvider)?.websites?.apiKey ||
+                         '#'
                       "
                       target="_blank"
                       class="text-primary"
