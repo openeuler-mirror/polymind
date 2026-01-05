@@ -154,7 +154,7 @@ export async function executeCommandToolHandler(
       error: errorMessage
     }
 
-    const failureMessage = `Command execution failed (${exitInfo})\nCommand: ${metadata.command}\nWorking directory: ${metadata.cwd}\n\nstdout:\n${stdout || '(empty)'}\n\nstderr:\n${stderr || '(empty)'}\n\nerror message: ${errorMessage}`
+    const failureMessage = `Command execute exception: (${exitInfo})\nCommand: ${metadata.command}\nWorking directory: ${metadata.cwd}\n\nstdout:\n${stdout || '(empty)'}\n\nstderr:\n${stderr || '(empty)'}\n\nerror message: ${errorMessage}`
 
     return {
       toolCallId,

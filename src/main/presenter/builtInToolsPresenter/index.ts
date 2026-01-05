@@ -186,12 +186,12 @@ export class BuiltInToolsPresenter implements IBuiltInToolsPresenter {
       return { content: response.content, rawData: response.rawData }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      const failureContent = `Built-in tool execution failed: ${errorMessage}`
-      const rawData = buildRawData(toolCall.id, failureContent, true, {
+      const ExceptionContent = `Built-in tool execute exception: ${errorMessage}`
+      const rawData = buildRawData(toolCall.id, ExceptionContent, true, {
         tool: toolCall.function.name,
         error: errorMessage
       })
-      throw new BuiltInToolCallError(failureContent, rawData)
+      throw new BuiltInToolCallError(ExceptionContent, rawData)
     }
   }
 
