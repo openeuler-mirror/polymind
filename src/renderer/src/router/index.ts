@@ -126,6 +126,15 @@ const router = createRouter({
           }
         },
         {
+          path: 'im',
+          name: 'settings-im',
+          component: () => import('@/components/settings/IMSettings.vue'),
+          meta: {
+            titleKey: 'routes.settings-im',
+            icon: 'lucide:message-square'
+          }
+        },
+        {
           path: 'about',
           name: 'settings-about',
           component: () => import('@/components/settings/AboutUsSettings.vue'),
