@@ -824,11 +824,40 @@
     "disabledDescription": "速率限制功能已關閉"
   },
   "promptSetting": {
-    "resetToDefault": "重置為默認提示詞",
+    "resetToDefault": "重置為預設提示詞",
     "clear": "清空提示詞",
-    "resetToDefaultSuccess": "已重置為默認系統提示詞",
+    "resetToDefaultSuccess": "成功重置為預設系統提示詞",
     "resetToDefaultFailed": "重置失敗，請重試",
-    "clearSuccess": "已清空系統提示詞",
+    "clearSuccess": "成功清空系統提示詞",
     "clearFailed": "清空失敗，請重試"
+  },
+  "im": {
+    "search": "搜尋IM提供商",
+    "enabled": "已啟用",
+    "disabled": "已禁用",
+    "addImProvider": "新增IM提供商",
+    "addImProviderDesc": "新增IM提供商以整合您喜愛的訊息平台",
+    "basicConfig": "基本設定",
+    "advancedConfig": "進階設定",
+    "enableNotifications": "啟用通知",
+    "enableNotificationsDesc": "接收新訊息和事件的通知",
+    "enableAutoReply": "啟用自動回覆",
+    "enableAutoReplyDesc": "使用AI自動回覆訊息",
+    "testConnection": "測試連線",
+    "testing": "測試中...",
+    "sendTestMessage": "傳送測試訊息",
+    "sending": "傳送中...",
+    "selectProvider": "請選擇要設定的IM提供商",
+    "providerType": "提供商類型",
+    "selectProviderType": "選擇提供商類型",
+    "customProvider": "自訂提供商",
+    "providerName": "提供商名稱",
+    "providerNamePlaceholder": "輸入提供商名稱",
+    "initialConfigHint": "填寫所選提供商類型的初始設定",
+    "providerAdded": "IM提供商新增成功",
+    "connectionTestSuccess": "連線測試成功",
+    "connectionTestFailed": "連線測試失敗",
+    "testMessageSent": "測試訊息傳送成功",
+    "testMessageFailed": "傳送測試訊息失敗"
   }
 }

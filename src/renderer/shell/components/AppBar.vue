@@ -23,7 +23,8 @@
               </div>
               <!-- ASK text -->
               <div
-                class="w-10 h-7 flex items-center justify-center text-xs font-medium transition-colors duration-200 text-white"
+                class="w-10 h-7 flex items-center justify-center text-xs font-medium transition-colors duration-200"
+                :class="themeStore.isDark ? 'text-white' : 'text-black'"
               >
                 ASK
               </div>
