@@ -38,32 +38,32 @@
           <DynamicScrollerItem
             :item="item"
             :active="active"
-            :size-dependencies="[item.data]"
+            :size-dependencies="[(item as VirtualScrollItem).data]"
             :data-index="index"
           >
             <!-- 日期标题 -->
             <div
-              v-if="item.type === 'date'"
+              v-if="(item as VirtualScrollItem).type === 'date'"
               class="text-xs font-bold text-muted-foreground px-2 py-2"
             >
-              {{ item.data }}
+              {{ (item as VirtualScrollItem).data }}
             </div>
 
             <!-- 线程项 -->
-            <div v-else-if="item.type === 'thread'" class="px-0 py-1">
+            <div v-else-if="(item as VirtualScrollItem).type === 'thread'" class="px-0 py-1">
               <ThreadItem
-                :thread="item.data"
-                :is-active="item.data.id === chatStore.getActiveThreadId()"
-                :working-status="chatStore.getThreadWorkingStatus(item.data.id)"
+                :thread="(item as VirtualScrollItem).data as CONVERSATION"
+                :is-active="((item as VirtualScrollItem).data as CONVERSATION).id === chatStore.getActiveThreadId()"
+                :working-status="chatStore.getThreadWorkingStatus(((item as VirtualScrollItem).data as CONVERSATION).id)"
                 @select="handleThreadSelect"
-                @rename="showRenameDialog(item.data)"
-                @delete="showDeleteDialog(item.data)"
-                @cleanmsgs="showCleanMessagesDialog(item.data)"
+                @rename="showRenameDialog((item as VirtualScrollItem).data as CONVERSATION)"
+                @delete="showDeleteDialog((item as VirtualScrollItem).data as CONVERSATION)"
+                @cleanmsgs="showCleanMessagesDialog((item as VirtualScrollItem).data as CONVERSATION)"
               />
             </div>
 
             <!-- 分隔间距 -->
-            <div v-else-if="item.type === 'spacer'" class="h-3"></div>
+            <div v-else-if="(item as VirtualScrollItem).type === 'spacer'" class="h-3"></div>
           </DynamicScrollerItem>
         </template>
       </DynamicScroller>
