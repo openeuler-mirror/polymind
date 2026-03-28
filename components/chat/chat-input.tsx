@@ -20,6 +20,20 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+const models = [
+  { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
+  { id: 'claude-3-opus', name: 'Claude 3 Opus', provider: 'Anthropic' },
+  { id: 'gemini-pro', name: 'Gemini Pro', provider: 'Google' },
+  { id: 'llama-3', name: 'Llama 3 70B', provider: 'Meta' },
+]
 
 interface ChatInputProps {
   onSend: (content: string, attachments?: File[]) => void
@@ -172,6 +186,23 @@ export function ChatInput({ onSend }: ChatInputProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            <Select defaultValue="gpt-4o">
+              <SelectTrigger className="h-7 w-[120px] border-0 bg-transparent shadow-none hover:bg-accent dark:bg-transparent dark:hover:bg-accent/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {models.map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    <div className="flex flex-col">
+                      <span>{model.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {model.provider}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <span className="text-xs text-muted-foreground">
               {input.length > 0 && `${input.length} 字符`}
             </span>
@@ -182,15 +213,22 @@ export function ChatInput({ onSend }: ChatInputProps) {
                 停止生成
               </Button>
             ) : (
-              <Button
-                size="sm"
-                className="gap-2"
-                onClick={handleSubmit}
-                disabled={!input.trim() && attachments.length === 0}
-              >
-                <Send className="h-4 w-4" />
-                发送
-              </Button>
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={handleSubmit}
+                      disabled={!input.trim() && attachments.length === 0}
+                    >
+                      <Send className="h-4 w-4" />
+                      <span className="sr-only">发送</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>发送</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </div>

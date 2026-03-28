@@ -9,6 +9,7 @@ import {
   Moon,
   Sun,
   Monitor,
+  PanelRight,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useChatStore } from '@/lib/store'
@@ -25,31 +26,21 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { RightPanelToggle } from '../tool-panel'
 import type { Conversation } from '@/lib/types'
 
 interface ChatHeaderProps {
   conversation?: Conversation
 }
 
-const models = [
-  { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
-  { id: 'claude-3-opus', name: 'Claude 3 Opus', provider: 'Anthropic' },
-  { id: 'gemini-pro', name: 'Gemini Pro', provider: 'Google' },
-  { id: 'llama-3', name: 'Llama 3 70B', provider: 'Meta' },
-]
+
 
 export function ChatHeader({ conversation }: ChatHeaderProps) {
   const { theme, setTheme } = useTheme()
@@ -59,7 +50,7 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
   } = useChatStore()
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border px-4">
+    <header className="flex h-14 items-center justify-between px-4">
       <div className="flex items-center gap-3">
         {!isSidebarOpen && (
           <TooltipProvider delayDuration={0}>
@@ -86,25 +77,6 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Model Selector */}
-        <Select defaultValue="gpt-4o">
-          <SelectTrigger className="h-8 w-[160px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {models.map((model) => (
-              <SelectItem key={model.id} value={model.id}>
-                <div className="flex flex-col">
-                  <span>{model.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {model.provider}
-                  </span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
         <TooltipProvider delayDuration={0}>
           {/* Share */}
           <Tooltip>
@@ -165,6 +137,8 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        
+        <RightPanelToggle />
       </div>
     </header>
   )

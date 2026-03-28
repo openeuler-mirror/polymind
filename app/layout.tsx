@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
+import { LanguageProvider } from '@/components/language-provider'
 import './globals.css'
 
 const inter = Inter({ 
@@ -38,8 +39,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
+    <LanguageProvider>
+      <div className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
@@ -49,7 +50,7 @@ export default function RootLayout({
           {children}
         </ThemeProvider>
         <Analytics />
-      </body>
-    </html>
+      </div>
+    </LanguageProvider>
   )
 }

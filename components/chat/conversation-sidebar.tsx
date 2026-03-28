@@ -11,7 +11,6 @@ import {
   Trash2,
   Edit3,
   ChevronLeft,
-  Sparkles,
   Code2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -32,6 +31,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { TimeAgo } from '@/components/ui/time-ago'
 
 export function ConversationSidebar() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -241,10 +241,7 @@ function ConversationItem({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{conversation.title}</p>
         <p className="text-xs text-muted-foreground">
-          {formatDistanceToNow(conversation.updatedAt, {
-            addSuffix: true,
-            locale: zhCN,
-          })}
+          <TimeAgo date={conversation.updatedAt} />
         </p>
       </div>
 

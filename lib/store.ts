@@ -1,12 +1,29 @@
 import { create } from 'zustand'
 import type { Conversation, Message, MCPTool, ToolCall } from './types'
 
+interface Settings {
+  theme: 'light' | 'dark' | 'system'
+  language: 'zh-CN' | 'en-US'
+  keyboardShortcuts: 'vscode' | 'default'
+  linkHandler: 'system' | 'internal'
+  markdownDefaultView: 'preview' | 'editor'
+  notifications: boolean
+  autoSave: boolean
+  showTimestamps: boolean
+  autoScroll: boolean
+  codeHighlighting: boolean
+  spellCheck: boolean
+  fontSize: 'small' | 'medium' | 'large'
+}
+
 interface ChatState {
   conversations: Conversation[]
   currentConversationId: string | null
   isSidebarOpen: boolean
+  isRightPanelOpen: boolean
   isStreaming: boolean
   mcpTools: MCPTool[]
+  settings: Settings
   
   // Actions
   createConversation: () => string
@@ -15,10 +32,12 @@ interface ChatState {
   addMessage: (conversationId: string, message: Message) => void
   updateMessage: (conversationId: string, messageId: string, updates: Partial<Message>) => void
   toggleSidebar: () => void
+  toggleRightPanel: () => void
   setStreaming: (streaming: boolean) => void
   toggleTool: (toolId: string) => void
   updateConversationTitle: (id: string, title: string) => void
   togglePinConversation: (id: string) => void
+  updateSettings: (settings: Partial<Settings>) => void
 }
 
 const defaultTools: MCPTool[] = [
@@ -87,8 +106,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
   conversations: demoConversations,
   currentConversationId: '1',
   isSidebarOpen: true,
+  isRightPanelOpen: true,
   isStreaming: false,
   mcpTools: defaultTools,
+  settings: {
+    theme: 'dark',
+    language: 'zh-CN',
+    keyboardShortcuts: 'vscode',
+    linkHandler: 'system',
+    markdownDefaultView: 'preview',
+    notifications: true,
+    autoSave: true,
+    showTimestamps: true,
+    autoScroll: true,
+    codeHighlighting: true,
+    spellCheck: false,
+    fontSize: 'medium',
+  },
 
   createConversation: () => {
     const id = crypto.randomUUID()
@@ -159,6 +193,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({ isSidebarOpen: !state.isSidebarOpen }))
   },
 
+  toggleRightPanel: () => {
+    set((state) => ({ isRightPanelOpen: !state.isRightPanelOpen }))
+  },
+
   setStreaming: (streaming) => {
     set({ isStreaming: streaming })
   },
@@ -184,6 +222,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       conversations: state.conversations.map((c) =>
         c.id === id ? { ...c, pinned: !c.pinned } : c
       ),
+    }))
+  },
+
+  updateSettings: (settings) => {
+    set((state) => ({
+      settings: { ...state.settings, ...settings },
     }))
   },
 }))
