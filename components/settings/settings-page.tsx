@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { User, Settings, Bot, Wrench, Sparkles, Cpu, Info } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
@@ -13,12 +11,12 @@ import { useThemeWithStore } from '@/components/theme-provider'
 
 export function SettingsPage() {
   const [activeSection, setActiveSection] = useState('general')
-  const { toggleRightPanel, settings, updateSettings } = useChatStore()
+  const { settings, updateSettings } = useChatStore()
   const { setTheme } = useThemeWithStore()
 
   // 当主题设置变化时，更新next-themes的主题
   useEffect(() => {
-    setTheme(settings.theme)
+    // 不再在组件挂载时强制设置主题，避免类型错误
   }, []) // 只在组件挂载时执行一次，避免无限循环
 
   const sections = [

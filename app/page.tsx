@@ -23,36 +23,37 @@ export default function Home() {
       </div>
 
       {/* Main Content Area with Resizable Panels */}
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
-        {/* Chat Area - Flex grow to fill remaining space */}
-        <ResizablePanel
-          defaultSize={isRightPanelOpen ? 30 : 100}
-          minSize={20}
-          className={cn(isRightPanelOpen ? "" : "max-w-full")}
-        >
+      {isRightPanelOpen ? (
+        <ResizablePanelGroup direction="horizontal" className="flex-1">
+          {/* Chat Area - Flex grow to fill remaining space */}
+          <ResizablePanel
+            defaultSize={30}
+            minSize={20}
+          >
+            <div className="h-full flex flex-col">
+              <ChatArea />
+            </div>
+          </ResizablePanel>
+
+          {/* Resizable Handle */}
+          <ResizableHandle />
+
+          {/* Right Panel - Settings panel */}
+          <ResizablePanel
+            defaultSize={70}
+            minSize={40}
+            maxSize={80}
+          >
+            <RightPanel />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        <div className="flex-1">
           <div className="h-full flex flex-col">
             <ChatArea />
           </div>
-        </ResizablePanel>
-
-        {/* Resizable Handle - Only show when right panel is open */}
-        {isRightPanelOpen && (
-          <ResizableHandle />
-        )}
-
-        {/* Right Panel - Settings panel */}
-        <ResizablePanel
-          defaultSize={70}
-          minSize={40}
-          maxSize={80}
-          className={cn(
-            isRightPanelOpen ? 'block' : 'hidden',
-            isMobile && 'hidden' // Hide on mobile for now
-          )}
-        >
-          <RightPanel />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </div>
+      )}
     </main>
   )
 }

@@ -4,16 +4,6 @@ import type { Conversation, Message, MCPTool, ToolCall } from './types'
 interface Settings {
   theme: 'light' | 'dark' | 'system'
   language: 'zh-CN' | 'en-US'
-  keyboardShortcuts: 'vscode' | 'default'
-  linkHandler: 'system' | 'internal'
-  markdownDefaultView: 'preview' | 'editor'
-  notifications: boolean
-  autoSave: boolean
-  showTimestamps: boolean
-  autoScroll: boolean
-  codeHighlighting: boolean
-  spellCheck: boolean
-  fontSize: 'small' | 'medium' | 'large'
 }
 
 interface ChatState {
@@ -106,22 +96,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   conversations: demoConversations,
   currentConversationId: '1',
   isSidebarOpen: true,
-  isRightPanelOpen: true,
+  isRightPanelOpen: false,
   isStreaming: false,
   mcpTools: defaultTools,
   settings: {
-    theme: 'dark',
+    theme: 'system',
     language: 'zh-CN',
-    keyboardShortcuts: 'vscode',
-    linkHandler: 'system',
-    markdownDefaultView: 'preview',
-    notifications: true,
-    autoSave: true,
-    showTimestamps: true,
-    autoScroll: true,
-    codeHighlighting: true,
-    spellCheck: false,
-    fontSize: 'medium',
   },
 
   createConversation: () => {
