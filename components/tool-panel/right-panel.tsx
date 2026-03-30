@@ -9,9 +9,7 @@ import { useChatStore } from '@/lib/store'
 import { SettingsPage } from '@/components/settings'
 
 export function RightPanel() {
-  const { isRightPanelOpen, toggleRightPanel } = useChatStore()
-  const [activeTab, setActiveTab] = useState<string | null>(null)
-  const [tabs, setTabs] = useState<Array<{ id: string; name: string }>>([])
+  const { isRightPanelOpen, toggleRightPanel, rightPanelTabs, activeRightPanelTab, addRightPanelTab, removeRightPanelTab, setActiveRightPanelTab } = useChatStore()
 
   if (!isRightPanelOpen) {
     return null
@@ -30,19 +28,15 @@ export function RightPanel() {
   ]
 
   const handleToolClick = (tool: { id: string; name: string }) => {
-    const existingTab = tabs.find(tab => tab.id === tool.id)
+    const existingTab = rightPanelTabs.find(tab => tab.id === tool.id)
     if (!existingTab) {
-      setTabs([...tabs, { id: tool.id, name: tool.name }])
+      addRightPanelTab({ id: tool.id, name: tool.name })
     }
-    setActiveTab(tool.id)
+    setActiveRightPanelTab(tool.id)
   }
 
   const handleCloseTab = (tabId: string) => {
-    const updatedTabs = tabs.filter(tab => tab.id !== tabId)
-    setTabs(updatedTabs)
-    if (activeTab === tabId) {
-      setActiveTab(updatedTabs.length > 0 ? updatedTabs[0].id : null)
-    }
+    removeRightPanelTab(tabId)
   }
 
   return (
@@ -53,14 +47,14 @@ export function RightPanel() {
       {/* Tabs */}
       <div className="border-b border-sidebar-border px-4 py-2 flex items-center gap-2 overflow-x-auto">
         <div className="flex items-center gap-2">
-          {tabs.map((tab) => (
+          {rightPanelTabs.map((tab) => (
             <div
               key={tab.id}
               className={cn(
                 "flex items-center gap-2 px-3 py-1 rounded-md text-sm whitespace-nowrap cursor-pointer",
-                activeTab === tab.id ? "bg-accent" : "hover:bg-accent/50"
+                activeRightPanelTab === tab.id ? "bg-accent" : "hover:bg-accent/50"
               )}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => setActiveRightPanelTab(tab.id)}
             >
               <span>{tab.name}</span>
               <Button
@@ -87,13 +81,13 @@ export function RightPanel() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
-              {tools.filter(tool => !tabs.some(tab => tab.id === tool.id)).map((tool) => (
+              {tools.filter(tool => !rightPanelTabs.some(tab => tab.id === tool.id)).map((tool) => (
                 <DropdownMenuItem key={tool.id} onClick={() => handleToolClick(tool)}>
                   <tool.icon className={`h-4 w-4 ${tool.color} mr-2`} />
                   {tool.name}
                 </DropdownMenuItem>
               ))}
-              {tools.filter(tool => !tabs.some(tab => tab.id === tool.id)).length === 0 && (
+              {tools.filter(tool => !rightPanelTabs.some(tab => tab.id === tool.id)).length === 0 && (
                 <div className="px-4 py-2 text-sm text-muted-foreground">
                   所有工具已打开
                 </div>
@@ -104,16 +98,16 @@ export function RightPanel() {
       </div>
 
       {/* Content */}
-      {activeTab ? (
+      {activeRightPanelTab ? (
         <div className="flex-1">
-          {activeTab === 'settings' ? (
+          {activeRightPanelTab === 'settings' ? (
             <SettingsPage />
           ) : (
             <div className="p-4">
               <div className="h-full flex items-center justify-center">
                 <div className="text-center">
                   <p className="text-sm text-muted-foreground">
-                    这里是 {tabs.find(tab => tab.id === activeTab)?.name} 页面
+                    这里是 {rightPanelTabs.find(tab => tab.id === activeRightPanelTab)?.name} 页面
                   </p>
                 </div>
               </div>

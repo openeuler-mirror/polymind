@@ -6,6 +6,11 @@ interface Settings {
   language: 'zh-CN' | 'en-US'
 }
 
+interface Tab {
+  id: string
+  name: string
+}
+
 interface ChatState {
   conversations: Conversation[]
   currentConversationId: string | null
@@ -14,6 +19,8 @@ interface ChatState {
   isStreaming: boolean
   mcpTools: MCPTool[]
   settings: Settings
+  rightPanelTabs: Tab[]
+  activeRightPanelTab: string | null
   
   // Actions
   createConversation: () => string
@@ -28,6 +35,9 @@ interface ChatState {
   updateConversationTitle: (id: string, title: string) => void
   togglePinConversation: (id: string) => void
   updateSettings: (settings: Partial<Settings>) => void
+  addRightPanelTab: (tab: Tab) => void
+  removeRightPanelTab: (tabId: string) => void
+  setActiveRightPanelTab: (tabId: string | null) => void
 }
 
 const defaultTools: MCPTool[] = [
@@ -103,6 +113,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     theme: 'system',
     language: 'zh-CN',
   },
+  rightPanelTabs: [],
+  activeRightPanelTab: null,
 
   createConversation: () => {
     const id = crypto.randomUUID()
@@ -209,5 +221,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       settings: { ...state.settings, ...settings },
     }))
+  },
+  
+  addRightPanelTab: (tab) => {
+    set((state) => {
+      const existingTab = state.rightPanelTabs.find(t => t.id === tab.id)
+      if (existingTab) {
+        return state
+      }
+      return {
+        rightPanelTabs: [...state.rightPanelTabs, tab]
+      }
+    })
+  },
+  
+  removeRightPanelTab: (tabId) => {
+    set((state) => {
+      const updatedTabs = state.rightPanelTabs.filter(tab => tab.id !== tabId)
+      let newActiveTab = state.activeRightPanelTab
+      if (newActiveTab === tabId) {
+        newActiveTab = updatedTabs.length > 0 ? updatedTabs[0].id : null
+      }
+      return {
+        rightPanelTabs: updatedTabs,
+        activeRightPanelTab: newActiveTab
+      }
+    })
+  },
+  
+  setActiveRightPanelTab: (tabId) => {
+    set({
+      activeRightPanelTab: tabId
+    })
   },
 }))
