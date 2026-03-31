@@ -115,7 +115,7 @@ const MessageItem = memo(function MessageItem({
             isUser && 'flex-row-reverse'
           )}
         >
-          <span>
+          <span suppressHydrationWarning>
             {format(message.timestamp, 'HH:mm', { locale: zhCN })}
           </span>
 

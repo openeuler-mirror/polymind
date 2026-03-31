@@ -28,18 +28,21 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <LanguageProvider>
-      <div>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
-        <Analytics />
-      </div>
-    </LanguageProvider>
+    <html lang="zh-CN" suppressHydrationWarning>
+      <body>
+        <LanguageProvider>
+          {/* 配置主题：默认跟随系统，支持 light/dark/system */}
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+          </ThemeProvider>
+          <Analytics />
+        </LanguageProvider>
+      </body>
+    </html>
   )
 }

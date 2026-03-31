@@ -10,11 +10,16 @@ interface LanguageProviderProps {
 export function LanguageProvider({ children }: LanguageProviderProps) {
   const { settings } = useChatStore()
 
+  React.useEffect(() => {
+    // 在客户端更新语言设置
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = settings.language.split('-')[0]
+    }
+  }, [settings.language])
+
   return (
-    <html lang={settings.language.split('-')[0]} suppressHydrationWarning>
-      <body>
-        {children}
-      </body>
-    </html>
+    <>
+      {children}
+    </>
   )
 }
