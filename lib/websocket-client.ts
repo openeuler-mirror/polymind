@@ -10,9 +10,10 @@ class WebSocketClient {
   private listeners: Map<string, Set<Function>> = new Map()
   private reconnectAttempts: number = 0
   private maxReconnectAttempts: number = 5
-  private reconnectInterval: number = 3000
-  private heartbeatInterval: number | null = null
-  private heartbeatTimeout: number | null = null
+  private baseReconnectInterval: number = 3000
+  private maxReconnectInterval: number = 30000 // 最大重连间隔30秒
+  private heartbeatInterval: number | NodeJS.Timeout | null = null
+  private heartbeatTimeout: number | NodeJS.Timeout | null = null
   private isManualClose: boolean = false
 
   constructor(url: string) {
@@ -49,9 +50,19 @@ class WebSocketClient {
           if (!this.isManualClose) {
             if (this.reconnectAttempts < this.maxReconnectAttempts) {
               this.reconnectAttempts++
-              setTimeout(() => {
+              // 使用指数退避策略，避免短时间内过多连接尝试
+              // 计算指数退避间隔，不超过最大重连间隔
+              const backoffInterval = Math.min(
+                this.baseReconnectInterval * Math.pow(2, this.reconnectAttempts - 1),
+                this.maxReconnectInterval
+              )
+              // 添加随机抖动，避免多个客户端同时重连
+              const jitterInterval = backoffInterval * (0.8 + Math.random() * 0.4)
+              // 检测环境，使用相应的API
+              const setTimeoutFn = typeof window !== 'undefined' ? window.setTimeout : setTimeout
+              setTimeoutFn(() => {
                 this.connect().catch(console.error)
-              }, this.reconnectInterval)
+              }, jitterInterval)
             } else {
               this.emit('error', new Error('Max reconnection attempts reached'))
             }
@@ -129,12 +140,16 @@ class WebSocketClient {
    * 开始心跳检测
    */
   private startHeartbeat(): void {
-    this.heartbeatInterval = window.setInterval(() => {
+    // 检测环境，使用相应的API
+    const setIntervalFn = typeof window !== 'undefined' ? window.setInterval : setInterval
+    const setTimeoutFn = typeof window !== 'undefined' ? window.setTimeout : setTimeout
+    
+    this.heartbeatInterval = setIntervalFn(() => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'ping' }))
         
         // 设置心跳超时
-        this.heartbeatTimeout = window.setTimeout(() => {
+        this.heartbeatTimeout = setTimeoutFn(() => {
           if (this.ws) {
             this.ws.close()
           }

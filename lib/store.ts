@@ -2,6 +2,12 @@ import { create } from 'zustand'
 import type { Conversation, Message, MCPTool, Agent, Session, AgentEvent } from './types'
 import { AgentStatus, AdapterType, SessionStatus } from './types'
 import { WebSocketClient } from '@/lib/websocket-client'
+import { messageService } from '@/services/message-service'
+import { agentService } from '@/services/agent-service'
+import { sessionService } from '@/services/session-service'
+
+// 环境变量控制是否使用模拟数据
+const USE_MOCK_DATA = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV
 
 interface Settings {
   theme: 'light' | 'dark' | 'system'
@@ -30,10 +36,10 @@ interface ChatState {
   agentStatus: Record<string, Agent['status']>
   
   // 会话相关状态
-  activeSessions: Map<string, Session> // agentId -> session
+  activeSessions: Record<string, Session> // agentId -> session
   
   // 连接状态
-  wsConnections: Map<string, WebSocketClient> // agentId -> websocket
+  wsConnections: Record<string, WebSocketClient> // agentId -> websocket
   isConnecting: boolean
   connectionError: string | null
   
@@ -146,8 +152,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   agents: [],
   currentAgentId: null,
   agentStatus: {},
-  activeSessions: new Map(),
-  wsConnections: new Map(),
+  activeSessions: {},
+  wsConnections: {},
   isConnecting: false,
   connectionError: null,
 
@@ -312,8 +318,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const agents = state.agents.filter(a => a.id !== agentId)
       const agentStatus = { ...state.agentStatus }
       delete agentStatus[agentId]
-      const activeSessions = new Map(state.activeSessions)
-      activeSessions.delete(agentId)
+      const activeSessions = { ...state.activeSessions }
+      delete activeSessions[agentId]
       
       return {
         agents,
@@ -324,28 +330,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   
   initializeAgent: async (config: any) => {
-    // 这里应该调用实际的API，暂时使用模拟数据
-    const newAgent: Agent = {
-      id: crypto.randomUUID(),
-      name: config.name || 'New Agent',
-      adapterType: config.adapterType || AdapterType.OPENCODE,
-      status: AgentStatus.CREATING,
-      sandboxId: '',
-      defaultSessionId: '',
-      hasScheduledTasks: false,
-      idleTimeout: config.idleTimeout || 300,
-      createdAt: new Date(),
-      updatedAt: new Date()
+    let newAgent: Agent
+    
+    if (USE_MOCK_DATA) {
+      // 使用模拟数据
+      newAgent = {
+        id: crypto.randomUUID(),
+        name: config.name || 'New Agent',
+        adapterType: config.adapterType || AdapterType.OPENCODE,
+        status: AgentStatus.CREATING,
+        sandboxId: '',
+        defaultSessionId: '',
+        hasScheduledTasks: false,
+        idleTimeout: config.idleTimeout || 300,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+      
+      get().addAgent(newAgent)
+      get().setCurrentAgent(newAgent.id)
+    } else {
+      // 实际调用API创建Agent
+      newAgent = await agentService.createAgent(config)
+      get().addAgent(newAgent)
+      get().setCurrentAgent(newAgent.id)
     }
-    
-    // todo: 实际调用API创建Agent，暂时使用模拟数据
-    // const agent = await agentService.createAgent(config)
-    // get().addAgent(agent)
-    // get().setCurrentAgent(agent.id)
-    
-    // 暂时添加模拟数据
-    get().addAgent(newAgent)
-    get().setCurrentAgent(newAgent.id)
     
     return newAgent
   },
@@ -354,28 +363,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isConnecting: true, connectionError: null })
     
     try {
-      // todo: 实际调用API建立WebSocket连接，暂时使用模拟
-      // const wsClient = messageService.connectForMessages(
-      //   agentId,
-      //   (event: AgentEvent) => {
-      //     // 处理接收到的消息
-      //     console.log('Received event:', event)
-      //   },
-      //   (error) => {
-      //     set({ connectionError: error.message })
-      //   }
-      // )
-      //
-      // set((state) => {
-      //   const wsConnections = new Map(state.wsConnections)
-      //   wsConnections.set(agentId, wsClient)
-      //   return { wsConnections, isConnecting: false }
-      // })
-      
-      // 模拟连接成功
-      setTimeout(() => {
-        set({ isConnecting: false })
-      }, 500)
+      // 实际调用API建立WebSocket连接
+      const wsClient = messageService.connectForMessages(
+        agentId,
+        (event: AgentEvent) => {
+          // 处理接收到的消息
+          console.log('Received event:', event)
+        },
+        (error) => {
+          set({ connectionError: error.message, isConnecting: false })
+        }
+      )
+
+      set((state) => {
+        const wsConnections = { ...state.wsConnections }
+        wsConnections[agentId] = wsClient
+        return { wsConnections, isConnecting: false }
+      })
     } catch (error: any) {
       set({ isConnecting: false, connectionError: error.message })
     }
@@ -384,11 +388,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   disconnectFromAgent: (agentId: string) => {
     // messageService.disconnect()
     set((state) => {
-      const wsConnections = new Map(state.wsConnections)
-      if (wsConnections.has(agentId)) {
-        const wsClient = wsConnections.get(agentId)!
+      const wsConnections = { ...state.wsConnections }
+      if (wsConnections[agentId]) {
+        const wsClient = wsConnections[agentId]
         wsClient.close()
-        wsConnections.delete(agentId)
+        delete wsConnections[agentId]
       }
       return { wsConnections }
     })
@@ -396,33 +400,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   sendMessageToAgent: async (agentId: string, content: string) => {
     // 获取当前活动会话
-    const activeSession = get().activeSessions.get(agentId)
+    const activeSession = get().activeSessions[agentId]
     if (!activeSession) {
       throw new Error('No active session for agent')
     }
     
-    // todo: 实际调用API发送消息
-    // await messageService.sendMessage(agentId, activeSession.id, content)
-    
-    // 模拟发送消息
-    console.log(`Sending message to agent ${agentId}: ${content}`)
+    if (USE_MOCK_DATA) {
+      // 模拟发送消息
+      console.log(`Sending message to agent ${agentId}: ${content}`)
+    } else {
+      // 实际调用API发送消息
+      await messageService.sendMessage(agentId, activeSession.id, content)
+    }
   },
   
   createNewSession: async (agentId: string) => {
-    // todo: 实际调用API创建会话
-    // const session = await sessionService.createSession(agentId)
+    let session: Session
     
-    // 模拟创建会话
-    const session: Session = {
-      id: crypto.randomUUID(),
-      agentId,
-      status: SessionStatus.ACTIVE,
-      createdAt: new Date()
+    if (USE_MOCK_DATA) {
+      // 模拟创建会话
+      session = {
+        id: crypto.randomUUID(),
+        agentId,
+        status: SessionStatus.ACTIVE,
+        createdAt: new Date()
+      }
+    } else {
+      // 实际调用API创建会话
+      session = await sessionService.createSession(agentId)
     }
     
     set((state) => {
-      const activeSessions = new Map(state.activeSessions)
-      activeSessions.set(agentId, session)
+      const activeSessions = { ...state.activeSessions }
+      activeSessions[agentId] = session
       return { activeSessions }
     })
     

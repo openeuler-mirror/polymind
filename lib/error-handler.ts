@@ -75,9 +75,9 @@ class ErrorHandler {
       return new NetworkError('Network connection failed')
     }
 
-    // 超时错误
-    if (error instanceof TimeoutError) {
-      return error
+    // 超时错误（包括AbortError）
+    if (error instanceof TimeoutError || error.name === 'AbortError') {
+      return new TimeoutError()
     }
 
     // HTTP错误

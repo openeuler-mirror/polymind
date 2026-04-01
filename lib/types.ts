@@ -126,8 +126,8 @@ export interface Agent {
 export interface CreateAgentRequest {
   name: string
   adapterType: AdapterType
-  template: any
-  modelOverride?: any
+  template: Record<string, any>
+  modelOverride?: Partial<ModelConfig>
   sandboxConfig?: {
     type?: string
     timeout?: number
@@ -140,7 +140,7 @@ export interface CreateAgentRequest {
  */
 export interface UpdateAgentRequest {
   name?: string
-  modelOverride?: any
+  modelOverride?: Partial<ModelConfig>
   idleTimeout?: number
 }
 
@@ -206,7 +206,7 @@ export interface AgentEvent {
  * WebSocket消息接口
  */
 export interface WebSocketMessage {
-  type: 'message' | 'create_session' | 'close_session'
+  type: 'message' | 'create_session' | 'close_session' | 'ping'
   content?: string
   sessionId: string
 }
@@ -232,6 +232,7 @@ export interface RequestConfig {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
   headers?: HeadersInit
   data?: any
+  timeout?: number
 }
 
 // ============================================

@@ -1,16 +1,5 @@
 import { RequestConfig } from './types'
-import { ApiErrorCode } from './error-handler'
-
-// API错误类 - 仅在此文件中使用
-class ApiError extends Error {
-  public statusCode: number
-
-  constructor(message: string, code: ApiErrorCode, statusCode: number) {
-    super(message)
-    this.statusCode = statusCode
-    this.name = 'ApiError'
-  }
-}
+import { ApiErrorCode, ApiError, TimeoutError, ErrorHandler } from './error-handler'
 
 
 /**
@@ -70,41 +59,63 @@ class HttpClient {
     }
 
     // 构建URL
-    const url = `${this.baseUrl}${config.url}`
+    const url = `${this.baseUrl}${processedConfig.url}`
     
     // 构建请求选项
     const options: RequestInit = {
-      method: config.method || 'GET',
+      method: processedConfig.method || 'GET',
       headers: {
         ...this.defaultHeaders,
-        ...config.headers
+        ...processedConfig.headers
       },
-      body: config.data ? JSON.stringify(config.data) : undefined
+      body: processedConfig.data ? JSON.stringify(processedConfig.data) : undefined
     }
 
-    // 发起请求
-    let response = await fetch(url, options)
+    // 发起请求（带超时处理）
+    const timeout = processedConfig.timeout || 30000 // 默认30秒超时
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
 
-    // 应用响应拦截器
-    for (const interceptor of this.interceptors.response) {
-      response = interceptor(response)
-    }
+    try {
+      const fetchPromise = fetch(url, {
+        ...options,
+        signal: controller.signal
+      })
 
-    // 检查响应状态
-    if (!response.ok) {
-      throw new ApiError(
-        `HTTP Error: ${response.status} ${response.statusText}`,
-        ApiErrorCode.SERVER_ERROR,
-        response.status
-      )
-    }
+      // 等待请求完成或超时
+      let response = await fetchPromise
 
-    // 解析响应数据
-    const contentType = response.headers.get('content-type')
-    if (contentType && contentType.includes('application/json')) {
-      return await response.json()
-    } else {
-      return await response.text() as unknown as T
+      // 清除超时定时器
+      clearTimeout(timeoutId)
+
+      // 应用响应拦截器
+      for (const interceptor of this.interceptors.response) {
+        response = interceptor(response)
+      }
+
+      // 检查响应状态
+      if (!response.ok) {
+        throw new ApiError(
+          `HTTP Error: ${response.status} ${response.statusText}`,
+          ApiErrorCode.SERVER_ERROR,
+          response.status
+        )
+      }
+
+      // 解析响应数据
+      const contentType = response.headers.get('content-type')
+      if (contentType && contentType.includes('application/json')) {
+        return await response.json()
+      } else {
+        return await response.text() as unknown as T
+      }
+    } catch (error) {
+      // 清除超时定时器
+      clearTimeout(timeoutId)
+
+      // 使用 ErrorHandler 处理错误
+      const handledError = ErrorHandler.handle(error, `HTTP request to ${config.url}`)
+      throw handledError
     }
   }
 
