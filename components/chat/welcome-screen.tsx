@@ -60,7 +60,7 @@ export function WelcomeScreen({ onSendMessage }: WelcomeScreenProps) {
           <Button
             key={suggestion.title}
             variant="outline"
-            className="h-auto flex-col items-start gap-2 p-4 text-left hover:bg-accent/50"
+            className="h-auto flex-col items-start gap-2 p-4 text-left text-wrap whitespace-normal hover:bg-accent/50"
             onClick={() => onSendMessage(suggestion.prompt)}
           >
             <div className="flex items-center gap-2">
