@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
@@ -44,6 +44,7 @@ export function ConversationSidebar() {
     deleteConversation,
     toggleSidebar,
     togglePinConversation,
+    updateConversationTitle,
   } = useChatStore()
 
   const filteredConversations = conversations.filter((c) =>
@@ -169,6 +170,7 @@ export function ConversationSidebar() {
                   onSelect={() => setCurrentConversation(conv.id)}
                   onDelete={() => deleteConversation(conv.id)}
                   onTogglePin={() => togglePinConversation(conv.id)}
+                  onRename={updateConversationTitle}
                 />
               ))}
             </div>
@@ -191,6 +193,7 @@ export function ConversationSidebar() {
                 onSelect={() => setCurrentConversation(conv.id)}
                 onDelete={() => deleteConversation(conv.id)}
                 onTogglePin={() => togglePinConversation(conv.id)}
+                onRename={updateConversationTitle}
               />
             ))}
           </div>
@@ -227,9 +230,73 @@ function ConversationItem({
   onSelect,
   onDelete,
   onTogglePin,
-}: ConversationItemProps) {
+  onRename,
+}: ConversationItemProps & { onRename: (id: string, title: string) => void }) {
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newTitle, setNewTitle] = useState(conversation.title);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isRenaming) {
+      // 确保输入框已经完全渲染完成
+      const timer = setTimeout(() => {
+        if (inputRef.current) {
+          console.log('Focusing input...');
+          // 强制聚焦输入框
+          inputRef.current.focus();
+          inputRef.current.select();
+          // 手动触发光标闪烁
+          inputRef.current.setSelectionRange(
+            inputRef.current.value.length,
+            inputRef.current.value.length
+          );
+          console.log('Input focused:', document.activeElement === inputRef.current);
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isRenaming]);
+
+  const handleRenameClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsRenaming(true);
+  };
+
+  const handleRenameSubmit = (e: React.FormEvent | React.KeyboardEvent) => {
+    if ('preventDefault' in e) {
+      e.preventDefault();
+    }
+    if (newTitle.trim()) {
+      onRename(conversation.id, newTitle.trim());
+    }
+    setIsRenaming(false);
+    // 重命名完成后，将焦点设置到容器上
+    setTimeout(() => {
+      if (containerRef.current) {
+        containerRef.current.focus();
+      }
+    }, 0);
+  };
+
+  const handleRenameCancel = (e: React.MouseEvent | React.FocusEvent | React.KeyboardEvent) => {
+    if ('stopPropagation' in e) {
+      e.stopPropagation();
+    }
+    setNewTitle(conversation.title);
+    setIsRenaming(false);
+    // 取消重命名后，将焦点设置到容器上
+    setTimeout(() => {
+      if (containerRef.current) {
+        containerRef.current.focus();
+      }
+    }, 0);
+  };
+
   return (
     <div
+      ref={containerRef}
+      tabIndex={-1}
       onClick={onSelect}
       className={cn(
         'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 transition-colors',
@@ -239,10 +306,37 @@ function ConversationItem({
       )}
     >
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{conversation.title}</p>
-        <p className="text-xs text-muted-foreground">
-          <TimeAgo date={conversation.updatedAt} />
-        </p>
+        {isRenaming ? (
+          <form onSubmit={handleRenameSubmit} className="w-full">
+            <input
+              ref={inputRef}
+              type="text"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onBlur={(e) => {
+                // 只有当点击的不是下拉菜单时才保存
+                if (!e.relatedTarget || !(e.relatedTarget as HTMLElement).closest('[data-slot="dropdown-menu"]')) {
+                  handleRenameSubmit(e);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleRenameSubmit(e);
+                } else if (e.key === 'Escape') {
+                  handleRenameCancel(e);
+                }
+              }}
+              className="w-full rounded-md border border-primary bg-transparent px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </form>
+        ) : (
+          <>
+            <p className="truncate text-sm font-medium">{conversation.title}</p>
+            <p className="text-xs text-muted-foreground">
+              <TimeAgo date={conversation.updatedAt} />
+            </p>
+          </>
+        )}
       </div>
 
       <DropdownMenu>
@@ -261,7 +355,7 @@ function ConversationItem({
             <Pin className="mr-2 h-4 w-4" />
             {conversation.pinned ? '取消固定' : '固定对话'}
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={handleRenameClick}>
             <Edit3 className="mr-2 h-4 w-4" />
             重命名
           </DropdownMenuItem>
