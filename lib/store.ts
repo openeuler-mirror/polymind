@@ -1,5 +1,13 @@
 import { create } from 'zustand'
-import type { Conversation, Message, MCPTool, ToolCall } from './types'
+import type { Conversation, Message, MCPTool, Agent, Session, AgentEvent } from './types'
+import { AgentStatus, AdapterType, SessionStatus } from './types'
+import { WebSocketClient } from '@/lib/websocket-client'
+import { messageService } from '@/services/message-service'
+import { agentService } from '@/services/agent-service'
+import { sessionService } from '@/services/session-service'
+
+// 环境变量控制是否使用模拟数据
+const USE_MOCK_DATA = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV
 
 interface Settings {
   theme: 'light' | 'dark' | 'system'
@@ -22,6 +30,19 @@ interface ChatState {
   rightPanelTabs: Tab[]
   activeRightPanelTab: string | null
   
+  // Agent相关状态
+  agents: Agent[]
+  currentAgentId: string | null
+  agentStatus: Record<string, Agent['status']>
+  
+  // 会话相关状态
+  activeSessions: Record<string, Session> // agentId -> session
+  
+  // 连接状态
+  wsConnections: Record<string, WebSocketClient> // agentId -> websocket
+  isConnecting: boolean
+  connectionError: string | null
+  
   // Actions
   createConversation: () => string
   deleteConversation: (id: string) => void
@@ -38,6 +59,17 @@ interface ChatState {
   addRightPanelTab: (tab: Tab) => void
   removeRightPanelTab: (tabId: string) => void
   setActiveRightPanelTab: (tabId: string | null) => void
+  
+  // Agent相关操作
+  setCurrentAgent: (agentId: string | null) => void
+  addAgent: (agent: Agent) => void
+  updateAgent: (agent: Agent) => void
+  removeAgent: (agentId: string) => void
+  initializeAgent: (config: any) => Promise<Agent>
+  connectToAgent: (agentId: string) => Promise<void>
+  disconnectFromAgent: (agentId: string) => void
+  sendMessageToAgent: (agentId: string, content: string) => Promise<void>
+  createNewSession: (agentId: string) => Promise<Session>
 }
 
 const defaultTools: MCPTool[] = [
@@ -115,6 +147,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   rightPanelTabs: [],
   activeRightPanelTab: null,
+  
+  // Agent相关状态
+  agents: [],
+  currentAgentId: null,
+  agentStatus: {},
+  activeSessions: {},
+  wsConnections: {},
+  isConnecting: false,
+  connectionError: null,
 
   createConversation: () => {
     const id = crypto.randomUUID()
@@ -254,4 +295,147 @@ export const useChatStore = create<ChatState>((set, get) => ({
       activeRightPanelTab: tabId
     })
   },
+  
+  // Agent相关操作
+  setCurrentAgent: (agentId) => {
+    set({ currentAgentId: agentId })
+  },
+  
+  addAgent: (agent) => {
+    set((state) => ({
+      agents: [...state.agents, agent]
+    }))
+  },
+  
+  updateAgent: (agent) => {
+    set((state) => ({
+      agents: state.agents.map(a => a.id === agent.id ? agent : a)
+    }))
+  },
+  
+  removeAgent: (agentId) => {
+    set((state) => {
+      const agents = state.agents.filter(a => a.id !== agentId)
+      const agentStatus = { ...state.agentStatus }
+      delete agentStatus[agentId]
+      const activeSessions = { ...state.activeSessions }
+      delete activeSessions[agentId]
+      
+      return {
+        agents,
+        agentStatus,
+        activeSessions
+      }
+    })
+  },
+  
+  initializeAgent: async (config: any) => {
+    let newAgent: Agent
+    
+    if (USE_MOCK_DATA) {
+      // 使用模拟数据
+      newAgent = {
+        id: crypto.randomUUID(),
+        name: config.name || 'New Agent',
+        adapterType: config.adapterType || AdapterType.OPENCODE,
+        status: AgentStatus.CREATING,
+        sandboxId: '',
+        defaultSessionId: '',
+        hasScheduledTasks: false,
+        idleTimeout: config.idleTimeout || 300,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+      
+      get().addAgent(newAgent)
+      get().setCurrentAgent(newAgent.id)
+    } else {
+      // 实际调用API创建Agent
+      newAgent = await agentService.createAgent(config)
+      get().addAgent(newAgent)
+      get().setCurrentAgent(newAgent.id)
+    }
+    
+    return newAgent
+  },
+  
+  connectToAgent: async (agentId: string) => {
+    set({ isConnecting: true, connectionError: null })
+    
+    try {
+      // 实际调用API建立WebSocket连接
+      const wsClient = messageService.connectForMessages(
+        agentId,
+        (event: AgentEvent) => {
+          // 处理接收到的消息
+          console.log('Received event:', event)
+        },
+        (error) => {
+          set({ connectionError: error.message, isConnecting: false })
+        }
+      )
+
+      set((state) => {
+        const wsConnections = { ...state.wsConnections }
+        wsConnections[agentId] = wsClient
+        return { wsConnections, isConnecting: false }
+      })
+    } catch (error: any) {
+      set({ isConnecting: false, connectionError: error.message })
+    }
+  },
+  
+  disconnectFromAgent: (agentId: string) => {
+    // messageService.disconnect()
+    set((state) => {
+      const wsConnections = { ...state.wsConnections }
+      if (wsConnections[agentId]) {
+        const wsClient = wsConnections[agentId]
+        wsClient.close()
+        delete wsConnections[agentId]
+      }
+      return { wsConnections }
+    })
+  },
+  
+  sendMessageToAgent: async (agentId: string, content: string) => {
+    // 获取当前活动会话
+    const activeSession = get().activeSessions[agentId]
+    if (!activeSession) {
+      throw new Error('No active session for agent')
+    }
+    
+    if (USE_MOCK_DATA) {
+      // 模拟发送消息
+      console.log(`Sending message to agent ${agentId}: ${content}`)
+    } else {
+      // 实际调用API发送消息
+      await messageService.sendMessage(agentId, activeSession.id, content)
+    }
+  },
+  
+  createNewSession: async (agentId: string) => {
+    let session: Session
+    
+    if (USE_MOCK_DATA) {
+      // 模拟创建会话
+      session = {
+        id: crypto.randomUUID(),
+        agentId,
+        status: SessionStatus.ACTIVE,
+        createdAt: new Date()
+      }
+    } else {
+      // 实际调用API创建会话
+      session = await sessionService.createSession(agentId)
+    }
+    
+    set((state) => {
+      const activeSessions = { ...state.activeSessions }
+      activeSessions[agentId] = session
+      return { activeSessions }
+    })
+    
+    return session
+  }
 }))
