@@ -17,6 +17,8 @@ interface Settings {
 interface Tab {
   id: string
   name: string
+  icon?: React.ElementType
+  color?: string
 }
 
 interface ChatState {

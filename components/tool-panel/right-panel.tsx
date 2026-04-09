@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
 import { SettingsPage } from '@/components/settings'
+import { AgentPage } from './agent-page'
 
 export function RightPanel() {
   const { isRightPanelOpen, toggleRightPanel, rightPanelTabs, activeRightPanelTab, addRightPanelTab, removeRightPanelTab, setActiveRightPanelTab } = useChatStore()
@@ -27,10 +28,10 @@ export function RightPanel() {
     { id: 'settings', name: '设置', icon: Settings, color: 'text-gray-500' },
   ]
 
-  const handleToolClick = (tool: { id: string; name: string }) => {
+  const handleToolClick = (tool: { id: string; name: string; icon: React.ElementType; color: string }) => {
     const existingTab = rightPanelTabs.find(tab => tab.id === tool.id)
     if (!existingTab) {
-      addRightPanelTab({ id: tool.id, name: tool.name })
+      addRightPanelTab({ id: tool.id, name: tool.name, icon: tool.icon, color: tool.color })
     }
     setActiveRightPanelTab(tool.id)
   }
@@ -47,29 +48,35 @@ export function RightPanel() {
       {/* Tabs */}
       <div className="border-b border-sidebar-border px-4 py-2 flex items-center gap-2 overflow-x-auto">
         <div className="flex items-center gap-2">
-          {rightPanelTabs.map((tab) => (
-            <div
-              key={tab.id}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1 rounded-md text-sm whitespace-nowrap cursor-pointer",
-                activeRightPanelTab === tab.id ? "bg-accent" : "hover:bg-accent/50"
-              )}
-              onClick={() => setActiveRightPanelTab(tab.id)}
-            >
-              <span>{tab.name}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCloseTab(tab.id);
-                }}
+          {rightPanelTabs.map((tab) => {
+            const tool = tools.find(t => t.id === tab.id);
+            const Icon = tool?.icon || (() => null);
+            const color = tool?.color || '';
+            return (
+              <div
+                key={tab.id}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1 rounded-md text-sm whitespace-nowrap cursor-pointer",
+                  activeRightPanelTab === tab.id ? "bg-accent" : "hover:bg-accent/50"
+                )}
+                onClick={() => setActiveRightPanelTab(tab.id)}
               >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          ))}
+                <Icon className={`h-4 w-4 ${color}`} />
+                <span>{tab.name}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCloseTab(tab.id);
+                  }}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            );
+          })}          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -102,6 +109,8 @@ export function RightPanel() {
         <div className="flex-1">
           {activeRightPanelTab === 'settings' ? (
             <SettingsPage />
+          ) : activeRightPanelTab === 'agent' ? (
+            <AgentPage />
           ) : (
             <div className="p-4">
               <div className="h-full flex items-center justify-center">

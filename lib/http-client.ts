@@ -1,5 +1,6 @@
 import { RequestConfig } from './types'
-import { ApiErrorCode, ApiError, TimeoutError, ErrorHandler } from './error-handler'
+import { ApiErrorCode, ApiError, ErrorHandler } from './error-handler'
+import { appConfig } from '@/app/config/index'
 
 
 /**
@@ -8,7 +9,6 @@ import { ApiErrorCode, ApiError, TimeoutError, ErrorHandler } from './error-hand
  */
 class HttpClient {
   private static instance: HttpClient
-  private baseUrl: string
   private defaultHeaders: HeadersInit
   private interceptors: {
     request: Array<(req: RequestConfig) => RequestConfig>
@@ -16,7 +16,6 @@ class HttpClient {
   }
 
   private constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_AGENTD_API_URL || 'http://localhost:18080'
     this.defaultHeaders = {
       'Content-Type': 'application/json',
       'Accept': 'application/json'
@@ -51,15 +50,15 @@ class HttpClient {
   /**
    * 发起HTTP请求
    */
-  public async request<T>(config: RequestConfig): Promise<T> {
+  public async request<T>(requestConfig: RequestConfig): Promise<T> {
     // 应用请求拦截器
-    let processedConfig = { ...config }
+    let processedConfig = { ...requestConfig }
     for (const interceptor of this.interceptors.request) {
       processedConfig = interceptor(processedConfig)
     }
 
     // 构建URL
-    const url = `${this.baseUrl}${processedConfig.url}`
+    const url = `${appConfig.api.baseUrl}${processedConfig.url}`
     
     // 构建请求选项
     const options: RequestInit = {
@@ -72,7 +71,7 @@ class HttpClient {
     }
 
     // 发起请求（带超时处理）
-    const timeout = processedConfig.timeout || 30000 // 默认30秒超时
+    const timeout = processedConfig.timeout || appConfig.api.timeout // 默认超时
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeout)
 
@@ -114,7 +113,7 @@ class HttpClient {
       clearTimeout(timeoutId)
 
       // 使用 ErrorHandler 处理错误
-      const handledError = ErrorHandler.handle(error, `HTTP request to ${config.url}`)
+      const handledError = ErrorHandler.handle(error, `HTTP request to ${processedConfig.url}`)
       throw handledError
     }
   }
@@ -122,36 +121,36 @@ class HttpClient {
   /**
    * GET请求
    */
-  public async get<T>(url: string, config?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
-    return this.request<T>({ ...config, url, method: 'GET' })
+  public async get<T>(url: string, requestConfig?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
+    return this.request<T>({ ...requestConfig, url, method: 'GET' })
   }
 
   /**
    * POST请求
    */
-  public async post<T>(url: string, data?: any, config?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
-    return this.request<T>({ ...config, url, method: 'POST', data })
+  public async post<T>(url: string, data?: any, requestConfig?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
+    return this.request<T>({ ...requestConfig, url, method: 'POST', data })
   }
 
   /**
    * PUT请求
    */
-  public async put<T>(url: string, data?: any, config?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
-    return this.request<T>({ ...config, url, method: 'PUT', data })
+  public async put<T>(url: string, data?: any, requestConfig?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
+    return this.request<T>({ ...requestConfig, url, method: 'PUT', data })
   }
 
   /**
    * DELETE请求
    */
-  public async delete<T>(url: string, config?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
-    return this.request<T>({ ...config, url, method: 'DELETE' })
+  public async delete<T>(url: string, requestConfig?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
+    return this.request<T>({ ...requestConfig, url, method: 'DELETE' })
   }
 
   /**
    * PATCH请求
    */
-  public async patch<T>(url: string, data?: any, config?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
-    return this.request<T>({ ...config, url, method: 'PATCH', data })
+  public async patch<T>(url: string, data?: any, requestConfig?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
+    return this.request<T>({ ...requestConfig, url, method: 'PATCH', data })
   }
 }
 
