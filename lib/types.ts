@@ -96,6 +96,56 @@ export enum AgentStatus {
 }
 
 /**
+ * 模型服务类型枚举
+ */
+export enum ModelServiceType {
+  OPENAI = 'openai',
+  ANTHROPIC = 'anthropic',
+  GOOGLE = 'google',
+  AZURE = 'azure'
+}
+
+/**
+ * 模型服务配置接口
+ */
+export interface ModelServiceConfig {
+  type: ModelServiceType
+  name: string
+  defaultApiUrl: string
+  description: string
+}
+
+/**
+ * 模型服务配置对象
+ */
+export const MODEL_SERVICES: Record<ModelServiceType, ModelServiceConfig> = {
+  [ModelServiceType.OPENAI]: {
+    type: ModelServiceType.OPENAI,
+    name: 'OpenAI',
+    defaultApiUrl: 'https://api.openai.com/v1',
+    description: 'OpenAI 模型服务'
+  },
+  [ModelServiceType.ANTHROPIC]: {
+    type: ModelServiceType.ANTHROPIC,
+    name: 'Anthropic',
+    defaultApiUrl: 'https://api.anthropic.com/v1',
+    description: 'Anthropic 模型服务'
+  },
+  [ModelServiceType.GOOGLE]: {
+    type: ModelServiceType.GOOGLE,
+    name: 'Google AI',
+    defaultApiUrl: 'https://generativelanguage.googleapis.com/v1',
+    description: 'Google AI 模型服务'
+  },
+  [ModelServiceType.AZURE]: {
+    type: ModelServiceType.AZURE,
+    name: 'Azure OpenAI',
+    defaultApiUrl: '',
+    description: 'Azure OpenAI 模型服务'
+  }
+}
+
+/**
  * 适配器类型枚举
  */
 export enum AdapterType {
@@ -110,14 +160,16 @@ export enum AdapterType {
 export interface Agent {
   id: string
   name: string
-  adapterType: AdapterType
-  status: AgentStatus
+  description?: string
+  adapterType: AdapterType | string
+  config?: Record<string, any>
+  status: AgentStatus | string
   sandboxId: string
   defaultSessionId: string
   hasScheduledTasks: boolean
   idleTimeout: number
-  createdAt: Date
-  updatedAt: Date
+  createdAt: Date | string
+  updatedAt: Date | string
 }
 
 /**

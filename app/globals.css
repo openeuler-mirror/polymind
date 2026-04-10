@@ -122,6 +122,23 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* 统一输入元素样式 */
+  input, textarea, select {
+    @apply bg-transparent dark:bg-input/30 text-foreground;
+  }
+  
+  /* 暗色模式下的下拉框样式 */
+  .dark select {
+    background-color: var(--input);
+    color: var(--foreground);
+  }
+  
+  /* 暗色模式下的下拉选项样式 */
+  .dark select option {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
 }
 
 /* Custom scrollbar */
