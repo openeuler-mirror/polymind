@@ -10,4 +10,5 @@ module.exports = {
     NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION,
     NEXT_PUBLIC_DEBUG: process.env.NEXT_PUBLIC_DEBUG,
   },
+  allowedDevOrigins: ['127.0.0.1'],
 };
