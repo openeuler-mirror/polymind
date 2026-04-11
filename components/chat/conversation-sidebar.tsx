@@ -222,6 +222,7 @@ interface ConversationItemProps {
   onSelect: () => void
   onDelete: () => void
   onTogglePin: () => void
+  onRename: (id: string, title: string) => void
 }
 
 function ConversationItem({
