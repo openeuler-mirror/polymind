@@ -47,6 +47,8 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
   const {
     isSidebarOpen,
     toggleSidebar,
+    currentConversationId,
+    deleteConversation,
   } = useChatStore()
 
   return (
@@ -131,7 +133,14 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
               <Download className="mr-2 h-4 w-4" />
               导出对话
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
+            <DropdownMenuItem 
+              className="text-destructive focus:text-destructive"
+              onClick={() => {
+                if (currentConversationId) {
+                  deleteConversation(currentConversationId);
+                }
+              }}
+            >
               <Trash2 className="mr-2 h-4 w-4" />
               删除对话
             </DropdownMenuItem>
