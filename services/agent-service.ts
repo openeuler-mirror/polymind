@@ -15,22 +15,38 @@ class AgentService {
    * 创建Agent
    */
   public async createAgent(request: CreateAgentRequest): Promise<Agent> {
-    const response = await httpClient.post<ApiResponse<Agent>>('/api/v1/agents', request)
-    if (!response || !response.data) {
-      throw new Error('Invalid API response: missing data field')
+    // 构建后端期望的请求格式（使用下划线命名）
+    const backendRequest = {
+      name: request.name,
+      description: request.description || '',
+      adapter_type: request.adapterType,
+      sandbox_type: request.sandboxConfig?.type || 'docker',
+      idle_timeout_seconds: request.idleTimeout || 3600
     }
-    return this.transformAgent(response.data)
+    
+    console.log('创建智能体请求:', backendRequest)
+    
+    const response = await httpClient.post<Agent>('/api/v1/agents', backendRequest)
+    
+    console.log('创建智能体响应:', response)
+    
+    if (!response) {
+      throw new Error('Invalid API response: no response received')
+    }
+    return this.transformAgent(response)
   }
 
   /**
    * 获取所有Agent
    */
   public async getAgents(): Promise<Agent[]> {
-    const response = await httpClient.get<ApiResponse<Agent[]>>('/api/v1/agents')
-    if (!response || !response.data) {
-      throw new Error('Invalid API response: missing data field')
+    const response = await httpClient.get<Agent[]>('/api/v1/agents')
+    if (!response) {
+      throw new Error('Invalid API response: no response received')
     }
-    return response.data.map(agent => this.transformAgent(agent))
+    // 后端返回的是直接列表，不需要 response.data
+    const agentsData = Array.isArray(response) ? response : []
+    return agentsData.map(agent => this.transformAgent(agent))
   }
 
   /**
@@ -137,11 +153,18 @@ class AgentService {
       throw new Error('Agent data is invalid')
     }
     return {
-      ...agent,
+      id: agent.id,
+      name: agent.name,
+      description: agent.description,
+      adapterType: agent.adapter_type || agent.adapterType,
+      config: agent.config,
+      status: agent.status,
+      sandboxId: agent.sandbox_id || agent.sandboxId || '',
+      defaultSessionId: agent.default_session_id || agent.defaultSessionId || '',
+      hasScheduledTasks: agent.has_scheduled_tasks ?? agent.hasScheduledTasks ?? false,
+      idleTimeout: agent.idle_timeout_seconds ?? agent.idleTimeout ?? 300,
       createdAt: agent.created_at ? new Date(agent.created_at) : new Date(),
-      updatedAt: agent.updated_at ? new Date(agent.updated_at) : new Date(),
-      adapterType: agent.adapter_type as AdapterType,
-      status: agent.status as AgentStatus
+      updatedAt: agent.updated_at ? new Date(agent.updated_at) : new Date()
     }
   }
 }

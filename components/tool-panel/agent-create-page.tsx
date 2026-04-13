@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { agentService } from '@/services/agent-service'
-import { ModelServiceType, MODEL_SERVICES } from '@/lib/types'
+import { SandboxType, SANDBOX_CONFIGS } from '@/lib/types'
 
 interface AgentCreatePageProps {
   onBack: () => void
@@ -18,11 +18,9 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
   const [agentForm, setAgentForm] = useState({
     name: '',
     description: '',
-    adapterType: ModelServiceType.OPENAI,
-    config: {
-      apiKey: '',
-      apiBaseUrl: ''
-    }
+    adapterType: 'openclaw', // 默认为 openclaw
+    sandboxType: SandboxType.DOCKER,
+    idleTimeout: 3600 // 默认 1 小时
   })
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
@@ -30,46 +28,9 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
   // 处理表单变化
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    if (name.startsWith('config.')) {
-      // 处理 config 对象中的字段
-      const configField = name.replace('config.', '')
-      setAgentForm(prev => ({
-        ...prev,
-        config: {
-          ...prev.config,
-          [configField]: value
-        }
-      }))
-    } else if (name === 'adapterType') {
-      // 处理模型服务类型字段，转换为 ModelServiceType 枚举
-      setAgentForm(prev => ({
-        ...prev,
-        adapterType: value as ModelServiceType,
-        // 重置配置字段
-        config: {
-          apiKey: '',
-          apiBaseUrl: ''
-        }
-      }))
-    } else {
-      // 处理其他普通字段
-      setAgentForm(prev => ({
-        ...prev,
-        [name]: value
-      }))
-    }
-  }
-
-  // 处理选择变化
-  const handleSelectChange = (value: string) => {
     setAgentForm(prev => ({
       ...prev,
-      adapterType: value as ModelServiceType,
-      // 重置配置字段
-      config: {
-        apiKey: '',
-        apiBaseUrl: ''
-      }
+      [name]: value
     }))
   }
 
@@ -78,9 +39,22 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
     e.preventDefault()
     try {
       setLoading(true)
-      // 这里应该调用创建智能体的API
+      // 调用创建智能体的 API
       console.log('Creating agent:', agentForm)
-      // 模拟创建成功
+      
+      // 获取沙箱配置的 value 值
+      const sandboxValue = SANDBOX_CONFIGS[agentForm.sandboxType as SandboxType]?.value || 'docker'
+      
+      await agentService.createAgent({
+        name: agentForm.name,
+        description: agentForm.description,
+        adapterType: agentForm.adapterType,
+        sandboxConfig: {
+          type: sandboxValue,
+          timeout: agentForm.idleTimeout
+        },
+        idleTimeout: agentForm.idleTimeout
+      })
       toast({
         title: '成功',
         description: '智能体创建成功',
@@ -138,56 +112,39 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
           </div>
           
           <div className="space-y-2">
-            <label htmlFor="adapterType" className="text-sm font-medium">模型服务类型</label>
-            <Select value={agentForm.adapterType} onValueChange={handleSelectChange}>
+            <label htmlFor="adapterType" className="text-sm font-medium">适配器类型</label>
+            <Select 
+              value={agentForm.adapterType} 
+              onValueChange={(value) => setAgentForm(prev => ({ ...prev, adapterType: value }))}
+            >
               <SelectTrigger id="adapterType" className="w-full">
-                <SelectValue placeholder="选择模型服务类型" />
+                <SelectValue placeholder="选择适配器类型" />
               </SelectTrigger>
               <SelectContent>
-                {Object.values(MODEL_SERVICES).map(service => (
-                  <SelectItem key={service.type} value={service.type}>
-                    {service.name}
-                  </SelectItem>
-                ))}
+                <SelectItem value="openclaw">OpenClaw</SelectItem>
+                <SelectItem value="opencode">OpenCode</SelectItem>
+                <SelectItem value="claude-code">Claude Code</SelectItem>
               </SelectContent>
             </Select>
           </div>
           
           <div className="space-y-2">
-            <label className="text-sm font-medium">配置</label>
-            <div className="rounded-md border border-input bg-background p-4 text-sm">
-              <p className="text-muted-foreground mb-2">根据选择的模型服务类型，配置相应的参数</p>
-              <div className="space-y-2">
-                <div className="space-y-2">
-                  <div className="space-y-1">
-                    <label htmlFor="config.apiKey" className="text-xs font-medium">API Key</label>
-                    <Input
-                      id="config.apiKey"
-                      name="config.apiKey"
-                      value={agentForm.config.apiKey}
-                      onChange={handleFormChange}
-                      placeholder={`请输入 ${MODEL_SERVICES[agentForm.adapterType].name} API Key`}
-                      className="w-full"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label htmlFor="config.apiBaseUrl" className="text-xs font-medium">
-                      API 地址 {agentForm.adapterType === ModelServiceType.AZURE && '(Endpoint)'}
-                    </label>
-                    <Input
-                      id="config.apiBaseUrl"
-                      name="config.apiBaseUrl"
-                      value={agentForm.config.apiBaseUrl}
-                      onChange={handleFormChange}
-                      placeholder={agentForm.adapterType === ModelServiceType.AZURE 
-                        ? '请输入 Azure OpenAI Endpoint' 
-                        : `请输入 ${MODEL_SERVICES[agentForm.adapterType].name} API 地址 (默认: ${MODEL_SERVICES[agentForm.adapterType].defaultApiUrl})`}
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <label htmlFor="sandboxType" className="text-sm font-medium">沙箱类型</label>
+            <Select 
+              value={agentForm.sandboxType} 
+              onValueChange={(value) => setAgentForm(prev => ({ ...prev, sandboxType: value as SandboxType }))}
+            >
+              <SelectTrigger id="sandboxType" className="w-full">
+                <SelectValue placeholder="选择沙箱类型" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.values(SANDBOX_CONFIGS).map(sandbox => (
+                  <SelectItem key={sandbox.type} value={sandbox.type}>
+                    {sandbox.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           
           <div className="flex justify-end gap-2">

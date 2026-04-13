@@ -12,6 +12,11 @@ const USE_MOCK_DATA = process.env.NODE_ENV === 'development' || !process.env.NOD
 interface Settings {
   theme: 'light' | 'dark' | 'system'
   language: 'zh-CN' | 'en-US'
+  modelConfig?: {
+    adapterType: string
+    apiKey: string
+    apiBaseUrl: string
+  }
 }
 
 interface Tab {
