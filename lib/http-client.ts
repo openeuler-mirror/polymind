@@ -21,7 +21,23 @@ class HttpClient {
       'Accept': 'application/json'
     }
     this.interceptors = {
-      request: [],
+      request: [
+        // 添加 bearer 认证拦截器
+        (req) => {
+          const authToken = process.env.NEXT_PUBLIC_AUTH_TOKEN
+          console.log('Auth Token:', authToken ? '存在' : '不存在', authToken)
+          if (authToken) {
+            return {
+              ...req,
+              headers: {
+                ...req.headers,
+                'Authorization': `Bearer ${authToken}`
+              }
+            }
+          }
+          return req
+        }
+      ],
       response: []
     }
   }
@@ -69,6 +85,13 @@ class HttpClient {
       },
       body: processedConfig.data ? JSON.stringify(processedConfig.data) : undefined
     }
+    
+    console.log('Final Request Options:', {
+      method: options.method,
+      url: url,
+      headers: options.headers,
+      body: options.body
+    })
 
     // 发起请求（带超时处理）
     const timeout = processedConfig.timeout || appConfig.api.timeout // 默认超时
@@ -93,6 +116,12 @@ class HttpClient {
       }
 
       // 检查响应状态
+      console.log('HTTP Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      })
+      
       if (!response.ok) {
         throw new ApiError(
           `HTTP Error: ${response.status} ${response.statusText}`,
@@ -108,12 +137,17 @@ class HttpClient {
       } else {
         return await response.text() as unknown as T
       }
-    } catch (error) {
+    } catch (error: unknown) {
       // 清除超时定时器
       clearTimeout(timeoutId)
+      
+      // 打印原始错误信息
+      console.error('原始错误:', error)
+      console.error('错误类型:', error instanceof Error ? error.constructor.name : 'unknown')
+      console.error('错误消息:', error instanceof Error ? error.message : 'unknown')
 
       // 使用 ErrorHandler 处理错误
-      const handledError = ErrorHandler.handle(error, `HTTP request to ${processedConfig.url}`)
+      const handledError = ErrorHandler.handle(error as Error, `HTTP request to ${processedConfig.url}`)
       throw handledError
     }
   }
