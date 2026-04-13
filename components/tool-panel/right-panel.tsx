@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Code, FileText, Terminal, Globe, GitBranch, Figma, Bot, Settings, LayoutGrid, ChevronRight, ChevronLeft, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -18,14 +18,11 @@ export function RightPanel() {
 
   const tools = [
     { id: 'editor', name: '编辑器', icon: Code, color: 'text-green-500' },
-    { id: 'document', name: '文档', icon: FileText, color: 'text-blue-500' },
     { id: 'terminal', name: '终端', icon: Terminal, color: 'text-yellow-500' },
     { id: 'browser', name: '浏览器', icon: Globe, color: 'text-red-500' },
     { id: 'code-change', name: '代码变更', icon: GitBranch, color: 'text-purple-500' },
-    { id: 'figma', name: 'Figma', icon: Figma, color: 'text-pink-500' },
     { id: 'agent', name: '智能体', icon: Bot, color: 'text-cyan-500' },
     { id: 'mcp', name: 'MCP', icon: Terminal, color: 'text-orange-500' },
-    { id: 'settings', name: '设置', icon: Settings, color: 'text-gray-500' },
   ]
 
   const handleToolClick = (tool: { id: string; name: string; icon: React.ElementType; color: string }) => {
@@ -36,7 +33,34 @@ export function RightPanel() {
     setActiveRightPanelTab(tool.id)
   }
 
+  // 保存设置前的活跃标签页
+  const [previousActiveTab, setPreviousActiveTab] = useState<string | null>(null);
+
+  // 监听活跃标签页变化，当打开设置时保存当前标签页
+  useEffect(() => {
+    // 当标签页列表变化时，检查是否有设置标签页
+    const hasSettingsTab = rightPanelTabs.some(tab => tab.id === 'settings');
+    if (hasSettingsTab && activeRightPanelTab === 'settings') {
+      // 找到除了设置之外的所有标签页
+      const otherTabs = rightPanelTabs.filter(tab => tab.id !== 'settings');
+      if (otherTabs.length > 0) {
+        // 保存之前的活跃标签页
+        setPreviousActiveTab(otherTabs[otherTabs.length - 1].id);
+      }
+    }
+  }, [activeRightPanelTab, rightPanelTabs]);
+
   const handleCloseTab = (tabId: string) => {
+    if (tabId === 'settings') {
+      if (previousActiveTab) {
+        // 当关闭设置标签页时，恢复到之前的活跃标签页
+        setActiveRightPanelTab(previousActiveTab);
+        setPreviousActiveTab(null);
+      } else {
+        // 当关闭设置标签页且之前没有其他标签页时，关闭右侧面板
+        toggleRightPanel();
+      }
+    }
     removeRightPanelTab(tabId)
   }
 

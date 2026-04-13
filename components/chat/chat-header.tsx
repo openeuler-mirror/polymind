@@ -10,6 +10,7 @@ import {
   Sun,
   Monitor,
   PanelRight,
+  Settings,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useChatStore } from '@/lib/store'
@@ -132,6 +133,24 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
             <DropdownMenuItem>
               <Download className="mr-2 h-4 w-4" />
               导出对话
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                const { isRightPanelOpen, toggleRightPanel, addRightPanelTab, setActiveRightPanelTab, activeRightPanelTab, rightPanelTabs } = useChatStore.getState();
+                if (!isRightPanelOpen) {
+                  toggleRightPanel();
+                }
+                // 保存当前活跃标签页
+                const otherTabs = rightPanelTabs.filter(tab => tab.id !== 'settings');
+                if (otherTabs.length > 0) {
+                  // 这里可以通过状态管理来保存，或者在 right-panel.tsx 中通过 useEffect 处理
+                }
+                addRightPanelTab({ id: 'settings', name: '设置', icon: Settings, color: 'text-gray-500' });
+                setActiveRightPanelTab('settings');
+              }}
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              设置
             </DropdownMenuItem>
             <DropdownMenuItem 
               className="text-destructive focus:text-destructive"
