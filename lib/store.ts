@@ -21,7 +21,7 @@ interface Tab {
   color?: string
 }
 
-interface ChatState {
+export interface ChatState {
   conversations: Conversation[]
   currentConversationId: string | null
   isSidebarOpen: boolean
