@@ -155,6 +155,42 @@ export enum AdapterType {
 }
 
 /**
+ * 沙箱类型枚举
+ */
+export enum SandboxType {
+  DOCKER = 'docker',
+  NATIVE = 'native'
+}
+
+/**
+ * 沙箱配置接口
+ */
+export interface SandboxConfig {
+  type: SandboxType
+  name: string
+  description: string
+  value: string // 传给后端的值
+}
+
+/**
+ * 沙箱配置对象
+ */
+export const SANDBOX_CONFIGS: Record<SandboxType, SandboxConfig> = {
+  [SandboxType.DOCKER]: {
+    type: SandboxType.DOCKER,
+    name: 'Docker',
+    description: '使用 Docker 容器作为沙箱环境',
+    value: 'docker'
+  },
+  [SandboxType.NATIVE]: {
+    type: SandboxType.NATIVE,
+    name: '本地环境',
+    description: '使用本地机器作为沙箱环境',
+    value: 'local_process'
+  }
+}
+
+/**
  * Agent接口
  */
 export interface Agent {
@@ -177,8 +213,9 @@ export interface Agent {
  */
 export interface CreateAgentRequest {
   name: string
-  adapterType: AdapterType
-  template: Record<string, any>
+  description?: string
+  adapterType: AdapterType | string
+  template?: Record<string, any>
   modelOverride?: Partial<ModelConfig>
   sandboxConfig?: {
     type?: string

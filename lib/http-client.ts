@@ -123,19 +123,33 @@ class HttpClient {
       })
       
       if (!response.ok) {
+        // 即使请求失败，也尝试解析响应数据并记录
+        const contentType = response.headers.get('content-type')
+        let errorData: any
+        if (contentType && contentType.includes('application/json')) {
+          errorData = await response.json()
+        } else {
+          errorData = await response.text()
+        }
+        console.error('Error Response:', errorData)
         throw new ApiError(
           `HTTP Error: ${response.status} ${response.statusText}`,
           ApiErrorCode.SERVER_ERROR,
           response.status
         )
       }
-
-      // 解析响应数据
+      
+      // 解析并记录响应数据
       const contentType = response.headers.get('content-type')
+      let responseData: any
       if (contentType && contentType.includes('application/json')) {
-        return await response.json()
+        responseData = await response.json()
+        console.log('Response Data:', responseData)
+        return responseData as T
       } else {
-        return await response.text() as unknown as T
+        responseData = await response.text()
+        console.log('Response Text:', responseData)
+        return responseData as unknown as T
       }
     } catch (error: unknown) {
       // 清除超时定时器
