@@ -36,11 +36,11 @@ describe('useChatStore', () => {
   });
 
   describe('Conversation management', () => {
-    it('should create a new conversation', () => {
+    it('should create a new conversation', async () => {
       const store = useChatStore.getState();
       const initialCount = store.conversations.length;
       
-      const newId = store.createConversation();
+      const newId = await store.createConversation();
       const updatedStore = useChatStore.getState();
       
       expect(updatedStore.conversations.length).toBe(initialCount + 1);

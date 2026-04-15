@@ -10,11 +10,13 @@ class SessionService {
    * 创建会话
    */
   public async createSession(agentId: string): Promise<Session> {
-    const response = await httpClient.post<ApiResponse<Session>>(
+    const response = await httpClient.post<any>(
       `/api/v1/agents/${agentId}/sessions`,
       {}
     )
-    return this.transformSession(response.data, agentId)
+    // 处理不同的响应格式：可能直接返回session对象，也可能包装在data字段中
+    const sessionData = response.data || response
+    return this.transformSession(sessionData, agentId)
   }
 
   /**
@@ -38,11 +40,17 @@ class SessionService {
    * 转换会话数据格式
    */
   private transformSession(session: any, agentId: string): Session {
+    if (!session) {
+      throw new Error('会话数据为空')
+    }
     return {
-      ...session,
+      id: session.id,
       agentId,
-      createdAt: new Date(session.created_at),
-      status: session.status as SessionStatus
+      status: (session.status as SessionStatus) || SessionStatus.ACTIVE,
+      contextInitialized: session.context_initialized ?? session.contextInitialized ?? true,
+      runtimeType: session.runtime_type || session.runtimeType || 'openclaw',
+      createdAt: session.created_at || session.createdAt,
+      updatedAt: session.updated_at || session.updatedAt
     }
   }
 }

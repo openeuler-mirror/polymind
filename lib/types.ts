@@ -5,6 +5,18 @@
 /**
  * 消息接口
  */
+export interface EventItem {
+  type: 'thinking' | 'tool.call.started' | 'tool.call.response' | 'message.delta' | 'message.completed' | 'usage.updated' | 'session.runtime.changed' | 'stream.error' | 'client.error'
+  session_id?: string
+  event_id?: string
+  ts_ms?: number
+  runtime_type?: string
+  payload?: Record<string, any>
+  content?: string
+  timestamp?: number
+  toolCall?: ToolCall
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -13,6 +25,14 @@ export interface Message {
   isStreaming?: boolean
   toolCalls?: ToolCall[]
   attachments?: Attachment[]
+  thinking?: string[]
+  displayText?: string[]
+  events?: EventItem[]
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    totalCost?: number
+  }
 }
 
 /**
@@ -26,6 +46,7 @@ export interface ToolCall {
   output?: string
   error?: string
   duration?: number
+  displayText?: string
 }
 
 /**
@@ -70,14 +91,51 @@ export interface MCPTool {
 }
 
 /**
+ * 模型提供商枚举
+ */
+export enum ModelProvider {
+  OPENAI = 'openai',
+  ANTHROPIC = 'anthropic',
+  GOOGLE = 'google',
+  OLLAMA = 'ollama',
+  AZURE = 'azure',
+  DEEPSEEK = 'deepseek',
+  GLM = 'glm',
+  MINIMAX = 'minimax',
+  KIMI = 'kimi',
+  CUSTOM = 'custom'
+}
+
+/**
  * 模型配置接口
  */
 export interface ModelConfig {
   id: string
   name: string
-  provider: string
-  contextLength: number
-  capabilities: ('text' | 'vision' | 'code' | 'tools')[]
+  provider: ModelProvider | string
+  apiBaseUrl?: string
+  description?: string
+  enabled: boolean
+  maxTokens?: number
+  temperature?: number
+  isDefault: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * 创建模型配置请求接口
+ */
+export interface CreateModelRequest {
+  name: string
+  provider: ModelProvider | string
+  apiKey: string
+  apiBaseUrl?: string
+  description?: string
+  enabled?: boolean
+  maxTokens?: number
+  temperature?: number
+  isDefault?: boolean
 }
 
 // ============================================
@@ -88,11 +146,11 @@ export interface ModelConfig {
  * Agent状态枚举
  */
 export enum AgentStatus {
-  CREATING = 'CREATING',
-  RUNNING = 'RUNNING',
-  PAUSED = 'PAUSED',
-  STOPPED = 'STOPPED',
-  ERROR = 'ERROR'
+  RUNNING = 'running',
+  PAUSED = 'paused',
+  STOPPED = 'stopped',
+  DELETED = 'deleted',
+  ERROR = 'error'
 }
 
 /**
@@ -159,7 +217,8 @@ export enum AdapterType {
  */
 export enum SandboxType {
   DOCKER = 'docker',
-  NATIVE = 'native'
+  LOCAL_PROCESS = 'local_process',
+  E2B = 'e2b'
 }
 
 /**
@@ -182,11 +241,17 @@ export const SANDBOX_CONFIGS: Record<SandboxType, SandboxConfig> = {
     description: '使用 Docker 容器作为沙箱环境',
     value: 'docker'
   },
-  [SandboxType.NATIVE]: {
-    type: SandboxType.NATIVE,
-    name: '本地环境',
-    description: '使用本地机器作为沙箱环境',
+  [SandboxType.LOCAL_PROCESS]: {
+    type: SandboxType.LOCAL_PROCESS,
+    name: '本地进程',
+    description: '使用本地进程作为沙箱环境',
     value: 'local_process'
+  },
+  [SandboxType.E2B]: {
+    type: SandboxType.E2B,
+    name: 'E2B云沙箱',
+    description: '使用E2B云沙箱作为运行环境',
+    value: 'e2b'
   }
 }
 
@@ -198,14 +263,15 @@ export interface Agent {
   name: string
   description?: string
   adapterType: AdapterType | string
-  config?: Record<string, any>
+  sandboxType: SandboxType | string
   status: AgentStatus | string
-  sandboxId: string
-  defaultSessionId: string
+  sandboxId?: string | null
+  workspacePath?: string
+  idleTimeoutSeconds: number
   hasScheduledTasks: boolean
-  idleTimeout: number
-  createdAt: Date | string
-  updatedAt: Date | string
+  defaultSessionId?: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 /**
@@ -214,14 +280,11 @@ export interface Agent {
 export interface CreateAgentRequest {
   name: string
   description?: string
+  sandboxType: SandboxType | string
   adapterType: AdapterType | string
-  template?: Record<string, any>
-  modelOverride?: Partial<ModelConfig>
-  sandboxConfig?: {
-    type?: string
-    timeout?: number
-  }
-  idleTimeout?: number
+  idleTimeoutSeconds: number
+  sandboxId?: string
+  hasScheduledTasks?: boolean
 }
 
 /**
@@ -241,8 +304,8 @@ export interface UpdateAgentRequest {
  * 会话状态枚举
  */
 export enum SessionStatus {
-  ACTIVE = 'ACTIVE',
-  STOPPED = 'STOPPED'
+  ACTIVE = 'active',
+  CLOSED = 'closed'
 }
 
 /**
@@ -252,7 +315,10 @@ export interface Session {
   id: string
   agentId: string
   status: SessionStatus
-  createdAt: Date
+  contextInitialized: boolean
+  runtimeType: string
+  createdAt: string
+  updatedAt: string
 }
 
 /**

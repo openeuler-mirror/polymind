@@ -15,13 +15,15 @@ class AgentService {
    * 创建Agent
    */
   public async createAgent(request: CreateAgentRequest): Promise<Agent> {
-    // 构建后端期望的请求格式（使用下划线命名）
+    // 后端直接接收驼峰格式，和接口定义一致
     const backendRequest = {
       name: request.name,
       description: request.description || '',
       adapter_type: request.adapterType,
-      sandbox_type: request.sandboxConfig?.type || 'docker',
-      idle_timeout_seconds: request.idleTimeout || 3600
+      sandbox_type: request.sandboxType,
+      idle_timeout_seconds: request.idleTimeoutSeconds,
+      sandbox_id: request.sandboxId,
+      has_scheduled_tasks: request.hasScheduledTasks
     }
     
     console.log('创建智能体请求:', backendRequest)
@@ -157,14 +159,15 @@ class AgentService {
       name: agent.name,
       description: agent.description,
       adapterType: agent.adapter_type || agent.adapterType,
-      config: agent.config,
+      sandboxType: agent.sandbox_type || agent.sandboxType,
       status: agent.status,
-      sandboxId: agent.sandbox_id || agent.sandboxId || '',
-      defaultSessionId: agent.default_session_id || agent.defaultSessionId || '',
+      sandboxId: agent.sandbox_id || agent.sandboxId,
+      workspacePath: agent.workspace_path || agent.workspacePath,
+      idleTimeoutSeconds: agent.idle_timeout_seconds ?? agent.idleTimeoutSeconds ?? 300,
       hasScheduledTasks: agent.has_scheduled_tasks ?? agent.hasScheduledTasks ?? false,
-      idleTimeout: agent.idle_timeout_seconds ?? agent.idleTimeout ?? 300,
-      createdAt: agent.created_at ? new Date(agent.created_at) : new Date(),
-      updatedAt: agent.updated_at ? new Date(agent.updated_at) : new Date()
+      defaultSessionId: agent.default_session_id || agent.defaultSessionId,
+      createdAt: agent.created_at || agent.createdAt,
+      updatedAt: agent.updated_at || agent.updatedAt
     }
   }
 }
@@ -176,17 +179,20 @@ class AgentFactory {
   public static createAgent(config: CreateAgentRequest): Agent {
     // 这里可以根据配置创建不同类型的Agent实例
     // 当前主要用于类型转换和验证
+    const now = new Date().toISOString()
     return {
       id: crypto.randomUUID(),
       name: config.name,
+      description: config.description,
       adapterType: config.adapterType,
-      status: AgentStatus.CREATING,
-      sandboxId: '',
-      defaultSessionId: '',
-      hasScheduledTasks: false,
-      idleTimeout: config.idleTimeout || 300,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      sandboxType: config.sandboxType,
+      status: AgentStatus.RUNNING,
+      sandboxId: config.sandboxId,
+      idleTimeoutSeconds: config.idleTimeoutSeconds || 300,
+      hasScheduledTasks: config.hasScheduledTasks ?? false,
+      defaultSessionId: undefined,
+      createdAt: now,
+      updatedAt: now
     }
   }
 }
