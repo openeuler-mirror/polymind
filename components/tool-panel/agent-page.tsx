@@ -113,6 +113,9 @@ export function AgentPage() {
 
   // 过滤和搜索智能体
   const filteredAgents = agents.filter(agent => {
+    // 排除已删除的智能体
+    if (agent.status === 'deleted') return false
+    
     const searchLower = searchTerm.toLowerCase()
     const matchesSearch = agent.name.toLowerCase().includes(searchLower) || 
                         (agent.description && agent.description.toLowerCase().includes(searchLower))
@@ -131,8 +134,7 @@ export function AgentPage() {
         return 'bg-gray-100 text-gray-800'
       case AgentStatus.ERROR:
         return 'bg-red-100 text-red-800'
-      case AgentStatus.CREATING:
-        return 'bg-blue-100 text-blue-800'
+
       default:
         return 'bg-gray-100 text-gray-800'
     }
@@ -143,8 +145,7 @@ export function AgentPage() {
     switch (status) {
       case AgentStatus.RUNNING:
         return '运行中'
-      case AgentStatus.CREATING:
-        return '创建中'
+
       case AgentStatus.STOPPED:
         return '已停止'
       case AgentStatus.ERROR:
@@ -198,7 +199,7 @@ export function AgentPage() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setFilter('all')}>全部状态</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFilter(AgentStatus.RUNNING)}>运行中</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilter(AgentStatus.CREATING)}>创建中</DropdownMenuItem>
+
                 <DropdownMenuItem onClick={() => setFilter(AgentStatus.STOPPED)}>已停止</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFilter(AgentStatus.ERROR)}>创建/更新失败</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFilter(AgentStatus.PAUSED)}>已暂停</DropdownMenuItem>
