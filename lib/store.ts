@@ -1,13 +1,13 @@
 import { create } from 'zustand'
 import type { Conversation, Message, MCPTool, Agent, Session, AgentEvent } from './types'
-import { AgentStatus, AdapterType, SessionStatus } from './types'
+import { AgentStatus, AdapterType, SessionStatus, SandboxType } from './types'
 import { WebSocketClient } from '@/lib/websocket-client'
 import { messageService } from '@/services/message-service'
 import { agentService } from '@/services/agent-service'
 import { sessionService } from '@/services/session-service'
 
 // 环境变量控制是否使用模拟数据
-const USE_MOCK_DATA = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV
+const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
 
 interface Settings {
   theme: 'light' | 'dark' | 'system'
@@ -51,11 +51,12 @@ export interface ChatState {
   connectionError: string | null
   
   // Actions
-  createConversation: () => string
+  createConversation: (agentId?: string) => Promise<string>
   deleteConversation: (id: string) => void
   setCurrentConversation: (id: string) => void
   addMessage: (conversationId: string, message: Message) => void
-  updateMessage: (conversationId: string, messageId: string, updates: Partial<Message>) => void
+  updateMessage: (conversationId: string, messageId: string, updates: Partial<Message> | ((message: Message) => Partial<Message>)) => void
+  deleteMessage: (conversationId: string, messageId: string) => void
   toggleSidebar: () => void
   toggleRightPanel: () => void
   setStreaming: (streaming: boolean) => void
@@ -75,7 +76,7 @@ export interface ChatState {
   initializeAgent: (config: any) => Promise<Agent>
   connectToAgent: (agentId: string) => Promise<void>
   disconnectFromAgent: (agentId: string) => void
-  sendMessageToAgent: (agentId: string, content: string) => Promise<void>
+  sendMessageToAgent: (agentId: string, content: string, onEvent?: (event: any) => void) => Promise<any[]>
   createNewSession: (agentId: string) => Promise<Session>
 }
 
@@ -141,6 +142,113 @@ const demoConversations: Conversation[] = [
   },
 ]
 
+// 处理流式事件
+const handleEvent = (event: any, conversationId: string, messageId: string) => {
+  const getStore = () => useChatStore.getState()
+  const store = getStore()
+  
+  // 获取当前消息
+  const message = store.conversations
+    .find(c => c.id === conversationId)
+    ?.messages.find(m => m.id === messageId)
+  
+  if (!message) return
+  
+  // 将事件添加到消息的 events 数组中
+  const eventItem = {
+    type: event.type,
+    content: event.payload?.delta || event.payload?.display_text || event.payload?.content || '',
+    timestamp: event.ts_ms || Date.now(),
+    toolCall: event.type === 'tool.call.response' ? {
+      id: event.payload?.tool_call_id || crypto.randomUUID(),
+      name: event.payload?.name || event.payload?.tool_name || '',
+      status: 'completed' as const,
+      input: event.payload?.arguments,
+      output: event.payload?.content,
+      error: event.payload?.is_error ? event.payload?.content : undefined,
+      duration: event.payload?.duration
+    } : undefined
+  }
+  
+  // 更新消息的 events 数组
+  store.updateMessage(conversationId, messageId, {
+    events: [...(message.events || []), eventItem]
+  })
+  
+  // 处理不同类型的事件
+  switch (event.type) {
+    case 'message.delta':
+      // 处理增量消息
+      if (event.payload?.delta) {
+        store.updateMessage(conversationId, messageId, {
+          content: (message.content || '') + event.payload.delta
+        })
+      }
+      break
+    case 'message.completed':
+      // 处理消息完成
+      if (event.payload?.text) {
+        store.updateMessage(conversationId, messageId, {
+          content: event.payload.text,
+          isStreaming: false
+        })
+        store.setStreaming(false)
+      }
+      break
+    case 'thinking':
+      // 处理思考过程
+      break
+    case 'tool.call.started':
+      // 处理工具调用开始
+      if (event.payload?.tool_name) {
+        const toolCall = {
+          id: event.payload.tool_call_id || crypto.randomUUID(),
+          name: event.payload.tool_name,
+          status: 'running' as const,
+          input: event.payload.arguments
+        }
+        store.updateMessage(conversationId, messageId, {
+          toolCalls: [...(message.toolCalls || []), toolCall]
+        })
+      }
+      break
+    case 'tool.call.response':
+      // 处理工具调用响应
+      if (event.payload?.tool_call_id) {
+        if (message.toolCalls) {
+          const updatedToolCalls = message.toolCalls.map(toolCall => {
+            if (toolCall.id === event.payload.tool_call_id) {
+              return {
+                ...toolCall,
+                status: 'completed' as const,
+                output: event.payload.content,
+                error: event.payload.is_error ? event.payload.content : undefined,
+                duration: event.payload.duration
+              }
+            }
+            return toolCall
+          })
+          store.updateMessage(conversationId, messageId, {
+            toolCalls: updatedToolCalls
+          })
+        }
+      }
+      break
+    case 'usage.updated':
+      // 处理用量更新
+      console.log('Usage updated:', event.payload)
+      break
+    case 'stream.error':
+    case 'client.error':
+      // 处理错误
+      console.error('Error event:', event.payload)
+      store.setStreaming(false)
+      break
+    default:
+      console.log('Unknown event type:', event.type)
+  }
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   conversations: demoConversations,
   currentConversationId: '1',
@@ -164,7 +272,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isConnecting: false,
   connectionError: null,
 
-  createConversation: () => {
+  createConversation: async (agentId?: string) => {
     const id = crypto.randomUUID()
     const newConversation: Conversation = {
       id,
@@ -177,6 +285,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
       conversations: [newConversation, ...state.conversations],
       currentConversationId: id,
     }))
+    
+    // If agentId is provided, set it as current agent and create a new session
+    if (agentId) {
+      set({ currentAgentId: agentId })
+      // Create a new session for the agent
+      try {
+        await get().createNewSession(agentId)
+      } catch (error) {
+        console.error('Failed to create session:', error)
+      }
+    }
+    
     return id
   },
 
@@ -191,6 +311,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentConversationId: newCurrentId,
       }
     })
+  },
+
+  deleteMessage: (conversationId, messageId) => {
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === conversationId
+          ? {
+              ...c,
+              messages: c.messages.filter((m) => m.id !== messageId),
+            }
+          : c
+      ),
+    }))
   },
 
   setCurrentConversation: (id) => {
@@ -221,7 +354,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ? {
               ...c,
               messages: c.messages.map((m) =>
-                m.id === messageId ? { ...m, ...updates } : m
+                m.id === messageId ? { ...m, ...(typeof updates === 'function' ? updates(m) : updates) } : m
               ),
             }
           : c
@@ -341,17 +474,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
     
     if (USE_MOCK_DATA) {
       // 使用模拟数据
+      const now = new Date().toISOString()
       newAgent = {
         id: crypto.randomUUID(),
         name: config.name || 'New Agent',
+        description: config.description,
         adapterType: config.adapterType || AdapterType.OPENCODE,
-        status: AgentStatus.CREATING,
-        sandboxId: '',
-        defaultSessionId: '',
+        sandboxType: config.sandboxType || SandboxType.DOCKER,
+        status: AgentStatus.RUNNING,
+        sandboxId: undefined,
+        defaultSessionId: undefined,
         hasScheduledTasks: false,
-        idleTimeout: config.idleTimeout || 300,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        idleTimeoutSeconds: config.idleTimeoutSeconds || 300,
+        createdAt: now,
+        updatedAt: now
       }
       
       get().addAgent(newAgent)
@@ -370,15 +506,152 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isConnecting: true, connectionError: null })
     
     try {
+      // 确保有活动会话
+      let session = get().activeSessions[agentId]
+      if (!session) {
+        session = await get().createNewSession(agentId)
+      }
+      
       // 实际调用API建立WebSocket连接
       const wsClient = messageService.connectForMessages(
         agentId,
-        (event: AgentEvent) => {
+        session.id,
+        (event: any) => {
           // 处理接收到的消息
           console.log('Received event:', event)
+          
+          // 处理不同类型的事件
+          switch (event.type) {
+            case 'message.delta':
+              // 处理增量消息
+              if (event.payload?.delta) {
+                // 查找当前对话中的助手消息
+                const currentConversationId = get().currentConversationId
+                if (currentConversationId) {
+                  const conversation = get().conversations.find(c => c.id === currentConversationId)
+                  if (conversation) {
+                    const assistantMessage = conversation.messages.find(
+                      m => m.role === 'assistant' && m.isStreaming
+                    )
+                    if (assistantMessage) {
+                      get().updateMessage(
+                        currentConversationId,
+                        assistantMessage.id,
+                        {
+                          content: (assistantMessage.content || '') + event.payload.delta
+                        }
+                      )
+                    }
+                  }
+                }
+              }
+              break
+            case 'message.completed':
+              // 处理消息完成
+              if (event.payload?.text) {
+                const currentConversationId = get().currentConversationId
+                if (currentConversationId) {
+                  const conversation = get().conversations.find(c => c.id === currentConversationId)
+                  if (conversation) {
+                    const assistantMessage = conversation.messages.find(
+                      m => m.role === 'assistant' && m.isStreaming
+                    )
+                    if (assistantMessage) {
+                      get().updateMessage(
+                        currentConversationId,
+                        assistantMessage.id,
+                        {
+                          content: event.payload.text,
+                          isStreaming: false
+                        }
+                      )
+                      get().setStreaming(false)
+                    }
+                  }
+                }
+              }
+              break
+            case 'tool.call.started':
+              // 处理工具调用开始
+              if (event.payload?.tool_name) {
+                const currentConversationId = get().currentConversationId
+                if (currentConversationId) {
+                  const conversation = get().conversations.find(c => c.id === currentConversationId)
+                  if (conversation) {
+                    const assistantMessage = conversation.messages.find(
+                      m => m.role === 'assistant' && m.isStreaming
+                    )
+                    if (assistantMessage) {
+                      const toolCall = {
+                        id: event.payload.tool_call_id || crypto.randomUUID(),
+                        name: event.payload.tool_name,
+                        status: 'running' as const,
+                        input: event.payload.arguments
+                      }
+                      get().updateMessage(
+                        currentConversationId,
+                        assistantMessage.id,
+                        {
+                          toolCalls: [...(assistantMessage.toolCalls || []), toolCall]
+                        }
+                      )
+                    }
+                  }
+                }
+              }
+              break
+            case 'tool.call.response':
+              // 处理工具调用响应
+              if (event.payload?.tool_call_id) {
+                const currentConversationId = get().currentConversationId
+                if (currentConversationId) {
+                  const conversation = get().conversations.find(c => c.id === currentConversationId)
+                  if (conversation) {
+                    const assistantMessage = conversation.messages.find(
+                      m => m.role === 'assistant'
+                    )
+                    if (assistantMessage && assistantMessage.toolCalls) {
+                      const updatedToolCalls = assistantMessage.toolCalls.map(toolCall => {
+                        if (toolCall.id === event.payload.tool_call_id) {
+                          return {
+                            ...toolCall,
+                            status: 'completed' as const,
+                            output: event.payload.content,
+                            error: event.payload.is_error ? event.payload.content : undefined,
+                            duration: event.payload.duration
+                          }
+                        }
+                        return toolCall
+                      })
+                      get().updateMessage(
+                        currentConversationId,
+                        assistantMessage.id,
+                        {
+                          toolCalls: updatedToolCalls
+                        }
+                      )
+                    }
+                  }
+                }
+              }
+              break
+            case 'usage.updated':
+              // 处理用量更新
+              console.log('Usage updated:', event.payload)
+              break
+            case 'stream.error':
+            case 'client.error':
+              // 处理错误
+              console.error('Error event:', event.payload)
+              get().setStreaming(false)
+              break
+            default:
+              console.log('Unknown event type:', event.type)
+          }
         },
         (error) => {
           set({ connectionError: error.message, isConnecting: false })
+          get().setStreaming(false)
         }
       )
 
@@ -393,7 +666,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   
   disconnectFromAgent: (agentId: string) => {
-    // messageService.disconnect()
+    messageService.disconnect(agentId)
     set((state) => {
       const wsConnections = { ...state.wsConnections }
       if (wsConnections[agentId]) {
@@ -405,19 +678,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })
   },
   
-  sendMessageToAgent: async (agentId: string, content: string) => {
+  sendMessageToAgent: async (agentId: string, content: string, onEvent?: (event: any) => void) => {
     // 获取当前活动会话
     const activeSession = get().activeSessions[agentId]
     if (!activeSession) {
       throw new Error('No active session for agent')
     }
     
-    if (USE_MOCK_DATA) {
-      // 模拟发送消息
-      console.log(`Sending message to agent ${agentId}: ${content}`)
-    } else {
-      // 实际调用API发送消息
-      await messageService.sendMessage(agentId, activeSession.id, content)
+    try {
+      // 调用流式API发送消息
+      const events = await messageService.sendMessage(agentId, activeSession.id, content, onEvent)
+      
+      return events
+    } catch (error) {
+      console.error('Error sending message:', error)
+      throw error
     }
   },
   
@@ -426,11 +701,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     
     if (USE_MOCK_DATA) {
       // 模拟创建会话
+      const now = new Date().toISOString()
       session = {
         id: crypto.randomUUID(),
         agentId,
         status: SessionStatus.ACTIVE,
-        createdAt: new Date()
+        contextInitialized: true,
+        runtimeType: 'openclaw',
+        createdAt: now,
+        updatedAt: now
       }
     } else {
       // 实际调用API创建会话
