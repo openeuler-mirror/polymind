@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast'
 import { agentService } from '@/services/agent-service'
 import { SandboxType, SANDBOX_CONFIGS } from '@/lib/types'
+import { useChatStore } from '@/lib/store'
 import {
   Bot,
   Brain,
@@ -37,6 +38,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
   const iconSelectorRef = useRef<HTMLDivElement>(null)
+  const addAgent = useChatStore(state => state.addAgent)
 
   // 处理表单变化
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -93,13 +95,17 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
       // 调用创建智能体的 API
       console.log('Creating agent:', agentForm)
       
-      await agentService.createAgent({
+      const newAgent = await agentService.createAgent({
         name: agentForm.name,
         description: agentForm.description,
         adapterType: agentForm.adapterType,
         sandboxType: agentForm.sandboxType,
         idleTimeoutSeconds: agentForm.idleTimeout
       })
+      
+      // 添加到全局store，同步到conversation-sidebar
+      addAgent(newAgent)
+      
       toast({
         title: '成功',
         description: '智能体创建成功',

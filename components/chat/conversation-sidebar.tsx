@@ -37,7 +37,6 @@ import {
 
 export function ConversationSidebar() {
   const [searchQuery, setSearchQuery] = useState('')
-  const [agents, setAgents] = useState<Agent[]>([])
   const [agentsLoading, setAgentsLoading] = useState(true)
   const {
     conversations,
@@ -48,6 +47,9 @@ export function ConversationSidebar() {
     deleteConversation,
     toggleSidebar,
     togglePinConversation,
+    agents: storeAgents,
+    setAgents,
+    removeAgent,
   } = useChatStore()
 
   useEffect(() => {
@@ -63,7 +65,9 @@ export function ConversationSidebar() {
       }
     }
     fetchAgents()
-  }, [])
+  }, [setAgents])
+  
+  const agents = storeAgents
 
   const filteredConversations = conversations.filter((c) =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -125,7 +129,7 @@ export function ConversationSidebar() {
   }
 
   return (
-    <div className="flex h-full w-72 flex-col border-r border-border bg-sidebar">
+    <div className="flex h-full w-72 flex-col border-r border-border bg-sidebar overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-sidebar-border p-4">
         <div className="flex items-center gap-2">
@@ -138,7 +142,7 @@ export function ConversationSidebar() {
       </div>
 
       {/* Agent List */}
-      <div className="p-3 space-y-2">
+      <ScrollArea className="p-3 max-h-48">
         {agentsLoading ? (
           <div className="flex items-center justify-center py-4">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -151,7 +155,7 @@ export function ConversationSidebar() {
           agents.filter(agent => agent.status !== 'deleted').map((agent) => (
             <Button
               key={agent.id}
-              className="w-full justify-start gap-2"
+              className="w-full justify-start gap-2 mb-1"
               variant="ghost"
               onClick={async () => await createConversation(agent.id)}
             >
@@ -160,7 +164,7 @@ export function ConversationSidebar() {
             </Button>
           ))
         )}
-      </div>
+      </ScrollArea>
 
       {/* Search */}
       <div className="px-3 pb-2">
@@ -176,7 +180,7 @@ export function ConversationSidebar() {
       </div>
 
       {/* Conversation List */}
-      <ScrollArea className="flex-1 px-2">
+      <ScrollArea className="flex-1 min-h-0 px-2">
         {/* Pinned */}
         {pinnedConversations.length > 0 && (
           <div className="mb-4">

@@ -15,7 +15,7 @@ export default function Home() {
       {/* Conversation Sidebar - Hidden on mobile when closed */}
       <div
         className={cn(
-          'shrink-0 transition-all duration-300',
+          'shrink-0 transition-all duration-300 h-full flex flex-col',
           isMobile && !isSidebarOpen && 'hidden'
         )}
       >
