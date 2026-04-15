@@ -47,54 +47,210 @@ export function ChatArea() {
     }
     addMessage(currentConversationId, userMessage)
 
-    // Simulate AI response with streaming
+    // Get current agent and session
+    const { currentAgentId, activeSessions, sendMessageToAgent, createNewSession, initializeAgent, deleteMessage } = useChatStore.getState()
+    
+    let agentId = currentAgentId
+    
+    // If no agent selected, create a default agent
+    if (!agentId) {
+      try {
+        // Create a default agent
+        const defaultAgent = await initializeAgent({
+          name: 'Default Agent',
+          adapterType: 'openclaw',
+          idleTimeout: 300
+        })
+        agentId = defaultAgent.id
+      } catch (error) {
+        console.error('Failed to create default agent:', error)
+        return
+      }
+    }
+
+    // Ensure there's an active session
+    let session = activeSessions[agentId]
+    if (!session) {
+      try {
+        session = await createNewSession(agentId)
+      } catch (error) {
+        console.error('Failed to create session:', error)
+        return
+      }
+    }
+
+    // Set streaming state
     setStreaming(true)
-    const assistantMessageId = crypto.randomUUID()
-    const assistantMessage: Message = {
-      id: assistantMessageId,
+    
+    // Create a "thinking" message
+    const thinkingMessageId = crypto.randomUUID()
+    const thinkingMessage: Message = {
+      id: thinkingMessageId,
       role: 'assistant',
       content: '',
       timestamp: new Date(),
       isStreaming: true,
-      toolCalls: [],
     }
-    addMessage(currentConversationId, assistantMessage)
+    addMessage(currentConversationId, thinkingMessage)
 
-    // Simulate tool call
-    const shouldUseTool = Math.random() > 0.5
-    if (shouldUseTool) {
-      const toolCall = {
-        id: crypto.randomUUID(),
-        name: '思考分析',
-        status: 'running' as const,
+    try {
+      // 创建助手消息ID，用于后续更新
+      let assistantMessageId: string | null = null
+      let assistantMessage: Message | null = null
+      
+      // 发送消息到 agent，使用实时回调处理流式事件
+      await sendMessageToAgent(agentId, content, (eventData) => {
+        
+        // 当收到第一个事件时，删除思考中消息并创建实际的助手消息
+        if (!assistantMessageId) {
+          // 删除思考中消息
+          deleteMessage(currentConversationId, thinkingMessageId)
+          
+          // 创建新的助手消息
+          assistantMessageId = crypto.randomUUID()
+          assistantMessage = {
+            id: assistantMessageId,
+            role: 'assistant',
+            content: '',
+            timestamp: new Date(),
+            isStreaming: true,
+            toolCalls: [],
+            events: []
+          }
+          addMessage(currentConversationId, assistantMessage)
+        }
+        
+        // 确保助手消息已创建
+        if (assistantMessageId && assistantMessage) {
+          // 获取最新的消息状态
+          const currentMessage = useChatStore.getState().conversations.find(
+            c => c.id === currentConversationId
+          )?.messages.find(
+            m => m.id === assistantMessageId
+          ) || assistantMessage
+
+          switch (eventData.type) {
+            case 'message.delta':
+              if (eventData.payload?.delta) {
+                updateMessage(currentConversationId, assistantMessageId, {
+                  content: (currentMessage.content || '') + eventData.payload.delta,
+                  events: [...(currentMessage.events || []), {
+                    type: 'message.delta',
+                    content: eventData.payload.delta,
+                    timestamp: eventData.ts_ms || Date.now()
+                  }]
+                })
+              }
+              break
+            case 'message.completed':
+              if (eventData.payload?.text) {
+                updateMessage(currentConversationId, assistantMessageId, {
+                  content: eventData.payload.text,
+                  isStreaming: false
+                })
+                setStreaming(false)
+              } else {
+                // If no text in payload, still mark as completed
+                updateMessage(currentConversationId, assistantMessageId, {
+                  isStreaming: false
+                })
+                setStreaming(false)
+              }
+              break
+            case 'thinking':
+              if (eventData.payload?.thinking) {
+                updateMessage(currentConversationId, assistantMessageId, {
+                  thinking: [...(currentMessage.thinking || []), eventData.payload.thinking],
+                  displayText: [...(currentMessage.displayText || []), eventData.payload.display_text || `AI正在思考：${eventData.payload.thinking}`],
+                  events: [...(currentMessage.events || []), {
+                    type: 'thinking',
+                    content: eventData.payload.display_text || `AI正在思考：${eventData.payload.thinking}`,
+                    timestamp: eventData.ts_ms || Date.now()
+                  }]
+                })
+              }
+              break
+            case 'tool.call.started':
+              if (eventData.payload?.tool_name) {
+                const toolCall = {
+                  id: eventData.payload.tool_call_id || crypto.randomUUID(),
+                  name: eventData.payload.tool_name,
+                  status: 'running' as const,
+                  input: eventData.payload.arguments,
+                  displayText: eventData.payload.display_text || `正在调用工具：${eventData.payload.tool_name}`
+                }
+                updateMessage(currentConversationId, assistantMessageId, {
+                  toolCalls: [...(currentMessage.toolCalls || []), toolCall],
+                  events: [...(currentMessage.events || []), {
+                    type: 'tool.call.started',
+                    content: eventData.payload.display_text || `正在调用工具：${eventData.payload.tool_name}`,
+                    timestamp: eventData.ts_ms || Date.now(),
+                    toolCall
+                  }]
+                })
+              }
+              break
+            case 'tool.call.response':
+              if (eventData.payload?.name) {
+                // 创建一个新的 toolCall 对象，因为 tool_call_id 可能与 tool.call.started 中的不同
+                const toolCall = {
+                  id: eventData.payload.tool_call_id || crypto.randomUUID(),
+                  name: eventData.payload.name,
+                  status: 'completed' as const,
+                  input: eventData.payload.arguments,
+                  output: eventData.payload.content,
+                  error: eventData.payload.is_error ? eventData.payload.content : undefined,
+                  duration: eventData.payload.duration,
+                  displayText: eventData.payload.display_text || (eventData.payload.is_error ? `工具调用失败：${eventData.payload.content}` : `工具调用结果：${eventData.payload.content}`)
+                }
+                updateMessage(currentConversationId, assistantMessageId, {
+                  toolCalls: [...(currentMessage.toolCalls || []), toolCall],
+                  events: [...(currentMessage.events || []), {
+                    type: 'tool.call.response',
+                    content: eventData.payload.display_text || (eventData.payload.is_error ? `工具调用失败：${eventData.payload.content}` : `工具调用结果：${eventData.payload.content}`),
+                    timestamp: eventData.ts_ms || Date.now(),
+                    toolCall
+                  }]
+                })
+              }
+              break
+            case 'usage.updated':
+              if (eventData.payload) {
+                updateMessage(currentConversationId, assistantMessageId, {
+                  usage: {
+                    inputTokens: eventData.payload.input_tokens,
+                    outputTokens: eventData.payload.output_tokens,
+                    totalCost: eventData.payload.total_cost
+                  }
+                })
+              }
+              break
+            case 'stream.error':
+            case 'client.error':
+              // Handle errors
+              console.error('Error event:', eventData.payload || 'No payload')
+              setStreaming(false)
+              break
+            default:
+              console.log('Unknown event type:', eventData.type)
+          }
+        }
+      })
+    } catch (error) {
+      console.error('Failed to send message:', error)
+      // Handle error gracefully
+      deleteMessage(currentConversationId, thinkingMessageId)
+      const errorMessageId = crypto.randomUUID()
+      const errorMessage: Message = {
+        id: errorMessageId,
+        role: 'assistant',
+        content: 'Sorry, there was an error sending your message. Please try again.',
+        timestamp: new Date(),
+        isStreaming: false,
       }
-      updateMessage(currentConversationId, assistantMessageId, {
-        toolCalls: [toolCall],
-      })
-
-      await new Promise((r) => setTimeout(r, 1500))
-
-      updateMessage(currentConversationId, assistantMessageId, {
-        toolCalls: [{ ...toolCall, status: 'completed', duration: 1500 }],
-      })
+      addMessage(currentConversationId, errorMessage)
+      setStreaming(false)
     }
-
-    // Simulate streaming response
-    const responseText = getSimulatedResponse(content)
-    let currentText = ''
-
-    for (let i = 0; i < responseText.length; i++) {
-      await new Promise((r) => setTimeout(r, 15 + Math.random() * 25))
-      currentText += responseText[i]
-      updateMessage(currentConversationId, assistantMessageId, {
-        content: currentText,
-      })
-    }
-
-    updateMessage(currentConversationId, assistantMessageId, {
-      isStreaming: false,
-    })
-    setStreaming(false)
   }
 
   if (messages.length === 0) {

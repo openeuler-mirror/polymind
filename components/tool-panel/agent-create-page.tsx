@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,6 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast'
 import { agentService } from '@/services/agent-service'
 import { SandboxType, SANDBOX_CONFIGS } from '@/lib/types'
+import {
+  Bot,
+  Brain,
+  MessageSquare,
+  Code,
+  Lightbulb,
+  Settings,
+  Search,
+  Database
+} from 'lucide-react'
 
 interface AgentCreatePageProps {
   onBack: () => void
@@ -20,10 +30,13 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
     description: '',
     adapterType: 'openclaw', // 默认为 openclaw
     sandboxType: SandboxType.DOCKER,
-    idleTimeout: 3600 // 默认 1 小时
+    idleTimeout: 3600, // 默认 1 小时
+    icon: 'bot' // 默认图标
   })
+  const [showIconSelector, setShowIconSelector] = useState(false)
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
+  const iconSelectorRef = useRef<HTMLDivElement>(null)
 
   // 处理表单变化
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -34,6 +47,44 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
     }))
   }
 
+  // 处理图标选择
+  const handleIconSelect = (icon: string) => {
+    setAgentForm(prev => ({
+      ...prev,
+      icon
+    }))
+    setShowIconSelector(false)
+  }
+
+  // 点击外部关闭图标选择器
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (iconSelectorRef.current && !iconSelectorRef.current.contains(event.target as Node)) {
+        setShowIconSelector(false)
+      }
+    }
+
+    if (showIconSelector) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showIconSelector])
+
+  // 图标列表
+  const icons = [
+    { name: 'bot', component: Bot },
+    { name: 'brain', component: Brain },
+    { name: 'message', component: MessageSquare },
+    { name: 'code', component: Code },
+    { name: 'lightbulb', component: Lightbulb },
+    { name: 'settings', component: Settings },
+    { name: 'search', component: Search },
+    { name: 'database', component: Database }
+  ]
+
   // 处理表单提交
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,18 +93,12 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
       // 调用创建智能体的 API
       console.log('Creating agent:', agentForm)
       
-      // 获取沙箱配置的 value 值
-      const sandboxValue = SANDBOX_CONFIGS[agentForm.sandboxType as SandboxType]?.value || 'docker'
-      
       await agentService.createAgent({
         name: agentForm.name,
         description: agentForm.description,
         adapterType: agentForm.adapterType,
-        sandboxConfig: {
-          type: sandboxValue,
-          timeout: agentForm.idleTimeout
-        },
-        idleTimeout: agentForm.idleTimeout
+        sandboxType: agentForm.sandboxType,
+        idleTimeoutSeconds: agentForm.idleTimeout
       })
       toast({
         title: '成功',
@@ -88,14 +133,56 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
         <form onSubmit={handleFormSubmit} className="space-y-4">
           <div className="space-y-2">
             <label htmlFor="name" className="text-sm font-medium">智能体名称</label>
-            <Input
-              id="name"
-              name="name"
-              value={agentForm.name}
-              onChange={handleFormChange}
-              placeholder="请输入智能体名称"
-              required
-            />
+            <div className="flex items-center space-x-3">
+              <div className="relative">
+                <div 
+                  className="w-10 h-10 rounded border border-border flex items-center justify-center cursor-pointer hover:border-primary transition-colors"
+                  onClick={() => setShowIconSelector(!showIconSelector)}
+                >
+                  {(() => {
+                    const selectedIcon = icons.find(i => i.name === agentForm.icon);
+                    if (selectedIcon) {
+                      const IconComponent = selectedIcon.component;
+                      return <IconComponent size={18} className="text-muted-foreground" />;
+                    }
+                    return <Bot size={18} className="text-muted-foreground" />;
+                  })()}
+                </div>
+                
+                {/* 图标选择器 */}
+                {showIconSelector && (
+                  <div ref={iconSelectorRef} className="absolute left-0 top-full mt-2 w-48 bg-background border border-border rounded-md shadow-lg p-2 z-10">
+                    <div className="grid grid-cols-4 gap-2">
+                      {icons.map(icon => {
+                        const IconComponent = icon.component;
+                        return (
+                          <div
+                            key={icon.name}
+                            className={`w-8 h-8 rounded flex items-center justify-center cursor-pointer transition-colors ${
+                              agentForm.icon === icon.name 
+                                ? 'border-2 border-primary bg-primary/10' 
+                                : 'border border-border hover:border-primary'
+                            }`}
+                            onClick={() => handleIconSelect(icon.name)}
+                          >
+                            <IconComponent size={16} className="text-muted-foreground" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <Input
+                id="name"
+                name="name"
+                value={agentForm.name}
+                onChange={handleFormChange}
+                placeholder="请输入智能体名称"
+                required
+                className="flex-1"
+              />
+            </div>
           </div>
           
           <div className="space-y-2">

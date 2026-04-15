@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
@@ -12,9 +12,12 @@ import {
   Edit3,
   ChevronLeft,
   Code2,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
+import { agentService } from '@/services/agent-service'
+import { Agent } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -31,10 +34,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { TimeAgo } from '@/components/ui/time-ago'
 
 export function ConversationSidebar() {
   const [searchQuery, setSearchQuery] = useState('')
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [agentsLoading, setAgentsLoading] = useState(true)
   const {
     conversations,
     currentConversationId,
@@ -44,8 +48,22 @@ export function ConversationSidebar() {
     deleteConversation,
     toggleSidebar,
     togglePinConversation,
-    updateConversationTitle,
   } = useChatStore()
+
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        setAgentsLoading(true)
+        const data = await agentService.getAgents()
+        setAgents(data)
+      } catch (err) {
+        console.error('Failed to fetch agents:', err)
+      } finally {
+        setAgentsLoading(false)
+      }
+    }
+    fetchAgents()
+  }, [])
 
   const filteredConversations = conversations.filter((c) =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -78,7 +96,7 @@ export function ConversationSidebar() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={createConversation}
+                onClick={async () => await createConversation()}
                 className="mb-2"
               >
                 <MessageSquarePlus className="h-5 w-5" />
@@ -119,24 +137,29 @@ export function ConversationSidebar() {
         </Button>
       </div>
 
-      {/* Action Buttons */}
+      {/* Agent List */}
       <div className="p-3 space-y-2">
-        <Button
-          className="w-full justify-start gap-2"
-          variant="ghost"
-          onClick={createConversation}
-        >
-          <MessageSquarePlus className="h-4 w-4" />
-          问答
-        </Button>
-        <Button
-          className="w-full justify-start gap-2"
-          variant="ghost"
-          onClick={() => window.open('#APP_GENERATION_URL_PLACEHOLDER', '_blank')}
-        >
-          <Code2 className="h-4 w-4" />
-          应用生成
-        </Button>
+        {agentsLoading ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : agents.filter(agent => agent.status !== 'deleted').length === 0 ? (
+          <div className="text-center py-4 text-muted-foreground text-sm">
+            暂无 Agent
+          </div>
+        ) : (
+          agents.filter(agent => agent.status !== 'deleted').map((agent) => (
+            <Button
+              key={agent.id}
+              className="w-full justify-start gap-2"
+              variant="ghost"
+              onClick={async () => await createConversation(agent.id)}
+            >
+              <MessageSquarePlus className="h-4 w-4" />
+              <span className="truncate">{agent.name}</span>
+            </Button>
+          ))
+        )}
       </div>
 
       {/* Search */}
@@ -170,7 +193,6 @@ export function ConversationSidebar() {
                   onSelect={() => setCurrentConversation(conv.id)}
                   onDelete={() => deleteConversation(conv.id)}
                   onTogglePin={() => togglePinConversation(conv.id)}
-                  onRename={updateConversationTitle}
                 />
               ))}
             </div>
@@ -193,7 +215,6 @@ export function ConversationSidebar() {
                 onSelect={() => setCurrentConversation(conv.id)}
                 onDelete={() => deleteConversation(conv.id)}
                 onTogglePin={() => togglePinConversation(conv.id)}
-                onRename={updateConversationTitle}
               />
             ))}
           </div>
@@ -222,7 +243,6 @@ interface ConversationItemProps {
   onSelect: () => void
   onDelete: () => void
   onTogglePin: () => void
-  onRename: (id: string, title: string) => void
 }
 
 function ConversationItem({
@@ -231,73 +251,9 @@ function ConversationItem({
   onSelect,
   onDelete,
   onTogglePin,
-  onRename,
-}: ConversationItemProps & { onRename: (id: string, title: string) => void }) {
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [newTitle, setNewTitle] = useState(conversation.title);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (isRenaming) {
-      // 确保输入框已经完全渲染完成
-      const timer = setTimeout(() => {
-        if (inputRef.current) {
-          console.log('Focusing input...');
-          // 强制聚焦输入框
-          inputRef.current.focus();
-          inputRef.current.select();
-          // 手动触发光标闪烁
-          inputRef.current.setSelectionRange(
-            inputRef.current.value.length,
-            inputRef.current.value.length
-          );
-          console.log('Input focused:', document.activeElement === inputRef.current);
-        }
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [isRenaming]);
-
-  const handleRenameClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsRenaming(true);
-  };
-
-  const handleRenameSubmit = (e: React.FormEvent | React.KeyboardEvent) => {
-    if ('preventDefault' in e) {
-      e.preventDefault();
-    }
-    if (newTitle.trim()) {
-      onRename(conversation.id, newTitle.trim());
-    }
-    setIsRenaming(false);
-    // 重命名完成后，将焦点设置到容器上
-    setTimeout(() => {
-      if (containerRef.current) {
-        containerRef.current.focus();
-      }
-    }, 0);
-  };
-
-  const handleRenameCancel = (e: React.MouseEvent | React.FocusEvent | React.KeyboardEvent) => {
-    if ('stopPropagation' in e) {
-      e.stopPropagation();
-    }
-    setNewTitle(conversation.title);
-    setIsRenaming(false);
-    // 取消重命名后，将焦点设置到容器上
-    setTimeout(() => {
-      if (containerRef.current) {
-        containerRef.current.focus();
-      }
-    }, 0);
-  };
-
+}: ConversationItemProps) {
   return (
     <div
-      ref={containerRef}
-      tabIndex={-1}
       onClick={onSelect}
       className={cn(
         'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 transition-colors',
@@ -307,37 +263,13 @@ function ConversationItem({
       )}
     >
       <div className="min-w-0 flex-1">
-        {isRenaming ? (
-          <form onSubmit={handleRenameSubmit} className="w-full">
-            <input
-              ref={inputRef}
-              type="text"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              onBlur={(e) => {
-                // 只有当点击的不是下拉菜单时才保存
-                if (!e.relatedTarget || !(e.relatedTarget as HTMLElement).closest('[data-slot="dropdown-menu"]')) {
-                  handleRenameSubmit(e);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleRenameSubmit(e);
-                } else if (e.key === 'Escape') {
-                  handleRenameCancel(e);
-                }
-              }}
-              className="w-full rounded-md border border-primary bg-transparent px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </form>
-        ) : (
-          <>
-            <p className="truncate text-sm font-medium">{conversation.title}</p>
-            <p className="text-xs text-muted-foreground">
-              <TimeAgo date={conversation.updatedAt} />
-            </p>
-          </>
-        )}
+        <p className="truncate text-sm font-medium">{conversation.title}</p>
+        <p className="text-xs text-muted-foreground">
+          {formatDistanceToNow(conversation.updatedAt, {
+            addSuffix: true,
+            locale: zhCN,
+          })}
+        </p>
       </div>
 
       <DropdownMenu>
@@ -356,7 +288,7 @@ function ConversationItem({
             <Pin className="mr-2 h-4 w-4" />
             {conversation.pinned ? '取消固定' : '固定对话'}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleRenameClick}>
+          <DropdownMenuItem>
             <Edit3 className="mr-2 h-4 w-4" />
             重命名
           </DropdownMenuItem>
