@@ -130,7 +130,7 @@ export function RightPanel() {
 
       {/* Content */}
       {activeRightPanelTab ? (
-        <div className="flex-1">
+        <div className="flex-1 h-full">
           {activeRightPanelTab === 'settings' ? (
             <SettingsPage />
           ) : activeRightPanelTab === 'agent' ? (

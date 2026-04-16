@@ -12,6 +12,7 @@ import { agentService } from '@/services/agent-service'
 import { Agent, AgentStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { AgentCreatePage } from './agent-create-page'
+import { useChatStore } from '@/lib/store'
 
 export function AgentPage() {
   const [agents, setAgents] = useState<Agent[]>([])
@@ -24,6 +25,7 @@ export function AgentPage() {
     return storedState ? JSON.parse(storedState) : false
   })
   const { toast } = useToast()
+  const removeAgent = useChatStore(state => state.removeAgent)
 
   // 监听isCreating状态变化，保存到localStorage
   useEffect(() => {
@@ -99,6 +101,8 @@ export function AgentPage() {
         await agentService.deleteAgent(agentId)
         // 从本地状态中移除agent
         setAgents(prevAgents => prevAgents.filter(agent => agent.id !== agentId))
+        // 从全局store中移除agent，同步到conversation-sidebar
+        removeAgent(agentId)
       }
     } catch (err) {
       console.error(`Failed to ${action} agent:`, err)
@@ -169,7 +173,7 @@ export function AgentPage() {
   }
 
   return (
-    <div className="h-full flex flex-col p-4">
+    <div className="h-full flex flex-col p-4 overflow-hidden">
       {/* 头部 */}
       <div className="mb-4 flex flex-col gap-4">
         <div className="flex justify-between items-center max-w-2xl mx-auto w-full">
@@ -219,7 +223,7 @@ export function AgentPage() {
       </div>
 
       {/* 智能体列表或创建表单 */}
-      <div className="flex-1 overflow-y-auto flex justify-center">
+      <div className="flex-1 overflow-y-auto flex justify-center scrollbar-thin min-h-0">
         <div className="w-full max-w-2xl">
         {isCreating ? (
           /* 智能体创建表单 */

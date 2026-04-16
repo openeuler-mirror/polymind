@@ -73,6 +73,7 @@ export interface ChatState {
   addAgent: (agent: Agent) => void
   updateAgent: (agent: Agent) => void
   removeAgent: (agentId: string) => void
+  setAgents: (agents: Agent[]) => void
   initializeAgent: (config: any) => Promise<Agent>
   connectToAgent: (agentId: string) => Promise<void>
   disconnectFromAgent: (agentId: string) => void
@@ -467,6 +468,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         activeSessions
       }
     })
+  },
+  
+  setAgents: (agents) => {
+    set(() => ({
+      agents
+    }))
   },
   
   initializeAgent: async (config: any) => {

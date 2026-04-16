@@ -48,7 +48,10 @@ class AgentService {
     }
     // 后端返回的是直接列表，不需要 response.data
     const agentsData = Array.isArray(response) ? response : []
-    return agentsData.map(agent => this.transformAgent(agent))
+    console.log('原始智能体数据:', agentsData)
+    const transformedAgents = agentsData.map(agent => this.transformAgent(agent))
+    console.log('转换后的智能体数据:', transformedAgents)
+    return transformedAgents
   }
 
   /**
@@ -154,13 +157,17 @@ class AgentService {
     if (!agent || typeof agent !== 'object') {
       throw new Error('Agent data is invalid')
     }
+    
+    // 转换状态值为大写格式
+    const status = agent.status?.toUpperCase() as AgentStatus
+    
     return {
       id: agent.id,
       name: agent.name,
       description: agent.description,
       adapterType: agent.adapter_type || agent.adapterType,
       sandboxType: agent.sandbox_type || agent.sandboxType,
-      status: agent.status,
+      status: status,
       sandboxId: agent.sandbox_id || agent.sandboxId,
       workspacePath: agent.workspace_path || agent.workspacePath,
       idleTimeoutSeconds: agent.idle_timeout_seconds ?? agent.idleTimeoutSeconds ?? 300,
