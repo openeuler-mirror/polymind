@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import {
   PanelLeftOpen,
   Share2,
@@ -45,12 +46,17 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ conversation }: ChatHeaderProps) {
   const { theme, setTheme } = useTheme()
+  const [isHydrated, setIsHydrated] = useState(false)
   const {
     isSidebarOpen,
     toggleSidebar,
     currentConversationId,
     deleteConversation,
   } = useChatStore()
+  
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   return (
     <header className="flex h-14 items-center justify-between px-4">
@@ -71,10 +77,10 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
 
         <div className="flex flex-col">
           <h1 className="text-sm font-semibold">
-            {conversation?.title || '新对话'}
+            {!isHydrated ? '新对话' : (conversation?.title || '新对话')}
           </h1>
           <span className="text-xs text-muted-foreground">
-            {conversation?.messages.length || 0} 条消息
+            {!isHydrated ? '0 条消息' : `${conversation?.messages.length || 0} 条消息`}
           </span>
         </div>
       </div>

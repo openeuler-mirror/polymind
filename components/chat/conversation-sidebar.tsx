@@ -38,6 +38,7 @@ import {
 export function ConversationSidebar() {
   const [searchQuery, setSearchQuery] = useState('')
   const [agentsLoading, setAgentsLoading] = useState(true)
+  const [isHydrated, setIsHydrated] = useState(false)
   const {
     conversations,
     currentConversationId,
@@ -51,6 +52,12 @@ export function ConversationSidebar() {
     setAgents,
     removeAgent,
   } = useChatStore()
+  
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+  
+  const isEmpty = !isHydrated || conversations.length === 0
 
   useEffect(() => {
     const fetchAgents = async () => {
@@ -182,7 +189,7 @@ export function ConversationSidebar() {
       {/* Conversation List */}
       <ScrollArea className="flex-1 min-h-0 px-2">
         {/* Pinned */}
-        {pinnedConversations.length > 0 && (
+        {isHydrated && pinnedConversations.length > 0 && (
           <div className="mb-4">
             <div className="mb-2 flex items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
               <Pin className="h-3 w-3" />
@@ -205,13 +212,13 @@ export function ConversationSidebar() {
 
         {/* Regular */}
         <div>
-          {pinnedConversations.length > 0 && regularConversations.length > 0 && (
+          {isHydrated && pinnedConversations.length > 0 && regularConversations.length > 0 && (
             <div className="mb-2 px-2 text-xs font-medium text-muted-foreground">
               最近对话
             </div>
           )}
           <div className="space-y-1">
-            {regularConversations.map((conv) => (
+            {isHydrated && regularConversations.map((conv) => (
               <ConversationItem
                 key={conv.id}
                 conversation={conv}
@@ -224,12 +231,12 @@ export function ConversationSidebar() {
           </div>
         </div>
 
-        {filteredConversations.length === 0 && (
+        {!isHydrated || filteredConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
             <MessageSquarePlus className="mb-2 h-8 w-8" />
             <p className="text-sm">暂无对话</p>
           </div>
-        )}
+        ) : null}
       </ScrollArea>
 
     </div>

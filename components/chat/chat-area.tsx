@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useChatStore } from '@/lib/store'
 import { MessageList } from './message-list'
 import { ChatInput } from './chat-input'
@@ -9,6 +9,7 @@ import { WelcomeScreen } from './welcome-screen'
 import type { Message } from '@/lib/types'
 
 export function ChatArea() {
+  const [isHydrated, setIsHydrated] = useState(false)
   const {
     conversations,
     currentConversationId,
@@ -16,6 +17,10 @@ export function ChatArea() {
     updateMessage,
     setStreaming,
   } = useChatStore()
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   const currentConversation = conversations.find(
     (c) => c.id === currentConversationId
@@ -254,7 +259,7 @@ export function ChatArea() {
     }
   }
 
-  if (messages.length === 0) {
+  if (!isHydrated || messages.length === 0) {
     return (
       <div className="flex h-full flex-col bg-background">
         <ChatHeader conversation={currentConversation} />
