@@ -198,22 +198,99 @@ export function ChatArea() {
               break
             case 'tool.call.response':
               if (eventData.payload?.name) {
-                // 创建一个新的 toolCall 对象，因为 tool_call_id 可能与 tool.call.started 中的不同
+                // 格式化输出内容，使其更易读
+                const formatOutput = (content: any): string => {
+                  // 空值检查
+                  if (content === null || content === undefined) {
+                    return ''
+                  }
+                  
+                  // 如果是字符串，直接返回
+                  if (typeof content === 'string') {
+                    return content
+                  }
+                  
+                  // 如果是对象，尝试提取关键信息
+                  if (typeof content === 'object') {
+                    // 如果有 details.content，优先使用
+                    if (content.details?.content) {
+                      const detailsContent = content.details.content
+                      return typeof detailsContent === 'string' ? detailsContent : JSON.stringify(detailsContent)
+                    }
+                    
+                    // 如果有 text 字段
+                    if (content.text && typeof content.text === 'string') {
+                      return content.text
+                    }
+                    
+                    // 如果有 content 数组，提取文本内容
+                    if (Array.isArray(content.content)) {
+                      const texts = content.content
+                        .filter((item: any) => item && item.type === 'text' && typeof item.text === 'string')
+                        .map((item: any) => item.text)
+                        .join('\n')
+                      if (texts) {
+                        return texts
+                      }
+                    }
+                    
+                    // 如果有 error 字段
+                    if (content.error && typeof content.error === 'string') {
+                      return content.error
+                    }
+                    
+                    // 如果有 message 字段（通常用于错误信息）
+                    if (content.message && typeof content.message === 'string') {
+                      return content.message
+                    }
+                    
+                    // 最后尝试 JSON 序列化
+                    try {
+                      return JSON.stringify(content, null, 2)
+                    } catch (e) {
+                      console.error('Failed to stringify content:', e)
+                      return '[无法序列化的内容]'
+                    }
+                  }
+                  
+                  // 其他类型转换为字符串
+                  try {
+                    return String(content)
+                  } catch (e) {
+                    return '[无法转换的内容]'
+                  }
+                }
+
+                // 格式化显示文本
+                const formatDisplayText = (payload: any): string => {
+                  if (payload.display_text) {
+                    return payload.display_text
+                  }
+                  
+                  if (payload.is_error) {
+                    const errorContent = formatOutput(payload.content)
+                    return `工具调用失败：${errorContent.substring(0, 100)}${errorContent.length > 100 ? '...' : ''}`
+                  }
+                  
+                  const outputContent = formatOutput(payload.content)
+                  return `工具调用结果：${outputContent.substring(0, 100)}${outputContent.length > 100 ? '...' : ''}`
+                }
+
                 const toolCall = {
                   id: eventData.payload.tool_call_id || crypto.randomUUID(),
                   name: eventData.payload.name,
-                  status: 'completed' as const,
+                  status: eventData.payload.is_error ? 'error' as const : 'completed' as const,
                   input: eventData.payload.arguments,
                   output: eventData.payload.content,
                   error: eventData.payload.is_error ? eventData.payload.content : undefined,
                   duration: eventData.payload.duration,
-                  displayText: eventData.payload.display_text || (eventData.payload.is_error ? `工具调用失败：${eventData.payload.content}` : `工具调用结果：${eventData.payload.content}`)
+                  displayText: formatDisplayText(eventData.payload)
                 }
                 updateMessage(currentConversationId, assistantMessageId, {
                   toolCalls: [...(currentMessage.toolCalls || []), toolCall],
                   events: [...(currentMessage.events || []), {
                     type: 'tool.call.response',
-                    content: eventData.payload.display_text || (eventData.payload.is_error ? `工具调用失败：${eventData.payload.content}` : `工具调用结果：${eventData.payload.content}`),
+                    content: formatDisplayText(eventData.payload),
                     timestamp: eventData.ts_ms || Date.now(),
                     toolCall
                   }]

@@ -72,6 +72,8 @@ export interface Conversation {
   updatedAt: Date
   model?: string
   pinned?: boolean
+  agentId?: string  // 创建该会话的 agent ID
+  agentName?: string  // 创建该会话的 agent 名称
 }
 
 // ============================================

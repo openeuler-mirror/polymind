@@ -107,8 +107,8 @@ export function ConversationSidebar() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={async () => await createConversation()}
-                className="mb-2"
+                onClick={async () => await createConversation(undefined, undefined)}
+              className="mb-2"
               >
                 <MessageSquarePlus className="h-5 w-5" />
               </Button>
@@ -164,7 +164,7 @@ export function ConversationSidebar() {
               key={agent.id}
               className="w-full justify-start gap-2 mb-1"
               variant="ghost"
-              onClick={async () => await createConversation(agent.id)}
+              onClick={async () => await createConversation(agent.id, agent.name)}
             >
               <MessageSquarePlus className="h-4 w-4" />
               <span className="truncate">{agent.name}</span>
@@ -249,6 +249,8 @@ interface ConversationItemProps {
     title: string
     updatedAt: Date
     pinned?: boolean
+    agentId?: string
+    agentName?: string
   }
   isActive: boolean
   onSelect: () => void
@@ -274,8 +276,15 @@ function ConversationItem({
       )}
     >
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{conversation.title}</p>
-        <p className="text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          {conversation.agentName && (
+            <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary/80">
+              {conversation.agentName}
+            </span>
+          )}
+          <p className="truncate text-sm font-medium flex-1">{conversation.title}</p>
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">
           {formatDistanceToNow(conversation.updatedAt, {
             addSuffix: true,
             locale: zhCN,

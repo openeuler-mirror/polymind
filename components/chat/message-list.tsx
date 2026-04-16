@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   Lightbulb,
   ChevronDown,
+  AlertCircle,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -663,6 +664,49 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   const isCompleted = toolCall.status === 'completed'
   const [isExpanded, setIsExpanded] = useState(false)
 
+  // 格式化输出，使其更易读
+  const formatOutput = (output: any): string => {
+    if (typeof output === 'string') {
+      return output
+    }
+    
+    if (typeof output === 'object' && output !== null) {
+      // 如果有 details.content，优先使用
+      if (output.details?.content) {
+        const content = output.details.content
+        return typeof content === 'string' ? content : JSON.stringify(content)
+      }
+      
+      // 如果有 text 字段
+      if (output.text) {
+        return typeof output.text === 'string' ? output.text : JSON.stringify(output.text)
+      }
+      
+      // 如果有 content 数组，提取文本
+      if (Array.isArray(output.content)) {
+        const texts = output.content
+          .filter((item: any) => item && item.type === 'text')
+          .map((item: any) => item.text)
+          .join('\n')
+        if (texts) return texts
+      }
+      
+      return JSON.stringify(output, null, 2)
+    }
+    
+    return String(output)
+  }
+
+  // 处理换行符，确保在 HTML 中正确显示
+  const formatForDisplay = (text: string): string => {
+    if (!text) return ''
+    // 将 \n 转换为换行，但避免重复转换
+    return text.split('\\n').join('\n')
+  }
+
+  const formattedOutput = toolCall.output ? formatOutput(toolCall.output) : null
+  const displayOutput = formattedOutput ? formatForDisplay(formattedOutput) : null
+
   return (
     <div className="rounded-lg border border-border bg-muted/50 text-sm">
       <div 
@@ -671,12 +715,14 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
       >
         {isRunning ? (
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        ) : toolCall.status === 'error' ? (
+          <AlertCircle className="h-4 w-4 text-red-500" />
         ) : isCompleted ? (
           <CheckCircle2 className="h-4 w-4 text-accent" />
         ) : (
           <Wrench className="h-4 w-4 text-muted-foreground" />
         )}
-        <span className="font-medium">{toolCall.name}</span>
+        <span className={toolCall.status === 'error' ? 'font-medium text-red-500' : 'font-medium'}>{toolCall.name}</span>
         {toolCall.duration && (
           <span className="text-muted-foreground">
             {(toolCall.duration / 1000).toFixed(1)}s
@@ -689,28 +735,34 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
         </span>
       </div>
       {isExpanded && (
-        <div className="px-3 pb-2 space-y-1">
+        <div className="px-3 pb-2 space-y-2">
           {toolCall.displayText && (
-            <div className="text-muted-foreground">
+            <div className="text-muted-foreground text-xs">
               {toolCall.displayText}
             </div>
           )}
           {toolCall.input && (
-            <div className="text-xs text-muted-foreground">
-              <span>输入: </span>
-              <code>{JSON.stringify(toolCall.input)}</code>
+            <div className="text-xs">
+              <div className="text-muted-foreground mb-1">输入:</div>
+              <pre className="bg-background/50 rounded p-2 overflow-x-auto text-xs whitespace-pre-wrap break-words font-mono leading-relaxed">
+                {formatForDisplay(typeof toolCall.input === 'string' ? toolCall.input : JSON.stringify(toolCall.input, null, 2))}
+              </pre>
             </div>
           )}
-          {toolCall.output && (
-            <div className="text-xs text-muted-foreground">
-              <span>输出: </span>
-              <code>{toolCall.output}</code>
+          {displayOutput && (
+            <div className="text-xs">
+              <div className="text-muted-foreground mb-1">输出:</div>
+              <pre className="bg-background/50 rounded p-2 overflow-x-auto text-xs whitespace-pre-wrap break-words font-mono leading-relaxed">
+                {displayOutput}
+              </pre>
             </div>
           )}
           {toolCall.error && (
             <div className="text-xs text-red-500">
-              <span>错误: </span>
-              <code>{toolCall.error}</code>
+              <div className="mb-1">错误:</div>
+              <pre className="bg-red-500/10 rounded p-2 overflow-x-auto text-xs whitespace-pre-wrap break-words font-mono leading-relaxed">
+                {formatForDisplay(typeof toolCall.error === 'string' ? toolCall.error : JSON.stringify(toolCall.error, null, 2))}
+              </pre>
             </div>
           )}
         </div>
