@@ -59,7 +59,8 @@ export function ChatArea() {
         const defaultAgent = await initializeAgent({
           name: 'Default Agent',
           adapterType: 'openclaw',
-          idleTimeout: 300
+          sandboxType: 'docker',
+          idleTimeoutSeconds: 300
         })
         agentId = defaultAgent.id
       } catch (error) {

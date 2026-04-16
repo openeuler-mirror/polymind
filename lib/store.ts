@@ -9,6 +9,53 @@ import { sessionService } from '@/services/session-service'
 // 环境变量控制是否使用模拟数据
 const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
 
+function getInitialState() {
+  if (typeof window === 'undefined') {
+    return {
+      conversations: demoConversations,
+      currentConversationId: '1',
+      currentAgentId: null,
+    }
+  }
+  
+  try {
+    const savedConversations = localStorage.getItem('polymind-conversations')
+    const savedCurrentId = localStorage.getItem('polymind-current-conversation')
+    const savedCurrentAgentId = localStorage.getItem('polymind-current-agent')
+    
+    if (savedConversations) {
+      const parsed = JSON.parse(savedConversations)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const conversations = parsed.map((conv: any) => ({
+          ...conv,
+          createdAt: new Date(conv.createdAt),
+          updatedAt: new Date(conv.updatedAt),
+          messages: conv.messages.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        }))
+        
+        return {
+          conversations,
+          currentConversationId: savedCurrentId || parsed[0]?.id || '1',
+          currentAgentId: savedCurrentAgentId || null,
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load from localStorage:', err)
+  }
+  
+  return {
+    conversations: demoConversations,
+    currentConversationId: '1',
+    currentAgentId: null,
+  }
+}
+
+const initialState = getInitialState()
+
 interface Settings {
   theme: 'light' | 'dark' | 'system'
   language: 'zh-CN' | 'en-US'
@@ -52,7 +99,7 @@ export interface ChatState {
   
   // Actions
   createConversation: (agentId?: string) => Promise<string>
-  deleteConversation: (id: string) => void
+  deleteConversation: (id: string) => Promise<void>
   setCurrentConversation: (id: string) => void
   addMessage: (conversationId: string, message: Message) => void
   updateMessage: (conversationId: string, messageId: string, updates: Partial<Message> | ((message: Message) => Partial<Message>)) => void
@@ -251,8 +298,8 @@ const handleEvent = (event: any, conversationId: string, messageId: string) => {
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
-  conversations: demoConversations,
-  currentConversationId: '1',
+  conversations: initialState.conversations,
+  currentConversationId: initialState.currentConversationId,
   isSidebarOpen: true,
   isRightPanelOpen: false,
   isStreaming: false,
@@ -266,7 +313,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   // Agent相关状态
   agents: [],
-  currentAgentId: null,
+  currentAgentId: initialState.currentAgentId,
   agentStatus: {},
   activeSessions: {},
   wsConnections: {},
@@ -301,7 +348,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return id
   },
 
-  deleteConversation: (id) => {
+  deleteConversation: async (id) => {
+    const state = get()
+    const isCurrentConversation = state.currentConversationId === id
+    
+    // 如果删除的是当前会话，且有对应的 agent 和 session，则调用后端 API 删除
+    if (isCurrentConversation && state.currentAgentId) {
+      const session = state.activeSessions[state.currentAgentId]
+      if (session) {
+        try {
+          if (!USE_MOCK_DATA) {
+            await sessionService.deleteSession(state.currentAgentId, session.id)
+          }
+        } catch (error) {
+          console.error('Failed to delete session:', error)
+        }
+      }
+    }
+    
     set((state) => {
       const filtered = state.conversations.filter((c) => c.id !== id)
       const newCurrentId = state.currentConversationId === id
@@ -732,3 +796,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return session
   }
 }))
+
+// 订阅状态变化，自动保存到 localStorage
+if (typeof window !== 'undefined') {
+  let prevConversations = initialState.conversations
+  let prevCurrentId = initialState.currentConversationId
+  let prevCurrentAgentId = initialState.currentAgentId
+  
+  useChatStore.subscribe((state) => {
+    if (state.conversations !== prevConversations) {
+      prevConversations = state.conversations
+      if (state.conversations && state.conversations.length > 0) {
+        localStorage.setItem('polymind-conversations', JSON.stringify(state.conversations))
+      }
+    }
+    
+    if (state.currentConversationId !== prevCurrentId) {
+      prevCurrentId = state.currentConversationId
+      if (state.currentConversationId) {
+        localStorage.setItem('polymind-current-conversation', state.currentConversationId)
+      }
+    }
+    
+    if (state.currentAgentId !== prevCurrentAgentId) {
+      prevCurrentAgentId = state.currentAgentId
+      if (state.currentAgentId) {
+        localStorage.setItem('polymind-current-agent', state.currentAgentId)
+      }
+    }
+  })
+}
