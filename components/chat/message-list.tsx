@@ -27,6 +27,8 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import rehypeRaw from 'rehype-raw'
 import mermaid from 'mermaid'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism'
 import 'katex/dist/katex.min.css'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -357,7 +359,6 @@ function MessageContent({
           ),
           code: ({ className, children, node, ...props }) => {
             const isInline = !className
-            const codeString = String(children).replace(/\n$/, '')
 
             if (isInline) {
               return (
@@ -370,22 +371,22 @@ function MessageContent({
               )
             }
 
-            const match = /language-(\w+)/.exec(className || '')
+            return null
+          },
+          pre: ({ children, ...props }) => {
+            const child = children as React.ReactElement<any>
+            const codeElement = child?.props?.children
+            const className = child?.props?.className || ''
+            const match = /language-(\w+)/.exec(className)
             const language = match ? match[1] : ''
+            const code = typeof codeElement === 'string' ? codeElement : String(codeElement || '').trim()
 
             if (language === 'mermaid') {
-              return <MermaidChart chart={codeString} />
+              return <MermaidChart chart={code} />
             }
 
-            return (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            )
+            return <CodeBlock code={code} language={language} showLineNumbers={false} />
           },
-          pre: ({ children }) => (
-            <pre className="mb-2 overflow-x-auto rounded-lg bg-muted p-3">{children}</pre>
-          ),
           blockquote: ({ children, ...props }) => {
             return <Admonition type="blockquote">{children}</Admonition>
           },
@@ -430,6 +431,79 @@ function MessageContent({
       </ReactMarkdown>
       {isStreaming && <span className="ml-0.5 inline-block h-4 w-0.5 animate-blink bg-foreground" />}
     </>
+  )
+}
+
+function CodeBlock({
+  code,
+  language,
+  showLineNumbers = false,
+}: {
+  code: string
+  language: string
+  showLineNumbers?: boolean
+}) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy code:', err)
+    }
+  }
+
+  const displayLanguage = language || 'text'
+
+  return (
+    <div className="group relative mb-2 overflow-hidden rounded-lg bg-[#282c34]">
+      <div className="flex items-center justify-between px-4 py-2 bg-[#21252b] border-b border-gray-700">
+        <span className="text-xs text-gray-400 font-medium uppercase">
+          {displayLanguage}
+        </span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-white/10 rounded transition-colors"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3.5 w-3.5" />
+              <span>已复制</span>
+            </>
+          ) : (
+            <>
+              <Copy className="h-3.5 w-3.5" />
+              <span>复制</span>
+            </>
+          )}
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <SyntaxHighlighter
+          language={language || 'text'}
+          style={oneDark}
+          showLineNumbers={showLineNumbers}
+          customStyle={{
+            margin: 0,
+            padding: '1rem',
+            background: 'transparent',
+            fontSize: '0.875rem',
+            lineHeight: '1.5',
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
+            },
+          }}
+          wrapLines={true}
+          wrapLongLines={true}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
+    </div>
   )
 }
 
