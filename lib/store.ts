@@ -12,8 +12,8 @@ const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
 function getInitialState() {
   if (typeof window === 'undefined') {
     return {
-      conversations: demoConversations,
-      currentConversationId: '1',
+      conversations: [],
+      currentConversationId: null,
       currentAgentId: null,
     }
   }
@@ -38,7 +38,7 @@ function getInitialState() {
         
         return {
           conversations,
-          currentConversationId: savedCurrentId || parsed[0]?.id || '1',
+          currentConversationId: savedCurrentId || parsed[0]?.id || null,
           currentAgentId: savedCurrentAgentId || null,
         }
       }
@@ -48,8 +48,8 @@ function getInitialState() {
   }
   
   return {
-    conversations: demoConversations,
-    currentConversationId: '1',
+    conversations: [],
+    currentConversationId: null,
     currentAgentId: null,
   }
 }
@@ -137,58 +137,7 @@ const defaultTools: MCPTool[] = [
   { id: 'image-gen', name: '图像生成', description: '根据描述生成图像', category: 'system', enabled: false },
 ]
 
-const demoConversations: Conversation[] = [
-  {
-    id: '1',
-    title: '项目架构设计讨论',
-    createdAt: new Date(Date.now() - 3600000),
-    updatedAt: new Date(Date.now() - 1800000),
-    pinned: true,
-    messages: [
-      {
-        id: 'm1',
-        role: 'user',
-        content: '帮我设计一个微服务架构的电商系统',
-        timestamp: new Date(Date.now() - 3600000),
-      },
-      {
-        id: 'm2',
-        role: 'assistant',
-        content: '好的，我来帮你设计一个微服务架构的电商系统。这个系统可以分为以下几个核心服务：\n\n## 1. 用户服务 (User Service)\n- 用户注册、登录、认证\n- 用户信息管理\n- 权限控制\n\n## 2. 商品服务 (Product Service)\n- 商品CRUD操作\n- 商品分类管理\n- 库存管理\n\n## 3. 订单服务 (Order Service)\n- 订单创建与管理\n- 订单状态流转\n- 订单查询\n\n## 4. 支付服务 (Payment Service)\n- 支付接口集成\n- 支付状态管理\n- 退款处理\n\n## 5. 通知服务 (Notification Service)\n- 邮件通知\n- 短信通知\n- 站内消息\n\n需要我详细展开某个服务的设计吗？',
-        timestamp: new Date(Date.now() - 3500000),
-        toolCalls: [
-          {
-            id: 'tc1',
-            name: '架构分析',
-            status: 'completed',
-            duration: 2500,
-          }
-        ]
-      },
-    ],
-  },
-  {
-    id: '2',
-    title: 'Python 数据处理脚本',
-    createdAt: new Date(Date.now() - 86400000),
-    updatedAt: new Date(Date.now() - 43200000),
-    messages: [
-      {
-        id: 'm3',
-        role: 'user',
-        content: '写一个处理 CSV 文件的 Python 脚本',
-        timestamp: new Date(Date.now() - 86400000),
-      },
-    ],
-  },
-  {
-    id: '3',
-    title: 'React 性能优化',
-    createdAt: new Date(Date.now() - 172800000),
-    updatedAt: new Date(Date.now() - 172800000),
-    messages: [],
-  },
-]
+const demoConversations: Conversation[] = []
 
 // 处理流式事件
 const handleEvent = (event: any, conversationId: string, messageId: string) => {
@@ -351,17 +300,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
   deleteConversation: async (id) => {
     const state = get()
     const isCurrentConversation = state.currentConversationId === id
+    let shouldDeleteSession = false
     
-    // 如果删除的是当前会话，且有对应的 agent 和 session，则调用后端 API 删除
+    // 如果删除的是当前会话，且有对应的 agent 和 session
     if (isCurrentConversation && state.currentAgentId) {
       const session = state.activeSessions[state.currentAgentId]
       if (session) {
-        try {
-          if (!USE_MOCK_DATA) {
-            await sessionService.deleteSession(state.currentAgentId, session.id)
+        // 检查是否有其他活跃的 Conversation
+        const otherActiveConversations = state.conversations.filter(
+          (conv) => conv.id !== id && conv.messages.length > 0
+        )
+        
+        // 只有当没有其他活跃会话时，才删除 Session
+        if (otherActiveConversations.length === 0) {
+          shouldDeleteSession = true
+          try {
+            if (!USE_MOCK_DATA) {
+              await sessionService.deleteSession(state.currentAgentId, session.id)
+            }
+          } catch (error) {
+            console.error('Failed to delete session:', error)
           }
-        } catch (error) {
-          console.error('Failed to delete session:', error)
         }
       }
     }
@@ -371,10 +330,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const newCurrentId = state.currentConversationId === id
         ? filtered[0]?.id || null
         : state.currentConversationId
-      return {
+      
+      const updates: any = {
         conversations: filtered,
         currentConversationId: newCurrentId,
       }
+      
+      // 如果需要删除 Session，同时从 activeSessions 中移除
+      if (shouldDeleteSession && state.currentAgentId) {
+        const newActiveSessions = { ...state.activeSessions }
+        delete newActiveSessions[state.currentAgentId]
+        updates.activeSessions = newActiveSessions
+      }
+      
+      return updates
     })
   },
 

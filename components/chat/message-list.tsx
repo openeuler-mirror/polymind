@@ -1,6 +1,6 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
@@ -16,7 +16,20 @@ import {
   Image as ImageIcon,
   Loader2,
   CheckCircle2,
+  Info,
+  AlertTriangle,
+  Lightbulb,
+  ChevronDown,
 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import rehypeRaw from 'rehype-raw'
+import mermaid from 'mermaid'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism'
+import 'katex/dist/katex.min.css'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -27,13 +40,22 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import type { Message, ToolCall, Attachment, EventItem } from '@/lib/types'
-import { useState } from 'react'
 
 interface MessageListProps {
   messages: Message[]
 }
 
 export function MessageList({ messages }: MessageListProps) {
+  const [isHydrated, setIsHydrated] = useState(false)
+  
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+  
+  if (!isHydrated || messages.length === 0) {
+    return null
+  }
+  
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
       {messages.map((message) => (
@@ -283,6 +305,19 @@ function MessageContent({
   content: string
   isStreaming?: boolean
 }) {
+  const mermaidInitialized = useRef(false)
+
+  useEffect(() => {
+    if (!mermaidInitialized.current) {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'default',
+        securityLevel: 'loose',
+      })
+      mermaidInitialized.current = true
+    }
+  }, [])
+
   if (!content && isStreaming) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground">
@@ -292,81 +327,335 @@ function MessageContent({
     )
   }
 
-  // Simple markdown-like rendering
-  const lines = content.split('\n')
-  const elements: React.ReactNode[] = []
-
-  lines.forEach((line, idx) => {
-    if (line.startsWith('## ')) {
-      elements.push(
-        <h2 key={idx} className="mb-2 mt-4 text-lg font-semibold first:mt-0">
-          {line.slice(3)}
-        </h2>
-      )
-    } else if (line.startsWith('### ')) {
-      elements.push(
-        <h3 key={idx} className="mb-2 mt-3 text-base font-semibold first:mt-0">
-          {line.slice(4)}
-        </h3>
-      )
-    } else if (line.startsWith('- ')) {
-      elements.push(
-        <li key={idx} className="ml-4 list-disc">
-          {renderInlineMarkdown(line.slice(2))}
-        </li>
-      )
-    } else if (line.match(/^\d+\. /)) {
-      elements.push(
-        <li key={idx} className="ml-4 list-decimal">
-          {renderInlineMarkdown(line.replace(/^\d+\. /, ''))}
-        </li>
-      )
-    } else if (line.startsWith('```')) {
-      // Skip code fence markers
-    } else if (line.trim()) {
-      elements.push(
-        <p key={idx} className="mb-2 last:mb-0">
-          {renderInlineMarkdown(line)}
-        </p>
-      )
-    }
-  })
-
   return (
     <>
-      {elements}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex, rehypeRaw]}
+        components={{
+          h1: ({ children }) => (
+            <h1 className="mb-2 mt-4 text-xl font-bold first:mt-0">{children}</h1>
+          ),
+          h2: ({ children }) => (
+            <h2 className="mb-2 mt-4 text-lg font-semibold first:mt-0">{children}</h2>
+          ),
+          h3: ({ children }) => (
+            <h3 className="mb-2 mt-3 text-base font-semibold first:mt-0">{children}</h3>
+          ),
+          h4: ({ children }) => (
+            <h4 className="mb-2 mt-3 text-sm font-semibold first:mt-0">{children}</h4>
+          ),
+          p: ({ children }) => (
+            <p className="mb-2 last:mb-0">{children}</p>
+          ),
+          ul: ({ children }) => (
+            <ul className="mb-2 list-disc space-y-1 pl-5">{children}</ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="mb-2 list-decimal space-y-1 pl-5">{children}</ol>
+          ),
+          li: ({ children }) => (
+            <li className="text-sm leading-relaxed">{children}</li>
+          ),
+          code: ({ className, children, node, ...props }) => {
+            const isInline = !className
+
+            if (isInline) {
+              return (
+                <code
+                  className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm"
+                  {...props}
+                >
+                  {children}
+                </code>
+              )
+            }
+
+            return null
+          },
+          pre: ({ children, ...props }) => {
+            const child = children as React.ReactElement<any>
+            const codeElement = child?.props?.children
+            const className = child?.props?.className || ''
+            const match = /language-(\w+)/.exec(className)
+            const language = match ? match[1] : ''
+            const code = typeof codeElement === 'string' ? codeElement : String(codeElement || '').trim()
+
+            if (language === 'mermaid') {
+              return <MermaidChart chart={code} />
+            }
+
+            return <CodeBlock code={code} language={language} showLineNumbers={false} />
+          },
+          blockquote: ({ children, ...props }) => {
+            return <Admonition type="blockquote">{children}</Admonition>
+          },
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              className="text-primary underline hover:text-primary/80"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {children}
+            </a>
+          ),
+          table: ({ children }) => (
+            <div className="mb-2 overflow-x-auto">
+              <table className="min-w-full divide-y divide-border text-sm">
+                {children}
+              </table>
+            </div>
+          ),
+          thead: ({ children }) => (
+            <thead className="bg-muted/50">{children}</thead>
+          ),
+          th: ({ children }) => (
+            <th className="px-3 py-2 text-left font-semibold">{children}</th>
+          ),
+          td: ({ children }) => (
+            <td className="px-3 py-2">{children}</td>
+          ),
+          hr: () => <hr className="my-4 border-border" />,
+          img: ({ src, alt }) => (
+            <img
+              src={src}
+              alt={alt}
+              className="max-w-full rounded-lg"
+              loading="lazy"
+            />
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
       {isStreaming && <span className="ml-0.5 inline-block h-4 w-0.5 animate-blink bg-foreground" />}
     </>
   )
 }
 
-function renderInlineMarkdown(text: string): React.ReactNode {
-  // Handle bold text
-  const parts = text.split(/(\*\*[^*]+\*\*)/g)
-  return parts.map((part, idx) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return (
-        <strong key={idx} className="font-semibold">
-          {part.slice(2, -2)}
-        </strong>
-      )
+function CodeBlock({
+  code,
+  language,
+  showLineNumbers = false,
+}: {
+  code: string
+  language: string
+  showLineNumbers?: boolean
+}) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy code:', err)
     }
-    // Handle inline code
-    const codeParts = part.split(/(`[^`]+`)/g)
-    return codeParts.map((codePart, codeIdx) => {
-      if (codePart.startsWith('`') && codePart.endsWith('`')) {
-        return (
-          <code
-            key={`${idx}-${codeIdx}`}
-            className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm"
-          >
-            {codePart.slice(1, -1)}
-          </code>
-        )
+  }
+
+  const displayLanguage = language || 'text'
+
+  return (
+    <div className="group relative mb-2 overflow-hidden rounded-lg bg-[#282c34]">
+      <div className="flex items-center justify-between px-4 py-2 bg-[#21252b] border-b border-gray-700">
+        <span className="text-xs text-gray-400 font-medium uppercase">
+          {displayLanguage}
+        </span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-white/10 rounded transition-colors"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3.5 w-3.5" />
+              <span>已复制</span>
+            </>
+          ) : (
+            <>
+              <Copy className="h-3.5 w-3.5" />
+              <span>复制</span>
+            </>
+          )}
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <SyntaxHighlighter
+          language={language || 'text'}
+          style={oneDark}
+          showLineNumbers={showLineNumbers}
+          customStyle={{
+            margin: 0,
+            padding: '1rem',
+            background: 'transparent',
+            fontSize: '0.875rem',
+            lineHeight: '1.5',
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
+            },
+          }}
+          wrapLines={true}
+          wrapLongLines={true}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
+    </div>
+  )
+}
+
+function MermaidChart({ chart }: { chart: string }) {
+  const [svg, setSvg] = useState<string>('')
+  const [error, setError] = useState<string>('')
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const renderChart = async () => {
+      try {
+        const id = `mermaid-${Math.random().toString(36).substring(2, 11)}`
+        const { svg } = await mermaid.render(id, chart)
+        setSvg(svg)
+        setError('')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '渲染流程图失败')
+      } finally {
+        setIsLoading(false)
       }
-      return codePart
-    })
-  })
+    }
+
+    renderChart()
+  }, [chart])
+
+  if (isLoading) {
+    return (
+      <div className="mb-2 flex items-center justify-center rounded-lg bg-muted p-4">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-sm text-muted-foreground">渲染流程图...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="mb-2 rounded-lg border border-red-500/50 bg-red-500/10 p-3 text-sm text-red-500">
+        {error}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="mb-2 overflow-x-auto rounded-lg bg-muted p-4"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  )
+}
+
+function Admonition({ children, type }: { children: React.ReactNode; type?: string }) {
+  const [isOpen, setIsOpen] = useState(true)
+  const [isDetails, setIsDetails] = useState(false)
+
+  useEffect(() => {
+    if (Array.isArray(children)) {
+      const hasDetails = children.some(
+        (child) =>
+          child &&
+          typeof child === 'object' &&
+          'type' in child &&
+          child.type === 'details'
+      )
+      setIsDetails(hasDetails)
+    }
+  }, [children])
+
+  const getAdmonitionConfig = () => {
+    const typeMap: Record<string, { icon: React.ReactNode; color: string; bg: string; label: string }> = {
+      note: {
+        icon: <Info className="h-5 w-5" />,
+        color: 'text-blue-500',
+        bg: 'bg-blue-500/10 border-blue-500/50',
+        label: '提示',
+      },
+      info: {
+        icon: <Info className="h-5 w-5" />,
+        color: 'text-blue-500',
+        bg: 'bg-blue-500/10 border-blue-500/50',
+        label: '信息',
+      },
+      tip: {
+        icon: <Lightbulb className="h-5 w-5" />,
+        color: 'text-green-500',
+        bg: 'bg-green-500/10 border-green-500/50',
+        label: '技巧',
+      },
+      warning: {
+        icon: <AlertTriangle className="h-5 w-5" />,
+        color: 'text-yellow-500',
+        bg: 'bg-yellow-500/10 border-yellow-500/50',
+        label: '警告',
+      },
+      caution: {
+        icon: <AlertTriangle className="h-5 w-5" />,
+        color: 'text-orange-500',
+        bg: 'bg-orange-500/10 border-orange-500/50',
+        label: '注意',
+      },
+      danger: {
+        icon: <AlertTriangle className="h-5 w-5" />,
+        color: 'text-red-500',
+        bg: 'bg-red-500/10 border-red-500/50',
+        label: '危险',
+      },
+      important: {
+        icon: <AlertTriangle className="h-5 w-5" />,
+        color: 'text-purple-500',
+        bg: 'bg-purple-500/10 border-purple-500/50',
+        label: '重要',
+      },
+    }
+
+    return typeMap[type?.toLowerCase() || ''] || {
+      icon: null,
+      color: 'border-muted-foreground/30',
+      bg: 'border-l-4',
+      label: '',
+    }
+  }
+
+  const config = getAdmonitionConfig()
+
+  if (isDetails) {
+    return <div className="mb-2">{children}</div>
+  }
+
+  if (!config.label) {
+    return (
+      <blockquote className="mb-2 border-l-4 border-muted-foreground/30 pl-4 italic">
+        {children}
+      </blockquote>
+    )
+  }
+
+  return (
+    <div className={`mb-2 rounded-lg border ${config.bg} p-4`}>
+      <div className={`mb-2 flex items-center gap-2 font-semibold ${config.color}`}>
+        {config.icon}
+        <span>{config.label}</span>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="ml-auto rounded p-1 hover:bg-black/10"
+        >
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+      </div>
+      {isOpen && <div className="text-sm">{children}</div>}
+    </div>
+  )
 }
 
 function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
