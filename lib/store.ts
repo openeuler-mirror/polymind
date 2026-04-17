@@ -98,7 +98,7 @@ export interface ChatState {
   connectionError: string | null
   
   // Actions
-  createConversation: (agentId?: string) => Promise<string>
+  createConversation: (agentId?: string, agentName?: string) => Promise<string>
   deleteConversation: (id: string) => Promise<void>
   setCurrentConversation: (id: string) => void
   addMessage: (conversationId: string, message: Message) => void
@@ -269,7 +269,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isConnecting: false,
   connectionError: null,
 
-  createConversation: async (agentId?: string) => {
+  createConversation: async (agentId?: string, agentName?: string) => {
     const id = crypto.randomUUID()
     const newConversation: Conversation = {
       id,
@@ -277,6 +277,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date(),
+      agentId,
+      agentName,
     }
     set((state) => ({
       conversations: [newConversation, ...state.conversations],

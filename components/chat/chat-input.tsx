@@ -43,6 +43,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
+  const [isComposing, setIsComposing] = useState(false)  // 检测中文输入法状态
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { isStreaming } = useChatStore()
@@ -58,10 +59,21 @@ export function ChatInput({ onSend }: ChatInputProps) {
   }, [input, attachments, isStreaming, onSend])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // 只有当输入法未激活时才响应 Enter 发送消息
+    if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
       e.preventDefault()
       handleSubmit()
     }
+  }
+
+  // 处理输入法组合开始（开始输入中文）
+  const handleCompositionStart = (e: React.CompositionEvent) => {
+    setIsComposing(true)
+  }
+
+  // 处理输入法组合结束（完成输入中文或切换到英文）
+  const handleCompositionEnd = (e: React.CompositionEvent) => {
+    setIsComposing(false)
   }
 
   const handleFileSelect = (files: FileList | null) => {
@@ -131,6 +143,8 @@ export function ChatInput({ onSend }: ChatInputProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
           placeholder="输入消息，按 Enter 发送..."
           className="min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent px-4 py-3 focus-visible:ring-0"
           disabled={isStreaming}
