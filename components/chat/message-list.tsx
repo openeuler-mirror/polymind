@@ -120,10 +120,7 @@ const MessageItem = memo(function MessageItem({
               let currentDeltaGroup: any[] = []
               
               message.events.forEach((event, index) => {
-                // Skip tool.call.started events because we'll show the tool call when we get the response
-                if (event.type === 'tool.call.started') {
-                  return
-                }
+                // 保留tool.call.started事件，用于显示正在执行的工具调用状态
                 
                 if (event.type === 'thinking') {
                   // If we have a current delta group, add it to groupedEvents
@@ -164,8 +161,54 @@ const MessageItem = memo(function MessageItem({
               if (currentDeltaGroup.length > 0) {
                 groupedEvents.push({ type: 'delta-group', events: currentDeltaGroup })
               }
+
+              // 去重并合并工具调用事件：同一个toolCall.id合并属性，保留最新状态和所有字段，保持原有顺序
+              const toolCallMap = new Map()
+              const deduplicatedGroups = []
               
-              return groupedEvents
+              // 第一次遍历：合并同id的工具调用属性
+              for (const group of groupedEvents) {
+                if (
+                  (group.type === 'tool.call.started' || group.type === 'tool.call.response') &&
+                  group.toolCall?.id
+                ) {
+                  const toolCallId = group.toolCall.id
+                  if (toolCallMap.has(toolCallId)) {
+                    // 合并属性：新属性覆盖旧属性，但input字段优先保留有值的版本，避免空值覆盖
+                    const existing = toolCallMap.get(toolCallId)
+                    const mergedToolCall = { ...existing.toolCall, ...group.toolCall }
+                    // 特殊处理input：如果新的input是空的，保留旧的input
+                    if (
+                      (!group.toolCall.input || 
+                        (typeof group.toolCall.input === 'object' && Object.keys(group.toolCall.input).length === 0)) &&
+                      existing.toolCall.input
+                    ) {
+                      mergedToolCall.input = existing.toolCall.input
+                    }
+                    toolCallMap.set(toolCallId, { ...group, toolCall: mergedToolCall })
+                  } else {
+                    toolCallMap.set(toolCallId, group)
+                  }
+                }
+              }
+              
+              // 第二次遍历：按原有顺序构建结果，遇到工具调用事件用合并后的版本替换
+              const processedToolCallIds = new Set()
+              for (const group of groupedEvents) {
+                if (
+                  (group.type === 'tool.call.started' || group.type === 'tool.call.response') &&
+                  group.toolCall?.id
+                ) {
+                  const toolCallId = group.toolCall.id
+                  if (processedToolCallIds.has(toolCallId)) continue
+                  processedToolCallIds.add(toolCallId)
+                  deduplicatedGroups.push(toolCallMap.get(toolCallId))
+                } else {
+                  deduplicatedGroups.push(group)
+                }
+              }
+
+              return deduplicatedGroups
             })().map((group: any, groupIndex: number) => {
               // 调试：打印 group 对象
               console.log('Rendering group:', group);
@@ -193,9 +236,9 @@ const MessageItem = memo(function MessageItem({
                     </div>
                   </div>
                 )
-              } else if (group.type === 'tool.call.response') {
+              } else if (group.type === 'tool.call.started' || group.type === 'tool.call.response') {
                 return (
-                  <div key={`${group.type}-${group.toolCall?.id || groupIndex}`}>
+                  <div key={`tool-call-${group.toolCall?.id || groupIndex}`}>
                     {group.toolCall && <ToolCallBadge toolCall={group.toolCall} />}
                   </div>
                 )
@@ -664,6 +707,8 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   const isCompleted = toolCall.status === 'completed'
   const [isExpanded, setIsExpanded] = useState(false)
 
+  console.log(`[ToolCall] ${toolCall.name} - status: ${toolCall.status}`)
+
   // 格式化输出，使其更易读
   const formatOutput = (output: any): string => {
     if (typeof output === 'string') {
@@ -736,7 +781,7 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
       </div>
       {isExpanded && (
         <div className="px-3 pb-2 space-y-2">
-          {toolCall.displayText && (
+          {toolCall.displayText && displayOutput && !toolCall.displayText.includes(displayOutput.slice(0, 50)) && (
             <div className="text-muted-foreground text-xs">
               {toolCall.displayText}
             </div>

@@ -47,11 +47,16 @@ class SendMessageCommand implements Command {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'text/event-stream'
+          'Accept': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive'
         },
         body: JSON.stringify(request),
         signal: controller.signal
-      }
+      } as RequestInit & { duplex?: string }
+      
+      // 添加流式传输需要的duplex配置（TypeScript类型扩展）
+      ;(options as any).duplex = 'half'
       
       // 应用请求拦截器
       const processedOptions = this.applyRequestInterceptors(options, url)
@@ -108,8 +113,8 @@ class SendMessageCommand implements Command {
                 try {
                   const event = JSON.parse(data)
                   events.push(event)
-                  console.log('Received streaming event:', event)
-                  // 实时调用回调函数，只传递 event.event 部分
+                  const eventType = (event.event?.type || event.type)
+                  console.log(`[Stream] type: ${eventType}`)
                   if (this.onEvent) {
                     this.onEvent(event.event || event)
                   }
