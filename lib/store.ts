@@ -141,6 +141,8 @@ const demoConversations: Conversation[] = []
 
 // 处理流式事件
 const handleEvent = (event: any, conversationId: string, messageId: string) => {
+  console.log(`[Event] type: ${event.type}`)
+  
   const getStore = () => useChatStore.getState()
   const store = getStore()
   
@@ -559,8 +561,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         agentId,
         session.id,
         (event: any) => {
-          // 处理接收到的消息
-          console.log('Received event:', event)
+          console.log(`[WS] type: ${event.type}`)
           
           // 处理不同类型的事件
           switch (event.type) {

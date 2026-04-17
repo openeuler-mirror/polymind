@@ -1,6 +1,7 @@
 import { useChatStore } from '../store';
 import type { ChatState } from '../store';
 import type { Message } from '../types';
+import { AdapterType, SandboxType, AgentStatus } from '../types';
 
 describe('useChatStore', () => {
   // 保存初始状态，用于测试后恢复
@@ -36,11 +37,11 @@ describe('useChatStore', () => {
   });
 
   describe('Conversation management', () => {
-    it('should create a new conversation', async () => {
+    it('should create a new conversation', () => {
       const store = useChatStore.getState();
       const initialCount = store.conversations.length;
       
-      const newId = await store.createConversation();
+      const newId = store.createConversation();
       const updatedStore = useChatStore.getState();
       
       expect(updatedStore.conversations.length).toBe(initialCount + 1);
@@ -278,14 +279,15 @@ describe('useChatStore', () => {
       const newAgent = {
         id: 'test-agent',
         name: 'Test Agent',
-        adapterType: 'OPENCODE',
-        status: 'READY',
+        adapterType: AdapterType.OPENCODE,
+        sandboxType: SandboxType.DOCKER,
+        status: AgentStatus.RUNNING,
         sandboxId: '',
         defaultSessionId: '',
         hasScheduledTasks: false,
-        idleTimeout: 300,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        idleTimeoutSeconds: 300,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
       
       store.addAgent(newAgent);
@@ -302,14 +304,15 @@ describe('useChatStore', () => {
       const newAgent = {
         id: 'test-agent',
         name: 'Test Agent',
-        adapterType: 'OPENCODE',
-        status: 'READY',
+        adapterType: AdapterType.OPENCODE,
+        sandboxType: SandboxType.DOCKER,
+        status: AgentStatus.RUNNING,
         sandboxId: '',
         defaultSessionId: '',
         hasScheduledTasks: false,
-        idleTimeout: 300,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        idleTimeoutSeconds: 300,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
       store.addAgent(newAgent);
       
@@ -335,14 +338,15 @@ describe('useChatStore', () => {
       const newAgent = {
         id: 'test-agent',
         name: 'Test Agent',
-        adapterType: 'OPENCODE',
-        status: 'READY',
+        adapterType: AdapterType.OPENCODE,
+        sandboxType: SandboxType.DOCKER,
+        status: AgentStatus.RUNNING,
         sandboxId: '',
         defaultSessionId: '',
         hasScheduledTasks: false,
-        idleTimeout: 300,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        idleTimeoutSeconds: 300,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
       store.addAgent(newAgent);
       
