@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
 import { useThemeWithStore } from '@/components/theme-provider'
 import { ModelServiceType, MODEL_SERVICES } from '@/lib/types'
+import { SkillsPage } from './skill'
 
 export function SettingsPage() {
   const [activeSection, setActiveSection] = useState('general')
@@ -48,7 +49,7 @@ export function SettingsPage() {
     { id: 'general', name: '通用', icon: Settings },
     { id: 'model', name: '模型', icon: Cpu },
     { id: 'agent', name: '智能体', icon: Bot },
-    { id: 'rules', name: 'Skills', icon: Sparkles },
+    { id: 'rules', name: 'Skill', icon: Sparkles },
     { id: 'mcp', name: 'MCP', icon: Wrench },
     { id: 'about', name: '关于', icon: Info },
   ]
@@ -182,8 +183,10 @@ export function SettingsPage() {
               </div>
             </div>
           )}
+
+          {activeSection === 'rules' && <SkillsPage />}
           
-          {activeSection !== 'general' && activeSection !== 'model' && (
+          {activeSection !== 'general' && activeSection !== 'model' && activeSection !== 'rules' && (
             <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">{sections.find(s => s.id === activeSection)?.name} 页面内容</p>
             </div>

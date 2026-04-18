@@ -402,3 +402,50 @@ export interface RequestConfig {
 export interface Command {
   execute(): Promise<any>
 }
+
+// ============================================
+// Skills Repo相关类型
+// ============================================
+
+/**
+ * Skills repo源类型
+ */
+export type SkillRepoSourceType = 'git' | 'local_import'
+
+/**
+ * Skills repo信息
+ */
+export interface SkillRepo {
+  repoId: string
+  name?: string
+  sourceType: SkillRepoSourceType | string
+  branch?: string
+  url?: string
+  localPath?: string
+}
+
+/**
+ * Skills repo列表响应
+ */
+export interface SkillRepoListResponse {
+  items: SkillRepo[]
+}
+
+/**
+ * 创建Skills repo请求
+ */
+export interface CreateSkillRepoRequest {
+  sourceType: SkillRepoSourceType | string
+  url?: string
+  branch?: string
+  localPath?: string
+}
+
+/**
+ * 更新Skills repo请求
+ */
+export interface UpdateSkillRepoRequest {
+  branch?: string
+  localPath?: string
+}
+
