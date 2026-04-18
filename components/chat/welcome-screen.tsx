@@ -10,30 +10,42 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-interface WelcomeScreenProps {
-  onSendMessage: (content: string) => void
+interface PromptSuggestion {
+  id: string
+  icon: React.ElementType
+  title: string
+  description: string
+  prompt: string
 }
 
-const suggestions = [
+interface WelcomeScreenProps {
+  onAddPrompt: (prompt: PromptSuggestion) => void
+}
+
+const suggestions: PromptSuggestion[] = [
   {
+    id: 'code',
     icon: Code2,
     title: '编写代码',
-    description: '帮我写一个 React 组件',
-    prompt: '帮我写一个带有动画效果的 React 卡片组件，支持悬停交互',
+    description: '编写一段代码，实现某个功能',
+    prompt: '帮我写一段代码，实现内容如下',
   },
   {
+    id: 'analysis',
     icon: FileSearch,
     title: '分析文件',
     description: '解读文档或代码',
     prompt: '请帮我分析一下代码的性能瓶颈和优化建议',
   },
   {
+    id: 'brainstorm',
     icon: Lightbulb,
     title: '头脑风暴',
     description: '激发创意想法',
     prompt: '帮我想一些关于 AI 产品的创新想法',
   },
   {
+    id: 'qa',
     icon: Zap,
     title: '快速问答',
     description: '获取即时解答',
@@ -41,7 +53,7 @@ const suggestions = [
   },
 ]
 
-export function WelcomeScreen({ onSendMessage }: WelcomeScreenProps) {
+export function WelcomeScreen({ onAddPrompt }: WelcomeScreenProps) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4">
       <div className="mb-8 flex flex-col items-center text-center">
@@ -58,10 +70,10 @@ export function WelcomeScreen({ onSendMessage }: WelcomeScreenProps) {
       <div className="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
         {suggestions.map((suggestion) => (
           <Button
-            key={suggestion.title}
+            key={suggestion.id}
             variant="outline"
             className="h-auto flex-col items-start gap-2 p-4 text-left text-wrap whitespace-normal hover:bg-accent/50"
-            onClick={() => onSendMessage(suggestion.prompt)}
+            onClick={() => onAddPrompt(suggestion)}
           >
             <div className="flex items-center gap-2">
               <suggestion.icon className="h-4 w-4 text-primary" />

@@ -35,11 +35,23 @@ const models = [
   { id: 'llama-3', name: 'Llama 3 70B', provider: 'Meta' },
 ]
 
-interface ChatInputProps {
-  onSend: (content: string, attachments?: File[]) => void
+// 预设提示词接口
+export interface PromptSuggestion {
+  id: string
+  icon?: React.ElementType
+  title: string
+  description?: string
+  prompt: string
 }
 
-export function ChatInput({ onSend }: ChatInputProps) {
+interface ChatInputProps {
+  onSend: (content: string, attachments?: File[]) => void
+  presetPrompts?: PromptSuggestion[]
+  onRemovePresetPrompt?: (promptId: string) => void
+  onClearPresetPrompts?: () => void
+}
+
+export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, onClearPresetPrompts }: ChatInputProps) {
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -50,13 +62,23 @@ export function ChatInput({ onSend }: ChatInputProps) {
 
   const handleSubmit = useCallback(() => {
     const trimmedInput = input.trim()
-    if (!trimmedInput && attachments.length === 0) return
+    if (!trimmedInput && attachments.length === 0 && presetPrompts.length === 0) return
     if (isStreaming) return
 
-    onSend(trimmedInput, attachments.length > 0 ? attachments : undefined)
+    // 将预设提示词的内容添加到消息中
+    let finalContent = trimmedInput
+    if (presetPrompts.length > 0) {
+      const presetContent = presetPrompts.map((p) => p.prompt).join('\n\n')
+      finalContent = trimmedInput 
+        ? `${presetContent}\n\n${trimmedInput}`
+        : presetContent
+    }
+
+    onSend(finalContent, attachments.length > 0 ? attachments : undefined)
     setInput('')
     setAttachments([])
-  }, [input, attachments, isStreaming, onSend])
+    onClearPresetPrompts?.()
+  }, [input, attachments, presetPrompts, isStreaming, onSend, onClearPresetPrompts])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // 只有当输入法未激活时才响应 Enter 发送消息
@@ -135,6 +157,26 @@ export function ChatInput({ onSend }: ChatInputProps) {
               <Paperclip className="h-8 w-8" />
               <span className="font-medium">放开以添加文件</span>
             </div>
+          </div>
+        )}
+
+        {/* 预设提示词标签 */}
+        {presetPrompts.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-4 pt-3">
+            {presetPrompts.map((prompt) => (
+              <div
+                key={prompt.id}
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm text-primary"
+              >
+                <span className="font-medium">{prompt.title}</span>
+                <button
+                  onClick={() => onRemovePresetPrompt?.(prompt.id)}
+                  className="ml-1 rounded-full p-0.5 hover:bg-primary/20"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
           </div>
         )}
 
