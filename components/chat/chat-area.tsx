@@ -1,15 +1,16 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useChatStore } from '@/lib/store'
 import { MessageList } from './message-list'
-import { ChatInput } from './chat-input'
+import { ChatInput, PromptSuggestion } from './chat-input'
 import { ChatHeader } from './chat-header'
 import { WelcomeScreen } from './welcome-screen'
 import type { Message } from '@/lib/types'
 
 export function ChatArea() {
   const [isHydrated, setIsHydrated] = useState(false)
+  const [presetPrompts, setPresetPrompts] = useState<PromptSuggestion[]>([])
   const {
     conversations,
     currentConversationId,
@@ -17,6 +18,27 @@ export function ChatArea() {
     updateMessage,
     setStreaming,
   } = useChatStore()
+
+  // 添加预设提示词
+  const handleAddPresetPrompt = useCallback((prompt: PromptSuggestion) => {
+    setPresetPrompts((prev) => {
+      // 避免重复添加
+      if (prev.some((p) => p.id === prompt.id)) {
+        return prev
+      }
+      return [...prev, prompt]
+    })
+  }, [])
+
+  // 删除预设提示词
+  const handleRemovePresetPrompt = useCallback((promptId: string) => {
+    setPresetPrompts((prev) => prev.filter((p) => p.id !== promptId))
+  }, [])
+
+  // 清空所有预设提示词
+  const handleClearPresetPrompts = useCallback(() => {
+    setPresetPrompts([])
+  }, [])
 
   useEffect(() => {
     setIsHydrated(true)
@@ -340,9 +362,14 @@ export function ChatArea() {
     return (
       <div className="flex h-full flex-col bg-background">
         <ChatHeader conversation={currentConversation} />
-        <WelcomeScreen onSendMessage={handleSendMessage} />
+        <WelcomeScreen onAddPrompt={handleAddPresetPrompt} />
         <div className="border-t border-border p-4">
-          <ChatInput onSend={handleSendMessage} />
+          <ChatInput
+            onSend={handleSendMessage}
+            presetPrompts={presetPrompts}
+            onRemovePresetPrompt={handleRemovePresetPrompt}
+            onClearPresetPrompts={handleClearPresetPrompts}
+          />
         </div>
       </div>
     )
