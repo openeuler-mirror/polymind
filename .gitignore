@@ -52,7 +52,7 @@ next-env.d.ts
 .next/cache/
 
 # Environment variables
-.env*
+.env.local
 
 # IDE files
 .vscode/

@@ -173,6 +173,8 @@ class AgentService {
       idleTimeoutSeconds: agent.idle_timeout_seconds ?? agent.idleTimeoutSeconds ?? 300,
       hasScheduledTasks: agent.has_scheduled_tasks ?? agent.hasScheduledTasks ?? false,
       defaultSessionId: agent.default_session_id || agent.defaultSessionId,
+      processPort: agent.process_port || agent.processPort,
+      skills: agent.skills || [],
       createdAt: agent.created_at || agent.createdAt,
       updatedAt: agent.updated_at || agent.updatedAt
     }
@@ -198,6 +200,8 @@ class AgentFactory {
       idleTimeoutSeconds: config.idleTimeoutSeconds || 300,
       hasScheduledTasks: config.hasScheduledTasks ?? false,
       defaultSessionId: undefined,
+      processPort: undefined,
+      skills: [],
       createdAt: now,
       updatedAt: now
     }

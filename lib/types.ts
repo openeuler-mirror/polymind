@@ -258,6 +258,16 @@ export const SANDBOX_CONFIGS: Record<SandboxType, SandboxConfig> = {
 }
 
 /**
+ * Agent技能接口
+ */
+export interface AgentSkill {
+  name: string
+  description: string
+  filePath: string
+  source: string
+}
+
+/**
  * Agent接口
  */
 export interface Agent {
@@ -272,6 +282,8 @@ export interface Agent {
   idleTimeoutSeconds: number
   hasScheduledTasks: boolean
   defaultSessionId?: string | null
+  processPort?: number | null
+  skills?: AgentSkill[]
   createdAt: string
   updatedAt: string
 }
