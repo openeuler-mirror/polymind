@@ -259,7 +259,7 @@ const MessageItem = memo(function MessageItem({
             )}
           >
             <div className="prose prose-sm dark:prose-invert max-w-none">
-              <MessageContent content={message.content} isStreaming={message.isStreaming} />
+              <MessageContent content={message.content} isStreaming={message.isStreaming} isUser={isUser} />
             </div>
           </div>
         )}
@@ -345,9 +345,11 @@ const MessageItem = memo(function MessageItem({
 function MessageContent({
   content,
   isStreaming,
+  isUser,
 }: {
   content: string
   isStreaming?: boolean
+  isUser?: boolean
 }) {
   const mermaidInitialized = useRef(false)
 
@@ -437,7 +439,7 @@ function MessageContent({
           a: ({ href, children }) => (
             <a
               href={href}
-              className="text-primary underline hover:text-primary/80"
+              className={cn(isUser ? "text-primary-foreground underline hover:text-primary-foreground/80" : "text-primary underline hover:text-primary/80")}
               target="_blank"
               rel="noopener noreferrer"
             >

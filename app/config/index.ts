@@ -32,7 +32,7 @@ export interface AppConfig {
 export const appConfig: AppConfig = {
   api: {
     get baseUrl() {
-      return process.env.NEXT_PUBLIC_AGENTD_API_URL || 'http://127.0.0.1:3001';
+      return process.env.NEXT_PUBLIC_AGENTD_API_URL || 'http://127.0.0.1:8000';
     },
     get timeout() {
       return Number(process.env.NEXT_PUBLIC_API_TIMEOUT) || 30000;
