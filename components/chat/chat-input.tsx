@@ -97,7 +97,9 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
   }, [])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { isStreaming } = useChatStore()
+  const { currentConversationId, conversations } = useChatStore()
+  const currentConversation = conversations.find(conv => conv.id === currentConversationId)
+  const isStreaming = currentConversation?.isStreaming ?? false
 
   // 监听输入内容变化，检测是否输入了/
   useEffect(() => {
