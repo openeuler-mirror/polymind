@@ -97,7 +97,9 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
   }, [])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { isStreaming } = useChatStore()
+  const { currentConversationId, conversations } = useChatStore()
+  const currentConversation = conversations.find(conv => conv.id === currentConversationId)
+  const isStreaming = currentConversation?.isStreaming ?? false
 
   // 监听输入内容变化，检测是否输入了/
   useEffect(() => {
@@ -336,7 +338,7 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
             onKeyDown={handleKeyDown}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
-            placeholder="输入消息，按 Enter 发送..."
+            placeholder='输入消息，按 Enter 发送，输入"/"获得更多技能'
             className="min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent px-4 py-3 focus-visible:ring-0 relative z-20"
             disabled={isStreaming}
           />

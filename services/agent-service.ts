@@ -6,6 +6,7 @@ import {
   ApiResponse
 } from '@/lib/types'
 import { AgentStatus, AdapterType } from '@/lib/types'
+import { generateUUID } from '@/lib/utils'
 
 /**
  * Agent服务类 - 负责Agent的创建、管理和操作
@@ -190,7 +191,7 @@ class AgentFactory {
     // 当前主要用于类型转换和验证
     const now = new Date().toISOString()
     return {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       name: config.name,
       description: config.description,
       adapterType: config.adapterType,

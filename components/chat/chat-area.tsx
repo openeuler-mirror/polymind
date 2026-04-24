@@ -7,6 +7,7 @@ import { ChatInput, PromptSuggestion } from './chat-input'
 import { ChatHeader } from './chat-header'
 import { WelcomeScreen } from './welcome-screen'
 import type { Message } from '@/lib/types'
+import { generateUUID } from '@/lib/utils'
 
 export function ChatArea() {
   const [isHydrated, setIsHydrated] = useState(false)
@@ -61,12 +62,12 @@ export function ChatArea() {
 
     // Add user message
     const userMessage: Message = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       role: 'user',
       content,
       timestamp: new Date(),
       attachments: attachments?.map((file) => ({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: file.name,
         type: file.type.startsWith('image/') ? 'image' : 'file',
         size: file.size,
@@ -108,10 +109,10 @@ export function ChatArea() {
     }
 
     // Set streaming state
-    setStreaming(true)
+    setStreaming(currentConversationId, true)
     
     // Create a "thinking" message
-    const thinkingMessageId = crypto.randomUUID()
+    const thinkingMessageId = generateUUID()
     const thinkingMessage: Message = {
       id: thinkingMessageId,
       role: 'assistant',
@@ -135,7 +136,7 @@ export function ChatArea() {
           deleteMessage(currentConversationId, thinkingMessageId)
           
           // 创建新的助手消息
-          assistantMessageId = crypto.randomUUID()
+          assistantMessageId = generateUUID()
           assistantMessage = {
             id: assistantMessageId,
             role: 'assistant',
@@ -176,13 +177,13 @@ export function ChatArea() {
                   content: eventData.payload.text,
                   isStreaming: false
                 })
-                setStreaming(false)
+                setStreaming(currentConversationId, false)
               } else {
                 // If no text in payload, still mark as completed
                 updateMessage(currentConversationId, assistantMessageId, {
                   isStreaming: false
                 })
-                setStreaming(false)
+                setStreaming(currentConversationId, false)
               }
               break
             case 'thinking':
@@ -201,7 +202,7 @@ export function ChatArea() {
             case 'tool.call.started':
               if (eventData.payload?.tool_name) {
                 const toolCall = {
-                  id: eventData.payload.tool_call_id || crypto.randomUUID(),
+                  id: eventData.payload.tool_call_id || generateUUID(),
                   name: eventData.payload.tool_name,
                   status: 'running' as const,
                   input: eventData.payload.arguments,
@@ -299,7 +300,7 @@ export function ChatArea() {
                 }
 
                 const toolCall = {
-                  id: eventData.payload.tool_call_id || crypto.randomUUID(),
+                  id: eventData.payload.tool_call_id || generateUUID(),
                   name: eventData.payload.name,
                   status: eventData.payload.is_error ? 'error' as const : 'completed' as const,
                   input: eventData.payload.arguments,
@@ -334,7 +335,7 @@ export function ChatArea() {
             case 'client.error':
               // Handle errors
               console.error('Error event:', eventData.payload || 'No payload')
-              setStreaming(false)
+              setStreaming(currentConversationId, false)
               break
             default:
               console.log('Unknown event type:', eventData.type)
@@ -345,7 +346,7 @@ export function ChatArea() {
       console.error('Failed to send message:', error)
       // Handle error gracefully
       deleteMessage(currentConversationId, thinkingMessageId)
-      const errorMessageId = crypto.randomUUID()
+      const errorMessageId = generateUUID()
       const errorMessage: Message = {
         id: errorMessageId,
         role: 'assistant',
@@ -354,7 +355,7 @@ export function ChatArea() {
         isStreaming: false,
       }
       addMessage(currentConversationId, errorMessage)
-      setStreaming(false)
+      setStreaming(currentConversationId, false)
     }
   }
 

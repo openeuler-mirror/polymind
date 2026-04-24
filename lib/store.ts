@@ -5,6 +5,7 @@ import { WebSocketClient } from '@/lib/websocket-client'
 import { messageService } from '@/services/message-service'
 import { agentService } from '@/services/agent-service'
 import { sessionService } from '@/services/session-service'
+import { generateUUID } from './utils'
 
 // 环境变量控制是否使用模拟数据
 const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
@@ -30,6 +31,7 @@ function getInitialState() {
           ...conv,
           createdAt: new Date(conv.createdAt),
           updatedAt: new Date(conv.updatedAt),
+          isStreaming: conv.isStreaming ?? false,
           messages: conv.messages.map((msg: any) => ({
             ...msg,
             timestamp: new Date(msg.timestamp)
@@ -78,7 +80,6 @@ export interface ChatState {
   currentConversationId: string | null
   isSidebarOpen: boolean
   isRightPanelOpen: boolean
-  isStreaming: boolean
   mcpTools: MCPTool[]
   settings: Settings
   rightPanelTabs: Tab[]
@@ -106,7 +107,7 @@ export interface ChatState {
   deleteMessage: (conversationId: string, messageId: string) => void
   toggleSidebar: () => void
   toggleRightPanel: () => void
-  setStreaming: (streaming: boolean) => void
+  setStreaming: (conversationId: string | null, streaming: boolean) => void
   toggleTool: (toolId: string) => void
   updateConversationTitle: (id: string, title: string) => void
   togglePinConversation: (id: string) => void
@@ -159,7 +160,7 @@ const handleEvent = (event: any, conversationId: string, messageId: string) => {
     content: event.payload?.delta || event.payload?.display_text || event.payload?.content || '',
     timestamp: event.ts_ms || Date.now(),
     toolCall: event.type === 'tool.call.response' ? {
-      id: event.payload?.tool_call_id || crypto.randomUUID(),
+      id: event.payload?.tool_call_id || generateUUID(),
       name: event.payload?.name || event.payload?.tool_name || '',
       status: 'completed' as const,
       input: event.payload?.arguments,
@@ -191,7 +192,7 @@ const handleEvent = (event: any, conversationId: string, messageId: string) => {
           content: event.payload.text,
           isStreaming: false
         })
-        store.setStreaming(false)
+        store.setStreaming(conversationId, false)
       }
       break
     case 'thinking':
@@ -201,7 +202,7 @@ const handleEvent = (event: any, conversationId: string, messageId: string) => {
       // 处理工具调用开始
       if (event.payload?.tool_name) {
         const toolCall = {
-          id: event.payload.tool_call_id || crypto.randomUUID(),
+          id: event.payload.tool_call_id || generateUUID(),
           name: event.payload.tool_name,
           status: 'running' as const,
           input: event.payload.arguments
@@ -241,7 +242,7 @@ const handleEvent = (event: any, conversationId: string, messageId: string) => {
     case 'client.error':
       // 处理错误
       console.error('Error event:', event.payload)
-      store.setStreaming(false)
+      store.setStreaming(conversationId, false)
       break
     default:
       console.log('Unknown event type:', event.type)
@@ -271,17 +272,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isConnecting: false,
   connectionError: null,
 
-  createConversation: async (agentId?: string, agentName?: string) => {
-    const id = crypto.randomUUID()
-    const newConversation: Conversation = {
-      id,
-      title: '新对话',
-      messages: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      agentId,
-      agentName,
-    }
+  createConversation: async (agentId?: string, agentName?: string) => { 
+     const id = generateUUID() 
+     const newConversation: Conversation = { 
+       id, 
+       title: '新对话', 
+       messages: [], 
+       createdAt: new Date(), 
+       updatedAt: new Date(), 
+       agentId, 
+       agentName, 
+       isStreaming: false
+     }
     set((state) => ({
       conversations: [newConversation, ...state.conversations],
       currentConversationId: id,
@@ -408,8 +410,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({ isRightPanelOpen: !state.isRightPanelOpen }))
   },
 
-  setStreaming: (streaming) => {
-    set({ isStreaming: streaming })
+  setStreaming: (conversationId: string | null, streaming: boolean) => {
+    if (!conversationId) return
+    set((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.id === conversationId ? { ...conv, isStreaming: streaming } : conv
+      )
+    }))
   },
 
   toggleTool: (toolId) => {
@@ -520,7 +527,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // 使用模拟数据
       const now = new Date().toISOString()
       newAgent = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: config.name || 'New Agent',
         description: config.description,
         adapterType: config.adapterType || AdapterType.OPENCODE,
@@ -608,7 +615,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                           isStreaming: false
                         }
                       )
-                      get().setStreaming(false)
+                      get().setStreaming(currentConversationId, false)
                     }
                   }
                 }
@@ -626,7 +633,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     )
                     if (assistantMessage) {
                       const toolCall = {
-                        id: event.payload.tool_call_id || crypto.randomUUID(),
+                        id: event.payload.tool_call_id || generateUUID(),
                         name: event.payload.tool_name,
                         status: 'running' as const,
                         input: event.payload.arguments
@@ -686,7 +693,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             case 'client.error':
               // 处理错误
               console.error('Error event:', event.payload)
-              get().setStreaming(false)
+              const currentConversationId = get().currentConversationId
+              get().setStreaming(currentConversationId, false)
               break
             default:
               console.log('Unknown event type:', event.type)
@@ -694,7 +702,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         },
         (error) => {
           set({ connectionError: error.message, isConnecting: false })
-          get().setStreaming(false)
+          const currentConversationId = get().currentConversationId
+          get().setStreaming(currentConversationId, false)
         }
       )
 
@@ -746,7 +755,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // 模拟创建会话
       const now = new Date().toISOString()
       session = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         agentId,
         status: SessionStatus.ACTIVE,
         contextInitialized: true,

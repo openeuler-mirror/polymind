@@ -70,7 +70,7 @@ export function RightPanel() {
       
 
       {/* Tabs */}
-      <div className="border-b border-sidebar-border px-4 py-2 flex items-center gap-2 overflow-x-auto">
+      <div className="border-b border-sidebar-border px-4 py-2 flex items-center gap-2 overflow-x-auto flex-shrink-0 min-h-[44px]">
         <div className="flex items-center gap-2">
           {rightPanelTabs.map((tab) => {
             const tool = tools.find(t => t.id === tab.id);
