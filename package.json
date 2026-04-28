@@ -1,15 +1,30 @@
 {
-  "name": "my-project",
-  "version": "0.1.0",
-  "private": true,
+  "name": "polymind",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "polymind": "./bin/start.js"
+  },
+  "files": [
+    ".next/**/*",
+    "public/**/*",
+    "bin/**/*",
+    "scripts/**/*",
+    "next.config.js",
+    "next.config.mjs",
+    "package.json"
+  ],
   "scripts": {
-    "dev": "next dev",
+    "dev": "bash scripts/load-env.sh next dev -H 0.0.0.0",
     "build": "next build",
-    "start": "next start",
+    "start": "bash scripts/load-env.sh next start",
     "lint": "eslint .",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "prepublishOnly": "pnpm build",
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
