@@ -1,6 +1,17 @@
 {
   "name": "polymind",
   "version": "1.0.0",
+  "description": "Self-hosted AI agent interaction platform with native agentd service integration.",
+  "keywords": ["ai", "agent", "ai-chat", "agent-platform", "self-hosted", "agentd", "nextjs", "open-source"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://atomgit.com/openeuler/polymind.git"
+  },
+  "bugs": {
+    "url": "https://atomgit.com/openeuler/polymind/issues"
+  },
+  "homepage": "https://atomgit.com/openeuler/polymind#readme",
   "type": "module",
   "bin": {
     "polymind": "./bin/start.js"
@@ -19,6 +30,7 @@
     "build": "next build",
     "start": "bash scripts/load-env.sh next start",
     "lint": "eslint .",
+    "test": "jest",
     "prepublishOnly": "pnpm build",
     "postinstall": "node scripts/postinstall.js"
   },
