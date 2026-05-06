@@ -2,6 +2,7 @@
 
 import { BookOpen, FolderGit2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SkillMarketplacePage } from './skill-marketplace-page'
 import { SkillRepoManagement } from './skill-repo-management'
 
 export function SkillsPage() {
@@ -18,6 +19,10 @@ export function SkillsPage() {
             仓库源管理
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="marketplace">
+          <SkillMarketplacePage />
+        </TabsContent>
 
         <TabsContent value="repo-management">
           <SkillRepoManagement />

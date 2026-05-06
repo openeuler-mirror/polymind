@@ -449,3 +449,50 @@ export interface UpdateSkillRepoRequest {
   localPath?: string
 }
 
+/**
+ * 已发现技能的来源仓库信息
+ */
+export interface DiscoveredSkillSourceRepo {
+  repoId: string
+  name?: string
+  sourceType?: SkillRepoSourceType | string
+  branch?: string | null
+  url?: string | null
+  localPath?: string | null
+}
+
+/**
+ * 技能广场中的技能项
+ */
+export interface DiscoveredSkill {
+  skillId: string
+  skillName: string
+  RelativePath?: string
+  metadata?: Record<string, unknown> | null
+  sourceRepo?: DiscoveredSkillSourceRepo
+  skillMdUrl?: string | null
+}
+
+/**
+ * 技能发现列表响应
+ */
+export interface DiscoverSkillListResponse {
+  items: DiscoveredSkill[]
+}
+
+/**
+ * 技能发现状态项
+ */
+export interface DiscoverStatusItem {
+  repoId: string
+  repoName: string
+  discoverStatus: string
+  skillNum?: number
+}
+
+/**
+ * 技能发现状态响应
+ */
+export interface DiscoverStatusResponse {
+  items: DiscoverStatusItem[]
+}

@@ -54,6 +54,7 @@ export function SkillRepoManagement() {
   const [discoverStatuses, setDiscoverStatuses] = useState<DiscoverStatusItem[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [updatingRepoId, setUpdatingRepoId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingRepo, setEditingRepo] = useState<SkillRepo | null>(null)
@@ -275,6 +276,28 @@ export function SkillRepoManagement() {
     }
   }
 
+  const handleDiscoverRepo = async (repo: SkillRepo) => {
+    try {
+      setUpdatingRepoId(repo.repoId)
+      setDiscoverStatuses((currentStatuses) => upsertDiscoverStatus(currentStatuses, repo.repoId))
+      await skillDiscoveryService.discoverRepoSkills(repo.repoId)
+      await refreshDiscoverStatuses(true)
+      toast({
+        title: '更新已触发',
+        description: '已开始更新该仓库的技能信息。',
+      })
+    } catch (error) {
+      console.error('Failed to discover repo skills:', error)
+      toast({
+        title: '更新失败',
+        description: '无法更新该仓库的技能信息，请稍后重试。',
+        variant: 'destructive',
+      })
+    } finally {
+      setUpdatingRepoId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <p className="text-sm leading-6 text-muted-foreground">
@@ -394,6 +417,20 @@ export function SkillRepoManagement() {
                       )}
                     </div>
                     <div className="flex shrink-0 items-center justify-end gap-1 self-end lg:self-auto">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleDiscoverRepo(repo)}
+                        disabled={updatingRepoId === repo.repoId}
+                      >
+                        <RefreshCw
+                          className={cn(
+                            'mr-2 h-4 w-4',
+                            updatingRepoId === repo.repoId && 'animate-spin',
+                          )}
+                        />
+                        更新
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={() => setEditingRepo(repo)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         编辑
@@ -637,6 +674,33 @@ function formatDiscoverStatusText(status?: string) {
 
 function shouldTreatAsDiscovering(status?: string) {
   return !status || status === 'discovering'
+}
+
+function upsertDiscoverStatus(
+  currentStatuses: DiscoverStatusItem[],
+  repoId: string,
+): DiscoverStatusItem[] {
+  const nextStatuses = currentStatuses.map((item) =>
+    item.repoId === repoId
+      ? {
+          ...item,
+          discoverStatus: 'discovering',
+        }
+      : item,
+  )
+
+  if (nextStatuses.some((item) => item.repoId === repoId)) {
+    return nextStatuses
+  }
+
+  return [
+    ...nextStatuses,
+    {
+      repoId,
+      repoName: '',
+      discoverStatus: 'discovering',
+    },
+  ]
 }
 
 function CreateSourceCard({
