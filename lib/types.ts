@@ -151,8 +151,6 @@ export interface CreateModelRequest {
 export enum AgentStatus {
   RUNNING = 'running',
   PAUSED = 'paused',
-  STOPPED = 'stopped',
-  DELETED = 'deleted',
   ERROR = 'error'
 }
 

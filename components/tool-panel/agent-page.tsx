@@ -117,30 +117,24 @@ export function AgentPage() {
 
   // 过滤和搜索智能体
   const filteredAgents = agents.filter(agent => {
-    // 排除已删除的智能体
-    if (agent.status === 'deleted') return false
-    
     const searchLower = searchTerm.toLowerCase()
     const matchesSearch = agent.name.toLowerCase().includes(searchLower) || 
                         (agent.description && agent.description.toLowerCase().includes(searchLower))
-    const matchesFilter = filter === 'all' || agent.status === filter
+    const matchesFilter = filter === 'all' || agent.status.toLowerCase() === filter.toLowerCase()
     return matchesSearch && matchesFilter
   })
 
   // 获取状态标签样式
   const getStatusBadgeClass = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case AgentStatus.RUNNING:
-        return 'bg-green-100 text-green-800'
+        return 'text-green-600'
       case AgentStatus.PAUSED:
-        return 'bg-yellow-100 text-yellow-800'
-      case AgentStatus.STOPPED:
-        return 'bg-gray-100 text-gray-800'
+        return 'text-amber-600'
       case AgentStatus.ERROR:
-        return 'bg-red-100 text-red-800'
-
+        return 'text-red-600'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'text-gray-600'
     }
   }
 
@@ -149,9 +143,6 @@ export function AgentPage() {
     switch (status) {
       case AgentStatus.RUNNING:
         return '运行中'
-
-      case AgentStatus.STOPPED:
-        return '已停止'
       case AgentStatus.ERROR:
         return '创建/更新失败'
       case AgentStatus.PAUSED:
@@ -203,8 +194,6 @@ export function AgentPage() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setFilter('all')}>全部状态</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFilter(AgentStatus.RUNNING)}>运行中</DropdownMenuItem>
-
-                <DropdownMenuItem onClick={() => setFilter(AgentStatus.STOPPED)}>已停止</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFilter(AgentStatus.ERROR)}>创建/更新失败</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFilter(AgentStatus.PAUSED)}>已暂停</DropdownMenuItem>
               </DropdownMenuContent>
@@ -246,7 +235,8 @@ export function AgentPage() {
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
                     <CardTitle className="text-sm font-medium">{agent.name}</CardTitle>
-                    <Badge className={cn('text-xs', getStatusBadgeClass(agent.status))}>
+                    <Badge className={cn('text-xs pl-1.5 pr-2.5 py-1 bg-transparent border-0 shadow-none flex items-center gap-1.5', getStatusBadgeClass(agent.status))}>
+                      <span className={cn('w-1.5 h-1.5 rounded-full bg-current', agent.status.toLowerCase() === 'running' && 'animate-pulse')}></span>
                       {getStatusText(agent.status)}
                     </Badge>
                   </div>
@@ -260,7 +250,7 @@ export function AgentPage() {
                   </div>
                   <div className="flex justify-between items-center">
                     <div className="flex gap-2">
-                      {agent.status === AgentStatus.RUNNING ? (
+                      {agent.status.toLowerCase() === 'running' ? (
                         <Button
                           variant="ghost"
                           size="sm"

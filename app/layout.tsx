@@ -10,7 +10,13 @@ export const metadata: Metadata = {
   description: 'PolyMind is an intelligent AI assistant with multi-modal capabilities, MCP tool integration, and file processing support.',
   generator: 'v0.app',
   icons: {
-    icon: '/icon.png',
+    icon: [
+      { url: '/icon.ico', sizes: 'any' },
+      { url: '/icon.png', type: 'image/png' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/icon.ico',
+    apple: '/icon.png',
   },
 }
 
