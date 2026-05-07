@@ -97,7 +97,7 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
   }, [])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { currentConversationId, conversations } = useChatStore()
+  const { currentConversationId, conversations, stopStreaming } = useChatStore()
   const currentConversation = conversations.find(conv => conv.id === currentConversationId)
   const isStreaming = currentConversation?.isStreaming ?? false
 
@@ -400,7 +400,7 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
             </span>
 
             {isStreaming ? (
-              <Button variant="destructive" size="sm" className="gap-2">
+              <Button variant="destructive" size="sm" className="gap-2" onClick={stopStreaming}>
                 <StopCircle className="h-4 w-4" />
                 停止生成
               </Button>

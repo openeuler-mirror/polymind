@@ -413,3 +413,52 @@ export interface RequestConfig {
 export interface Command {
   execute(): Promise<any>
 }
+
+// ============================================
+// CVE 相关类型
+// ============================================
+
+export interface CveLabel {
+  name: string
+  color: string
+}
+
+export interface CveUser {
+  login: string
+  avatar_url: string
+}
+
+export interface CveIssue {
+  id: number
+  number: number
+  title: string
+  body: string
+  state: string
+  html_url: string
+  created_at: string
+  updated_at: string
+  labels: CveLabel[]
+  user: CveUser
+}
+
+export interface CveConfig {
+  signer_name: string
+  signer_email: string
+  clone_dir: string
+  branches: string
+  fork_repo_url: string
+  repo_url: string
+  issue_url: string
+}
+
+export interface CveIssueListResponse {
+  items: CveIssue[]
+}
+
+export interface CveConfigResponse extends CveConfig {
+  has_gitcode_token: boolean
+}
+
+export interface CveConfigUpdateResponse {
+  ok: boolean
+}
