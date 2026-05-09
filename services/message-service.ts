@@ -10,12 +10,14 @@ class SendMessageCommand implements Command {
   private sessionId: string
   private content: string
   private onEvent?: (event: any) => void
+  private signal?: AbortSignal
 
-  constructor(agentId: string, sessionId: string, content: string, onEvent?: (event: any) => void) {
+  constructor(agentId: string, sessionId: string, content: string, onEvent?: (event: any) => void, signal?: AbortSignal) {
     this.agentId = agentId
     this.sessionId = sessionId
     this.content = content
     this.onEvent = onEvent
+    this.signal = signal
   }
 
   async execute(): Promise<any[]> {
@@ -39,9 +41,6 @@ class SendMessageCommand implements Command {
     return new Promise((resolve, reject) => {
       const events: any[] = []
       
-      // 创建 AbortController 用于取消请求
-      const controller = new AbortController()
-      
       // 构建请求选项
       const options: RequestInit = {
         method: 'POST',
@@ -52,7 +51,7 @@ class SendMessageCommand implements Command {
           'Connection': 'keep-alive'
         },
         body: JSON.stringify(request),
-        signal: controller.signal
+        signal: this.signal
       } as RequestInit & { duplex?: string }
       
       // 添加流式传输需要的duplex配置（TypeScript类型扩展）
@@ -130,10 +129,18 @@ class SendMessageCommand implements Command {
         }
         
         processStream().catch(error => {
+          if (error?.name === 'AbortError') {
+            resolve(events)
+            return
+          }
           reject(error)
         })
       })
       .catch(error => {
+        if (error?.name === 'AbortError') {
+          resolve(events)
+          return
+        }
         console.error('Streaming request error:', error)
         reject(error)
       })
@@ -165,13 +172,27 @@ class SendMessageCommand implements Command {
  */
 class MessageService {
   private webSocketClients: Record<string, WebSocketClient> = {} // agentId -> WebSocketClient
+  private streamingControllers: Record<string, AbortController> = {}
 
   /**
    * 发送消息到Agent
    */
   public sendMessage(agentId: string, sessionId: string, content: string, onEvent?: (event: any) => void): Promise<any[]> {
-    const command = new SendMessageCommand(agentId, sessionId, content, onEvent)
-    return command.execute()
+    const controller = new AbortController()
+    this.streamingControllers[agentId] = controller
+    const command = new SendMessageCommand(agentId, sessionId, content, onEvent, controller.signal)
+    return command.execute().finally(() => {
+      if (this.streamingControllers[agentId] === controller) {
+        delete this.streamingControllers[agentId]
+      }
+    })
+  }
+
+  public abortMessage(agentId: string): void {
+    const controller = this.streamingControllers[agentId]
+    if (!controller) return
+    controller.abort()
+    delete this.streamingControllers[agentId]
   }
 
   /**

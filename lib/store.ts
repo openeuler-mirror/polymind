@@ -108,6 +108,7 @@ export interface ChatState {
   toggleSidebar: () => void
   toggleRightPanel: () => void
   setStreaming: (conversationId: string | null, streaming: boolean) => void
+  stopStreaming: () => void
   toggleTool: (toolId: string) => void
   updateConversationTitle: (id: string, title: string) => void
   togglePinConversation: (id: string) => void
@@ -415,6 +416,54 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       conversations: state.conversations.map((conv) =>
         conv.id === conversationId ? { ...conv, isStreaming: streaming } : conv
+      )
+    }))
+  },
+
+  stopStreaming: () => {
+    const state = get()
+    const conversationId = state.currentConversationId
+    if (!conversationId) return
+
+    const conversation = state.conversations.find(conv => conv.id === conversationId)
+    const agentId = conversation?.agentId || state.currentAgentId
+    if (agentId) {
+      messageService.abortMessage(agentId)
+    }
+
+    set((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              isStreaming: false,
+              messages: conv.messages.map((message) =>
+                message.role === 'assistant' && (message.isStreaming || message.toolCalls?.some((toolCall) => toolCall.status === 'running'))
+                  ? {
+                      ...message,
+                      isStreaming: false,
+                      toolCalls: message.toolCalls?.map((toolCall) =>
+                        toolCall.status === 'running'
+                          ? { ...toolCall, status: 'error' as const, error: toolCall.error || '已停止生成' }
+                          : toolCall
+                      ),
+                      events: message.events?.map((event) =>
+                        event.toolCall?.status === 'running'
+                          ? {
+                              ...event,
+                              toolCall: {
+                                ...event.toolCall,
+                                status: 'error' as const,
+                                error: event.toolCall.error || '已停止生成',
+                              },
+                            }
+                          : event
+                      ),
+                    }
+                  : message
+              ),
+            }
+          : conv
       )
     }))
   },

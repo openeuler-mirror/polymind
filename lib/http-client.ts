@@ -134,8 +134,9 @@ class HttpClient {
         console.error('Error Response:', errorData)
         throw new ApiError(
           `HTTP Error: ${response.status} ${response.statusText}`,
-          ApiErrorCode.SERVER_ERROR,
-          response.status
+          response.status === 401 ? ApiErrorCode.AUTH_ERROR : ApiErrorCode.SERVER_ERROR,
+          response.status,
+          errorData
         )
       }
       
