@@ -962,6 +962,19 @@
             "type": "string",
             "description": "默认会话 ID",
             "nullable": true
+          },
+          "process_port": {
+            "type": "integer",
+            "description": "进程端口",
+            "nullable": true
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentSkill"
+            },
+            "description": "Agent技能列表",
+            "nullable": true
           }
         },
         "required": [
@@ -975,6 +988,33 @@
           "has_scheduled_tasks",
           "created_at",
           "updated_at"
+        ]
+      },
+      "AgentSkill": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "技能名称"
+          },
+          "description": {
+            "type": "string",
+            "description": "技能描述"
+          },
+          "file_path": {
+            "type": "string",
+            "description": "技能文件路径"
+          },
+          "source": {
+            "type": "string",
+            "description": "技能源码"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "file_path",
+          "source"
         ]
       },
       "CreateAgentRequest": {
@@ -1048,6 +1088,14 @@
             "type": "string",
             "format": "date-time",
             "description": "更新时间"
+          },
+          "context_initialized": {
+            "type": "boolean",
+            "description": "上下文是否已初始化"
+          },
+          "runtime_type": {
+            "type": "string",
+            "description": "运行时类型"
           }
         },
         "required": [
@@ -1055,7 +1103,9 @@
           "agent_id",
           "status",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "context_initialized",
+          "runtime_type"
         ]
       },
       "SendMessageRequest": {
