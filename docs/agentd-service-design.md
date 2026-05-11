@@ -1492,18 +1492,18 @@ class AdapterType(str, Enum):
 
 **输出字段：**
 
-| 字段                    | 类型      | 说明                                                               |
-| --------------------- | ------- | ---------------------------------------------------------------- |
-| `id`                  | string  | Agent 唯一标识符 (UUID)                                               |
-| `name`                | string  | Agent 名称                                                         |
-| `adapter_type`        | string  | 适配器类型                                                            |
+| 字段                    | 类型      | 说明                                                   |
+| --------------------- | ------- | ---------------------------------------------------- |
+| `id`                  | string  | Agent 唯一标识符 (UUID)                                   |
+| `name`                | string  | Agent 名称                                             |
+| `adapter_type`        | string  | 适配器类型                                                |
 | `status`              | string  | Agent 状态：`CREATING` / `RUNNING` / `PAUSED` / `ERROR` |
-| `sandbox_id`          | string  | 关联的沙箱 ID                                                         |
-| `default_session_id`  | string  | 默认会话 ID                                                          |
-| `has_scheduled_tasks` | boolean | 是否有定时任务                                                          |
-| `idle_timeout`        | number  | 空闲超时时间（秒）                                                        |
-| `created_at`          | string  | 创建时间 (ISO 8601)                                                  |
-| `updated_at`          | string  | 更新时间 (ISO 8601)                                                  |
+| `sandbox_id`          | string  | 关联的沙箱 ID                                             |
+| `default_session_id`  | string  | 默认会话 ID                                              |
+| `has_scheduled_tasks` | boolean | 是否有定时任务                                              |
+| `idle_timeout`        | number  | 空闲超时时间（秒）                                            |
+| `created_at`          | string  | 创建时间 (ISO 8601)                                      |
+| `updated_at`          | string  | 更新时间 (ISO 8601)                                      |
 
 ```json
 {

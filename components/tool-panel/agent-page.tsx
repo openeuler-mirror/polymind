@@ -1,12 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Filter, RefreshCw, Plus, Trash2, Play, Pause, MoreVertical } from 'lucide-react'
+import { Search, Filter, RefreshCw, Plus, Trash2, Play, Pause, MoreVertical, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { agentService } from '@/services/agent-service'
 import { Agent, AgentStatus } from '@/lib/types'
@@ -24,6 +33,8 @@ export function AgentPage() {
     const storedState = localStorage.getItem('agentIsCreating')
     return storedState ? JSON.parse(storedState) : false
   })
+  const [deleteAgentId, setDeleteAgentId] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
   const removeAgent = useChatStore(state => state.removeAgent)
 
@@ -98,11 +109,19 @@ export function AgentPage() {
           ))
         }
       } else if (action === 'delete') {
+        setIsDeleting(true)
         await agentService.deleteAgent(agentId)
         // 从本地状态中移除agent
         setAgents(prevAgents => prevAgents.filter(agent => agent.id !== agentId))
         // 从全局store中移除agent，同步到conversation-sidebar
         removeAgent(agentId)
+        toast({
+          title: '成功',
+          description: 'Agent 已删除',
+          duration: 1000
+        })
+        setDeleteAgentId(null)
+        setIsDeleting(false)
       }
     } catch (err) {
       console.error(`Failed to ${action} agent:`, err)
@@ -112,6 +131,10 @@ export function AgentPage() {
         variant: 'destructive',
         duration: 1000
       })
+      if (action === 'delete') {
+        setIsDeleting(false)
+        setDeleteAgentId(null)
+      }
     }
   }
 
@@ -273,7 +296,7 @@ export function AgentPage() {
                         variant="ghost"
                         size="sm"
                         className="text-red-500"
-                        onClick={() => handleAgentAction(agent.id, 'delete')}
+                        onClick={() => setDeleteAgentId(agent.id)}
                       >
                         <Trash2 className="h-3 w-3 mr-1" />
                         删除
@@ -299,6 +322,35 @@ export function AgentPage() {
         )}
         </div>
       </div>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteAgentId !== null} onOpenChange={(open) => !open && !isDeleting && setDeleteAgentId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除 Agent</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作将永久删除该 Agent，所有相关配置和运行数据都将丢失，无法恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>取消</AlertDialogCancel>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={isDeleting}
+              onClick={() => deleteAgentId && handleAgentAction(deleteAgentId, 'delete')}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  删除中...
+                </>
+              ) : (
+                '确认删除'
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
