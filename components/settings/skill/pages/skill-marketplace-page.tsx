@@ -22,25 +22,21 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import { DiscoverStatusItem, DiscoveredSkill } from '@/lib/types'
-import { skillDiscoveryService } from '@/services/skill-service'
+import { SkillDiscoveryItem, SkillRepositoryDiscoveryStatus } from '@/lib/types'
+import { skillService } from '@/services/skill-service'
 
 export function SkillMarketplacePage() {
-  const [skills, setSkills] = useState<DiscoveredSkill[]>([])
-  const [statusItems, setStatusItems] = useState<DiscoverStatusItem[]>([])
+  const [skills, setSkills] = useState<SkillDiscoveryItem[]>([])
+  const [statusItems, setStatusItems] = useState<SkillRepositoryDiscoveryStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSource, setSelectedSource] = useState<string>('all')
-  const [previewSkill, setPreviewSkill] = useState<DiscoveredSkill | null>(null)
+  const [previewSkill, setPreviewSkill] = useState<SkillDiscoveryItem | null>(null)
   const { toast } = useToast()
 
   const sourceOptions = useMemo(() => {
     const uniqueSources = Array.from(
-      new Set(
-        skills
-          .map((skill) => getSkillSourceValue(skill))
-          .filter((value): value is string => Boolean(value)),
-      ),
+      new Set(skills.map((skill) => getSkillSourceValue(skill)).filter(Boolean)),
     )
 
     return [
@@ -57,7 +53,7 @@ export function SkillMarketplacePage() {
       const matchesSource = selectedSource === 'all' || sourceValue === selectedSource
       const matchesSearch =
         !keyword ||
-        [sourceValue, skill.skillMdUrl, skill.skillName, skill.RelativePath]
+        [sourceValue, skill.skillMdUrl, skill.skillName, skill.relativePath]
           .filter(Boolean)
           .some((value) => value!.toLowerCase().includes(keyword))
 
@@ -72,12 +68,9 @@ export function SkillMarketplacePage() {
   const refreshMarketplace = async () => {
     try {
       setLoading(true)
-      const [status, discovered] = await Promise.all([
-        skillDiscoveryService.getDiscoverStatus(),
-        skillDiscoveryService.listDiscoveredSkills(),
-      ])
-      setStatusItems(status)
-      setSkills(discovered)
+      const repositories = await skillService.listRepositoryResponses()
+      setStatusItems(skillService.getDiscoverStatusesFromRepositories(repositories))
+      setSkills(skillService.getDiscoveredSkillsFromRepositories(repositories))
     } catch (error) {
       console.error('Failed to refresh skill marketplace:', error)
       toast({
@@ -102,14 +95,8 @@ export function SkillMarketplacePage() {
             <CardDescription>统一查看和安装各仓库源已发现的技能。</CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <MarketplaceSummary
-              label="已发现技能"
-              value={`${skills.length}`}
-            />
-            <MarketplaceSummary
-              label="来源仓库"
-              value={`${statusItems.length}`}
-            />
+            <MarketplaceSummary label="已发现技能" value={`${skills.length}`} />
+            <MarketplaceSummary label="来源仓库" value={`${statusItems.length}`} />
           </div>
         </CardHeader>
       </Card>
@@ -119,10 +106,7 @@ export function SkillMarketplacePage() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <CardTitle>技能列表</CardTitle>
             <div className="flex w-full max-w-xl gap-2">
-              <Select
-                value={selectedSource}
-                onValueChange={setSelectedSource}
-              >
+              <Select value={selectedSource} onValueChange={setSelectedSource}>
                 <SelectTrigger className="w-80 shrink-0">
                   <SelectValue placeholder="筛选项" />
                 </SelectTrigger>
@@ -153,40 +137,35 @@ export function SkillMarketplacePage() {
             <EmptyState text="暂无匹配的技能记录。" />
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {filteredSkills.map((skill) => {
-                const skillKey = skill.skillId || `${skill.sourceRepo?.repoId || 'repo'}-${skill.RelativePath || skill.skillName || 'skill'}`
-
-                return (
-                  <div
-                    key={skillKey}
-                    className="flex min-h-15 flex-col rounded-lg border border-border bg-card p-4"
-                  >
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-start gap-2">
-                        <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                        <p className="text-sm font-semibold leading-5 break-all">
-                          {extractSkillName(skill.skillName ?? '')}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex-1">
-                      <SkillSourceInfo skill={skill} />
-                      <div className="mt-3 flex justify-end">
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="h-auto p-0 text-blue-600 hover:text-blue-700"
-                          onClick={() => setPreviewSkill(skill)}
-                        >
-                          预览
-                        </Button>
-                      </div>
-                    </div>
-
+              {filteredSkills.map((skill) => (
+                <div
+                  key={getSkillKey(skill)}
+                  className="flex min-h-15 flex-col rounded-lg border border-border bg-card p-4"
+                >
+                  <div className="mb-3 flex items-start gap-2">
+                    <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <p className="text-sm font-semibold leading-5 break-all">
+                      {extractSkillName(skill.skillName)}
+                    </p>
                   </div>
-                )
-              })}
+
+                  <div className="flex-1">
+                    <p className="min-h-12 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                      {extractSkillDescription(skill.metadata) || '暂无描述'}
+                    </p>
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-blue-600 hover:text-blue-700"
+                        onClick={() => setPreviewSkill(skill)}
+                      >
+                        预览
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
@@ -195,33 +174,29 @@ export function SkillMarketplacePage() {
       <Dialog open={!!previewSkill} onOpenChange={(open) => !open && setPreviewSkill(null)}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader className="gap-3">
-            <div className="flex items-start justify-between gap-3 pr-8">
-              <div className="space-y-1">
+            <div className="space-y-3 pr-8">
+              <div className="space-y-2">
                 <DialogTitle className="text-base">
-                  {extractSkillName(previewSkill?.skillName ?? '') || '技能预览'}
+                  {previewSkill ? extractSkillName(previewSkill.skillName) : '技能预览'}
                 </DialogTitle>
-                <DialogDescription>Skill元数据预览</DialogDescription>
+                {previewSkill ? <SkillSourceInfo skill={previewSkill} /> : null}
               </div>
               {isPreviewGit && previewSkill?.skillMdUrl && previewOpenHref ? (
-                <div className="flex shrink-0 items-center gap-2 text-sm">
-                  <a
-                    href={previewOpenHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 hover:underline"
-                    title="打开链接"
-                  >
-                    <span className="max-w-[24rem] break-all text-xs text-blue-600/90">
-                      {previewSkill.skillMdUrl}
-                    </span>
-                    <ExternalLink className="h-4 w-4" />
-                    查看
-                  </a>
-                </div>
+                <InfoLine
+                  icon={ExternalLink}
+                  label="skill 路径"
+                  value={previewSkill.skillMdUrl}
+                  href={previewOpenHref}
+                  singleLine
+                  valueClassName="text-blue-600/90"
+                />
               ) : (
-                <div className="max-w-[24rem] shrink-0 break-all text-xs text-muted-foreground">
-                  {previewSkill?.RelativePath || '-'}
-                </div>
+                <InfoLine
+                  icon={FolderOpen}
+                  label="skill 路径"
+                  value={previewSkill?.relativePath || '-'}
+                  singleLine
+                />
               )}
             </div>
           </DialogHeader>
@@ -250,20 +225,14 @@ function MarketplaceSummary({
   )
 }
 
-function SkillSourceInfo({ skill }: { skill: DiscoveredSkill }) {
-  const isGit = skill.sourceRepo?.sourceType === 'git'
-
-  if (isGit) {
-    return (
-      <div className="space-y-1 text-sm">
-        <InfoLine icon={Link2} label="Git 地址" value={skill.sourceRepo?.url || '-'} />
-      </div>
-    )
-  }
-
+function SkillSourceInfo({ skill }: { skill: SkillDiscoveryItem }) {
   return (
     <div className="space-y-1 text-sm">
-      <InfoLine icon={FolderOpen} label="本地路径" value={skill.sourceRepo?.localPath || '-'} />
+      <InfoLine
+        icon={skill.sourceRepo?.sourceType === 'git' ? Link2 : FolderOpen}
+        label="来源"
+        value={getSkillSourceValue(skill) || '-'}
+      />
     </div>
   )
 }
@@ -272,17 +241,44 @@ function InfoLine({
   icon: Icon,
   label,
   value,
+  href,
+  singleLine = false,
+  valueClassName,
 }: {
   icon: ComponentType<{ className?: string }>
   label: string
   value: string
+  href?: string
+  singleLine?: boolean
+  valueClassName?: string
 }) {
+  const valueClasses = [
+    singleLine ? 'inline-block max-w-[24rem] truncate whitespace-nowrap' : 'break-all',
+    valueClassName || '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
     <div className="flex items-start gap-2 text-sm">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-      <div className="min-w-0">
-        <span className="text-muted-foreground">{label}：</span>
-        <span className="break-all">{value}</span>
+      <div className="flex min-w-0 flex-1 items-start gap-1">
+        <span className="shrink-0 text-muted-foreground">{label}：</span>
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            title={value}
+            className={`text-blue-600 hover:text-blue-700 hover:underline ${valueClasses}`}
+          >
+            {value}
+          </a>
+        ) : (
+          <span className={valueClasses} title={singleLine ? value : undefined}>
+            {value}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -297,7 +293,16 @@ function extractSkillName(value: string) {
   return parts[parts.length - 1] || value
 }
 
-function getSkillSourceValue(skill: DiscoveredSkill) {
+function extractSkillDescription(metadata?: Record<string, unknown> | null) {
+  const description = metadata?.description
+  return typeof description === 'string' ? description.trim() : ''
+}
+
+function getSkillKey(skill: SkillDiscoveryItem) {
+  return skill.skillId || `${skill.sourceRepo?.repoId || 'repo'}-${skill.relativePath || skill.skillName || 'skill'}`
+}
+
+function getSkillSourceValue(skill: SkillDiscoveryItem) {
   return skill.sourceRepo?.sourceType === 'git'
     ? skill.sourceRepo?.url || ''
     : skill.sourceRepo?.localPath || ''
@@ -307,13 +312,13 @@ function MetadataViewer({ metadata }: { metadata?: Record<string, unknown> | nul
   const entries = flattenMetadataEntries(metadata)
 
   if (entries.length === 0) {
-    return <p className="font-mono text-xs leading-5 text-muted-foreground">{'{}'}</p>
+    return <p className="text-sm leading-6 text-muted-foreground">{'{}'}</p>
   }
 
   return (
     <div className="space-y-1">
       {entries.map((entry) => (
-        <div key={entry.key} className="flex gap-2 font-mono text-xs leading-5">
+        <div key={entry.key} className="flex gap-3 text-sm leading-6">
           <span className="shrink-0 text-muted-foreground">{entry.key}:</span>
           <span className="break-all text-foreground">{entry.value}</span>
         </div>
@@ -383,11 +388,9 @@ function flattenMetadataEntries(
           } else {
             pairs.push(...childEntries)
           }
-        } else if (Array.isArray(item)) {
-          pairs.push({ key: itemKey, value: formatMetadataLeaf(item) })
-        } else {
-          pairs.push({ key: itemKey, value: formatMetadataLeaf(item) })
+          return
         }
+        pairs.push({ key: itemKey, value: formatMetadataLeaf(item) })
       })
       return
     }
@@ -398,7 +401,7 @@ function flattenMetadataEntries(
   return pairs
 }
 
-function buildSkillOpenHref(skill: DiscoveredSkill) {
+function buildSkillOpenHref(skill: SkillDiscoveryItem) {
   const rawMdUrl = skill.skillMdUrl?.trim()
   if (!rawMdUrl) {
     return undefined

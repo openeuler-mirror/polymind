@@ -2,18 +2,10 @@
 
 import type { ElementType, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import {
-  FolderOpen,
-  GitBranch,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Sparkles,
-  Trash2,
-} from 'lucide-react'
+import { FolderOpen, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -26,21 +18,39 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import {
-  CreateSkillRepoRequest,
-  DiscoverStatusItem,
-  SkillRepo,
-  SkillRepoSourceType,
-  UpdateSkillRepoRequest,
+  CreateSkillRepositoryRequest,
+  SkillRepository,
+  SkillRepositoryDiscoveryStatus,
+  SkillRepositorySourceType,
+  UpdateSkillRepositoryRequest,
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
-import { skillDiscoveryService, skillRepoService } from '@/services/skill-service'
+import { skillService } from '@/services/skill-service'
 
 interface RepoFormState {
-  sourceType: SkillRepoSourceType
+  sourceType: SkillRepositorySourceType
   url: string
   branch: string
   localPath: string
 }
+
+type RepositoryLocation = {
+  icon?: ElementType
+  label: string
+  value?: string
+}
+
+type RepositoryStatusDisplay =
+  | {
+      mode: 'discovering'
+      label: string
+      status?: string
+    }
+  | {
+      mode: 'meta'
+      label: string
+      value: string
+    }
 
 const initialFormState: RepoFormState = {
   sourceType: 'git',
@@ -50,21 +60,20 @@ const initialFormState: RepoFormState = {
 }
 
 export function SkillRepoManagement() {
-  const [repos, setRepos] = useState<SkillRepo[]>([])
-  const [discoverStatuses, setDiscoverStatuses] = useState<DiscoverStatusItem[]>([])
+  const [repos, setRepos] = useState<SkillRepository[]>([])
+  const [discoverStatuses, setDiscoverStatuses] = useState<SkillRepositoryDiscoveryStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [updatingRepoId, setUpdatingRepoId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [editingRepo, setEditingRepo] = useState<SkillRepo | null>(null)
+  const [editingRepo, setEditingRepo] = useState<SkillRepository | null>(null)
   const [createForm, setCreateForm] = useState<RepoFormState>(initialFormState)
   const [editForm, setEditForm] = useState<RepoFormState>(initialFormState)
   const { toast } = useToast()
 
   const discoverStatusMap = useMemo(
-    () =>
-      new Map(discoverStatuses.map((item) => [item.repoId, item])),
+    () => new Map(discoverStatuses.map((item) => [item.repoId, item])),
     [discoverStatuses],
   )
 
@@ -119,28 +128,15 @@ export function SkillRepoManagement() {
       return
     }
 
-    setEditForm({
-      sourceType: editingRepo.sourceType === 'local_import' ? 'local_import' : 'git',
-      url: editingRepo.url || '',
-      branch: editingRepo.branch || '',
-      localPath: editingRepo.localPath || '',
-    })
+    setEditForm(buildFormStateFromRepository(editingRepo))
   }, [editingRepo])
 
   const fetchRepos = async () => {
     try {
       setLoading(true)
-      const [reposResult, statusResult] = await Promise.allSettled([
-        skillRepoService.listRepos(),
-        refreshDiscoverStatuses(true),
-      ])
-
-      if (reposResult.status !== 'fulfilled') {
-        throw reposResult.reason
-      }
-
-      setRepos(reposResult.value)
-      setDiscoverStatuses(statusResult.status === 'fulfilled' ? statusResult.value : [])
+      const repositories = await skillService.listRepositoryResponses()
+      setRepos(repositories)
+      setDiscoverStatuses(skillService.getDiscoverStatusesFromRepositories(repositories))
     } catch (error) {
       console.error('Failed to fetch skill repos:', error)
       toast({
@@ -155,7 +151,8 @@ export function SkillRepoManagement() {
 
   const refreshDiscoverStatuses = async (silent = false) => {
     try {
-      const statuses = await skillDiscoveryService.getDiscoverStatus()
+      const repositories = await skillService.listRepositoryResponses()
+      const statuses = skillService.getDiscoverStatusesFromRepositories(repositories)
       setDiscoverStatuses(statuses)
       return statuses
     } catch (error) {
@@ -175,11 +172,11 @@ export function SkillRepoManagement() {
     setCreateForm(initialFormState)
   }
 
-  const openCreateDialog = (sourceType: SkillRepoSourceType) => {
-    setCreateForm((currentForm) => ({
+  const openCreateDialog = (sourceType: SkillRepositorySourceType) => {
+    setCreateForm({
       ...initialFormState,
       sourceType,
-    }))
+    })
     setIsCreateOpen(true)
   }
 
@@ -188,7 +185,10 @@ export function SkillRepoManagement() {
     if (!request) {
       toast({
         title: '表单不完整',
-        description: createForm.sourceType === 'git' ? '请填写仓库地址。分支可选填写。' : '请填写本地导入路径。',
+        description:
+          createForm.sourceType === 'git'
+            ? '请填写仓库地址。分支可选填写。'
+            : '请填写本地导入路径。',
         variant: 'destructive',
       })
       return
@@ -196,7 +196,7 @@ export function SkillRepoManagement() {
 
     try {
       setSubmitting(true)
-      await skillRepoService.createRepo(request)
+      await skillService.createRepo(request)
       toast({
         title: '创建成功',
         description: '仓库源已添加。',
@@ -225,14 +225,21 @@ export function SkillRepoManagement() {
     if (!request) {
       toast({
         title: '没有可提交的修改',
-        description: editingRepo.sourceType === 'git' ? '请修改分支信息后再保存。' : '请修改本地路径后再保存。',
+        description:
+          editingRepo.sourceType === 'git'
+            ? '请修改分支信息后再保存。'
+            : '请修改本地路径后再保存。',
       })
       return
     }
 
     try {
       setSubmitting(true)
-      const updatedRepo = await skillRepoService.updateRepo(editingRepo.repoId, request, editingRepo)
+      const updatedRepo = await skillService.updateRepo(
+        editingRepo.repoId,
+        request,
+        editingRepo,
+      )
       setRepos((currentRepos) =>
         currentRepos.map((repo) => (repo.repoId === updatedRepo.repoId ? updatedRepo : repo)),
       )
@@ -253,14 +260,13 @@ export function SkillRepoManagement() {
     }
   }
 
-  const handleDelete = async (repo: SkillRepo) => {
-    const confirmed = window.confirm('确认删除该仓库源吗？')
-    if (!confirmed) {
+  const handleDelete = async (repo: SkillRepository) => {
+    if (!window.confirm('确认删除该仓库源吗？')) {
       return
     }
 
     try {
-      await skillRepoService.deleteRepo(repo.repoId)
+      await skillService.deleteRepo(repo.repoId)
       setRepos((currentRepos) => currentRepos.filter((item) => item.repoId !== repo.repoId))
       toast({
         title: '删除成功',
@@ -276,11 +282,11 @@ export function SkillRepoManagement() {
     }
   }
 
-  const handleDiscoverRepo = async (repo: SkillRepo) => {
+  const handleDiscoverRepo = async (repo: SkillRepository) => {
     try {
       setUpdatingRepoId(repo.repoId)
       setDiscoverStatuses((currentStatuses) => upsertDiscoverStatus(currentStatuses, repo.repoId))
-      await skillDiscoveryService.discoverRepoSkills(repo.repoId)
+      await skillService.discoverRepoSkills(repo.repoId)
       await refreshDiscoverStatuses(true)
       toast({
         title: '更新已触发',
@@ -320,17 +326,13 @@ export function SkillRepoManagement() {
       <Card className="border border-border">
         <CardHeader className="gap-1">
           <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <CardTitle>仓库源列表</CardTitle>
-            </div>
-            <div>
-              <Input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="搜索仓库"
-                className="max-w-xl"
-              />
-            </div>
+            <CardTitle>仓库源列表</CardTitle>
+            <Input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="搜索仓库"
+              className="max-w-xl"
+            />
           </div>
         </CardHeader>
         <CardContent className="px-0">
@@ -350,6 +352,9 @@ export function SkillRepoManagement() {
             <div className="divide-y divide-border">
               {filteredRepos.map((repo) => {
                 const status = discoverStatusMap.get(repo.repoId)
+                const location = getRepositoryLocation(repo)
+                const statusDisplay = getRepositoryStatusDisplay(status)
+                const isUpdating = updatingRepoId === repo.repoId
 
                 return (
                   <div
@@ -357,78 +362,26 @@ export function SkillRepoManagement() {
                     className="flex flex-col gap-3 px-6 py-4 lg:flex-row lg:items-center lg:justify-between"
                   >
                     <div className="min-w-0 flex-1 space-y-1.5">
-                      {repo.sourceType === 'git' ? (
-                        <>
-                          <InlineInfo label="Git 地址" value={repo.url} />
-                          <CompactMetaRow>
-                            <CompactMeta label="分支" value={repo.branch || '默认分支'} />
-                            {shouldTreatAsDiscovering(status?.discoverStatus) ? (
-                              <CompactStatus label="扫描状态" status={status?.discoverStatus} />
-                            ) : status?.discoverStatus === 'failed' ? (
-                              <CompactMeta
-                                label="扫描状态"
-                                value={formatDiscoverStatusText(status.discoverStatus)}
-                              />
-                            ) : status?.discoverStatus === 'done' ? (
-                              <CompactMeta
-                                label="识别技能"
-                                value={
-                                  typeof status?.skillNum === 'number'
-                                    ? `${status.skillNum} 个`
-                                    : '暂无数据'
-                                }
-                              />
-                            ) : (
-                              <CompactMeta
-                                label="扫描状态"
-                                value={formatDiscoverStatusText(status?.discoverStatus)}
-                              />
-                            )}
-                          </CompactMetaRow>
-                        </>
-                      ) : (
-                        <>
-                          <InlineInfo icon={FolderOpen} label="本地路径" value={repo.localPath} />
-                          <CompactMetaRow>
-                            {shouldTreatAsDiscovering(status?.discoverStatus) ? (
-                              <CompactStatus label="扫描状态" status={status?.discoverStatus} />
-                            ) : status?.discoverStatus === 'failed' ? (
-                              <CompactMeta
-                                label="扫描状态"
-                                value={formatDiscoverStatusText(status.discoverStatus)}
-                              />
-                            ) : status?.discoverStatus === 'done' ? (
-                              <CompactMeta
-                                label="识别技能"
-                                value={
-                                  typeof status?.skillNum === 'number'
-                                    ? `${status.skillNum} 个`
-                                    : '暂无数据'
-                                }
-                              />
-                            ) : (
-                              <CompactMeta
-                                label="扫描状态"
-                                value={formatDiscoverStatusText(status?.discoverStatus)}
-                              />
-                            )}
-                          </CompactMetaRow>
-                        </>
-                      )}
+                      <InlineInfo icon={location.icon} label={location.label} value={location.value} />
+                      <CompactMetaRow>
+                        {repo.sourceType === 'git' ? (
+                          <CompactMeta label="分支" value={repo.branch || '默认分支'} />
+                        ) : null}
+                        {statusDisplay.mode === 'discovering' ? (
+                          <CompactStatus label={statusDisplay.label} status={statusDisplay.status} />
+                        ) : (
+                          <CompactMeta label={statusDisplay.label} value={statusDisplay.value} />
+                        )}
+                      </CompactMetaRow>
                     </div>
                     <div className="flex shrink-0 items-center justify-end gap-1 self-end lg:self-auto">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => void handleDiscoverRepo(repo)}
-                        disabled={updatingRepoId === repo.repoId}
+                        disabled={isUpdating}
                       >
-                        <RefreshCw
-                          className={cn(
-                            'mr-2 h-4 w-4',
-                            updatingRepoId === repo.repoId && 'animate-spin',
-                          )}
-                        />
+                        <RefreshCw className={cn('mr-2 h-4 w-4', isUpdating && 'animate-spin')} />
                         更新
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => setEditingRepo(repo)}>
@@ -456,9 +409,7 @@ export function SkillRepoManagement() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
-              {createForm.sourceType === 'git' ? '新增 Git 源' : '新增本地源'}
-            </DialogTitle>
+            <DialogTitle>{createForm.sourceType === 'git' ? '新增 Git 源' : '新增本地源'}</DialogTitle>
             <DialogDescription>
               {createForm.sourceType === 'git'
                 ? '请填写 Git 仓库地址；如有需要，可补充分支信息。'
@@ -468,24 +419,24 @@ export function SkillRepoManagement() {
           <div className="space-y-4 pt-2">
             {createForm.sourceType === 'git' ? (
               <>
-              <FormField label="仓库地址" description="请输入可访问的 Git 仓库地址。">
-                <Input
-                  value={createForm.url}
-                  onChange={(event) =>
-                    setCreateForm((currentForm) => ({ ...currentForm, url: event.target.value }))
-                  }
-                  placeholder="请输入 Git 仓库 URL"
-                />
-              </FormField>
-              <FormField label="分支" description="可选；不填写时使用默认分支。">
-                <Input
-                  value={createForm.branch}
-                  onChange={(event) =>
-                    setCreateForm((currentForm) => ({ ...currentForm, branch: event.target.value }))
-                  }
-                  placeholder="例如：main or master"
-                />
-              </FormField>
+                <FormField label="仓库地址" description="请输入可访问的 Git 仓库地址。">
+                  <Input
+                    value={createForm.url}
+                    onChange={(event) =>
+                      setCreateForm((currentForm) => ({ ...currentForm, url: event.target.value }))
+                    }
+                    placeholder="请输入 Git 仓库 URL"
+                  />
+                </FormField>
+                <FormField label="分支" description="可选；不填写时使用默认分支。">
+                  <Input
+                    value={createForm.branch}
+                    onChange={(event) =>
+                      setCreateForm((currentForm) => ({ ...currentForm, branch: event.target.value }))
+                    }
+                    placeholder="例如：main 或 master"
+                  />
+                </FormField>
               </>
             ) : (
               <FormField label="本地路径" description="支持填写本地目录或压缩包路径。">
@@ -521,9 +472,7 @@ export function SkillRepoManagement() {
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>编辑仓库源</DialogTitle>
-            <DialogDescription>
-              您可以在这里调整当前仓库源的关键信息。
-            </DialogDescription>
+            <DialogDescription>您可以在这里调整当前仓库源的关键信息。</DialogDescription>
           </DialogHeader>
           {editingRepo ? (
             <div className="space-y-4 pt-2">
@@ -572,6 +521,56 @@ export function SkillRepoManagement() {
   )
 }
 
+function buildFormStateFromRepository(repo: SkillRepository): RepoFormState {
+  return {
+    sourceType: repo.sourceType === 'local_import' ? 'local_import' : 'git',
+    url: repo.url || '',
+    branch: repo.branch || '',
+    localPath: repo.localPath || '',
+  }
+}
+
+function getRepositoryLocation(repo: SkillRepository): RepositoryLocation {
+  if (repo.sourceType === 'git') {
+    return {
+      label: 'Git 地址',
+      value: repo.url,
+    }
+  }
+
+  return {
+    icon: FolderOpen,
+    label: '本地路径',
+    value: repo.localPath,
+  }
+}
+
+function getRepositoryStatusDisplay(
+  status?: SkillRepositoryDiscoveryStatus,
+): RepositoryStatusDisplay {
+  if (shouldTreatAsDiscovering(status?.discoverStatus)) {
+    return {
+      mode: 'discovering',
+      label: '扫描状态',
+      status: status?.discoverStatus,
+    }
+  }
+
+  if (status?.discoverStatus === 'done') {
+    return {
+      mode: 'meta',
+      label: '识别技能',
+      value: typeof status.skillNum === 'number' ? `${status.skillNum} 个` : '暂无数据',
+    }
+  }
+
+  return {
+    mode: 'meta',
+    label: '扫描状态',
+    value: formatDiscoverStatusText(status?.discoverStatus),
+  }
+}
+
 function InlineInfo({
   icon: Icon,
   label,
@@ -593,7 +592,11 @@ function InlineInfo({
 }
 
 function CompactMetaRow({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-6 text-xs text-muted-foreground">{children}</div>
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-6 text-xs text-muted-foreground">
+      {children}
+    </div>
+  )
 }
 
 function CompactMeta({
@@ -677,9 +680,9 @@ function shouldTreatAsDiscovering(status?: string) {
 }
 
 function upsertDiscoverStatus(
-  currentStatuses: DiscoverStatusItem[],
+  currentStatuses: SkillRepositoryDiscoveryStatus[],
   repoId: string,
-): DiscoverStatusItem[] {
+): SkillRepositoryDiscoveryStatus[] {
   const nextStatuses = currentStatuses.map((item) =>
     item.repoId === repoId
       ? {
@@ -747,7 +750,7 @@ function FormField({
   )
 }
 
-function buildCreatePayload(form: RepoFormState): CreateSkillRepoRequest | null {
+function buildCreatePayload(form: RepoFormState): CreateSkillRepositoryRequest | null {
   if (form.sourceType === 'git') {
     if (!form.url.trim()) {
       return null
@@ -771,7 +774,10 @@ function buildCreatePayload(form: RepoFormState): CreateSkillRepoRequest | null 
   }
 }
 
-function buildUpdatePayload(repo: SkillRepo, form: RepoFormState): UpdateSkillRepoRequest | null {
+function buildUpdatePayload(
+  repo: SkillRepository,
+  form: RepoFormState,
+): UpdateSkillRepositoryRequest | null {
   if (repo.sourceType === 'git') {
     const nextBranch = form.branch.trim()
     if (!nextBranch || nextBranch === (repo.branch || '')) {

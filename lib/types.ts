@@ -408,43 +408,47 @@ export interface Command {
 // ============================================
 
 /**
- * Skills repo源类型
+ * 技能仓库来源类型
  */
-export type SkillRepoSourceType = 'git' | 'local_import'
+export type SkillRepositorySourceType = 'git' | 'local_import'
 
 /**
- * Skills repo信息
+ * 技能仓库信息
  */
-export interface SkillRepo {
+export interface SkillRepository {
   repoId: string
   name?: string
-  sourceType: SkillRepoSourceType | string
+  sourceType: SkillRepositorySourceType | string
   branch?: string
   url?: string
   localPath?: string
 }
 
 /**
- * Skills repo列表响应
+ * 技能仓库响应
  */
-export interface SkillRepoListResponse {
-  items: SkillRepo[]
+export interface SkillRepositoryResponse extends SkillRepository {
+  skillDiscoverStatus: string
+  skillNum: number
+  discoveredSkills: SkillDiscoveryItem[]
+  createdAt?: string
+  updatedAt?: string
 }
 
 /**
- * 创建Skills repo请求
+ * 创建技能仓库请求
  */
-export interface CreateSkillRepoRequest {
-  sourceType: SkillRepoSourceType | string
+export interface CreateSkillRepositoryRequest {
+  sourceType: SkillRepositorySourceType | string
   url?: string
   branch?: string
   localPath?: string
 }
 
 /**
- * 更新Skills repo请求
+ * 更新技能仓库请求
  */
-export interface UpdateSkillRepoRequest {
+export interface UpdateSkillRepositoryRequest {
   branch?: string
   localPath?: string
 }
@@ -452,47 +456,33 @@ export interface UpdateSkillRepoRequest {
 /**
  * 已发现技能的来源仓库信息
  */
-export interface DiscoveredSkillSourceRepo {
+export interface SkillDiscoverySourceRepository {
   repoId: string
   name?: string
-  sourceType?: SkillRepoSourceType | string
+  sourceType?: SkillRepositorySourceType | string
   branch?: string | null
   url?: string | null
   localPath?: string | null
 }
 
 /**
- * 技能广场中的技能项
+ * 技能发现项
  */
-export interface DiscoveredSkill {
+export interface SkillDiscoveryItem {
   skillId: string
   skillName: string
-  RelativePath?: string
+  relativePath?: string
   metadata?: Record<string, unknown> | null
-  sourceRepo?: DiscoveredSkillSourceRepo
+  sourceRepo?: SkillDiscoverySourceRepository
   skillMdUrl?: string | null
 }
 
 /**
- * 技能发现列表响应
+ * 技能仓库发现状态
  */
-export interface DiscoverSkillListResponse {
-  items: DiscoveredSkill[]
-}
-
-/**
- * 技能发现状态项
- */
-export interface DiscoverStatusItem {
+export interface SkillRepositoryDiscoveryStatus {
   repoId: string
   repoName: string
   discoverStatus: string
   skillNum?: number
-}
-
-/**
- * 技能发现状态响应
- */
-export interface DiscoverStatusResponse {
-  items: DiscoverStatusItem[]
 }
