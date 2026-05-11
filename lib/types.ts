@@ -74,6 +74,7 @@ export interface Conversation {
   pinned?: boolean
   agentId?: string  // 创建该会话的 agent ID
   agentName?: string  // 创建该会话的 agent 名称
+  isStreaming?: boolean  // 该会话是否正在生成消息
 }
 
 // ============================================
@@ -150,8 +151,6 @@ export interface CreateModelRequest {
 export enum AgentStatus {
   RUNNING = 'running',
   PAUSED = 'paused',
-  STOPPED = 'stopped',
-  DELETED = 'deleted',
   ERROR = 'error'
 }
 
@@ -258,6 +257,16 @@ export const SANDBOX_CONFIGS: Record<SandboxType, SandboxConfig> = {
 }
 
 /**
+ * Agent技能接口
+ */
+export interface AgentSkill {
+  name: string
+  description: string
+  filePath: string
+  source: string
+}
+
+/**
  * Agent接口
  */
 export interface Agent {
@@ -272,6 +281,8 @@ export interface Agent {
   idleTimeoutSeconds: number
   hasScheduledTasks: boolean
   defaultSessionId?: string | null
+  processPort?: number | null
+  skills?: AgentSkill[]
   createdAt: string
   updatedAt: string
 }
@@ -401,6 +412,55 @@ export interface RequestConfig {
  */
 export interface Command {
   execute(): Promise<any>
+}
+
+// ============================================
+// CVE 相关类型
+// ============================================
+
+export interface CveLabel {
+  name: string
+  color: string
+}
+
+export interface CveUser {
+  login: string
+  avatar_url: string
+}
+
+export interface CveIssue {
+  id: number
+  number: number
+  title: string
+  body: string
+  state: string
+  html_url: string
+  created_at: string
+  updated_at: string
+  labels: CveLabel[]
+  user: CveUser
+}
+
+export interface CveConfig {
+  signer_name: string
+  signer_email: string
+  clone_dir: string
+  branches: string
+  fork_repo_url: string
+  repo_url: string
+  issue_url: string
+}
+
+export interface CveIssueListResponse {
+  items: CveIssue[]
+}
+
+export interface CveConfigResponse extends CveConfig {
+  has_gitcode_token: boolean
+}
+
+export interface CveConfigUpdateResponse {
+  ok: boolean
 }
 
 // ============================================

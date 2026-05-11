@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Code, FileText, Terminal, Globe, GitBranch, Figma, Bot, Settings, LayoutGrid, ChevronRight, ChevronLeft, Plus } from 'lucide-react'
+import { X, Code, FileText, Terminal, Globe, GitBranch, Figma, Bot, Settings, LayoutGrid, ChevronRight, ChevronLeft, Plus, Bug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
 import { SettingsPage } from '@/components/settings'
 import { AgentPage } from './agent-page'
+import { CvePage } from './cve-page'
 
 export function RightPanel() {
   const { isRightPanelOpen, toggleRightPanel, rightPanelTabs, activeRightPanelTab, addRightPanelTab, removeRightPanelTab, setActiveRightPanelTab } = useChatStore()
@@ -23,6 +24,7 @@ export function RightPanel() {
     { id: 'code-change', name: '代码变更', icon: GitBranch, color: 'text-purple-500' },
     { id: 'agent', name: '智能体', icon: Bot, color: 'text-cyan-500' },
     { id: 'mcp', name: 'MCP', icon: Terminal, color: 'text-orange-500' },
+    { id: 'cve', name: 'CVE', icon: Bug, color: 'text-rose-500' },
   ]
 
   const handleToolClick = (tool: { id: string; name: string; icon: React.ElementType; color: string }) => {
@@ -70,7 +72,7 @@ export function RightPanel() {
       
 
       {/* Tabs */}
-      <div className="border-b border-sidebar-border px-4 py-2 flex items-center gap-2 overflow-x-auto">
+      <div className="border-b border-sidebar-border px-4 py-2 flex items-center gap-2 overflow-x-auto flex-shrink-0 min-h-[44px]">
         <div className="flex items-center gap-2">
           {rightPanelTabs.map((tab) => {
             const tool = tools.find(t => t.id === tab.id);
@@ -135,6 +137,8 @@ export function RightPanel() {
             <SettingsPage />
           ) : activeRightPanelTab === 'agent' ? (
             <AgentPage />
+          ) : activeRightPanelTab === 'cve' ? (
+            <CvePage />
           ) : (
             <div className="p-4">
               <div className="h-full flex items-center justify-center">

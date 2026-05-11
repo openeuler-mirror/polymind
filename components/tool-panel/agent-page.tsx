@@ -1,12 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Filter, RefreshCw, Plus, Trash2, Play, Pause, MoreVertical } from 'lucide-react'
+import { Search, Filter, RefreshCw, Plus, Trash2, Play, Pause, MoreVertical, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { agentService } from '@/services/agent-service'
 import { Agent, AgentStatus } from '@/lib/types'
@@ -24,6 +33,8 @@ export function AgentPage() {
     const storedState = localStorage.getItem('agentIsCreating')
     return storedState ? JSON.parse(storedState) : false
   })
+  const [deleteAgentId, setDeleteAgentId] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
   const removeAgent = useChatStore(state => state.removeAgent)
 
@@ -98,11 +109,19 @@ export function AgentPage() {
           ))
         }
       } else if (action === 'delete') {
+        setIsDeleting(true)
         await agentService.deleteAgent(agentId)
         // 从本地状态中移除agent
         setAgents(prevAgents => prevAgents.filter(agent => agent.id !== agentId))
         // 从全局store中移除agent，同步到conversation-sidebar
         removeAgent(agentId)
+        toast({
+          title: '成功',
+          description: 'Agent 已删除',
+          duration: 1000
+        })
+        setDeleteAgentId(null)
+        setIsDeleting(false)
       }
     } catch (err) {
       console.error(`Failed to ${action} agent:`, err)
@@ -112,35 +131,33 @@ export function AgentPage() {
         variant: 'destructive',
         duration: 1000
       })
+      if (action === 'delete') {
+        setIsDeleting(false)
+        setDeleteAgentId(null)
+      }
     }
   }
 
   // 过滤和搜索智能体
   const filteredAgents = agents.filter(agent => {
-    // 排除已删除的智能体
-    if (agent.status === 'deleted') return false
-    
     const searchLower = searchTerm.toLowerCase()
     const matchesSearch = agent.name.toLowerCase().includes(searchLower) || 
                         (agent.description && agent.description.toLowerCase().includes(searchLower))
-    const matchesFilter = filter === 'all' || agent.status === filter
+    const matchesFilter = filter === 'all' || agent.status.toLowerCase() === filter.toLowerCase()
     return matchesSearch && matchesFilter
   })
 
   // 获取状态标签样式
   const getStatusBadgeClass = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case AgentStatus.RUNNING:
-        return 'bg-green-100 text-green-800'
+        return 'text-green-600'
       case AgentStatus.PAUSED:
-        return 'bg-yellow-100 text-yellow-800'
-      case AgentStatus.STOPPED:
-        return 'bg-gray-100 text-gray-800'
+        return 'text-amber-600'
       case AgentStatus.ERROR:
-        return 'bg-red-100 text-red-800'
-
+        return 'text-red-600'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'text-gray-600'
     }
   }
 
@@ -149,9 +166,6 @@ export function AgentPage() {
     switch (status) {
       case AgentStatus.RUNNING:
         return '运行中'
-
-      case AgentStatus.STOPPED:
-        return '已停止'
       case AgentStatus.ERROR:
         return '创建/更新失败'
       case AgentStatus.PAUSED:
@@ -203,8 +217,6 @@ export function AgentPage() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setFilter('all')}>全部状态</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFilter(AgentStatus.RUNNING)}>运行中</DropdownMenuItem>
-
-                <DropdownMenuItem onClick={() => setFilter(AgentStatus.STOPPED)}>已停止</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFilter(AgentStatus.ERROR)}>创建/更新失败</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setFilter(AgentStatus.PAUSED)}>已暂停</DropdownMenuItem>
               </DropdownMenuContent>
@@ -246,7 +258,8 @@ export function AgentPage() {
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
                     <CardTitle className="text-sm font-medium">{agent.name}</CardTitle>
-                    <Badge className={cn('text-xs', getStatusBadgeClass(agent.status))}>
+                    <Badge className={cn('text-xs pl-1.5 pr-2.5 py-1 bg-transparent border-0 shadow-none flex items-center gap-1.5', getStatusBadgeClass(agent.status))}>
+                      <span className={cn('w-1.5 h-1.5 rounded-full bg-current', agent.status.toLowerCase() === 'running' && 'animate-pulse')}></span>
                       {getStatusText(agent.status)}
                     </Badge>
                   </div>
@@ -260,7 +273,7 @@ export function AgentPage() {
                   </div>
                   <div className="flex justify-between items-center">
                     <div className="flex gap-2">
-                      {agent.status === AgentStatus.RUNNING ? (
+                      {agent.status.toLowerCase() === 'running' ? (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -283,7 +296,7 @@ export function AgentPage() {
                         variant="ghost"
                         size="sm"
                         className="text-red-500"
-                        onClick={() => handleAgentAction(agent.id, 'delete')}
+                        onClick={() => setDeleteAgentId(agent.id)}
                       >
                         <Trash2 className="h-3 w-3 mr-1" />
                         删除
@@ -309,6 +322,35 @@ export function AgentPage() {
         )}
         </div>
       </div>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteAgentId !== null} onOpenChange={(open) => !open && !isDeleting && setDeleteAgentId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除 Agent</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作将永久删除该 Agent，所有相关配置和运行数据都将丢失，无法恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>取消</AlertDialogCancel>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={isDeleting}
+              onClick={() => deleteAgentId && handleAgentAction(deleteAgentId, 'delete')}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  删除中...
+                </>
+              ) : (
+                '确认删除'
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

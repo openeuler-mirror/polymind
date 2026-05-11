@@ -209,15 +209,15 @@ const MessageItem = memo(function MessageItem({
               }
 
               return deduplicatedGroups
-            })().map((group: any, groupIndex: number) => {
-              // 调试：打印 group 对象
-              console.log('Rendering group:', group);
+            })().map((group: any, groupIndex: number, groups: any[]) => {
               if (group.type === 'thinking-group') {
+                const isLastGroup = groupIndex === groups.length - 1
+                const thinkingCompleted = !!message.content || !isLastGroup || !message.isStreaming
                 return (
                   <div key={`thinking-group-${groupIndex}`} className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm space-y-2">
                     {group.events.map((event: EventItem, index: number) => (
                       <div key={`thinking-${groupIndex}-${index}`} className="flex items-center gap-2">
-                        {message.content ? (
+                        {thinkingCompleted ? (
                           <CheckCircle2 className="h-4 w-4 text-accent" />
                         ) : (
                           <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -259,7 +259,7 @@ const MessageItem = memo(function MessageItem({
             )}
           >
             <div className="prose prose-sm dark:prose-invert max-w-none">
-              <MessageContent content={message.content} isStreaming={message.isStreaming} />
+              <MessageContent content={message.content} isStreaming={message.isStreaming} isUser={isUser} />
             </div>
           </div>
         )}
@@ -345,9 +345,11 @@ const MessageItem = memo(function MessageItem({
 function MessageContent({
   content,
   isStreaming,
+  isUser,
 }: {
   content: string
   isStreaming?: boolean
+  isUser?: boolean
 }) {
   const mermaidInitialized = useRef(false)
 
@@ -437,7 +439,7 @@ function MessageContent({
           a: ({ href, children }) => (
             <a
               href={href}
-              className="text-primary underline hover:text-primary/80"
+              className={cn(isUser ? "text-primary-foreground underline hover:text-primary-foreground/80" : "text-primary underline hover:text-primary/80")}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -745,7 +747,6 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   // 处理换行符，确保在 HTML 中正确显示
   const formatForDisplay = (text: string): string => {
     if (!text) return ''
-    // 将 \n 转换为换行，但避免重复转换
     return text.split('\\n').join('\n')
   }
 

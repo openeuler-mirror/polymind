@@ -28,12 +28,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 
 export function ConversationSidebar() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -84,55 +78,7 @@ export function ConversationSidebar() {
   const regularConversations = filteredConversations.filter((c) => !c.pinned)
 
   if (!isSidebarOpen) {
-    return (
-      <div className="flex h-full w-16 flex-col items-center border-r border-border bg-sidebar py-4">
-        <TooltipProvider delayDuration={0}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleSidebar}
-                className="mb-4"
-              >
-                <CustomIcon src="/icon.svg" size={20} className="h-5 w-5 text-primary" alt="Menu" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">展开侧边栏</TooltipContent>
-          </Tooltip>
-
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={async () => await createConversation(undefined, undefined)}
-              className="mb-2"
-              >
-                <MessageSquarePlus className="h-5 w-5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">问答</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => window.open('#APP_GENERATION_URL_PLACEHOLDER', '_blank')}
-                className="mb-2"
-              >
-                <Code2 className="h-5 w-5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">应用生成</TooltipContent>
-          </Tooltip>
-
-        </TooltipProvider>
-      </div>
-    )
+    return null
   }
 
   return (
@@ -276,13 +222,13 @@ function ConversationItem({
       )}
     >
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           {conversation.agentName && (
             <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary/80">
               {conversation.agentName}
             </span>
           )}
-          <p className="truncate text-sm font-medium flex-1">{conversation.title}</p>
+          <p className="truncate text-sm font-medium">{conversation.title}</p>
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">
           {formatDistanceToNow(conversation.updatedAt, {
@@ -297,7 +243,12 @@ function ConversationItem({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 opacity-0 group-hover:opacity-100"
+            className={cn(
+              'h-7 shrink-0',
+              'w-0 !p-0 opacity-0 overflow-hidden',
+              'group-hover:w-auto group-hover:!p-1 group-hover:opacity-100',
+              'transition-all duration-200'
+            )}
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal className="h-4 w-4" />
@@ -307,10 +258,6 @@ function ConversationItem({
           <DropdownMenuItem onClick={onTogglePin}>
             <Pin className="mr-2 h-4 w-4" />
             {conversation.pinned ? '取消固定' : '固定对话'}
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <Edit3 className="mr-2 h-4 w-4" />
-            重命名
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={onDelete}

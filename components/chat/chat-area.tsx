@@ -1,15 +1,17 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useChatStore } from '@/lib/store'
 import { MessageList } from './message-list'
-import { ChatInput } from './chat-input'
+import { ChatInput, PromptSuggestion } from './chat-input'
 import { ChatHeader } from './chat-header'
 import { WelcomeScreen } from './welcome-screen'
 import type { Message } from '@/lib/types'
+import { generateUUID } from '@/lib/utils'
 
 export function ChatArea() {
   const [isHydrated, setIsHydrated] = useState(false)
+  const [presetPrompts, setPresetPrompts] = useState<PromptSuggestion[]>([])
   const {
     conversations,
     currentConversationId,
@@ -17,6 +19,27 @@ export function ChatArea() {
     updateMessage,
     setStreaming,
   } = useChatStore()
+
+  // 添加预设提示词
+  const handleAddPresetPrompt = useCallback((prompt: PromptSuggestion) => {
+    setPresetPrompts((prev) => {
+      // 避免重复添加
+      if (prev.some((p) => p.id === prompt.id)) {
+        return prev
+      }
+      return [...prev, prompt]
+    })
+  }, [])
+
+  // 删除预设提示词
+  const handleRemovePresetPrompt = useCallback((promptId: string) => {
+    setPresetPrompts((prev) => prev.filter((p) => p.id !== promptId))
+  }, [])
+
+  // 清空所有预设提示词
+  const handleClearPresetPrompts = useCallback(() => {
+    setPresetPrompts([])
+  }, [])
 
   useEffect(() => {
     setIsHydrated(true)
@@ -39,12 +62,12 @@ export function ChatArea() {
 
     // Add user message
     const userMessage: Message = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       role: 'user',
       content,
       timestamp: new Date(),
       attachments: attachments?.map((file) => ({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: file.name,
         type: file.type.startsWith('image/') ? 'image' : 'file',
         size: file.size,
@@ -86,10 +109,10 @@ export function ChatArea() {
     }
 
     // Set streaming state
-    setStreaming(true)
+    setStreaming(currentConversationId, true)
     
     // Create a "thinking" message
-    const thinkingMessageId = crypto.randomUUID()
+    const thinkingMessageId = generateUUID()
     const thinkingMessage: Message = {
       id: thinkingMessageId,
       role: 'assistant',
@@ -113,7 +136,7 @@ export function ChatArea() {
           deleteMessage(currentConversationId, thinkingMessageId)
           
           // 创建新的助手消息
-          assistantMessageId = crypto.randomUUID()
+          assistantMessageId = generateUUID()
           assistantMessage = {
             id: assistantMessageId,
             role: 'assistant',
@@ -154,13 +177,13 @@ export function ChatArea() {
                   content: eventData.payload.text,
                   isStreaming: false
                 })
-                setStreaming(false)
+                setStreaming(currentConversationId, false)
               } else {
                 // If no text in payload, still mark as completed
                 updateMessage(currentConversationId, assistantMessageId, {
                   isStreaming: false
                 })
-                setStreaming(false)
+                setStreaming(currentConversationId, false)
               }
               break
             case 'thinking':
@@ -179,7 +202,7 @@ export function ChatArea() {
             case 'tool.call.started':
               if (eventData.payload?.tool_name) {
                 const toolCall = {
-                  id: eventData.payload.tool_call_id || crypto.randomUUID(),
+                  id: eventData.payload.tool_call_id || generateUUID(),
                   name: eventData.payload.tool_name,
                   status: 'running' as const,
                   input: eventData.payload.arguments,
@@ -277,7 +300,7 @@ export function ChatArea() {
                 }
 
                 const toolCall = {
-                  id: eventData.payload.tool_call_id || crypto.randomUUID(),
+                  id: eventData.payload.tool_call_id || generateUUID(),
                   name: eventData.payload.name,
                   status: eventData.payload.is_error ? 'error' as const : 'completed' as const,
                   input: eventData.payload.arguments,
@@ -312,7 +335,7 @@ export function ChatArea() {
             case 'client.error':
               // Handle errors
               console.error('Error event:', eventData.payload || 'No payload')
-              setStreaming(false)
+              setStreaming(currentConversationId, false)
               break
             default:
               console.log('Unknown event type:', eventData.type)
@@ -323,7 +346,7 @@ export function ChatArea() {
       console.error('Failed to send message:', error)
       // Handle error gracefully
       deleteMessage(currentConversationId, thinkingMessageId)
-      const errorMessageId = crypto.randomUUID()
+      const errorMessageId = generateUUID()
       const errorMessage: Message = {
         id: errorMessageId,
         role: 'assistant',
@@ -332,7 +355,7 @@ export function ChatArea() {
         isStreaming: false,
       }
       addMessage(currentConversationId, errorMessage)
-      setStreaming(false)
+      setStreaming(currentConversationId, false)
     }
   }
 
@@ -340,9 +363,14 @@ export function ChatArea() {
     return (
       <div className="flex h-full flex-col bg-background">
         <ChatHeader conversation={currentConversation} />
-        <WelcomeScreen onSendMessage={handleSendMessage} />
+        <WelcomeScreen onAddPrompt={handleAddPresetPrompt} />
         <div className="border-t border-border p-4">
-          <ChatInput onSend={handleSendMessage} />
+          <ChatInput
+            onSend={handleSendMessage}
+            presetPrompts={presetPrompts}
+            onRemovePresetPrompt={handleRemovePresetPrompt}
+            onClearPresetPrompts={handleClearPresetPrompts}
+          />
         </div>
       </div>
     )

@@ -52,7 +52,8 @@ next-env.d.ts
 .next/cache/
 
 # Environment variables
-.env*
+.env.local
+pnpm-lock.yaml
 
 # IDE files
 .vscode/

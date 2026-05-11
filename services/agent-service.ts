@@ -6,6 +6,7 @@ import {
   ApiResponse
 } from '@/lib/types'
 import { AgentStatus, AdapterType } from '@/lib/types'
+import { generateUUID } from '@/lib/utils'
 
 /**
  * Agent服务类 - 负责Agent的创建、管理和操作
@@ -173,6 +174,8 @@ class AgentService {
       idleTimeoutSeconds: agent.idle_timeout_seconds ?? agent.idleTimeoutSeconds ?? 300,
       hasScheduledTasks: agent.has_scheduled_tasks ?? agent.hasScheduledTasks ?? false,
       defaultSessionId: agent.default_session_id || agent.defaultSessionId,
+      processPort: agent.process_port || agent.processPort,
+      skills: agent.skills || [],
       createdAt: agent.created_at || agent.createdAt,
       updatedAt: agent.updated_at || agent.updatedAt
     }
@@ -188,7 +191,7 @@ class AgentFactory {
     // 当前主要用于类型转换和验证
     const now = new Date().toISOString()
     return {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       name: config.name,
       description: config.description,
       adapterType: config.adapterType,
@@ -198,6 +201,8 @@ class AgentFactory {
       idleTimeoutSeconds: config.idleTimeoutSeconds || 300,
       hasScheduledTasks: config.hasScheduledTasks ?? false,
       defaultSessionId: undefined,
+      processPort: undefined,
+      skills: [],
       createdAt: now,
       updatedAt: now
     }

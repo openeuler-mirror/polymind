@@ -1,0 +1,68 @@
+# 源码文件（发布的是构建产物）
+src/
+app/
+components/
+lib/
+hooks/
+utils/
+types/
+
+# 配置文件
+tsconfig.json
+tsconfig.*.json
+postcss.config.js
+tailwind.config.js
+eslint.config.js
+.prettierrc
+.prettierignore
+
+# 依赖
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# 开发工具
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 日志
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 测试
+coverage/
+.nyc_output/
+__tests__/
+*.test.*
+*.spec.*
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+*.temp
+*.zip
+*.tar*
+*.gz
+*.rar
+
+# Git文件
+.git/
+.gitignore
+.github/
+.gitlab-ci.yml
+
+# 其他
+README.zh-CN.md
+CHANGELOG.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
