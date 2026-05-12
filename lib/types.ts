@@ -476,73 +476,74 @@ export type SkillRepositorySourceType = 'git' | 'local_import'
  * 技能仓库信息
  */
 export interface SkillRepository {
-  repoId: string
-  name?: string
-  sourceType: SkillRepositorySourceType | string
-  branch?: string
-  url?: string
-  localPath?: string
+  repo_id: string
+  repo_name?: string
+  source_type: SkillRepositorySourceType | string
+  branch?: string | null
+  url?: string | null
+  local_path?: string | null
 }
 
 /**
  * 技能仓库响应
  */
 export interface SkillRepositoryResponse extends SkillRepository {
-  skillDiscoverStatus: string
-  skillNum: number
-  discoveredSkills: SkillDiscoveryItem[]
-  createdAt?: string
-  updatedAt?: string
+  skill_discover_status: string
+  skill_num: number
+  discovered_skills: SkillDiscoveryItem[]
+  created_at?: string
+  updated_at?: string
 }
 
 /**
  * 创建技能仓库请求
  */
 export interface CreateSkillRepositoryRequest {
-  sourceType: SkillRepositorySourceType | string
+  source_type: SkillRepositorySourceType | string
   url?: string
   branch?: string
-  localPath?: string
+  local_path?: string
 }
 
 /**
  * 更新技能仓库请求
  */
 export interface UpdateSkillRepositoryRequest {
+  source_type?: SkillRepositorySourceType | string
   branch?: string
-  localPath?: string
+  local_path?: string
 }
 
 /**
  * 已发现技能的来源仓库信息
  */
 export interface SkillDiscoverySourceRepository {
-  repoId: string
+  repo_id?: string
   name?: string
-  sourceType?: SkillRepositorySourceType | string
+  source_type?: SkillRepositorySourceType | string
   branch?: string | null
   url?: string | null
-  localPath?: string | null
+  local_path?: string | null
 }
 
 /**
  * 技能发现项
  */
 export interface SkillDiscoveryItem {
-  skillId: string
-  skillName: string
-  relativePath?: string
+  skill_id?: string
+  skill_name?: string
+  relative_path?: string
   metadata?: Record<string, unknown> | null
-  sourceRepo?: SkillDiscoverySourceRepository
-  skillMdUrl?: string | null
+  source_repo?: SkillDiscoverySourceRepository
+  skill_md_url?: string | null
 }
 
 /**
  * 技能仓库发现状态
  */
 export interface SkillRepositoryDiscoveryStatus {
-  repoId: string
-  repoName: string
-  discoverStatus: string
-  skillNum?: number
+  repo_id: string
+  repo_name: string
+  discover_status: string
+  skill_num?: number
 }

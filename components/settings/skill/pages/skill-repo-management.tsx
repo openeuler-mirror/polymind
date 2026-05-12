@@ -28,10 +28,10 @@ import { cn } from '@/lib/utils'
 import { skillService } from '@/services/skill-service'
 
 interface RepoFormState {
-  sourceType: SkillRepositorySourceType
+  source_type: SkillRepositorySourceType
   url: string
   branch: string
-  localPath: string
+  local_path: string
 }
 
 type RepositoryLocation = {
@@ -53,10 +53,10 @@ type RepositoryStatusDisplay =
     }
 
 const initialFormState: RepoFormState = {
-  sourceType: 'git',
+  source_type: 'git',
   url: '',
   branch: '',
-  localPath: '',
+  local_path: '',
 }
 
 export function SkillRepoManagement() {
@@ -73,14 +73,14 @@ export function SkillRepoManagement() {
   const { toast } = useToast()
 
   const discoverStatusMap = useMemo(
-    () => new Map(discoverStatuses.map((item) => [item.repoId, item])),
+    () => new Map(discoverStatuses.map((item) => [item.repo_id, item])),
     [discoverStatuses],
   )
 
   const hasDiscoveringRepo = useMemo(
     () =>
       repos.some((repo) =>
-        shouldTreatAsDiscovering(discoverStatusMap.get(repo.repoId)?.discoverStatus),
+        shouldTreatAsDiscovering(discoverStatusMap.get(repo.repo_id)?.discover_status),
       ),
     [discoverStatusMap, repos],
   )
@@ -93,12 +93,12 @@ export function SkillRepoManagement() {
 
     return repos.filter((repo) =>
       [
-        repo.sourceType,
+        repo.source_type,
         repo.url,
-        repo.localPath,
+        repo.local_path,
         repo.branch,
-        discoverStatusMap.get(repo.repoId)?.discoverStatus,
-        String(discoverStatusMap.get(repo.repoId)?.skillNum ?? ''),
+        discoverStatusMap.get(repo.repo_id)?.discover_status,
+        String(discoverStatusMap.get(repo.repo_id)?.skill_num ?? ''),
       ]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(keyword)),
@@ -175,7 +175,7 @@ export function SkillRepoManagement() {
   const openCreateDialog = (sourceType: SkillRepositorySourceType) => {
     setCreateForm({
       ...initialFormState,
-      sourceType,
+      source_type: sourceType,
     })
     setIsCreateOpen(true)
   }
@@ -186,7 +186,7 @@ export function SkillRepoManagement() {
       toast({
         title: '表单不完整',
         description:
-          createForm.sourceType === 'git'
+          createForm.source_type === 'git'
             ? '请填写仓库地址。分支可选填写。'
             : '请填写本地导入路径。',
         variant: 'destructive',
@@ -226,7 +226,7 @@ export function SkillRepoManagement() {
       toast({
         title: '没有可提交的修改',
         description:
-          editingRepo.sourceType === 'git'
+          editingRepo.source_type === 'git'
             ? '请修改分支信息后再保存。'
             : '请修改本地路径后再保存。',
       })
@@ -236,12 +236,12 @@ export function SkillRepoManagement() {
     try {
       setSubmitting(true)
       const updatedRepo = await skillService.updateRepo(
-        editingRepo.repoId,
+        editingRepo.repo_id,
         request,
         editingRepo,
       )
       setRepos((currentRepos) =>
-        currentRepos.map((repo) => (repo.repoId === updatedRepo.repoId ? updatedRepo : repo)),
+        currentRepos.map((repo) => (repo.repo_id === updatedRepo.repo_id ? updatedRepo : repo)),
       )
       setEditingRepo(null)
       toast({
@@ -266,8 +266,8 @@ export function SkillRepoManagement() {
     }
 
     try {
-      await skillService.deleteRepo(repo.repoId)
-      setRepos((currentRepos) => currentRepos.filter((item) => item.repoId !== repo.repoId))
+      await skillService.deleteRepo(repo.repo_id)
+      setRepos((currentRepos) => currentRepos.filter((item) => item.repo_id !== repo.repo_id))
       toast({
         title: '删除成功',
         description: '仓库源已移除。',
@@ -284,9 +284,9 @@ export function SkillRepoManagement() {
 
   const handleDiscoverRepo = async (repo: SkillRepository) => {
     try {
-      setUpdatingRepoId(repo.repoId)
-      setDiscoverStatuses((currentStatuses) => upsertDiscoverStatus(currentStatuses, repo.repoId))
-      await skillService.discoverRepoSkills(repo.repoId)
+      setUpdatingRepoId(repo.repo_id)
+      setDiscoverStatuses((currentStatuses) => upsertDiscoverStatus(currentStatuses, repo.repo_id))
+      await skillService.discoverRepoSkills(repo.repo_id)
       await refreshDiscoverStatuses(true)
       toast({
         title: '更新已触发',
@@ -351,20 +351,20 @@ export function SkillRepoManagement() {
           ) : (
             <div className="divide-y divide-border">
               {filteredRepos.map((repo) => {
-                const status = discoverStatusMap.get(repo.repoId)
+                const status = discoverStatusMap.get(repo.repo_id)
                 const location = getRepositoryLocation(repo)
                 const statusDisplay = getRepositoryStatusDisplay(status)
-                const isUpdating = updatingRepoId === repo.repoId
+                const isUpdating = updatingRepoId === repo.repo_id
 
                 return (
                   <div
-                    key={repo.repoId}
+                    key={repo.repo_id}
                     className="flex flex-col gap-3 px-6 py-4 lg:flex-row lg:items-center lg:justify-between"
                   >
                     <div className="min-w-0 flex-1 space-y-1.5">
                       <InlineInfo icon={location.icon} label={location.label} value={location.value} />
                       <CompactMetaRow>
-                        {repo.sourceType === 'git' ? (
+                        {repo.source_type === 'git' ? (
                           <CompactMeta label="分支" value={repo.branch || '默认分支'} />
                         ) : null}
                         {statusDisplay.mode === 'discovering' ? (
@@ -409,15 +409,15 @@ export function SkillRepoManagement() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{createForm.sourceType === 'git' ? '新增 Git 源' : '新增本地源'}</DialogTitle>
+            <DialogTitle>{createForm.source_type === 'git' ? '新增 Git 源' : '新增本地源'}</DialogTitle>
             <DialogDescription>
-              {createForm.sourceType === 'git'
+              {createForm.source_type === 'git'
                 ? '请填写 Git 仓库地址；如有需要，可补充分支信息。'
                 : '请填写本地目录或压缩包路径。'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            {createForm.sourceType === 'git' ? (
+            {createForm.source_type === 'git' ? (
               <>
                 <FormField label="仓库地址" description="请输入可访问的 Git 仓库地址。">
                   <Input
@@ -441,9 +441,9 @@ export function SkillRepoManagement() {
             ) : (
               <FormField label="本地路径" description="支持填写本地目录或压缩包路径。">
                 <Input
-                  value={createForm.localPath}
+                  value={createForm.local_path}
                   onChange={(event) =>
-                    setCreateForm((currentForm) => ({ ...currentForm, localPath: event.target.value }))
+                    setCreateForm((currentForm) => ({ ...currentForm, local_path: event.target.value }))
                   }
                   placeholder="例如：/root/skills/repo 或 /tmp/skills.zip"
                 />
@@ -462,7 +462,7 @@ export function SkillRepoManagement() {
               取消
             </Button>
             <Button onClick={() => void handleCreate()} disabled={submitting}>
-              {submitting ? '提交中...' : createForm.sourceType === 'git' ? '创建 Git 源' : '创建本地源'}
+              {submitting ? '提交中...' : createForm.source_type === 'git' ? '创建 Git 源' : '创建本地源'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -477,9 +477,9 @@ export function SkillRepoManagement() {
           {editingRepo ? (
             <div className="space-y-4 pt-2">
               <FormField label="来源类型">
-                <Input value={editingRepo.sourceType === 'git' ? 'Git' : '本地导入'} disabled />
+                <Input value={editingRepo.source_type === 'git' ? 'Git' : '本地导入'} disabled />
               </FormField>
-              {editingRepo.sourceType === 'git' ? (
+              {editingRepo.source_type === 'git' ? (
                 <>
                   <FormField label="仓库地址" description="当前来源地址仅用于展示。">
                     <Input value={editingRepo.url || ''} disabled />
@@ -497,9 +497,9 @@ export function SkillRepoManagement() {
               ) : (
                 <FormField label="本地路径" description="请填写新的本地目录或压缩包路径。">
                   <Input
-                    value={editForm.localPath}
+                    value={editForm.local_path}
                     onChange={(event) =>
-                      setEditForm((currentForm) => ({ ...currentForm, localPath: event.target.value }))
+                      setEditForm((currentForm) => ({ ...currentForm, local_path: event.target.value }))
                     }
                     placeholder="请输入新的本地路径"
                   />
@@ -523,51 +523,51 @@ export function SkillRepoManagement() {
 
 function buildFormStateFromRepository(repo: SkillRepository): RepoFormState {
   return {
-    sourceType: repo.sourceType === 'local_import' ? 'local_import' : 'git',
+    source_type: repo.source_type === 'local_import' ? 'local_import' : 'git',
     url: repo.url || '',
     branch: repo.branch || '',
-    localPath: repo.localPath || '',
+    local_path: repo.local_path || '',
   }
 }
 
 function getRepositoryLocation(repo: SkillRepository): RepositoryLocation {
-  if (repo.sourceType === 'git') {
+  if (repo.source_type === 'git') {
     return {
       label: 'Git 地址',
-      value: repo.url,
+      value: repo.url ?? undefined,
     }
   }
 
   return {
     icon: FolderOpen,
     label: '本地路径',
-    value: repo.localPath,
+    value: repo.local_path ?? undefined,
   }
 }
 
 function getRepositoryStatusDisplay(
   status?: SkillRepositoryDiscoveryStatus,
 ): RepositoryStatusDisplay {
-  if (shouldTreatAsDiscovering(status?.discoverStatus)) {
+  if (shouldTreatAsDiscovering(status?.discover_status)) {
     return {
       mode: 'discovering',
       label: '扫描状态',
-      status: status?.discoverStatus,
+      status: status?.discover_status,
     }
   }
 
-  if (status?.discoverStatus === 'done') {
+  if (status?.discover_status === 'done') {
     return {
       mode: 'meta',
       label: '识别技能',
-      value: typeof status.skillNum === 'number' ? `${status.skillNum} 个` : '暂无数据',
+      value: typeof status.skill_num === 'number' ? `${status.skill_num} 个` : '暂无数据',
     }
   }
 
   return {
     mode: 'meta',
     label: '扫描状态',
-    value: formatDiscoverStatusText(status?.discoverStatus),
+    value: formatDiscoverStatusText(status?.discover_status),
   }
 }
 
@@ -684,24 +684,24 @@ function upsertDiscoverStatus(
   repoId: string,
 ): SkillRepositoryDiscoveryStatus[] {
   const nextStatuses = currentStatuses.map((item) =>
-    item.repoId === repoId
+    item.repo_id === repoId
       ? {
           ...item,
-          discoverStatus: 'discovering',
+          discover_status: 'discovering',
         }
       : item,
   )
 
-  if (nextStatuses.some((item) => item.repoId === repoId)) {
+  if (nextStatuses.some((item) => item.repo_id === repoId)) {
     return nextStatuses
   }
 
   return [
     ...nextStatuses,
     {
-      repoId,
-      repoName: '',
-      discoverStatus: 'discovering',
+      repo_id: repoId,
+      repo_name: '',
+      discover_status: 'discovering',
     },
   ]
 }
@@ -751,26 +751,26 @@ function FormField({
 }
 
 function buildCreatePayload(form: RepoFormState): CreateSkillRepositoryRequest | null {
-  if (form.sourceType === 'git') {
+  if (form.source_type === 'git') {
     if (!form.url.trim()) {
       return null
     }
 
     const nextBranch = form.branch.trim()
     return {
-      sourceType: 'git',
+      source_type: 'git',
       url: form.url.trim(),
       ...(nextBranch ? { branch: nextBranch } : {}),
     }
   }
 
-  if (!form.localPath.trim()) {
+  if (!form.local_path.trim()) {
     return null
   }
 
   return {
-    sourceType: 'local_import',
-    localPath: form.localPath.trim(),
+    source_type: 'local_import',
+    local_path: form.local_path.trim(),
   }
 }
 
@@ -778,7 +778,7 @@ function buildUpdatePayload(
   repo: SkillRepository,
   form: RepoFormState,
 ): UpdateSkillRepositoryRequest | null {
-  if (repo.sourceType === 'git') {
+  if (repo.source_type === 'git') {
     const nextBranch = form.branch.trim()
     if (!nextBranch || nextBranch === (repo.branch || '')) {
       return null
@@ -786,10 +786,10 @@ function buildUpdatePayload(
     return { branch: nextBranch }
   }
 
-  const nextLocalPath = form.localPath.trim()
-  if (!nextLocalPath || nextLocalPath === (repo.localPath || '')) {
+  const nextLocalPath = form.local_path.trim()
+  if (!nextLocalPath || nextLocalPath === (repo.local_path || '')) {
     return null
   }
 
-  return { localPath: nextLocalPath }
+  return { local_path: nextLocalPath }
 }

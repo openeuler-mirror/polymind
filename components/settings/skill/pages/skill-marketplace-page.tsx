@@ -5,22 +5,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { BookOpen, ExternalLink, FolderOpen, Link2, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { SkillDiscoveryItem, SkillRepositoryDiscoveryStatus } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
@@ -53,7 +41,7 @@ export function SkillMarketplacePage() {
       const matchesSource = selectedSource === 'all' || sourceValue === selectedSource
       const matchesSearch =
         !keyword ||
-        [sourceValue, skill.skillMdUrl, skill.skillName, skill.relativePath]
+        [sourceValue, skill.skill_md_url, skill.skill_name, skill.relative_path]
           .filter(Boolean)
           .some((value) => value!.toLowerCase().includes(keyword))
 
@@ -84,7 +72,7 @@ export function SkillMarketplacePage() {
   }
 
   const previewOpenHref = previewSkill ? buildSkillOpenHref(previewSkill) : undefined
-  const isPreviewGit = previewSkill?.sourceRepo?.sourceType === 'git'
+  const isPreviewGit = previewSkill?.source_repo?.source_type === 'git'
 
   return (
     <div className="space-y-6">
@@ -145,7 +133,7 @@ export function SkillMarketplacePage() {
                   <div className="mb-3 flex items-start gap-2">
                     <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                     <p className="text-sm font-semibold leading-5 break-all">
-                      {extractSkillName(skill.skillName)}
+                      {extractSkillName(skill.skill_name)}
                     </p>
                   </div>
 
@@ -177,15 +165,15 @@ export function SkillMarketplacePage() {
             <div className="space-y-3 pr-8">
               <div className="space-y-2">
                 <DialogTitle className="text-base">
-                  {previewSkill ? extractSkillName(previewSkill.skillName) : '技能预览'}
+                  {previewSkill ? extractSkillName(previewSkill.skill_name) : '技能预览'}
                 </DialogTitle>
                 {previewSkill ? <SkillSourceInfo skill={previewSkill} /> : null}
               </div>
-              {isPreviewGit && previewSkill?.skillMdUrl && previewOpenHref ? (
+              {isPreviewGit && previewSkill?.skill_md_url && previewOpenHref ? (
                 <InfoLine
                   icon={ExternalLink}
                   label="skill 路径"
-                  value={previewSkill.skillMdUrl}
+                  value={previewSkill.skill_md_url}
                   href={previewOpenHref}
                   singleLine
                   valueClassName="text-blue-600/90"
@@ -194,7 +182,7 @@ export function SkillMarketplacePage() {
                 <InfoLine
                   icon={FolderOpen}
                   label="skill 路径"
-                  value={previewSkill?.relativePath || '-'}
+                  value={previewSkill?.relative_path || '-'}
                   singleLine
                 />
               )}
@@ -229,7 +217,7 @@ function SkillSourceInfo({ skill }: { skill: SkillDiscoveryItem }) {
   return (
     <div className="space-y-1 text-sm">
       <InfoLine
-        icon={skill.sourceRepo?.sourceType === 'git' ? Link2 : FolderOpen}
+        icon={skill.source_repo?.source_type === 'git' ? Link2 : FolderOpen}
         label="来源"
         value={getSkillSourceValue(skill) || '-'}
       />
@@ -288,7 +276,10 @@ function EmptyState({ text }: { text: string }) {
   return <div className="py-10 text-center text-sm text-muted-foreground">{text}</div>
 }
 
-function extractSkillName(value: string) {
+function extractSkillName(value?: string) {
+  if (!value) {
+    return '未命名技能'
+  }
   const parts = value.split('/')
   return parts[parts.length - 1] || value
 }
@@ -299,13 +290,16 @@ function extractSkillDescription(metadata?: Record<string, unknown> | null) {
 }
 
 function getSkillKey(skill: SkillDiscoveryItem) {
-  return skill.skillId || `${skill.sourceRepo?.repoId || 'repo'}-${skill.relativePath || skill.skillName || 'skill'}`
+  return (
+    skill.skill_id ||
+    `${skill.source_repo?.repo_id || 'repo'}-${skill.relative_path || skill.skill_name || 'skill'}`
+  )
 }
 
 function getSkillSourceValue(skill: SkillDiscoveryItem) {
-  return skill.sourceRepo?.sourceType === 'git'
-    ? skill.sourceRepo?.url || ''
-    : skill.sourceRepo?.localPath || ''
+  return skill.source_repo?.source_type === 'git'
+    ? skill.source_repo?.url || ''
+    : skill.source_repo?.local_path || ''
 }
 
 function MetadataViewer({ metadata }: { metadata?: Record<string, unknown> | null }) {
@@ -402,16 +396,16 @@ function flattenMetadataEntries(
 }
 
 function buildSkillOpenHref(skill: SkillDiscoveryItem) {
-  const rawMdUrl = skill.skillMdUrl?.trim()
+  const rawMdUrl = skill.skill_md_url?.trim()
   if (!rawMdUrl) {
     return undefined
   }
 
-  if (skill.sourceRepo?.sourceType === 'git') {
+  if (skill.source_repo?.source_type === 'git') {
     return rawMdUrl
   }
 
-  const folderHref = buildLocalFolderHref(rawMdUrl, skill.sourceRepo?.localPath)
+  const folderHref = buildLocalFolderHref(rawMdUrl, skill.source_repo?.local_path)
   return folderHref || rawMdUrl
 }
 
