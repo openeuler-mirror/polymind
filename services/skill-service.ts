@@ -2,10 +2,10 @@ import { httpClient } from '@/lib/http-client'
 import {
   CreateSkillRepositoryRequest,
   SkillRepository,
+  SkillRepositoryRequest,
   SkillRepositoryDiscoveryStatus,
   SkillRepositoryResponse,
   SkillDiscoveryItem,
-  UpdateSkillRepositoryRequest,
 } from '@/lib/types'
 
 function toSkillRepositoryDiscoveryStatus(
@@ -25,13 +25,13 @@ class SkillService {
     return Array.isArray(response) ? response : []
   }
 
-  public async createRepo(request: CreateSkillRepositoryRequest): Promise<SkillRepository> {
+  public async createRepo(request: SkillRepositoryRequest): Promise<SkillRepository> {
     return httpClient.post<SkillRepository>('/api/v1/skills/repos', request)
   }
 
   public async updateRepo(
     repoId: string,
-    request: UpdateSkillRepositoryRequest,
+    request: SkillRepositoryRequest,
     fallbackRepo?: Partial<SkillRepository>,
   ): Promise<SkillRepository> {
     const response = await httpClient.patch<SkillRepository>(

@@ -496,21 +496,12 @@ export interface SkillRepositoryResponse extends SkillRepository {
 }
 
 /**
- * 创建技能仓库请求
+ * 技能仓库请求（创建/更新）
  */
-export interface CreateSkillRepositoryRequest {
-  source_type: SkillRepositorySourceType | string
-  url?: string
-  branch?: string
-  local_path?: string
-}
-
-/**
- * 更新技能仓库请求
- */
-export interface UpdateSkillRepositoryRequest {
+export interface SkillRepositoryRequest {
   source_type?: SkillRepositorySourceType | string
   branch?: string
+  url?: string
   local_path?: string
 }
 

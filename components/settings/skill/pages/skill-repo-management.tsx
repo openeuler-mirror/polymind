@@ -18,11 +18,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import {
-  CreateSkillRepositoryRequest,
   SkillRepository,
+  SkillRepositoryRequest,
   SkillRepositoryDiscoveryStatus,
   SkillRepositorySourceType,
-  UpdateSkillRepositoryRequest,
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { skillService } from '@/services/skill-service'
@@ -750,7 +749,7 @@ function FormField({
   )
 }
 
-function buildCreatePayload(form: RepoFormState): CreateSkillRepositoryRequest | null {
+function buildCreatePayload(form: RepoFormState): SkillRepositoryRequest | null {
   if (form.source_type === 'git') {
     if (!form.url.trim()) {
       return null
@@ -777,7 +776,7 @@ function buildCreatePayload(form: RepoFormState): CreateSkillRepositoryRequest |
 function buildUpdatePayload(
   repo: SkillRepository,
   form: RepoFormState,
-): UpdateSkillRepositoryRequest | null {
+): SkillRepositoryRequest | null {
   if (repo.source_type === 'git') {
     const nextBranch = form.branch.trim()
     if (!nextBranch || nextBranch === (repo.branch || '')) {
