@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast'
 import { SkillDiscoveryItem, SkillRepositoryDiscoveryStatus } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
 
-export function SkillMarketplacePage() {
+export function SkillMarketplace() {
   const [skills, setSkills] = useState<SkillDiscoveryItem[]>([])
   const [statusItems, setStatusItems] = useState<SkillRepositoryDiscoveryStatus[]>([])
   const [loading, setLoading] = useState(true)
