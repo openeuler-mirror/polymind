@@ -318,7 +318,7 @@ export function SkillRepoManagement() {
         <CreateSourceCard
           title="新增本地源"
           description="添加本地目录或压缩包路径，作为技能来源。"
-          onClick={() => openCreateDialog('local_import')}
+          onClick={() => openCreateDialog('local')}
         />
       </div>
 
@@ -522,7 +522,7 @@ export function SkillRepoManagement() {
 
 function buildFormStateFromRepository(repo: SkillRepository): RepoFormState {
   return {
-    source_type: repo.source_type === 'local_import' ? 'local_import' : 'git',
+    source_type: repo.source_type === 'local' ? 'local' : 'git',
     url: repo.url || '',
     branch: repo.branch || '',
     local_path: repo.local_path || '',
@@ -768,7 +768,7 @@ function buildCreatePayload(form: RepoFormState): SkillRepositoryRequest | null 
   }
 
   return {
-    source_type: 'local_import',
+    source_type: 'local',
     local_path: form.local_path.trim(),
   }
 }
