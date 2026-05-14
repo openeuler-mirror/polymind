@@ -17,6 +17,7 @@ export function ChatArea() {
     currentConversationId,
     addMessage,
     updateMessage,
+    deleteMessage,
     setStreaming,
   } = useChatStore()
 
@@ -75,11 +76,17 @@ export function ChatArea() {
     }
     addMessage(currentConversationId, userMessage)
 
+    await streamResponse(content)
+  }
+
+  const streamResponse = useCallback(async (content: string) => {
+    if (!currentConversationId) return
+
     // Get current agent and session
-    const { currentAgentId, activeSessions, sendMessageToAgent, createNewSession, initializeAgent, deleteMessage } = useChatStore.getState()
-    
+    const { currentAgentId, activeSessions, sendMessageToAgent, createNewSession, initializeAgent } = useChatStore.getState()
+
     let agentId = currentAgentId
-    
+
     // If no agent selected, create a default agent
     if (!agentId) {
       try {
@@ -110,7 +117,7 @@ export function ChatArea() {
 
     // Set streaming state
     setStreaming(currentConversationId, true)
-    
+
     // Create a "thinking" message
     const thinkingMessageId = generateUUID()
     const thinkingMessage: Message = {
@@ -126,7 +133,7 @@ export function ChatArea() {
       // 创建助手消息ID，用于后续更新
       let assistantMessageId: string | null = null
       let assistantMessage: Message | null = null
-      
+
       // 发送消息到 agent，使用实时回调处理流式事件
       await sendMessageToAgent(agentId, content, (eventData) => {
         
@@ -357,7 +364,18 @@ export function ChatArea() {
       addMessage(currentConversationId, errorMessage)
       setStreaming(currentConversationId, false)
     }
-  }
+  }, [currentConversationId, addMessage, updateMessage, deleteMessage, setStreaming])
+
+  const handleRegenerate = useCallback(async (assistantMessageId: string) => {
+    if (!currentConversationId) return
+
+    // 删除当前 assistant 消息
+    deleteMessage(currentConversationId, assistantMessageId)
+
+    // 用系统提示重新发送（不创建新用户消息，对用户不可见）
+    const regenerateContent = '/regenerate'
+    await streamResponse(regenerateContent)
+  }, [currentConversationId, deleteMessage, streamResponse])
 
   if (!isHydrated || messages.length === 0) {
     return (
@@ -380,7 +398,7 @@ export function ChatArea() {
     <div className="flex h-full flex-col bg-background">
       <ChatHeader conversation={currentConversation} />
       <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin">
-        <MessageList messages={messages} />
+        <MessageList messages={messages} onRegenerate={handleRegenerate} />
       </div>
       <div className="border-t border-border p-4">
         <ChatInput onSend={handleSendMessage} />

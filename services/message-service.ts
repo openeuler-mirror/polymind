@@ -125,7 +125,7 @@ class SendMessageCommand implements Command {
           }
           
           // 继续处理流
-          processStream()
+          await processStream()
         }
         
         processStream().catch(error => {

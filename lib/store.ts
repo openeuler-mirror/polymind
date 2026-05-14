@@ -442,6 +442,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   ? {
                       ...message,
                       isStreaming: false,
+                      stopped: true,
                       toolCalls: message.toolCalls?.map((toolCall) =>
                         toolCall.status === 'running'
                           ? { ...toolCall, status: 'error' as const, error: toolCall.error || '已停止生成' }
