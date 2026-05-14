@@ -59,10 +59,9 @@ const initialFormState: RepoFormState = {
 
 export function SkillRepoManagement() {
   const [repos, setRepos] = useState<SkillRepositoryResponse[]>([])
-  const [discoverStatuses, setDiscoverStatuses] = useState<SkillRepositoryResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [updatingRepoId, setUpdatingRepoId] = useState<string | null>(null)
+  const [updatingRepoIds, setUpdatingRepoIds] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingRepo, setEditingRepo] = useState<SkillRepositoryResponse | null>(null)
@@ -70,17 +69,9 @@ export function SkillRepoManagement() {
   const [editForm, setEditForm] = useState<RepoFormState>(initialFormState)
   const { toast } = useToast()
 
-  const discoverStatusMap = useMemo(
-    () => new Map(discoverStatuses.map((item) => [item.repo_id, item])),
-    [discoverStatuses],
-  )
-
   const hasDiscoveringRepo = useMemo(
-    () =>
-      repos.some((repo) =>
-        shouldTreatAsDiscovering(discoverStatusMap.get(repo.repo_id)?.discover_status),
-      ),
-    [discoverStatusMap, repos],
+    () => repos.some((repo) => isInProgressStatus(repo.skill_discover_status)),
+    [repos],
   )
 
   const filteredRepos = useMemo(() => {
@@ -95,13 +86,13 @@ export function SkillRepoManagement() {
         repo.url,
         repo.local_path,
         repo.branch,
-        discoverStatusMap.get(repo.repo_id)?.discover_status,
-        String(discoverStatusMap.get(repo.repo_id)?.skill_num ?? ''),
+        repo.skill_discover_status,
+        String(repo.skill_num ?? ''),
       ]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(keyword)),
     )
-  }, [discoverStatusMap, repos, searchTerm])
+  }, [repos, searchTerm])
 
   useEffect(() => {
     void fetchRepos()
@@ -134,7 +125,6 @@ export function SkillRepoManagement() {
       setLoading(true)
       const repositories = await skillService.listRepositoryResponses()
       setRepos(repositories)
-      setDiscoverStatuses(repositories)
     } catch (error) {
       console.error('Failed to fetch skill repos:', error)
       toast({
@@ -150,9 +140,7 @@ export function SkillRepoManagement() {
   const refreshDiscoverStatuses = async (silent = false) => {
     try {
       const repositories = await skillService.listRepositoryResponses()
-      const statuses = skillService.getDiscoverStatusesFromRepositories(repositories)
-      setDiscoverStatuses(statuses)
-      return statuses
+      setRepos(repositories)
     } catch (error) {
       console.error('Failed to refresh discover statuses:', error)
       if (!silent) {
@@ -162,7 +150,6 @@ export function SkillRepoManagement() {
           variant: 'destructive',
         })
       }
-      throw error
     }
   }
 
@@ -282,8 +269,8 @@ export function SkillRepoManagement() {
 
   const handleDiscoverRepo = async (repo: SkillRepositoryResponse) => {
     try {
-      setUpdatingRepoId(repo.repo_id)
-      setDiscoverStatuses((currentStatuses) => upsertDiscoverStatus(currentStatuses, repo.repo_id))
+      setUpdatingRepoIds((currentIds) => new Set(currentIds).add(repo.repo_id))
+      setRepos((currentRepos) => upsertDiscoverStatus(currentRepos, repo))
       await skillService.discoverRepoSkills(repo.repo_id)
       await refreshDiscoverStatuses(true)
       toast({
@@ -298,7 +285,11 @@ export function SkillRepoManagement() {
         variant: 'destructive',
       })
     } finally {
-      setUpdatingRepoId(null)
+      setUpdatingRepoIds((currentIds) => {
+        const nextIds = new Set(currentIds)
+        nextIds.delete(repo.repo_id)
+        return nextIds
+      })
     }
   }
 
@@ -349,10 +340,9 @@ export function SkillRepoManagement() {
           ) : (
             <div className="divide-y divide-border">
               {filteredRepos.map((repo) => {
-                const status = discoverStatusMap.get(repo.repo_id)
                 const location = getRepositoryLocation(repo)
-                const statusDisplay = getRepositoryStatusDisplay(status)
-                const isUpdating = updatingRepoId === repo.repo_id
+                const statusDisplay = getRepositoryStatusDisplay(repo)
+                const isUpdating = updatingRepoIds.has(repo.repo_id)
 
                 return (
                   <div
@@ -546,15 +536,15 @@ function getRepositoryLocation(repo: SkillRepositoryResponse): RepositoryLocatio
 function getRepositoryStatusDisplay(
   status?: SkillRepositoryResponse,
 ): RepositoryStatusDisplay {
-  if (shouldTreatAsDiscovering(status?.discover_status)) {
+  if (isInProgressStatus(status?.skill_discover_status)) {
     return {
       mode: 'discovering',
       label: '扫描状态',
-      status: status?.discover_status,
+      status: status?.skill_discover_status,
     }
   }
 
-  if (status?.discover_status === 'done') {
+  if (status?.skill_discover_status === 'done') {
     return {
       mode: 'meta',
       label: '识别技能',
@@ -565,7 +555,7 @@ function getRepositoryStatusDisplay(
   return {
     mode: 'meta',
     label: '扫描状态',
-    value: formatDiscoverStatusText(status?.discover_status),
+    value: formatDiscoverStatusText(status?.skill_discover_status),
   }
 }
 
@@ -632,49 +622,61 @@ function CompactStatus({
 }
 
 function DiscoverStatusBadge({ status }: { status?: string }) {
-  const normalizedStatus = status ?? ''
-  const label = formatDiscoverStatusText(normalizedStatus)
-
-  const className =
-    normalizedStatus === 'done'
-      ? 'border-green-200 bg-green-50 text-green-700'
-      : !normalizedStatus || normalizedStatus === 'running' || normalizedStatus === 'discovering'
-        ? 'border-blue-200 bg-blue-50 text-blue-700'
-        : 'border-border bg-muted text-muted-foreground'
+  const statusMeta = getDiscoverStatusMeta(status)
 
   return (
-    <Badge variant="outline" className={cn('h-5 px-1.5 text-[11px] font-normal', className)}>
-      {label}
+    <Badge variant="outline" className={cn('h-5 px-1.5 text-[11px] font-normal', statusMeta.className)}>
+      {statusMeta.label}
     </Badge>
   )
 }
 
 function formatDiscoverStatusText(status?: string) {
-  if (!status) {
-    return '发现中'
-  }
+  return getDiscoverStatusMeta(status).label
+}
 
-  if (status === 'unknown') {
-    return '暂无数据'
-  }
+function isInProgressStatus(status?: string) {
+  return getDiscoverStatusMeta(status).inProgress
+}
 
-  if (status === 'done') {
-    return '已完成'
+function getDiscoverStatusMeta(status?: string) {
+  if (status === 'init') {
+    return {
+      label: '初始化中',
+      className: 'border-blue-200 bg-blue-50 text-blue-700',
+      inProgress: true,
+    }
   }
 
   if (status === 'discovering') {
-    return '发现中'
+    return {
+      label: '发现中',
+      className: 'border-blue-200 bg-blue-50 text-blue-700',
+      inProgress: true,
+    }
+  }
+
+  if (status === 'done') {
+    return {
+      label: '已完成',
+      className: 'border-green-200 bg-green-50 text-green-700',
+      inProgress: false,
+    }
   }
 
   if (status === 'failed') {
-    return '失败'
+    return {
+      label: '失败',
+      className: 'border-red-200 bg-red-50 text-red-700',
+      inProgress: false,
+    }
   }
 
-  return status
-}
-
-function shouldTreatAsDiscovering(status?: string) {
-  return !status || status === 'discovering'
+  return {
+    label: '暂无数据',
+    className: 'border-border bg-muted text-muted-foreground',
+    inProgress: false,
+  }
 }
 
 function upsertDiscoverStatus(
@@ -685,7 +687,7 @@ function upsertDiscoverStatus(
     item.repo_id === repo.repo_id
       ? {
           ...item,
-          discover_status: 'discovering',
+          skill_discover_status: 'discovering',
         }
       : item,
   )
@@ -698,6 +700,7 @@ function upsertDiscoverStatus(
     ...nextStatuses,
     {
       ...repo,
+      skill_discover_status: 'discovering',
     },
   ]
 }
@@ -776,7 +779,7 @@ function buildUpdatePayload(
 ): SkillRepositoryRequest | null {
   if (repo.source_type === 'git') {
     const nextBranch = form.branch.trim()
-    if (!nextBranch || nextBranch === (repo.branch || '')) {
+    if (nextBranch === (repo.branch || '')) {
       return null
     }
     return { branch: nextBranch }
