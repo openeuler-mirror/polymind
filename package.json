@@ -30,6 +30,7 @@
     "build": "next build",
     "start": "bash scripts/load-env.sh next start",
     "lint": "eslint .",
+    "lint-staged": "node scripts/run-lint-staged.js",
     "test": "jest",
     "prepublishOnly": "pnpm build",
     "postinstall": "node scripts/postinstall.js"

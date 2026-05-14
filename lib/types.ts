@@ -462,3 +462,79 @@ export interface CveConfigResponse extends CveConfig {
 export interface CveConfigUpdateResponse {
   ok: boolean
 }
+
+// ============================================
+// Skills Repo相关类型
+// ============================================
+
+/**
+ * 技能仓库来源类型
+ */
+export type SkillRepositorySourceType = 'git' | 'local_import'
+
+/**
+ * 技能仓库信息
+ */
+export interface SkillRepository {
+  repo_id: string
+  repo_name?: string
+  source_type: SkillRepositorySourceType | string
+  branch?: string | null
+  url?: string | null
+  local_path?: string | null
+}
+
+/**
+ * 技能仓库响应
+ */
+export interface SkillRepositoryResponse extends SkillRepository {
+  skill_discover_status: string
+  skill_num: number
+  discovered_skills: SkillDiscoveryItem[]
+  created_at?: string
+  updated_at?: string
+}
+
+/**
+ * 技能仓库请求（创建/更新）
+ */
+export interface SkillRepositoryRequest {
+  source_type?: SkillRepositorySourceType | string
+  branch?: string
+  url?: string
+  local_path?: string
+}
+
+/**
+ * 已发现技能的来源仓库信息
+ */
+export interface SkillDiscoverySourceRepository {
+  repo_id?: string
+  name?: string
+  source_type?: SkillRepositorySourceType | string
+  branch?: string | null
+  url?: string | null
+  local_path?: string | null
+}
+
+/**
+ * 技能发现项
+ */
+export interface SkillDiscoveryItem {
+  skill_id?: string
+  skill_name?: string
+  relative_path?: string
+  metadata?: Record<string, unknown> | null
+  source_repo?: SkillDiscoverySourceRepository
+  skill_md_url?: string | null
+}
+
+/**
+ * 技能仓库发现状态
+ */
+export interface SkillRepositoryDiscoveryStatus {
+  repo_id: string
+  repo_name: string
+  discover_status: string
+  skill_num?: number
+}
