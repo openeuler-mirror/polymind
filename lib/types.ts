@@ -509,24 +509,4 @@ export interface SkillResponse {
   skill_md_url?: string | null
 }
 
-/**
- * 技能发现项
- */
-export interface SkillDiscoveryItem {
-  skill_id?: string
-  skill_name?: string
-  relative_path?: string
-  metadata?: Record<string, unknown> | null
-  source_repo?: SkillDiscoverySourceRepository
-  skill_md_url?: string | null
-}
 
-/**
- * 技能仓库发现状态
- */
-export interface SkillRepositoryDiscoveryStatus {
-  repo_id: string
-  repo_name: string
-  discover_status: string
-  skill_num?: number
-}
