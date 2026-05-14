@@ -18,9 +18,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import {
-  SkillRepository,
   SkillRepositoryRequest,
-  SkillRepositoryDiscoveryStatus,
+  SkillRepositoryResponse,
   SkillRepositorySourceType,
 } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -59,14 +58,14 @@ const initialFormState: RepoFormState = {
 }
 
 export function SkillRepoManagement() {
-  const [repos, setRepos] = useState<SkillRepository[]>([])
-  const [discoverStatuses, setDiscoverStatuses] = useState<SkillRepositoryDiscoveryStatus[]>([])
+  const [repos, setRepos] = useState<SkillRepositoryResponse[]>([])
+  const [discoverStatuses, setDiscoverStatuses] = useState<SkillRepositoryResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [updatingRepoId, setUpdatingRepoId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [editingRepo, setEditingRepo] = useState<SkillRepository | null>(null)
+  const [editingRepo, setEditingRepo] = useState<SkillRepositoryResponse | null>(null)
   const [createForm, setCreateForm] = useState<RepoFormState>(initialFormState)
   const [editForm, setEditForm] = useState<RepoFormState>(initialFormState)
   const { toast } = useToast()
@@ -135,7 +134,7 @@ export function SkillRepoManagement() {
       setLoading(true)
       const repositories = await skillService.listRepositoryResponses()
       setRepos(repositories)
-      setDiscoverStatuses(skillService.getDiscoverStatusesFromRepositories(repositories))
+      setDiscoverStatuses(repositories)
     } catch (error) {
       console.error('Failed to fetch skill repos:', error)
       toast({
@@ -259,7 +258,7 @@ export function SkillRepoManagement() {
     }
   }
 
-  const handleDelete = async (repo: SkillRepository) => {
+  const handleDelete = async (repo: SkillRepositoryResponse) => {
     if (!window.confirm('确认删除该仓库源吗？')) {
       return
     }
@@ -281,7 +280,7 @@ export function SkillRepoManagement() {
     }
   }
 
-  const handleDiscoverRepo = async (repo: SkillRepository) => {
+  const handleDiscoverRepo = async (repo: SkillRepositoryResponse) => {
     try {
       setUpdatingRepoId(repo.repo_id)
       setDiscoverStatuses((currentStatuses) => upsertDiscoverStatus(currentStatuses, repo.repo_id))
@@ -520,7 +519,7 @@ export function SkillRepoManagement() {
   )
 }
 
-function buildFormStateFromRepository(repo: SkillRepository): RepoFormState {
+function buildFormStateFromRepository(repo: SkillRepositoryResponse): RepoFormState {
   return {
     source_type: repo.source_type === 'local' ? 'local' : 'git',
     url: repo.url || '',
@@ -529,7 +528,7 @@ function buildFormStateFromRepository(repo: SkillRepository): RepoFormState {
   }
 }
 
-function getRepositoryLocation(repo: SkillRepository): RepositoryLocation {
+function getRepositoryLocation(repo: SkillRepositoryResponse): RepositoryLocation {
   if (repo.source_type === 'git') {
     return {
       label: 'Git 地址',
@@ -545,7 +544,7 @@ function getRepositoryLocation(repo: SkillRepository): RepositoryLocation {
 }
 
 function getRepositoryStatusDisplay(
-  status?: SkillRepositoryDiscoveryStatus,
+  status?: SkillRepositoryResponse,
 ): RepositoryStatusDisplay {
   if (shouldTreatAsDiscovering(status?.discover_status)) {
     return {
@@ -679,11 +678,11 @@ function shouldTreatAsDiscovering(status?: string) {
 }
 
 function upsertDiscoverStatus(
-  currentStatuses: SkillRepositoryDiscoveryStatus[],
-  repoId: string,
-): SkillRepositoryDiscoveryStatus[] {
+  currentStatuses: SkillRepositoryResponse[],
+  repo: SkillRepositoryResponse,
+): SkillRepositoryResponse[] {
   const nextStatuses = currentStatuses.map((item) =>
-    item.repo_id === repoId
+    item.repo_id === repo.repo_id
       ? {
           ...item,
           discover_status: 'discovering',
@@ -691,16 +690,14 @@ function upsertDiscoverStatus(
       : item,
   )
 
-  if (nextStatuses.some((item) => item.repo_id === repoId)) {
+  if (nextStatuses.some((item) => item.repo_id === repo.repo_id)) {
     return nextStatuses
   }
 
   return [
     ...nextStatuses,
     {
-      repo_id: repoId,
-      repo_name: '',
-      discover_status: 'discovering',
+      ...repo,
     },
   ]
 }
@@ -774,7 +771,7 @@ function buildCreatePayload(form: RepoFormState): SkillRepositoryRequest | null 
 }
 
 function buildUpdatePayload(
-  repo: SkillRepository,
+  repo: SkillRepositoryResponse,
   form: RepoFormState,
 ): SkillRepositoryRequest | null {
   if (repo.source_type === 'git') {

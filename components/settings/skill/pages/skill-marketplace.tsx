@@ -10,16 +10,16 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import { SkillDiscoveryItem, SkillRepositoryDiscoveryStatus } from '@/lib/types'
+import { SkillRepositoryResponse, SkillResponse } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
 
 export function SkillMarketplace() {
-  const [skills, setSkills] = useState<SkillDiscoveryItem[]>([])
-  const [statusItems, setStatusItems] = useState<SkillRepositoryDiscoveryStatus[]>([])
+  const [skills, setSkills] = useState<SkillResponse[]>([])
+  const [statusItems, setStatusItems] = useState<SkillRepositoryResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSource, setSelectedSource] = useState<string>('all')
-  const [previewSkill, setPreviewSkill] = useState<SkillDiscoveryItem | null>(null)
+  const [previewSkill, setPreviewSkill] = useState<SkillResponse | null>(null)
   const { toast } = useToast()
 
   const sourceOptions = useMemo(() => {
@@ -57,8 +57,9 @@ export function SkillMarketplace() {
     try {
       setLoading(true)
       const repositories = await skillService.listRepositoryResponses()
-      setStatusItems(skillService.getDiscoverStatusesFromRepositories(repositories))
-      setSkills(skillService.getDiscoveredSkillsFromRepositories(repositories))
+      const allSkills = await skillService.listAllSkills()
+      setStatusItems(repositories)
+      setSkills(allSkills)
     } catch (error) {
       console.error('Failed to refresh skill marketplace:', error)
       toast({
@@ -213,7 +214,7 @@ function MarketplaceSummary({
   )
 }
 
-function SkillSourceInfo({ skill }: { skill: SkillDiscoveryItem }) {
+function SkillSourceInfo({ skill }: { skill: SkillResponse }) {
   return (
     <div className="space-y-1 text-sm">
       <InfoLine
@@ -289,17 +290,15 @@ function extractSkillDescription(metadata?: Record<string, unknown> | null) {
   return typeof description === 'string' ? description.trim() : ''
 }
 
-function getSkillKey(skill: SkillDiscoveryItem) {
+function getSkillKey(skill: SkillResponse) {
   return (
     skill.skill_id ||
     `${skill.source_repo?.repo_id || 'repo'}-${skill.relative_path || skill.skill_name || 'skill'}`
   )
 }
 
-function getSkillSourceValue(skill: SkillDiscoveryItem) {
-  return skill.source_repo?.source_type === 'git'
-    ? skill.source_repo?.url || ''
-    : skill.source_repo?.local_path || ''
+function getSkillSourceValue(skill: SkillResponse) {
+  return skill.skill_source || ''
 }
 
 function MetadataViewer({ metadata }: { metadata?: Record<string, unknown> | null }) {
@@ -395,7 +394,7 @@ function flattenMetadataEntries(
   return pairs
 }
 
-function buildSkillOpenHref(skill: SkillDiscoveryItem) {
+function buildSkillOpenHref(skill: SkillResponse) {
   const rawMdUrl = skill.skill_md_url?.trim()
   if (!rawMdUrl) {
     return undefined
