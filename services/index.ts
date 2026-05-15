@@ -6,3 +6,4 @@
 export * from './agent-service'
 export * from './session-service'
 export * from './message-service'
+export * from './skill-service'
