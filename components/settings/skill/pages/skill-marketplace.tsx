@@ -10,16 +10,16 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import { SkillDiscoveryItem, SkillRepositoryDiscoveryStatus } from '@/lib/types'
+import { SkillRepositoryResponse, SkillResponse } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
 
 export function SkillMarketplace() {
-  const [skills, setSkills] = useState<SkillDiscoveryItem[]>([])
-  const [statusItems, setStatusItems] = useState<SkillRepositoryDiscoveryStatus[]>([])
+  const [skills, setSkills] = useState<SkillResponse[]>([])
+  const [statusItems, setStatusItems] = useState<SkillRepositoryResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSource, setSelectedSource] = useState<string>('all')
-  const [previewSkill, setPreviewSkill] = useState<SkillDiscoveryItem | null>(null)
+  const [previewSkill, setPreviewSkill] = useState<SkillResponse | null>(null)
   const { toast } = useToast()
 
   const sourceOptions = useMemo(() => {
@@ -57,8 +57,9 @@ export function SkillMarketplace() {
     try {
       setLoading(true)
       const repositories = await skillService.listRepositoryResponses()
-      setStatusItems(skillService.getDiscoverStatusesFromRepositories(repositories))
-      setSkills(skillService.getDiscoveredSkillsFromRepositories(repositories))
+      const allSkills = await skillService.listAllSkills()
+      setStatusItems(repositories)
+      setSkills(allSkills)
     } catch (error) {
       console.error('Failed to refresh skill marketplace:', error)
       toast({
@@ -71,8 +72,12 @@ export function SkillMarketplace() {
     }
   }
 
-  const previewOpenHref = previewSkill ? buildSkillOpenHref(previewSkill) : undefined
-  const isPreviewGit = previewSkill?.source_repo?.source_type === 'git'
+  const repoById = useMemo(
+    () => new Map(statusItems.map((repo) => [repo.repo_id, repo])),
+    [statusItems],
+  )
+  const previewRepo = previewSkill ? repoById.get(previewSkill.repo_id) : undefined
+  const previewIsGit = previewRepo?.source_type === 'git'
 
   return (
     <div className="space-y-6">
@@ -127,7 +132,7 @@ export function SkillMarketplace() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {filteredSkills.map((skill) => (
                 <div
-                  key={getSkillKey(skill)}
+                  key={skill.skill_id}
                   className="flex min-h-15 flex-col rounded-lg border border-border bg-card p-4"
                 >
                   <div className="mb-3 flex items-start gap-2">
@@ -167,25 +172,18 @@ export function SkillMarketplace() {
                 <DialogTitle className="text-base">
                   {previewSkill ? extractSkillName(previewSkill.skill_name) : '技能预览'}
                 </DialogTitle>
-                {previewSkill ? <SkillSourceInfo skill={previewSkill} /> : null}
+                {previewSkill ? <SkillSourceInfo skill={previewSkill} repo={previewRepo} /> : null}
               </div>
-              {isPreviewGit && previewSkill?.skill_md_url && previewOpenHref ? (
+              {previewSkill?.skill_md_url ? (
                 <InfoLine
-                  icon={ExternalLink}
+                  icon={previewIsGit ? ExternalLink : FolderOpen}
                   label="skill 路径"
                   value={previewSkill.skill_md_url}
-                  href={previewOpenHref}
+                  href={previewIsGit ? previewSkill.skill_md_url : undefined}
                   singleLine
-                  valueClassName="text-blue-600/90"
+                  valueClassName={previewIsGit ? 'text-blue-600/90' : undefined}
                 />
-              ) : (
-                <InfoLine
-                  icon={FolderOpen}
-                  label="skill 路径"
-                  value={previewSkill?.relative_path || '-'}
-                  singleLine
-                />
-              )}
+              ) : <InfoLine icon={FolderOpen} label="skill 路径" value="-" singleLine />}
             </div>
           </DialogHeader>
 
@@ -213,11 +211,17 @@ function MarketplaceSummary({
   )
 }
 
-function SkillSourceInfo({ skill }: { skill: SkillDiscoveryItem }) {
+function SkillSourceInfo({
+  skill,
+  repo,
+}: {
+  skill: SkillResponse
+  repo?: SkillRepositoryResponse
+}) {
   return (
     <div className="space-y-1 text-sm">
       <InfoLine
-        icon={skill.source_repo?.source_type === 'git' ? Link2 : FolderOpen}
+        icon={repo?.source_type === 'git' ? Link2 : FolderOpen}
         label="来源"
         value={getSkillSourceValue(skill) || '-'}
       />
@@ -289,17 +293,8 @@ function extractSkillDescription(metadata?: Record<string, unknown> | null) {
   return typeof description === 'string' ? description.trim() : ''
 }
 
-function getSkillKey(skill: SkillDiscoveryItem) {
-  return (
-    skill.skill_id ||
-    `${skill.source_repo?.repo_id || 'repo'}-${skill.relative_path || skill.skill_name || 'skill'}`
-  )
-}
-
-function getSkillSourceValue(skill: SkillDiscoveryItem) {
-  return skill.source_repo?.source_type === 'git'
-    ? skill.source_repo?.url || ''
-    : skill.source_repo?.local_path || ''
+function getSkillSourceValue(skill: SkillResponse) {
+  return skill.skill_source || ''
 }
 
 function MetadataViewer({ metadata }: { metadata?: Record<string, unknown> | null }) {
@@ -393,54 +388,4 @@ function flattenMetadataEntries(
   })
 
   return pairs
-}
-
-function buildSkillOpenHref(skill: SkillDiscoveryItem) {
-  const rawMdUrl = skill.skill_md_url?.trim()
-  if (!rawMdUrl) {
-    return undefined
-  }
-
-  if (skill.source_repo?.source_type === 'git') {
-    return rawMdUrl
-  }
-
-  const folderHref = buildLocalFolderHref(rawMdUrl, skill.source_repo?.local_path)
-  return folderHref || rawMdUrl
-}
-
-function buildLocalFolderHref(skillMdUrl: string, localPath?: string | null) {
-  if (localPath) {
-    return toFileHref(localPath)
-  }
-
-  if (/^file:\/\//i.test(skillMdUrl)) {
-    const sanitized = skillMdUrl.split(/[?#]/)[0]
-    const folderPath = sanitized.replace(/[\\/][^\\/]*$/, '')
-    return folderPath || sanitized
-  }
-
-  if (/^[a-z]+:\/\//i.test(skillMdUrl)) {
-    return skillMdUrl
-  }
-
-  const normalizedPath = skillMdUrl.replace(/\\/g, '/')
-  const folderPath = normalizedPath.replace(/\/[^/]*$/, '')
-  return toFileHref(folderPath || normalizedPath)
-}
-
-function toFileHref(pathValue: string) {
-  const trimmedPath = pathValue.trim()
-  if (!trimmedPath) {
-    return undefined
-  }
-
-  if (/^[a-z]+:\/\//i.test(trimmedPath)) {
-    return trimmedPath
-  }
-
-  const normalizedPath = trimmedPath.replace(/\\/g, '/')
-  return normalizedPath.match(/^[A-Za-z]:\//)
-    ? `file:///${normalizedPath}`
-    : `file://${normalizedPath}`
 }

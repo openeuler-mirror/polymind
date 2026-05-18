@@ -3,21 +3,9 @@ import {
   CreateSkillRepositoryRequest,
   SkillRepository,
   SkillRepositoryRequest,
-  SkillRepositoryDiscoveryStatus,
   SkillRepositoryResponse,
-  SkillDiscoveryItem,
+  SkillResponse,
 } from '@/lib/types'
-
-function toSkillRepositoryDiscoveryStatus(
-  repository: SkillRepositoryResponse,
-): SkillRepositoryDiscoveryStatus {
-  return {
-    repo_id: repository.repo_id,
-    repo_name: repository.repo_name || '',
-    discover_status: repository.skill_discover_status,
-    skill_num: repository.skill_num,
-  }
-}
 
 class SkillService {
   public async listRepositoryResponses(): Promise<SkillRepositoryResponse[]> {
@@ -25,16 +13,16 @@ class SkillService {
     return Array.isArray(response) ? response : []
   }
 
-  public async createRepo(request: SkillRepositoryRequest): Promise<SkillRepository> {
-    return httpClient.post<SkillRepository>('/api/v1/skills/repos', request)
+  public async createRepo(request: SkillRepositoryRequest): Promise<SkillRepositoryResponse> {
+    return httpClient.post<SkillRepositoryResponse>('/api/v1/skills/repos', request)
   }
 
   public async updateRepo(
     repoId: string,
     request: SkillRepositoryRequest,
-    fallbackRepo?: Partial<SkillRepository>,
-  ): Promise<SkillRepository> {
-    const response = await httpClient.patch<SkillRepository>(
+    fallbackRepo?: Partial<SkillRepositoryResponse>,
+  ): Promise<SkillRepositoryResponse> {
+    const response = await httpClient.patch<SkillRepositoryResponse>(
       `/api/v1/skills/repos/${repoId}`,
       request,
     )
@@ -54,26 +42,14 @@ class SkillService {
     await httpClient.delete(`/api/v1/skills/repos/${repoId}`)
   }
 
-  public async discoverRepoSkills(repoId: string): Promise<SkillDiscoveryItem[]> {
-    const response = await httpClient.post<SkillRepositoryResponse>(
-      `/api/v1/skills/discover/${repoId}`,
-      {},
-    )
-    return Array.isArray(response.discovered_skills) ? response.discovered_skills : []
+  public async discoverRepoSkills(repoId: string): Promise<void> {
+    await httpClient.post(`/api/v1/skills/discover/${repoId}`, {})
   }
 
-  public getDiscoveredSkillsFromRepositories(
-    repositories: SkillRepositoryResponse[],
-  ): SkillDiscoveryItem[] {
-    return repositories.flatMap((repository) =>
-      Array.isArray(repository.discovered_skills) ? repository.discovered_skills : [],
-    )
+  public async listAllSkills(): Promise<SkillResponse[]> {
+    const response = await httpClient.get<SkillResponse[]>('/api/v1/skills/skills')
+    return Array.isArray(response) ? response : []
   }
-
-  public getDiscoverStatusesFromRepositories(
-    repositories: SkillRepositoryResponse[],
-  ): SkillRepositoryDiscoveryStatus[] {
-    return repositories.map((repository) => toSkillRepositoryDiscoveryStatus(repository))
   }
 
   private async fetchRepositorySchemas(): Promise<SkillRepositoryResponse[]> {
