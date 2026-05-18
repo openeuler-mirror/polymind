@@ -502,7 +502,7 @@ export interface SkillRepositoryRequest {
  */
 export interface SkillResponse {    
   skill_id: string
-  repo_id: string
+  repo_id: string | null
   skill_name: string
   relative_path?: string | null
   metadata: Record<string, unknown>
@@ -510,4 +510,19 @@ export interface SkillResponse {
   skill_md_url?: string | null
 }
 
-
+/**
+ * Agent skill 响应（安装与已安装查询共用）
+ */
+export interface AgentSkillResponse {
+  agent_id: string
+  skill_id: string
+  source_type: 'builtin' | 'git' | 'local'
+  repo_id: string | null
+  skill_name: string
+  installed_at: string
+  relative_path?: string | null
+  metadata?: Record<string, unknown> | null
+  skill_source?: string | null
+  skill_md_url?: string | null
+  message?: string | null
+}
