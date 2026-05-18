@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import type { Message } from './types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -18,4 +19,18 @@ export function generateUUID(): string {
     const v = c === 'x' ? r : (r & 0x3 | 0x8)
     return v.toString(16)
   })
+}
+
+
+const INTERRUPTION_PREFIX =
+  '[System note: Your previous response was interrupted and incomplete. Ignore it entirely. Answer ONLY the user\'s latest question below. Do not continue, complete, or reference the interrupted response.]\n\n'
+export function withInterruptionPrefix(
+  content: string,
+  messages: Message[]
+): string {
+  const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant')
+  if (lastAssistant?.stopped === true) {
+    return INTERRUPTION_PREFIX + content
+  }
+  return content
 }

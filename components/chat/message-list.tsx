@@ -44,9 +44,10 @@ import type { Message, ToolCall, Attachment, EventItem } from '@/lib/types'
 
 interface MessageListProps {
   messages: Message[]
+  onRegenerate?: (assistantMessageId: string) => void
 }
 
-export function MessageList({ messages }: MessageListProps) {
+export function MessageList({ messages, onRegenerate }: MessageListProps) {
   const [isHydrated, setIsHydrated] = useState(false)
   
   useEffect(() => {
@@ -60,7 +61,7 @@ export function MessageList({ messages }: MessageListProps) {
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
       {messages.map((message) => (
-        <MessageItem key={message.id} message={message} />
+        <MessageItem key={message.id} message={message} onRegenerate={onRegenerate} />
       ))}
     </div>
   )
@@ -68,8 +69,10 @@ export function MessageList({ messages }: MessageListProps) {
 
 const MessageItem = memo(function MessageItem({
   message,
+  onRegenerate,
 }: {
   message: Message
+  onRegenerate?: (assistantMessageId: string) => void
 }) {
   const [copied, setCopied] = useState(false)
   const isUser = message.role === 'user'
@@ -250,18 +253,29 @@ const MessageItem = memo(function MessageItem({
 
         {/* Message Content - now displayed in events section */}
         {(!message.events || message.events.length === 0) && (
-          <div
-            className={cn(
-              'rounded-2xl px-4 py-3',
-              isUser
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-card border border-border'
+          <>
+            {message.stopped && !message.content ? (
+              <div className="rounded-2xl px-4 py-3 bg-card border border-border">
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>思考已中断</span>
+                </div>
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  'rounded-2xl px-4 py-3',
+                  isUser
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-card border border-border'
+                )}
+              >
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <MessageContent content={message.content} isStreaming={message.isStreaming} isUser={isUser} />
+                </div>
+              </div>
             )}
-          >
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <MessageContent content={message.content} isStreaming={message.isStreaming} isUser={isUser} />
-            </div>
-          </div>
+          </>
         )}
 
         {/* Usage Information */}
@@ -309,7 +323,12 @@ const MessageItem = memo(function MessageItem({
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => onRegenerate?.(message.id)}
+                    >
                       <RefreshCw className="h-3 w-3" />
                     </Button>
                   </TooltipTrigger>

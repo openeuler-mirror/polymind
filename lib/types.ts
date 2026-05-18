@@ -23,6 +23,7 @@ export interface Message {
   content: string
   timestamp: Date
   isStreaming?: boolean
+  stopped?: boolean
   toolCalls?: ToolCall[]
   attachments?: Attachment[]
   thinking?: string[]
