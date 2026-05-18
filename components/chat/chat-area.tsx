@@ -346,6 +346,12 @@ export function ChatArea() {
               console.error('Error event:', eventData.payload || 'No payload')
               setStreaming(currentConversationId, false)
               break
+            case 'turn.completed':
+              updateMessage(currentConversationId, assistantMessageId, {
+                isStreaming: false
+              })
+              setStreaming(currentConversationId, false)
+              break
             default:
               console.log('Unknown event type:', eventData.type)
           }
