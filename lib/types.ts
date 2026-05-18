@@ -6,7 +6,7 @@
  * 消息接口
  */
 export interface EventItem {
-  type: 'thinking' | 'tool.call.started' | 'tool.call.response' | 'message.delta' | 'message.completed' | 'usage.updated' | 'session.runtime.changed' | 'stream.error' | 'client.error'
+  type: 'thinking' | 'tool.call.started' | 'tool.call.response' | 'message.delta' | 'message.completed' | 'turn.completed' | 'usage.updated' | 'session.runtime.changed' | 'stream.error' | 'client.error'
   session_id?: string
   event_id?: string
   ts_ms?: number
