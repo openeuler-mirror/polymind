@@ -7,8 +7,8 @@ import { SkillMarketplace } from './skill-marketplace'
 import { SkillRepoManagement } from './skill-repo-management'
 export function SkillsPage() {
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="marketplace" className="gap-4">
+    <div className="min-h-0 space-y-6">
+      <Tabs defaultValue="marketplace" className="min-h-0 gap-4">
         <TabsList className="grid h-auto w-full grid-cols-3">
           <TabsTrigger value="marketplace" className="py-2">
             <BookOpen className="h-4 w-4" />

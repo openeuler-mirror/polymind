@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast'
 import { SkillRepositoryResponse, SkillResponse } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
+import { SkillPaginationBar } from '../pagination-bar'
 
 export function SkillMarketplace() {
   const [skills, setSkills] = useState<SkillResponse[]>([])
@@ -20,6 +21,8 @@ export function SkillMarketplace() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSource, setSelectedSource] = useState<string>('all')
   const [previewSkill, setPreviewSkill] = useState<SkillResponse | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(12)
   const { toast } = useToast()
 
   const sourceOptions = useMemo(() => {
@@ -49,6 +52,23 @@ export function SkillMarketplace() {
     })
   }, [searchTerm, selectedSource, skills])
 
+  const totalPages = Math.max(1, Math.ceil(filteredSkills.length / pageSize))
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, selectedSource, skills.length, pageSize])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  const pagedSkills = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    return filteredSkills.slice(startIndex, startIndex + pageSize)
+  }, [currentPage, filteredSkills, pageSize])
+
   useEffect(() => {
     void refreshMarketplace()
   }, [])
@@ -76,7 +96,7 @@ export function SkillMarketplace() {
     () => new Map(statusItems.map((repo) => [repo.repo_id, repo])),
     [statusItems],
   )
-  const previewRepo = previewSkill ? repoById.get(previewSkill.repo_id) : undefined
+  const previewRepo = previewSkill?.repo_id ? repoById.get(previewSkill.repo_id) : undefined
   const previewIsGit = previewRepo?.source_type === 'git'
 
   return (
@@ -97,7 +117,6 @@ export function SkillMarketplace() {
       <Card className="border border-border">
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <CardTitle>技能列表</CardTitle>
             <div className="flex w-full max-w-xl gap-2">
               <Select value={selectedSource} onValueChange={setSelectedSource}>
                 <SelectTrigger className="w-80 shrink-0">
@@ -129,36 +148,48 @@ export function SkillMarketplace() {
           ) : filteredSkills.length === 0 ? (
             <EmptyState text="暂无匹配的技能记录。" />
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {filteredSkills.map((skill) => (
-                <div
-                  key={skill.skill_id}
-                  className="flex min-h-15 flex-col rounded-lg border border-border bg-card p-4"
-                >
-                  <div className="mb-3 flex items-start gap-2">
-                    <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                    <p className="text-sm font-semibold leading-5 break-all">
-                      {extractSkillName(skill.skill_name)}
-                    </p>
-                  </div>
+            <div className="space-y-4">
+              <SkillPaginationBar
+                total={filteredSkills.length}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageSizeChange={(value) => setPageSize(value)}
+                onPrev={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                onNext={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              />
 
-                  <div className="flex-1">
-                    <p className="min-h-12 line-clamp-2 text-sm leading-6 text-muted-foreground">
-                      {extractSkillDescription(skill.metadata) || '暂无描述'}
-                    </p>
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="h-auto p-0 text-blue-600 hover:text-blue-700"
-                        onClick={() => setPreviewSkill(skill)}
-                      >
-                        预览
-                      </Button>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {pagedSkills.map((skill) => (
+                  <div
+                    key={skill.skill_id}
+                    className="flex min-h-15 flex-col rounded-lg border border-border bg-card p-4"
+                  >
+                    <div className="mb-3 flex items-start gap-2">
+                      <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <p className="text-sm font-semibold leading-5 break-all">
+                        {extractSkillName(skill.skill_name)}
+                      </p>
+                    </div>
+
+                    <div className="flex-1">
+                      <p className="min-h-12 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                        {extractSkillDescription(skill.metadata) || '暂无描述'}
+                      </p>
+                      <div className="mt-3 flex justify-end gap-3">
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-blue-600 hover:text-blue-700"
+                          onClick={() => setPreviewSkill(skill)}
+                        >
+                          预览
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </CardContent>

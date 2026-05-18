@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useChatStore } from '@/lib/store'
 import { AgentSkillResponse } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
+import { SkillPaginationBar } from '../pagination-bar'
 
 export function InstalledSkills() {
   const currentAgentId = useChatStore((state) => state.currentAgentId)
@@ -21,6 +22,8 @@ export function InstalledSkills() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSourceType, setSelectedSourceType] = useState<string>('all')
   const [previewSkill, setPreviewSkill] = useState<AgentSkillResponse | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(12)
   const { toast } = useToast()
 
   const mergedSkills = installedSkills
@@ -58,6 +61,23 @@ export function InstalledSkills() {
       return matchesSource && matchesSearch
     })
   }, [mergedSkills, searchTerm, selectedSourceType])
+
+  const totalPages = Math.max(1, Math.ceil(filteredSkills.length / pageSize))
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, selectedSourceType, mergedSkills.length, pageSize])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  const pagedSkills = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    return filteredSkills.slice(startIndex, startIndex + pageSize)
+  }, [currentPage, filteredSkills, pageSize])
 
   useEffect(() => {
     if (!currentAgentId) {
@@ -112,7 +132,6 @@ export function InstalledSkills() {
       <Card className="border border-border">
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <CardTitle>技能列表</CardTitle>
             <div className="flex w-full max-w-xl gap-2">
               <Select value={selectedSourceType} onValueChange={setSelectedSourceType}>
                 <SelectTrigger className="w-80 shrink-0">
@@ -155,8 +174,19 @@ export function InstalledSkills() {
           ) : filteredSkills.length === 0 ? (
             <EmptyState text="暂无匹配的已安装技能。" />
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {filteredSkills.map((skill) => (
+            <div className="space-y-4">
+              <SkillPaginationBar
+                total={filteredSkills.length}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageSizeChange={(value) => setPageSize(value)}
+                onPrev={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                onNext={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {pagedSkills.map((skill) => (
                 <div
                   key={`${skill.agent_id}-${skill.skill_id}`}
                   className="flex min-h-15 flex-col rounded-lg border border-border bg-card p-4"
@@ -188,7 +218,8 @@ export function InstalledSkills() {
                     </div>
                   </div>
                 </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
@@ -267,7 +298,7 @@ function extractSkillName(value?: string) {
   return parts[parts.length - 1] || value
 }
 
-function extractSkillDescription(metadata?: Record<string, unknown>) {
+function extractSkillDescription(metadata?: Record<string, unknown> | null) {
   const description = metadata?.description
   return typeof description === 'string' ? description.trim() : ''
 }
