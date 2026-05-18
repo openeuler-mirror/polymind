@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useChatStore } from '@/lib/store'
+import { withInterruptionPrefix } from '@/lib/utils'
 import { MessageList } from './message-list'
 import { ChatInput, PromptSuggestion } from './chat-input'
 import { ChatHeader } from './chat-header'
@@ -76,7 +77,8 @@ export function ChatArea() {
     }
     addMessage(currentConversationId, userMessage)
 
-    await streamResponse(content)
+    const prefixedContent = withInterruptionPrefix(content, messages)
+    await streamResponse(prefixedContent)
   }
 
   const streamResponse = useCallback(async (content: string) => {

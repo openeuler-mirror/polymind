@@ -97,6 +97,9 @@ export interface ChatState {
   wsConnections: Record<string, WebSocketClient> // agentId -> websocket
   isConnecting: boolean
   connectionError: string | null
+
+  // 停止生成锁
+  _stoppingInProgress: boolean
   
   // Actions
   createConversation: (agentId?: string, agentName?: string) => Promise<string>
@@ -272,6 +275,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   wsConnections: {},
   isConnecting: false,
   connectionError: null,
+  _stoppingInProgress: false,
 
   createConversation: async (agentId?: string, agentName?: string) => { 
      const id = generateUUID() 
@@ -422,16 +426,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   stopStreaming: () => {
     const state = get()
+    if (state._stoppingInProgress) return
+
     const conversationId = state.currentConversationId
     if (!conversationId) return
 
     const conversation = state.conversations.find(conv => conv.id === conversationId)
     const agentId = conversation?.agentId || state.currentAgentId
     if (agentId) {
+      set({ _stoppingInProgress: true })
       messageService.abortMessage(agentId)
     }
 
     set((state) => ({
+      _stoppingInProgress: false,
       conversations: state.conversations.map((conv) =>
         conv.id === conversationId
           ? {
