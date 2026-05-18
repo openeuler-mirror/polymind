@@ -1,7 +1,6 @@
 import { httpClient } from '@/lib/http-client'
 import {
-  CreateSkillRepositoryRequest,
-  SkillRepository,
+  AgentSkillResponse,
   SkillRepositoryRequest,
   SkillRepositoryResponse,
   SkillResponse,
@@ -50,10 +49,16 @@ class SkillService {
     const response = await httpClient.get<SkillResponse[]>('/api/v1/skills/skills')
     return Array.isArray(response) ? response : []
   }
-  }
 
   private async fetchRepositorySchemas(): Promise<SkillRepositoryResponse[]> {
     return httpClient.get<SkillRepositoryResponse[]>('/api/v1/skills/repos')
+  }
+
+  public async listInstalledSkills(agentId: string): Promise<AgentSkillResponse[]> {
+    const response = await httpClient.get<AgentSkillResponse[]>(
+      `${this.getAgentSkillApiBasePath(agentId)}/installed`,
+    )
+    return Array.isArray(response) ? response : []
   }
 
   private getAgentSkillApiBasePath(agentId: string) {
