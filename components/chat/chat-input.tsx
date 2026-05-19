@@ -43,7 +43,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import type { AgentSkill } from '@/lib/types'
-import { agentService } from '@/services/agent-service'
+import { skillService } from '@/services/skill-service'
 
 const models = [
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
@@ -79,25 +79,40 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
   const [showSkillSelector, setShowSkillSelector] = useState(false)
   const [selectedSkillIndex, setSelectedSkillIndex] = useState(0) // 手动记录选中的技能索引
 
-  // 从接口获取skill列表数据
+  const { currentConversationId, conversations, stopStreaming, currentAgentId } = useChatStore()
+
+  // 从当前选中 agent 的 installed skills 接口获取技能数据
   useEffect(() => {
     const fetchSkills = async () => {
+      if (!currentAgentId) {
+        setSkills([])
+        return
+      }
       try {
-        const agents = await agentService.getAgents()
-        // 合并所有Agent的skills并去重
-        const allSkills = agents.flatMap(agent => agent.skills || [])
-        // 按name去重
-        const uniqueSkills = Array.from(new Map(allSkills.map(skill => [skill.name, skill])).values())
+        const installedSkills = await skillService.listInstalledSkills(currentAgentId)
+        const mappedSkills: AgentSkill[] = installedSkills.map((skill) => ({
+          name: skill.skill_name,
+          description:
+            typeof skill.metadata?.description === 'string'
+              ? skill.metadata.description
+              : '',
+          filePath: skill.relative_path || '',
+          source: skill.source_type || skill.skill_source || '',
+        }))
+        // 按 name 去重
+        const uniqueSkills = Array.from(
+          new Map(mappedSkills.map((skill) => [skill.name, skill])).values(),
+        )
         setSkills(uniqueSkills)
       } catch (error) {
         console.error('Failed to fetch skills:', error)
+        setSkills([])
       }
     }
-    fetchSkills()
-  }, [])
+    void fetchSkills()
+  }, [currentAgentId])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { currentConversationId, conversations, stopStreaming } = useChatStore()
   const currentConversation = conversations.find(conv => conv.id === currentConversationId)
   const isStreaming = currentConversation?.isStreaming ?? false
 
@@ -170,7 +185,10 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
       }
       if (e.key === 'Enter') {
         e.preventDefault()
-        handleSelectSkill(skills[selectedSkillIndex])
+        const selectedSkill = skills[selectedSkillIndex]
+        if (selectedSkill) {
+          handleSelectSkill(selectedSkill)
+        }
         return
       }
     }
