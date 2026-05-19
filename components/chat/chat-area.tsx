@@ -107,14 +107,24 @@ export function ChatArea() {
     }
 
     // Ensure there's an active session
-    let session = activeSessions[agentId]
-    if (!session) {
-      try {
-        session = await createNewSession(agentId)
-      } catch (error) {
-        console.error('Failed to create session:', error)
-        return
+    let sessionId = currentConversation?.sessionId
+    if (!sessionId) {
+      let session = activeSessions[agentId]
+      if (!session) {
+        try {
+          session = await createNewSession(agentId)
+        } catch (error) {
+          console.error('Failed to create session:', error)
+          return
+        }
       }
+      sessionId = session.id
+      // Persist sessionId back to the conversation for future messages
+      useChatStore.setState((s) => ({
+        conversations: s.conversations.map((c) =>
+          c.id === currentConversationId ? { ...c, sessionId } : c
+        ),
+      }))
     }
 
     // Set streaming state
@@ -137,7 +147,7 @@ export function ChatArea() {
       let assistantMessage: Message | null = null
 
       // 发送消息到 agent，使用实时回调处理流式事件
-      await sendMessageToAgent(agentId, content, (eventData) => {
+      await sendMessageToAgent(agentId, sessionId, content, (eventData) => {
         
         // 当收到第一个事件时，删除思考中消息并创建实际的助手消息
         if (!assistantMessageId) {

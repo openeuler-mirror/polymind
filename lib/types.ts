@@ -75,6 +75,7 @@ export interface Conversation {
   pinned?: boolean
   agentId?: string  // 创建该会话的 agent ID
   agentName?: string  // 创建该会话的 agent 名称
+  sessionId?: string  // 该会话对应的后端 session ID
   isStreaming?: boolean  // 该会话是否正在生成消息
 }
 
