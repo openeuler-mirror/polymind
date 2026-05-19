@@ -267,7 +267,7 @@ function extractSkillName(value?: string) {
   return parts[parts.length - 1] || value
 }
 
-function extractSkillDescription(metadata?: Record<string, unknown>) {
+function extractSkillDescription(metadata?: Record<string, unknown> | null) {
   const description = metadata?.description
   return typeof description === 'string' ? description.trim() : ''
 }

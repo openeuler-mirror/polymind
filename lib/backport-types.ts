@@ -1,0 +1,1 @@
+export type BackportPatchKind = 'original' | 'current' | 'backported'
