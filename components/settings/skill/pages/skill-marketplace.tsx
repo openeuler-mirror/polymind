@@ -10,19 +10,23 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import { useChatStore } from '@/lib/store'
 import { SkillRepositoryResponse, SkillResponse } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
 import { SkillPaginationBar } from '../pagination-bar'
 
 export function SkillMarketplace() {
+  const currentAgentId = useChatStore((state) => state.currentAgentId)
   const [skills, setSkills] = useState<SkillResponse[]>([])
   const [statusItems, setStatusItems] = useState<SkillRepositoryResponse[]>([])
+  const [installingSkillKey, setInstallingSkillKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSource, setSelectedSource] = useState<string>('all')
   const [previewSkill, setPreviewSkill] = useState<SkillResponse | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(12)
+  const [installedSkillIds, setInstalledSkillIds] = useState<Set<string>>(new Set())
   const { toast } = useToast()
 
   const sourceOptions = useMemo(() => {
@@ -73,6 +77,14 @@ export function SkillMarketplace() {
     void refreshMarketplace()
   }, [])
 
+  useEffect(() => {
+    if (!currentAgentId) {
+      setInstalledSkillIds(new Set())
+      return
+    }
+    void refreshInstalledSkillIds(currentAgentId)
+  }, [currentAgentId])
+
   const refreshMarketplace = async () => {
     try {
       setLoading(true)
@@ -92,12 +104,79 @@ export function SkillMarketplace() {
     }
   }
 
+
+  const refreshInstalledSkillIds = async (agentId: string) => {
+    try {
+      const installed = await skillService.listInstalledSkills(agentId)
+      const ids = new Set(
+        installed
+          .map((item) => item.skill_id)
+          .filter((skillId): skillId is string => typeof skillId === 'string' && !!skillId),
+      )
+      setInstalledSkillIds(ids)
+    } catch (error) {
+      console.error('Failed to load installed skills for marketplace:', error)
+    }
+  }
+
   const repoById = useMemo(
     () => new Map(statusItems.map((repo) => [repo.repo_id, repo])),
     [statusItems],
   )
   const previewRepo = previewSkill?.repo_id ? repoById.get(previewSkill.repo_id) : undefined
   const previewIsGit = previewRepo?.source_type === 'git'
+
+  const handleInstallSkill = async (skill: SkillResponse) => {
+    if (!currentAgentId) {
+      toast({
+        title: '未选择 Agent',
+        description: '请先在聊天区选择一个 Agent，再安装技能。',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!skill.skill_id || !skill.skill_name) {
+      toast({
+        title: '安装失败',
+        description: '技能信息不完整，无法安装。',
+        variant: 'destructive',
+      })
+      return
+    }
+
+
+    if (installedSkillIds.has(skill.skill_id)) {
+      toast({
+        title: '已安装',
+        description: `技能 ${extractSkillName(skill.skill_name)} 已安装。`,
+      })
+      return
+    }
+
+    const skillKey = skill.skill_id
+    try {
+      setInstallingSkillKey(skillKey)
+      await skillService.installSkill(currentAgentId, {
+        skill_id: skill.skill_id,
+        skill_name: skill.skill_name,
+      })
+      setInstalledSkillIds((prev) => new Set([...prev, skill.skill_id]))
+      toast({
+        title: '安装成功',
+        description: `技能 ${extractSkillName(skill.skill_name)} 已安装到当前 Agent。`,
+      })
+    } catch (error) {
+      console.error('Failed to install skill:', error)
+      toast({
+        title: '安装失败',
+        description: '安装技能失败，请稍后重试。',
+        variant: 'destructive',
+      })
+    } finally {
+      setInstallingSkillKey(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -177,6 +256,24 @@ export function SkillMarketplace() {
                         {extractSkillDescription(skill.metadata) || '暂无描述'}
                       </p>
                       <div className="mt-3 flex justify-end gap-3">
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground"
+                          onClick={() => void handleInstallSkill(skill)}
+                          disabled={
+                            !currentAgentId ||
+                            !skill.skill_id ||
+                            installedSkillIds.has(skill.skill_id) ||
+                            installingSkillKey === skill.skill_id
+                          }
+                        >
+                          {installingSkillKey === skill.skill_id
+                            ? '安装中...'
+                            : installedSkillIds.has(skill.skill_id)
+                              ? '已安装'
+                              : '安装'}
+                        </Button>
                         <Button
                           variant="link"
                           size="sm"

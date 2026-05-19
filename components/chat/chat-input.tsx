@@ -108,10 +108,6 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
     }
   }, [currentAgentId])
 
-  // 从当前选中 agent 的 installed skills 接口获取技能数据
-  useEffect(() => {
-    void fetchSkills()
-  }, [fetchSkills])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const currentConversation = conversations.find(conv => conv.id === currentConversationId)
