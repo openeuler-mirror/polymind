@@ -498,7 +498,7 @@ export interface SkillRepositoryRequest {
 }
 
 /**
- * 技能响应（/api/v1/skills）
+ * 技能响应（/skills）
  */
 export interface SkillResponse {    
   skill_id: string

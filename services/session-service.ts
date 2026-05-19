@@ -11,7 +11,7 @@ class SessionService {
    */
   public async createSession(agentId: string): Promise<Session> {
     const response = await httpClient.post<any>(
-      `/api/v1/agents/${agentId}/sessions`,
+      `/agents/${agentId}/sessions`,
       {}
     )
     // 处理不同的响应格式：可能直接返回session对象，也可能包装在data字段中
@@ -24,7 +24,7 @@ class SessionService {
    */
   public async getSessions(agentId: string): Promise<Session[]> {
     const response = await httpClient.get<ApiResponse<Session[]>>(
-      `/api/v1/agents/${agentId}/sessions`
+      `/agents/${agentId}/sessions`
     )
     return response.data.map(session => this.transformSession(session, agentId))
   }
@@ -33,7 +33,7 @@ class SessionService {
    * 删除会话
    */
   public async deleteSession(agentId: string, sessionId: string): Promise<void> {
-    await httpClient.delete(`/api/v1/agents/${agentId}/sessions/${sessionId}`)
+    await httpClient.delete(`/agents/${agentId}/sessions/${sessionId}`)
   }
 
   /**
