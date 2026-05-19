@@ -81,36 +81,37 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
 
   const { currentConversationId, conversations, stopStreaming, currentAgentId } = useChatStore()
 
+  const fetchSkills = useCallback(async () => {
+    if (!currentAgentId) {
+      setSkills([])
+      return
+    }
+    try {
+      const installedSkills = await skillService.listInstalledSkills(currentAgentId)
+      const mappedSkills: AgentSkill[] = installedSkills.map((skill) => ({
+        name: skill.skill_name,
+        description:
+          typeof skill.metadata?.description === 'string'
+            ? skill.metadata.description
+            : '',
+        filePath: skill.relative_path || '',
+        source: skill.source_type || skill.skill_source || '',
+      }))
+      // 按 name 去重
+      const uniqueSkills = Array.from(
+        new Map(mappedSkills.map((skill) => [skill.name, skill])).values(),
+      )
+      setSkills(uniqueSkills)
+    } catch (error) {
+      console.error('Failed to fetch skills:', error)
+      setSkills([])
+    }
+  }, [currentAgentId])
+
   // 从当前选中 agent 的 installed skills 接口获取技能数据
   useEffect(() => {
-    const fetchSkills = async () => {
-      if (!currentAgentId) {
-        setSkills([])
-        return
-      }
-      try {
-        const installedSkills = await skillService.listInstalledSkills(currentAgentId)
-        const mappedSkills: AgentSkill[] = installedSkills.map((skill) => ({
-          name: skill.skill_name,
-          description:
-            typeof skill.metadata?.description === 'string'
-              ? skill.metadata.description
-              : '',
-          filePath: skill.relative_path || '',
-          source: skill.source_type || skill.skill_source || '',
-        }))
-        // 按 name 去重
-        const uniqueSkills = Array.from(
-          new Map(mappedSkills.map((skill) => [skill.name, skill])).values(),
-        )
-        setSkills(uniqueSkills)
-      } catch (error) {
-        console.error('Failed to fetch skills:', error)
-        setSkills([])
-      }
-    }
     void fetchSkills()
-  }, [currentAgentId])
+  }, [fetchSkills])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const currentConversation = conversations.find(conv => conv.id === currentConversationId)
@@ -119,12 +120,14 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
   // 监听输入内容变化，检测是否输入了/
   useEffect(() => {
     if (input.trim() === '/') {
+      // 输入 "/" 时即时刷新一次已安装技能，确保刚安装的技能能立刻显示。
+      void fetchSkills()
       setShowSkillSelector(true)
       setSelectedSkillIndex(0) // 打开时默认选中第一个
     } else if (!input.endsWith('/')) {
       setShowSkillSelector(false)
     }
-  }, [input])
+  }, [input, fetchSkills])
 
   // 处理选择skill
   const handleSelectSkill = useCallback((skill: AgentSkill) => {
