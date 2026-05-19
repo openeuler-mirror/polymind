@@ -129,7 +129,7 @@ export interface ChatState {
   initializeAgent: (config: any) => Promise<Agent>
   connectToAgent: (agentId: string) => Promise<void>
   disconnectFromAgent: (agentId: string) => void
-  sendMessageToAgent: (agentId: string, content: string, onEvent?: (event: any) => void) => Promise<any[]>
+  sendMessageToAgent: (agentId: string, sessionId: string | undefined, content: string, onEvent?: (event: any) => void) => Promise<any[]>
   createNewSession: (agentId: string) => Promise<Session>
 }
 
@@ -277,83 +277,98 @@ export const useChatStore = create<ChatState>((set, get) => ({
   connectionError: null,
   _stoppingInProgress: false,
 
-  createConversation: async (agentId?: string, agentName?: string) => { 
-     const id = generateUUID() 
-     const newConversation: Conversation = { 
-       id, 
-       title: '新对话', 
-       messages: [], 
-       createdAt: new Date(), 
-       updatedAt: new Date(), 
-       agentId, 
-       agentName, 
+  createConversation: async (agentId?: string, agentName?: string) => {
+     const id = generateUUID()
+     let sessionId: string | undefined
+     // If agentId is provided, set it as current agent and create a new session
+     if (agentId) {
+       try {
+         const session = await get().createNewSession(agentId)
+         sessionId = session.id
+       } catch (error) {
+         console.error('Failed to create session:', error)
+       }
+     }
+
+     const newConversation: Conversation = {
+       id,
+       title: '新对话',
+       messages: [],
+       createdAt: new Date(),
+       updatedAt: new Date(),
+       agentId,
+       agentName,
+       sessionId,
        isStreaming: false
      }
     set((state) => ({
       conversations: [newConversation, ...state.conversations],
       currentConversationId: id,
+      ...(agentId ? { currentAgentId: agentId } : {})
     }))
-    
-    // If agentId is provided, set it as current agent and create a new session
-    if (agentId) {
-      set({ currentAgentId: agentId })
-      // Create a new session for the agent
-      try {
-        await get().createNewSession(agentId)
-      } catch (error) {
-        console.error('Failed to create session:', error)
-      }
-    }
-    
+
     return id
   },
 
   deleteConversation: async (id) => {
     const state = get()
-    const isCurrentConversation = state.currentConversationId === id
-    let shouldDeleteSession = false
-    
-    // 如果删除的是当前会话，且有对应的 agent 和 session
-    if (isCurrentConversation && state.currentAgentId) {
+    const conversation = state.conversations.find(c => c.id === id)
+    let deletedSessionId: string | undefined
+
+    // If the conversation has its own sessionId, delete the backend session directly
+    if (conversation?.sessionId && conversation?.agentId) {
+      try {
+        if (!USE_MOCK_DATA) {
+          await sessionService.deleteSession(conversation.agentId, conversation.sessionId)
+        }
+        deletedSessionId = conversation.sessionId
+      } catch (error) {
+        console.error('Failed to delete session:', error)
+      }
+    } else if (state.currentConversationId === id && state.currentAgentId) {
+      // for conversations without sessionId, fall back to activeSessions
       const session = state.activeSessions[state.currentAgentId]
       if (session) {
-        // 检查是否有其他活跃的 Conversation
         const otherActiveConversations = state.conversations.filter(
           (conv) => conv.id !== id && conv.messages.length > 0
         )
-        
-        // 只有当没有其他活跃会话时，才删除 Session
         if (otherActiveConversations.length === 0) {
-          shouldDeleteSession = true
           try {
             if (!USE_MOCK_DATA) {
               await sessionService.deleteSession(state.currentAgentId, session.id)
             }
+            deletedSessionId = session.id
           } catch (error) {
             console.error('Failed to delete session:', error)
           }
         }
       }
     }
-    
+
     set((state) => {
       const filtered = state.conversations.filter((c) => c.id !== id)
       const newCurrentId = state.currentConversationId === id
         ? filtered[0]?.id || null
         : state.currentConversationId
-      
+
       const updates: any = {
         conversations: filtered,
         currentConversationId: newCurrentId,
       }
-      
-      // 如果需要删除 Session，同时从 activeSessions 中移除
-      if (shouldDeleteSession && state.currentAgentId) {
-        const newActiveSessions = { ...state.activeSessions }
-        delete newActiveSessions[state.currentAgentId]
-        updates.activeSessions = newActiveSessions
+
+      // Clean up activeSessions if the deleted session matches
+      if (deletedSessionId) {
+        const deletedAgentId = conversation?.agentId || state.currentAgentId
+        if (deletedAgentId) {
+          const session = state.activeSessions[deletedAgentId]
+          if (session && session.id === deletedSessionId) {
+            const newActiveSessions = { ...state.activeSessions }
+            delete newActiveSessions[deletedAgentId]
+            updates.activeSessions = newActiveSessions
+          }
+        }
       }
-      
+
       return updates
     })
   },
@@ -372,7 +387,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   setCurrentConversation: (id) => {
-    set({ currentConversationId: id })
+    set((state) => {
+      const conversation = state.conversations.find(c => c.id === id)
+      return {
+        currentConversationId: id,
+        ...(conversation?.agentId ? { currentAgentId: conversation.agentId } : {})
+      }
+    })
   },
 
   addMessage: (conversationId, message) => {
@@ -613,11 +634,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   connectToAgent: async (agentId: string) => {
     set({ isConnecting: true, connectionError: null })
-    
+
     try {
       // 确保有活动会话
+      const currentConvId = get().currentConversationId
+      const currentConv = currentConvId ? get().conversations.find(c => c.id === currentConvId) : null
       let session = get().activeSessions[agentId]
-      if (!session) {
+
+      if (currentConv?.sessionId) {
+        // Conversation has its own sessionId — ensure we connect to that session
+        if (!session || session.id !== currentConv.sessionId) {
+          session = { id: currentConv.sessionId } as Session
+        }
+      } else if (!session) {
         session = await get().createNewSession(agentId)
       }
       
@@ -788,16 +817,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })
   },
   
-  sendMessageToAgent: async (agentId: string, content: string, onEvent?: (event: any) => void) => {
+  sendMessageToAgent: async (agentId: string, sessionId: string | undefined, content: string, onEvent?: (event: any) => void) => {
     // 获取当前活动会话
-    const activeSession = get().activeSessions[agentId]
-    if (!activeSession) {
+    const sid = sessionId || get().activeSessions[agentId]?.id
+    if (!sid) {
       throw new Error('No active session for agent')
     }
     
     try {
       // 调用流式API发送消息
-      const events = await messageService.sendMessage(agentId, activeSession.id, content, onEvent)
+      const events = await messageService.sendMessage(agentId, sid, content, onEvent)
       
       return events
     } catch (error) {

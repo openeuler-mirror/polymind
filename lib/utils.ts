@@ -22,8 +22,20 @@ export function generateUUID(): string {
 }
 
 
-const INTERRUPTION_PREFIX =
-  '[System note: Your previous response was interrupted and incomplete. Ignore it entirely. Answer ONLY the user\'s latest question below. Do not continue, complete, or reference the interrupted response.]\n\n'
+const INTERRUPTION_PREFIX = `[CRITICAL SYSTEM INSTRUCTION - OVERRIDE ALL PREVIOUS CONTEXT]
+
+The assistant's previous response in the conversation history was INTERRUPTED and INCOMPLETE before being sent to you. 
+
+You MUST follow these rules with HIGHEST PRIORITY:
+
+1. IGNORE the ENTIRE interrupted assistant message completely - treat it as if it never existed
+2. DO NOT continue, complete, reference, or acknowledge that interrupted response in ANY way  
+3. DO NOT use phrases like "continuing from", "as I was saying", "to complete my previous thought"
+4. Answer ONLY and DIRECTLY the user's message below, starting from a fresh response
+
+The user's current message (ignore everything before this):
+
+`;
 export function withInterruptionPrefix(
   content: string,
   messages: Message[]
