@@ -465,6 +465,34 @@ export interface CveConfigUpdateResponse {
   ok: boolean
 }
 
+export interface CveArtifact {
+  kind: string
+  label: string
+  status: string
+  path: string
+  file_name: string
+  viewable: boolean
+}
+
+export interface CveWorkbenchBranch {
+  name: string
+  status: string
+  artifacts: CveArtifact[]
+}
+
+export interface CveWorkbenchResponse {
+  cve_id: string
+  cache_key: string
+  branches: CveWorkbenchBranch[]
+}
+
+export interface CveArtifactResponse {
+  path: string
+  file_name: string
+  content: string
+}
+
+
 // ============================================
 // Skills Repo相关类型
 // ============================================
