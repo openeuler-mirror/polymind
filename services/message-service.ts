@@ -32,7 +32,7 @@ class SendMessageCommand implements Command {
     })
     
     // 使用流式 API 端点
-    const url = `/api/v1/agents/${this.agentId}/sessions/${this.sessionId}/messages/stream`
+    const url = `/agents/${this.agentId}/sessions/${this.sessionId}/messages/stream`
     
     // 构建完整的 URL
     const fullUrl = `${appConfig.api.baseUrl}${url}`
@@ -125,7 +125,7 @@ class SendMessageCommand implements Command {
           }
           
           // 继续处理流
-          processStream()
+          await processStream()
         }
         
         processStream().catch(error => {

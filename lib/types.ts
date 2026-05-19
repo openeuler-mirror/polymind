@@ -6,7 +6,7 @@
  * 消息接口
  */
 export interface EventItem {
-  type: 'thinking' | 'tool.call.started' | 'tool.call.response' | 'message.delta' | 'message.completed' | 'usage.updated' | 'session.runtime.changed' | 'stream.error' | 'client.error'
+  type: 'thinking' | 'tool.call.started' | 'tool.call.response' | 'message.delta' | 'message.completed' | 'turn.completed' | 'usage.updated' | 'session.runtime.changed' | 'stream.error' | 'client.error'
   session_id?: string
   event_id?: string
   ts_ms?: number
@@ -23,6 +23,7 @@ export interface Message {
   content: string
   timestamp: Date
   isStreaming?: boolean
+  stopped?: boolean
   toolCalls?: ToolCall[]
   attachments?: Attachment[]
   thinking?: string[]
@@ -74,6 +75,7 @@ export interface Conversation {
   pinned?: boolean
   agentId?: string  // 创建该会话的 agent ID
   agentName?: string  // 创建该会话的 agent 名称
+  sessionId?: string  // 该会话对应的后端 session ID
   isStreaming?: boolean  // 该会话是否正在生成消息
 }
 
@@ -463,6 +465,34 @@ export interface CveConfigUpdateResponse {
   ok: boolean
 }
 
+export interface CveArtifact {
+  kind: string
+  label: string
+  status: string
+  path: string
+  file_name: string
+  viewable: boolean
+}
+
+export interface CveWorkbenchBranch {
+  name: string
+  status: string
+  artifacts: CveArtifact[]
+}
+
+export interface CveWorkbenchResponse {
+  cve_id: string
+  cache_key: string
+  branches: CveWorkbenchBranch[]
+}
+
+export interface CveArtifactResponse {
+  path: string
+  file_name: string
+  content: string
+}
+
+
 // ============================================
 // Skills Repo相关类型
 // ============================================
@@ -497,7 +527,7 @@ export interface SkillRepositoryRequest {
 }
 
 /**
- * 技能响应（/api/v1/skills）
+ * 技能响应（/skills）
  */
 export interface SkillResponse {    
   skill_id: string
