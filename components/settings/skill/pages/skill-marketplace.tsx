@@ -123,7 +123,7 @@ export function SkillMarketplace() {
     () => new Map(statusItems.map((repo) => [repo.repo_id, repo])),
     [statusItems],
   )
-  const previewRepo = previewSkill?.repo_id ? repoById.get(previewSkill.repo_id) : undefined
+  const previewRepo = previewSkill && previewSkill.repo_id ? repoById.get(previewSkill.repo_id) : undefined
   const previewIsGit = previewRepo?.source_type === 'git'
 
   const handleInstallSkill = async (skill: SkillResponse) => {

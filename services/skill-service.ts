@@ -16,7 +16,7 @@ class SkillService {
   }
 
   public async createRepo(request: SkillRepositoryRequest): Promise<SkillRepositoryResponse> {
-    return httpClient.post<SkillRepositoryResponse>('/api/v1/skills/repos', request)
+    return httpClient.post<SkillRepositoryResponse>('/skills/repos', request)
   }
 
   public async updateRepo(
@@ -25,7 +25,7 @@ class SkillService {
     fallbackRepo?: Partial<SkillRepositoryResponse>,
   ): Promise<SkillRepositoryResponse> {
     const response = await httpClient.patch<SkillRepositoryResponse>(
-      `/api/v1/skills/repos/${repoId}`,
+      `/skills/repos/${repoId}`,
       request,
     )
 
@@ -41,20 +41,20 @@ class SkillService {
   }
 
   public async deleteRepo(repoId: string): Promise<void> {
-    await httpClient.delete(`/api/v1/skills/repos/${repoId}`)
+    await httpClient.delete(`/skills/repos/${repoId}`)
   }
 
   public async discoverRepoSkills(repoId: string): Promise<void> {
-    await httpClient.post(`/api/v1/skills/discover/${repoId}`, {})
+    await httpClient.post(`/skills/discover/${repoId}`, {})
   }
 
   public async listAllSkills(): Promise<SkillResponse[]> {
-    const response = await httpClient.get<SkillResponse[]>('/api/v1/skills/skills')
+    const response = await httpClient.get<SkillResponse[]>('/skills/skills')
     return Array.isArray(response) ? response : []
   }
 
   private async fetchRepositorySchemas(): Promise<SkillRepositoryResponse[]> {
-    return httpClient.get<SkillRepositoryResponse[]>('/api/v1/skills/repos')
+    return httpClient.get<SkillRepositoryResponse[]>('/skills/repos')
   }
 
   public async installSkill(
@@ -93,7 +93,7 @@ class SkillService {
   }
 
   private getAgentSkillApiBasePath(agentId: string) {
-    return `/api/v1/agents/${encodeURIComponent(agentId)}/skills`
+    return `/agents/${encodeURIComponent(agentId)}/skills`
   }
 }
 

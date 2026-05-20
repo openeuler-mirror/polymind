@@ -5,7 +5,7 @@ const path = require('path');
 
 // 读取环境变量或使用默认值
 const API_BASE_URL = process.env.NEXT_PUBLIC_AGENTD_API_URL || 'http://localhost:18080';
-const API_ENDPOINT = '/api/v1/agents';
+const API_ENDPOINT = '/agents';
 
 console.log('Testing Agents API...');
 console.log('API Base URL:', API_BASE_URL);
