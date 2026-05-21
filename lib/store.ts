@@ -456,7 +456,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const agentId = conversation?.agentId || state.currentAgentId
     if (agentId) {
       set({ _stoppingInProgress: true })
-      messageService.abortMessage(agentId)
+      messageService.abortMessage(agentId, conversation?.sessionId)
     }
 
     set((state) => ({

@@ -3,6 +3,7 @@ import { WebSocketClient } from '@/lib/websocket-client'
 import { AgentEvent, Command } from '@/lib/types'
 import { AgentEventType } from '@/lib/types'
 import { appConfig } from '@/app/config'
+import { sessionService } from './session-service'
 
 // 发送消息命令
 class SendMessageCommand implements Command {
@@ -188,11 +189,16 @@ class MessageService {
     })
   }
 
-  public abortMessage(agentId: string): void {
+  public abortMessage(agentId: string, sessionId?: string): void {
     const controller = this.streamingControllers[agentId]
     if (!controller) return
     controller.abort()
     delete this.streamingControllers[agentId]
+
+    // 直接调用 HTTP abort 端点，确保后端同步中断（不依赖 SSE 断连检测）
+    if (sessionId) {
+      sessionService.abortSession(agentId,sessionId)
+    }
   }
 
   /**

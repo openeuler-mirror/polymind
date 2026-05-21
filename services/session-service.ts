@@ -37,6 +37,13 @@ class SessionService {
   }
 
   /**
+   * 中断会话
+   */
+  public async abortSession(agentId: string, sessionId: string): Promise<void> {
+    await httpClient.post(`/agents/${agentId}/sessions/${sessionId}/abort`)
+  }
+
+  /**
    * 转换会话数据格式
    */
   private transformSession(session: any, agentId: string): Session {
