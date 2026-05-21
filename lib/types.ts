@@ -555,3 +555,28 @@ export interface AgentSkillResponse {
   skill_md_url?: string | null
   message?: string | null
 }
+
+/**
+ * 安装技能到 Agent 的请求
+ */
+export interface InstallAgentSkillRequest {
+  skill_id: string
+  skill_name: string
+}
+
+/**
+ * 从 Agent 卸载技能的请求
+ */
+export interface UninstallAgentSkillRequest {
+  skill_id: string
+}
+
+/**
+ * 安装技能到 Agent 的响应
+ */
+export interface InstallAgentSkillResponse {
+  agent_id: string
+  skill_id: string
+  skill_name: string
+  message: string
+}

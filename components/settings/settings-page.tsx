@@ -55,7 +55,7 @@ export function SettingsPage() {
   ]
 
   return (
-    <div className="flex h-full bg-background">
+    <div className="flex h-full min-h-0 bg-background">
       {/* Sidebar */}
       <div className="w-48 border-r border-border bg-sidebar p-4">
         <nav className="space-y-1">
@@ -81,12 +81,12 @@ export function SettingsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex min-h-0 flex-col">
         {/* Header */}
         
 
         {/* Content */}
-        <ScrollArea className="flex-1 p-6">
+        <ScrollArea className="min-h-0 flex-1 p-6">
           {activeSection === 'general' && (
             <div className="space-y-8">
               {/* 基础设置 */}

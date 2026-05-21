@@ -1,6 +1,9 @@
 import { httpClient } from '@/lib/http-client'
 import {
   AgentSkillResponse,
+  InstallAgentSkillRequest,
+  InstallAgentSkillResponse,
+  UninstallAgentSkillRequest,
   SkillRepositoryRequest,
   SkillRepositoryResponse,
   SkillResponse,
@@ -54,11 +57,39 @@ class SkillService {
     return httpClient.get<SkillRepositoryResponse[]>('/skills/repos')
   }
 
+  public async installSkill(
+    agentId: string,
+    request: InstallAgentSkillRequest,
+  ): Promise<InstallAgentSkillResponse> {
+    return httpClient.post<InstallAgentSkillResponse>(
+      `${this.getAgentSkillApiBasePath(agentId)}/`,
+      request,
+    )
+  }
+
   public async listInstalledSkills(agentId: string): Promise<AgentSkillResponse[]> {
     const response = await httpClient.get<AgentSkillResponse[]>(
       `${this.getAgentSkillApiBasePath(agentId)}/installed`,
     )
     return Array.isArray(response) ? response : []
+  }
+
+  public async syncInstalledSkills(agentId: string): Promise<AgentSkillResponse[]> {
+    const response = await httpClient.post<AgentSkillResponse[]>(
+      `${this.getAgentSkillApiBasePath(agentId)}/installed/sync`,
+      {},
+    )
+    return Array.isArray(response) ? response : []
+  }
+
+  public async uninstallSkill(
+    agentId: string,
+    request: UninstallAgentSkillRequest,
+  ): Promise<AgentSkillResponse> {
+    return httpClient.post<AgentSkillResponse>(
+      `${this.getAgentSkillApiBasePath(agentId)}/uninstall`,
+      request,
+    )
   }
 
   private getAgentSkillApiBasePath(agentId: string) {

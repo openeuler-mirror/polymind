@@ -2,7 +2,7 @@
 
 import type { ComponentType } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, FolderOpen, RefreshCw, Search } from 'lucide-react'
+import { BookOpen, ExternalLink, FolderOpen, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useChatStore } from '@/lib/store'
 import { AgentSkillResponse } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
+import { SkillPaginationBar } from '../pagination-bar'
 
 export function InstalledSkills() {
   const currentAgentId = useChatStore((state) => state.currentAgentId)
@@ -21,6 +22,9 @@ export function InstalledSkills() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSourceType, setSelectedSourceType] = useState<string>('all')
   const [previewSkill, setPreviewSkill] = useState<AgentSkillResponse | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(12)
+  const [uninstallingSkillId, setUninstallingSkillId] = useState<string | null>(null)
   const { toast } = useToast()
 
   const mergedSkills = installedSkills
@@ -46,7 +50,6 @@ export function InstalledSkills() {
           skill.skill_name,
           skill.skill_id,
           skill.source_type,
-          skill.repo_id,
           skill.relative_path,
           skill.skill_source,
           skill.skill_md_url,
@@ -58,6 +61,23 @@ export function InstalledSkills() {
       return matchesSource && matchesSearch
     })
   }, [mergedSkills, searchTerm, selectedSourceType])
+
+  const totalPages = Math.max(1, Math.ceil(filteredSkills.length / pageSize))
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, selectedSourceType, mergedSkills.length, pageSize])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  const pagedSkills = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    return filteredSkills.slice(startIndex, startIndex + pageSize)
+  }, [currentPage, filteredSkills, pageSize])
 
   useEffect(() => {
     if (!currentAgentId) {
@@ -88,7 +108,63 @@ export function InstalledSkills() {
     if (!currentAgentId) {
       return
     }
-    await refreshInstalledSkills(currentAgentId)
+    try {
+      setLoading(true)
+      const synced = await skillService.syncInstalledSkills(currentAgentId)
+      setInstalledSkills(synced)
+      toast({
+        title: '刷新成功',
+        description: '已同步并更新当前 Agent 的已安装技能列表。',
+      })
+    } catch (error) {
+      console.error('Failed to sync installed skills:', error)
+      toast({
+        title: '刷新失败',
+        description: '同步已安装技能失败，请稍后重试。',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUninstallSkill = async (skill: AgentSkillResponse) => {
+    if (isProtectedBuiltinSkill(skill)) {
+      toast({
+        title: '不可卸载',
+        description: 'openclaw-bundled / openclaw-extra 技能不支持在此处卸载。',
+      })
+      return
+    }
+
+    if (!currentAgentId) {
+      toast({
+        title: '未选择 Agent',
+        description: '请先在聊天区选择一个 Agent，再卸载技能。',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setUninstallingSkillId(skill.skill_id)
+      await skillService.uninstallSkill(currentAgentId, { skill_id: skill.skill_id })
+      setInstalledSkills((prev) => prev.filter((item) => item.skill_id !== skill.skill_id))
+      setPreviewSkill((prev) => (prev?.skill_id === skill.skill_id ? null : prev))
+      toast({
+        title: '卸载成功',
+        description: `技能 ${extractSkillName(skill.skill_name)} 已从当前 Agent 卸载。`,
+      })
+    } catch (error) {
+      console.error('Failed to uninstall skill:', error)
+      toast({
+        title: '卸载失败',
+        description: '卸载技能失败，请稍后重试。',
+        variant: 'destructive',
+      })
+    } finally {
+      setUninstallingSkillId(null)
+    }
   }
 
   return (
@@ -112,7 +188,6 @@ export function InstalledSkills() {
       <Card className="border border-border">
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <CardTitle>技能列表</CardTitle>
             <div className="flex w-full max-w-xl gap-2">
               <Select value={selectedSourceType} onValueChange={setSelectedSourceType}>
                 <SelectTrigger className="w-80 shrink-0">
@@ -137,12 +212,12 @@ export function InstalledSkills() {
               </div>
               <Button
                 variant="outline"
-                size="icon"
                 onClick={() => void handleRefresh()}
                 disabled={!currentAgentId || loading}
-                title="刷新"
+                title="同步已安装技能"
               >
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`mr-1 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                同步已安装技能
               </Button>
             </div>
           </div>
@@ -155,8 +230,19 @@ export function InstalledSkills() {
           ) : filteredSkills.length === 0 ? (
             <EmptyState text="暂无匹配的已安装技能。" />
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {filteredSkills.map((skill) => (
+            <div className="space-y-4">
+              <SkillPaginationBar
+                total={filteredSkills.length}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageSizeChange={(value) => setPageSize(value)}
+                onPrev={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                onNext={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {pagedSkills.map((skill) => (
                 <div
                   key={`${skill.agent_id}-${skill.skill_id}`}
                   className="flex min-h-15 flex-col rounded-lg border border-border bg-card p-4"
@@ -174,9 +260,26 @@ export function InstalledSkills() {
                     </p>
                     <div className="mt-2 text-xs leading-5 text-muted-foreground">
                       <p>来源类型：{skill.source_type}</p>
-                      <p>安装时间：{formatInstalledAt(skill.installed_at)}</p>
                     </div>
-                    <div className="mt-3 flex justify-end">
+                    <div className="mt-3 flex justify-end gap-3">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-red-600 hover:text-red-700 disabled:text-muted-foreground"
+                        onClick={() => void handleUninstallSkill(skill)}
+                        disabled={
+                          isProtectedBuiltinSkill(skill) ||
+                          uninstallingSkillId === skill.skill_id ||
+                          !currentAgentId
+                        }
+                      >
+                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+                        {isProtectedBuiltinSkill(skill)
+                          ? '不可卸载'
+                          : uninstallingSkillId === skill.skill_id
+                            ? '卸载中...'
+                            : '卸载'}
+                      </Button>
                       <Button
                         variant="link"
                         size="sm"
@@ -188,7 +291,8 @@ export function InstalledSkills() {
                     </div>
                   </div>
                 </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
@@ -204,14 +308,13 @@ export function InstalledSkills() {
               {previewSkill ? (
                 <div className="space-y-1 text-sm">
                   <InfoLine icon={FolderOpen} label="来源类型" value={previewSkill.source_type} />
-                  <InfoLine icon={FolderOpen} label="repo_id" value={previewSkill.repo_id || '-'} />
                   <InfoLine
-                    icon={FolderOpen}
-                    label="安装时间"
-                    value={formatInstalledAt(previewSkill.installed_at)}
+                    icon={previewSkill.skill_md_url ? ExternalLink : FolderOpen}
+                    label="skill 路径"
+                    value={previewSkill.skill_md_url || previewSkill.relative_path || '-'}
+                    href={previewSkill.skill_md_url && isHttpUrl(previewSkill.skill_md_url) ? previewSkill.skill_md_url : undefined}
+                    singleLine
                   />
-                  <InfoLine icon={FolderOpen} label="skill_id" value={previewSkill.skill_id} />
-                  <InfoLine icon={FolderOpen} label="skill 路径" value={previewSkill.relative_path || '-'} />
                 </div>
               ) : null}
             </div>
@@ -239,17 +342,44 @@ function InfoLine({
   icon: Icon,
   label,
   value,
+  href,
+  singleLine = false,
+  valueClassName,
 }: {
   icon: ComponentType<{ className?: string }>
   label: string
   value: string
+  href?: string
+  singleLine?: boolean
+  valueClassName?: string
 }) {
+  const valueClasses = [
+    singleLine ? 'inline-block max-w-[24rem] truncate whitespace-nowrap' : 'break-all',
+    valueClassName || '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
     <div className="flex items-start gap-2 text-sm">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
       <div className="flex min-w-0 flex-1 items-start gap-1">
         <span className="shrink-0 text-muted-foreground">{label}：</span>
-        <span className="break-all">{value}</span>
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            title={value}
+            className={`text-blue-600 hover:text-blue-700 hover:underline ${valueClasses}`}
+          >
+            {value}
+          </a>
+        ) : (
+          <span className={valueClasses} title={singleLine ? value : undefined}>
+            {value}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -270,6 +400,18 @@ function extractSkillName(value?: string) {
 function extractSkillDescription(metadata?: Record<string, unknown> | null) {
   const description = metadata?.description
   return typeof description === 'string' ? description.trim() : ''
+}
+
+function isHttpUrl(value: string): boolean {
+  return value.startsWith('http://') || value.startsWith('https://')
+}
+
+function isProtectedBuiltinSkill(skill: AgentSkillResponse): boolean {
+  const source = skill.metadata?.source
+  if (typeof source !== 'string') {
+    return false
+  }
+  return source === 'openclaw-extra' || source === 'openclaw-bundled'
 }
 
 function formatInstalledAt(value: string): string {

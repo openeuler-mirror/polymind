@@ -10,16 +10,23 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import { useChatStore } from '@/lib/store'
 import { SkillRepositoryResponse, SkillResponse } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
+import { SkillPaginationBar } from '../pagination-bar'
 
 export function SkillMarketplace() {
+  const currentAgentId = useChatStore((state) => state.currentAgentId)
   const [skills, setSkills] = useState<SkillResponse[]>([])
   const [statusItems, setStatusItems] = useState<SkillRepositoryResponse[]>([])
+  const [installingSkillKey, setInstallingSkillKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSource, setSelectedSource] = useState<string>('all')
   const [previewSkill, setPreviewSkill] = useState<SkillResponse | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(12)
+  const [installedSkillIds, setInstalledSkillIds] = useState<Set<string>>(new Set())
   const { toast } = useToast()
 
   const sourceOptions = useMemo(() => {
@@ -49,9 +56,34 @@ export function SkillMarketplace() {
     })
   }, [searchTerm, selectedSource, skills])
 
+  const totalPages = Math.max(1, Math.ceil(filteredSkills.length / pageSize))
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, selectedSource, skills.length, pageSize])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  const pagedSkills = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    return filteredSkills.slice(startIndex, startIndex + pageSize)
+  }, [currentPage, filteredSkills, pageSize])
+
   useEffect(() => {
     void refreshMarketplace()
   }, [])
+
+  useEffect(() => {
+    if (!currentAgentId) {
+      setInstalledSkillIds(new Set())
+      return
+    }
+    void refreshInstalledSkillIds(currentAgentId)
+  }, [currentAgentId])
 
   const refreshMarketplace = async () => {
     try {
@@ -72,12 +104,79 @@ export function SkillMarketplace() {
     }
   }
 
+
+  const refreshInstalledSkillIds = async (agentId: string) => {
+    try {
+      const installed = await skillService.listInstalledSkills(agentId)
+      const ids = new Set(
+        installed
+          .map((item) => item.skill_id)
+          .filter((skillId): skillId is string => typeof skillId === 'string' && !!skillId),
+      )
+      setInstalledSkillIds(ids)
+    } catch (error) {
+      console.error('Failed to load installed skills for marketplace:', error)
+    }
+  }
+
   const repoById = useMemo(
     () => new Map(statusItems.map((repo) => [repo.repo_id, repo])),
     [statusItems],
   )
   const previewRepo = previewSkill && previewSkill.repo_id ? repoById.get(previewSkill.repo_id) : undefined
   const previewIsGit = previewRepo?.source_type === 'git'
+
+  const handleInstallSkill = async (skill: SkillResponse) => {
+    if (!currentAgentId) {
+      toast({
+        title: '未选择 Agent',
+        description: '请先在聊天区选择一个 Agent，再安装技能。',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!skill.skill_id || !skill.skill_name) {
+      toast({
+        title: '安装失败',
+        description: '技能信息不完整，无法安装。',
+        variant: 'destructive',
+      })
+      return
+    }
+
+
+    if (installedSkillIds.has(skill.skill_id)) {
+      toast({
+        title: '已安装',
+        description: `技能 ${extractSkillName(skill.skill_name)} 已安装。`,
+      })
+      return
+    }
+
+    const skillKey = skill.skill_id
+    try {
+      setInstallingSkillKey(skillKey)
+      await skillService.installSkill(currentAgentId, {
+        skill_id: skill.skill_id,
+        skill_name: skill.skill_name,
+      })
+      setInstalledSkillIds((prev) => new Set([...prev, skill.skill_id]))
+      toast({
+        title: '安装成功',
+        description: `技能 ${extractSkillName(skill.skill_name)} 已安装到当前 Agent。`,
+      })
+    } catch (error) {
+      console.error('Failed to install skill:', error)
+      toast({
+        title: '安装失败',
+        description: '安装技能失败，请稍后重试。',
+        variant: 'destructive',
+      })
+    } finally {
+      setInstallingSkillKey(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -97,7 +196,6 @@ export function SkillMarketplace() {
       <Card className="border border-border">
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <CardTitle>技能列表</CardTitle>
             <div className="flex w-full max-w-xl gap-2">
               <Select value={selectedSource} onValueChange={setSelectedSource}>
                 <SelectTrigger className="w-80 shrink-0">
@@ -129,36 +227,66 @@ export function SkillMarketplace() {
           ) : filteredSkills.length === 0 ? (
             <EmptyState text="暂无匹配的技能记录。" />
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {filteredSkills.map((skill) => (
-                <div
-                  key={skill.skill_id}
-                  className="flex min-h-15 flex-col rounded-lg border border-border bg-card p-4"
-                >
-                  <div className="mb-3 flex items-start gap-2">
-                    <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                    <p className="text-sm font-semibold leading-5 break-all">
-                      {extractSkillName(skill.skill_name)}
-                    </p>
-                  </div>
+            <div className="space-y-4">
+              <SkillPaginationBar
+                total={filteredSkills.length}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                onPageSizeChange={(value) => setPageSize(value)}
+                onPrev={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                onNext={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              />
 
-                  <div className="flex-1">
-                    <p className="min-h-12 line-clamp-2 text-sm leading-6 text-muted-foreground">
-                      {extractSkillDescription(skill.metadata) || '暂无描述'}
-                    </p>
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="h-auto p-0 text-blue-600 hover:text-blue-700"
-                        onClick={() => setPreviewSkill(skill)}
-                      >
-                        预览
-                      </Button>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {pagedSkills.map((skill) => (
+                  <div
+                    key={skill.skill_id}
+                    className="flex min-h-15 flex-col rounded-lg border border-border bg-card p-4"
+                  >
+                    <div className="mb-3 flex items-start gap-2">
+                      <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <p className="text-sm font-semibold leading-5 break-all">
+                        {extractSkillName(skill.skill_name)}
+                      </p>
+                    </div>
+
+                    <div className="flex-1">
+                      <p className="min-h-12 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                        {extractSkillDescription(skill.metadata) || '暂无描述'}
+                      </p>
+                      <div className="mt-3 flex justify-end gap-3">
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground"
+                          onClick={() => void handleInstallSkill(skill)}
+                          disabled={
+                            !currentAgentId ||
+                            !skill.skill_id ||
+                            installedSkillIds.has(skill.skill_id) ||
+                            installingSkillKey === skill.skill_id
+                          }
+                        >
+                          {installingSkillKey === skill.skill_id
+                            ? '安装中...'
+                            : installedSkillIds.has(skill.skill_id)
+                              ? '已安装'
+                              : '安装'}
+                        </Button>
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-blue-600 hover:text-blue-700"
+                          onClick={() => setPreviewSkill(skill)}
+                        >
+                          预览
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </CardContent>

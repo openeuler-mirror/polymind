@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import {
   Send,
   Paperclip,
@@ -43,7 +43,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import type { AgentSkill } from '@/lib/types'
-import { agentService } from '@/services/agent-service'
+import { skillService } from '@/services/skill-service'
 
 const models = [
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
@@ -79,43 +79,78 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
   const [showSkillSelector, setShowSkillSelector] = useState(false)
   const [selectedSkillIndex, setSelectedSkillIndex] = useState(0) // 手动记录选中的技能索引
 
-  // 从接口获取skill列表数据
-  useEffect(() => {
-    const fetchSkills = async () => {
-      try {
-        const agents = await agentService.getAgents()
-        // 合并所有Agent的skills并去重
-        const allSkills = agents.flatMap(agent => agent.skills || [])
-        // 按name去重
-        const uniqueSkills = Array.from(new Map(allSkills.map(skill => [skill.name, skill])).values())
-        setSkills(uniqueSkills)
-      } catch (error) {
-        console.error('Failed to fetch skills:', error)
-      }
+  const { currentConversationId, conversations, stopStreaming, currentAgentId } = useChatStore()
+
+  const fetchSkills = useCallback(async () => {
+    if (!currentAgentId) {
+      setSkills([])
+      return
     }
-    fetchSkills()
-  }, [])
+    try {
+      const installedSkills = await skillService.listInstalledSkills(currentAgentId)
+      const mappedSkills: AgentSkill[] = installedSkills.map((skill) => ({
+        name: skill.skill_name,
+        description:
+          typeof skill.metadata?.description === 'string'
+            ? skill.metadata.description
+            : '',
+        filePath: skill.relative_path || '',
+        source: skill.source_type || skill.skill_source || '',
+      }))
+      // 按 name 去重
+      const uniqueSkills = Array.from(
+        new Map(mappedSkills.map((skill) => [skill.name, skill])).values(),
+      )
+      setSkills(uniqueSkills)
+    } catch (error) {
+      console.error('Failed to fetch skills:', error)
+      setSkills([])
+    }
+  }, [currentAgentId])
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { currentConversationId, conversations, stopStreaming } = useChatStore()
   const currentConversation = conversations.find(conv => conv.id === currentConversationId)
   const isStreaming = currentConversation?.isStreaming ?? false
 
-  // 监听输入内容变化，检测是否输入了/
+  const slashCommandQuery = useMemo(() => {
+    const match = input.match(/(?:^|\s)\/([a-zA-Z0-9-_]*)$/)
+    if (!match) {
+      return null
+    }
+    return match[1]
+  }, [input])
+
+  const filteredSkills = useMemo(() => {
+    if (slashCommandQuery === null) {
+      return []
+    }
+    const keyword = slashCommandQuery.trim().toLowerCase()
+    if (!keyword) {
+      return skills
+    }
+    return skills.filter((skill) => skill.name.toLowerCase().startsWith(keyword))
+  }, [skills, slashCommandQuery])
+
+  // 监听输入内容变化，检测是否输入了 "/" 命令并按前缀筛选
   useEffect(() => {
-    if (input.trim() === '/') {
+    if (slashCommandQuery !== null) {
+      // 输入 "/" 时即时刷新一次已安装技能，确保刚安装的技能能立刻显示。
+      if (slashCommandQuery.length === 0) {
+        void fetchSkills()
+      }
       setShowSkillSelector(true)
       setSelectedSkillIndex(0) // 打开时默认选中第一个
-    } else if (!input.endsWith('/')) {
+    } else {
       setShowSkillSelector(false)
     }
-  }, [input])
+  }, [fetchSkills, slashCommandQuery])
 
   // 处理选择skill
   const handleSelectSkill = useCallback((skill: AgentSkill) => {
     setShowSkillSelector(false)
-    // 将/skill_name 填入输入框，后面加空格方便用户继续输入
-    setInput(`/${skill.name} `)
+    // 将当前正在输入的 /xxx 片段替换为完整 skill 名，后面加空格方便继续输入
+    setInput((prev) => prev.replace(/(?:^|\s)\/[a-zA-Z0-9-_]*$/, ` /${skill.name} `).trimStart())
     // 聚焦输入框，方便用户继续输入
     setTimeout(() => {
       textareaRef.current?.focus()
@@ -160,17 +195,26 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
     if (showSkillSelector) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedSkillIndex(prev => Math.min(prev + 1, skills.length - 1))
+        if (filteredSkills.length === 0) {
+          return
+        }
+        setSelectedSkillIndex(prev => Math.min(prev + 1, filteredSkills.length - 1))
         return
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
+        if (filteredSkills.length === 0) {
+          return
+        }
         setSelectedSkillIndex(prev => Math.max(prev - 1, 0))
         return
       }
       if (e.key === 'Enter') {
         e.preventDefault()
-        handleSelectSkill(skills[selectedSkillIndex])
+        const selectedSkill = filteredSkills[selectedSkillIndex]
+        if (selectedSkill) {
+          handleSelectSkill(selectedSkill)
+        }
         return
       }
     }
@@ -281,7 +325,7 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
                 <div className="rounded-lg border shadow-md bg-popover text-popover-foreground">
                   <div className="p-1">
                     <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">可用技能</div>
-                    {skills.map((skill, index) => (
+                    {filteredSkills.map((skill, index) => (
                       <div
                         key={skill.name}
                         onClick={() => handleSelectSkill(skill)}
@@ -290,6 +334,9 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
                         <span className="font-medium">/{skill.name}</span>
                       </div>
                     ))}
+                    {filteredSkills.length === 0 && (
+                      <div className="px-2 py-2 text-xs text-muted-foreground">无匹配技能</div>
+                    )}
                   </div>
                 </div>
               </div>
