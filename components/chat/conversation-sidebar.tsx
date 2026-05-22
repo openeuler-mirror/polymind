@@ -9,16 +9,14 @@ import {
   Pin,
   MoreHorizontal,
   Trash2,
-  Edit3,
   ChevronLeft,
-  Code2,
   Loader2,
-  PencilLine 
+  PencilLine,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
-import { agentService } from '@/services/agent-service'
-import { Agent } from '@/lib/types'
+import { cacheGet, CACHE_KEYS } from '@/lib/cache'
+import type { Conversation, Agent } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -45,22 +43,50 @@ export function ConversationSidebar() {
     togglePinConversation,
     updateConversationTitle,
     agents: storeAgents,
-    setAgents,
-    removeAgent,
   } = useChatStore()
   
   useEffect(() => {
     setIsHydrated(true)
   }, [])
-  
-  const isEmpty = !isHydrated || conversations.length === 0
 
   useEffect(() => {
     const fetchAgents = async () => {
+      // Check cache synchronously before any async work
+      const cached = cacheGet<{ agents: Agent[]; conversations: Conversation[]; sessionAgentNames: [string, string][] }>(CACHE_KEYS.AGENTS_CONVERSATIONS)
+      console.log('cached:',cached)
+      if (cached) {
+        // Apply cached data to store INSTANTLY — no loading spinner needed
+        console.log('fetch agents from cache:',{ agents: cached.agents })
+        setAgentsLoading(false)
+        useChatStore.setState(state => {
+          const existingIds = new Set(state.conversations.map(c => c.id))
+          const existingSessionIds = new Set(state.conversations.map(c => c.sessionId).filter(Boolean))
+          const freshConvs = cached.conversations.filter(
+            c => !existingIds.has(c.id) && !existingSessionIds.has(c.sessionId)
+          )
+          const merged = [...freshConvs, ...state.conversations].sort(
+            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          )
+          return { agents: cached.agents, conversations: merged }
+        })
+        // Sync URL params from restored state
+        const state = useChatStore.getState()
+        const conv = state.conversations.find(c => c.id === state.currentConversationId)
+        if (conv?.agentId && conv?.sessionId) {
+          syncUrlParams(conv.agentId, conv.sessionId)
+        }
+      }
+
+      // Always fetch fresh data in background
       try {
-        setAgentsLoading(true)
-        const data = await agentService.getAgents()
-        setAgents(data)
+        if (!cached) setAgentsLoading(true)
+        const store = useChatStore.getState()
+        await store.fetchAgentsWithConversations()
+        const state = useChatStore.getState()
+        const conv = state.conversations.find(c => c.id === state.currentConversationId)
+        if (conv?.agentId && conv?.sessionId) {
+          syncUrlParams(conv.agentId, conv.sessionId)
+        }
       } catch (err) {
         console.error('Failed to fetch agents:', err)
       } finally {
@@ -68,16 +94,31 @@ export function ConversationSidebar() {
       }
     }
     fetchAgents()
-  }, [setAgents])
+  }, [])
 
-  useEffect(() => {
-    if (storeAgents.length > 0) {
-      const store = useChatStore.getState()
-      store.fetchAllConversations()
-    }
-  }, [storeAgents])
-  
   const agents = storeAgents
+
+  const syncUrlParams = (agentId?: string, sessionId?: string) => {
+    const params = new URLSearchParams(window.location.search)
+    if (agentId) params.set('agent', agentId)
+    else params.delete('agent')
+    if (sessionId) params.set('session', sessionId)
+    else params.delete('session')
+    const qs = params.toString()
+    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+    window.history.replaceState(null, '', url)
+  }
+
+  const handleSelectConversation = (convId: string, agentId?: string, sessionId?: string) => {
+    setCurrentConversation(convId)
+    syncUrlParams(agentId, sessionId)
+  }
+
+  const handleCreateConversation = async (agentId: string, agentName?: string) => {
+    const convId = await createConversation(agentId, agentName)
+    const conv = useChatStore.getState().conversations.find(c => c.id === convId)
+    syncUrlParams(agentId, conv?.sessionId)
+  }
 
   const filteredConversations = conversations.filter((c) =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -119,7 +160,7 @@ export function ConversationSidebar() {
               key={agent.id}
               className="w-full justify-start gap-2 mb-1"
               variant="ghost"
-              onClick={async () => await createConversation(agent.id, agent.name)}
+              onClick={async () => await handleCreateConversation(agent.id, agent.name)}
             >
               <MessageSquarePlus className="h-4 w-4" />
               <span className="truncate">{agent.name}</span>
@@ -156,7 +197,7 @@ export function ConversationSidebar() {
                   key={conv.id}
                   conversation={conv}
                   isActive={conv.id === currentConversationId}
-                  onSelect={() => setCurrentConversation(conv.id)}
+                  onSelect={() => handleSelectConversation(conv.id, conv.agentId, conv.sessionId)}
                   onDelete={() => deleteConversation(conv.id)}
                   onTogglePin={() => togglePinConversation(conv.id)}
                   onRename={(title) => updateConversationTitle(conv.id, title)}
@@ -179,7 +220,7 @@ export function ConversationSidebar() {
                 key={conv.id}
                 conversation={conv}
                 isActive={conv.id === currentConversationId}
-                onSelect={() => setCurrentConversation(conv.id)}
+                onSelect={() => handleSelectConversation(conv.id, conv.agentId, conv.sessionId)}
                 onDelete={() => deleteConversation(conv.id)}
                 onTogglePin={() => togglePinConversation(conv.id)}
                 onRename={(title) => updateConversationTitle(conv.id, title)}

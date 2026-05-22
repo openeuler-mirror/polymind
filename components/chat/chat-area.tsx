@@ -48,6 +48,22 @@ export function ChatArea() {
     setIsHydrated(true)
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const urlAgentId = params.get('agent')
+    const urlSessionId = params.get('session')
+    if (urlAgentId && urlSessionId) {
+      useChatStore.getState().refreshConversation(urlAgentId, urlSessionId)
+      return
+    }
+    // Fall back to localStorage
+    const savedConvId = localStorage.getItem('polymind-current-conversation')
+    const savedAgentId = localStorage.getItem('polymind-current-agent')
+    if (savedConvId && savedAgentId) {
+      useChatStore.getState().refreshConversation(savedAgentId, savedConvId)
+    }
+  }, [])
+
   const currentConversation = conversations.find(
     (c) => c.id === currentConversationId
   )

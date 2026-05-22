@@ -54,11 +54,16 @@ class SessionService {
   }
 
   /**
-   * 获取完整会话（含消息和事件）
+   * 获取完整会话（含消息和事件），默认最近 20 条消息。
    */
-  public async getConversation(agentId: string, sessionId: string): Promise<any> {
+  public async getConversation(
+    agentId: string,
+    sessionId: string,
+    limit: number = 20,
+    offset: number = 0,
+  ): Promise<any> {
     const response = await httpClient.get<any>(
-      `/agents/${agentId}/conversations/${sessionId}`
+      `/agents/${agentId}/conversations/${sessionId}?limit=${limit}&offset=${offset}`
     )
     return response.data || response
   }

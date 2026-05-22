@@ -6,6 +6,7 @@ import { messageService } from '@/services/message-service'
 import { agentService } from '@/services/agent-service'
 import { sessionService } from '@/services/session-service'
 import { generateUUID } from './utils'
+import { cacheGet, cacheSet, cacheDelete, CACHE_KEYS } from './cache'
 
 // 环境变量控制是否使用模拟数据
 const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
@@ -107,6 +108,7 @@ export interface ChatState {
   fetchConversations: (agentId: string) => Promise<void>
   refreshConversation: (agentId: string, sessionId: string) => Promise<void>
   fetchAllConversations: () => Promise<void>
+  fetchAgentsWithConversations: () => Promise<{ fromCache?: boolean }>
 }
 
 const defaultTools: MCPTool[] = [
@@ -277,6 +279,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
        sessionId,
        isStreaming: false
      }
+    cacheDelete(CACHE_KEYS.AGENTS_CONVERSATIONS)
     set((state) => ({
       conversations: [newConversation, ...state.conversations],
       currentConversationId: id,
@@ -321,6 +324,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }
 
+    cacheDelete(CACHE_KEYS.AGENTS_CONVERSATIONS)
     set((state) => {
       const filtered = state.conversations.filter((c) => c.id !== id)
       const newCurrentId = state.currentConversationId === id
@@ -483,6 +487,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   updateConversationTitle: (id, title) => {
+    cacheDelete(CACHE_KEYS.AGENTS_CONVERSATIONS)
     set((state) => ({
       conversations: state.conversations.map((c) =>
         c.id === id ? { ...c, title } : c
@@ -497,6 +502,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   togglePinConversation: (id) => {
+    cacheDelete(CACHE_KEYS.AGENTS_CONVERSATIONS)
     set((state) => {
       const conv = state.conversations.find(c => c.id === id)
       const newPinned = !conv?.pinned
@@ -854,13 +860,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const messages = (detail.messages || []).map((msg: any) =>
         sessionService.transformMessage(msg)
       )
-      set((state) => ({
-        conversations: state.conversations.map((c) =>
-          c.sessionId === sessionId || c.id === sessionId
-            ? { ...c, messages, updatedAt: new Date(detail.updated_at) }
-            : c
-        ),
-      }))
+      set((state) => {
+        const existing = state.conversations.find(
+          c => c.sessionId === sessionId || c.id === sessionId
+        )
+        if (existing) {
+          return {
+            conversations: state.conversations.map((c) =>
+              c.sessionId === sessionId || c.id === sessionId
+                ? { ...c, messages, updatedAt: new Date(detail.updated_at) }
+                : c
+            ),
+            currentConversationId: existing.id,
+            currentAgentId: agentId,
+          }
+        }
+        // Conversation not yet loaded by sidebar — create a placeholder
+        const placeholder: Conversation = {
+          id: sessionId,
+          title: detail.title || '新对话',
+          messages,
+          createdAt: new Date(detail.created_at),
+          updatedAt: new Date(detail.updated_at),
+          pinned: detail.pinned,
+          agentId,
+          sessionId,
+        }
+        return {
+          conversations: [placeholder, ...state.conversations],
+          currentConversationId: sessionId,
+          currentAgentId: agentId,
+        }
+      })
     } catch (error) {
       console.error('Failed to refresh conversation:', error)
     }
@@ -893,6 +924,119 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       }
     }
+  },
+
+  fetchAgentsWithConversations: async () => {
+    let fromCache = false
+
+    const cached = cacheGet<{ agents: Agent[]; conversations: Conversation[]; sessionAgentNames: [string, string][] }>(CACHE_KEYS.AGENTS_CONVERSATIONS)
+    if (cached) {
+      fromCache = true
+      set(state => {
+        const existingIds = new Set(state.conversations.map(c => c.id))
+        const existingSessionIds = new Set(state.conversations.map(c => c.sessionId).filter(Boolean))
+        const patched: Conversation[] = state.conversations.map(c => {
+          if (!c.agentName && c.sessionId) {
+            for (const [sid, name] of cached.sessionAgentNames) {
+              if (sid === c.sessionId) return { ...c, agentName: name }
+            }
+          }
+          return c
+        })
+        const freshConvs = cached.conversations.filter(
+          c => !existingIds.has(c.id) && !existingSessionIds.has(c.sessionId)
+        )
+        // Stable sort by updatedAt DESC
+        const merged = [...freshConvs, ...patched].sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )
+        return {
+          agents: cached.agents,
+          conversations: merged,
+        }
+      })
+    }
+
+    // Always fetch fresh data (cache hit or not)
+    try {
+      const enriched = await agentService.getAgentsWithConversations()
+      const agents: Agent[] = enriched.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        adapterType: item.adapter_type || item.adapterType,
+        sandboxType: item.sandbox_type || item.sandboxType,
+        status: item.status?.toUpperCase?.() ?? item.status,
+        sandboxId: item.sandbox_id ?? item.sandboxId,
+        workspacePath: item.workspace_path ?? item.workspacePath,
+        idleTimeoutSeconds: item.idle_timeout_seconds ?? item.idleTimeoutSeconds ?? 300,
+        hasScheduledTasks: item.has_scheduled_tasks ?? item.hasScheduledTasks ?? false,
+        defaultSessionId: item.default_session_id ?? item.defaultSessionId,
+        processPort: item.process_port ?? item.processPort,
+        skills: item.skills ?? [],
+        createdAt: item.created_at ?? item.createdAt,
+        updatedAt: item.updated_at ?? item.updatedAt,
+      }))
+
+      const agentIds = new Set(agents.map(a => a.id))
+      const existingIds = new Set(get().conversations.map(c => c.id))
+      const existingSessionIds = new Set(get().conversations.map(c => c.sessionId).filter(Boolean))
+      const allConversations: Conversation[] = []
+      const sessionAgentNames: [string, string][] = []
+
+      for (const item of enriched) {
+        const agentName = item.name
+        for (const summary of item.conversations || []) {
+          const sessId: string = summary.id
+          sessionAgentNames.push([sessId, agentName])
+          allConversations.push(
+            sessionService.transformConversationSummary(summary, agentName)
+          )
+        }
+      }
+
+      const newConversations = allConversations.filter(
+        c => !existingIds.has(c.id) && !existingSessionIds.has(c.sessionId)
+      )
+
+      // Cache for next visit (2-min TTL for conversations freshness)
+      cacheSet(CACHE_KEYS.AGENTS_CONVERSATIONS, {
+        agents,
+        conversations: allConversations,
+        sessionAgentNames,
+      }, 2 * 60 * 1000)
+
+      set(state => {
+        const patched = state.conversations
+          .map(c => {
+            if (!c.agentName && c.sessionId) {
+              for (const [sid, name] of sessionAgentNames) {
+                if (sid === c.sessionId) return { ...c, agentName: name }
+              }
+            }
+            return c
+          })
+          // Remove conversations belonging to deleted agents
+          .filter(c => !c.agentId || agentIds.has(c.agentId))
+
+        // Stable sort by updatedAt DESC
+        const merged = [...newConversations, ...patched].sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )
+
+        // If currentConversation was removed, clear the selection
+        const convStillExists = merged.some(c => c.id === state.currentConversationId)
+        return {
+          agents,
+          conversations: merged,
+          ...(convStillExists ? {} : { currentConversationId: null }),
+        }
+      })
+    } catch (error) {
+      console.error('Failed to fetch agents with conversations:', error)
+    }
+
+    return { fromCache }
   },
 
   createNewSession: async (agentId: string) => {
