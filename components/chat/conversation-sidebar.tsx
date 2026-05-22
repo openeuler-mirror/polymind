@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   Code2,
   Loader2,
+  PencilLine 
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
@@ -42,6 +43,7 @@ export function ConversationSidebar() {
     deleteConversation,
     toggleSidebar,
     togglePinConversation,
+    updateConversationTitle,
     agents: storeAgents,
     setAgents,
     removeAgent,
@@ -67,6 +69,13 @@ export function ConversationSidebar() {
     }
     fetchAgents()
   }, [setAgents])
+
+  useEffect(() => {
+    if (storeAgents.length > 0) {
+      const store = useChatStore.getState()
+      store.fetchAllConversations()
+    }
+  }, [storeAgents])
   
   const agents = storeAgents
 
@@ -150,6 +159,7 @@ export function ConversationSidebar() {
                   onSelect={() => setCurrentConversation(conv.id)}
                   onDelete={() => deleteConversation(conv.id)}
                   onTogglePin={() => togglePinConversation(conv.id)}
+                  onRename={(title) => updateConversationTitle(conv.id, title)}
                 />
               ))}
             </div>
@@ -172,6 +182,7 @@ export function ConversationSidebar() {
                 onSelect={() => setCurrentConversation(conv.id)}
                 onDelete={() => deleteConversation(conv.id)}
                 onTogglePin={() => togglePinConversation(conv.id)}
+                onRename={(title) => updateConversationTitle(conv.id, title)}
               />
             ))}
           </div>
@@ -202,6 +213,7 @@ interface ConversationItemProps {
   onSelect: () => void
   onDelete: () => void
   onTogglePin: () => void
+  onRename: (title: string) => void
 }
 
 function ConversationItem({
@@ -210,12 +222,62 @@ function ConversationItem({
   onSelect,
   onDelete,
   onTogglePin,
+  onRename,
 }: ConversationItemProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(conversation.title)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const editTitleRef = useRef(editTitle)
+  editTitleRef.current = editTitle
+
+  const handleStartRename = () => {
+    setEditTitle(conversation.title)
+    setIsEditing(true)
+  }
+
+  const commitRename = () => {
+    const trimmed = editTitleRef.current.trim()
+    if (trimmed && trimmed !== conversation.title) {
+      onRename(trimmed)
+    }
+    setIsEditing(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      commitRename()
+    } else if (e.key === 'Escape') {
+      setEditTitle(conversation.title)
+      setIsEditing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
+
+  useEffect(() => {
+    if (!isEditing) return
+    const onMouseDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        commitRename()
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [isEditing])
+
   return (
     <div
-      onClick={onSelect}
+      ref={containerRef}
+      onClick={isEditing ? undefined : onSelect}
       className={cn(
         'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 transition-colors',
+        isEditing && 'inset-ring-2 inset-ring-primary bg-sidebar',
         isActive
           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
           : 'hover:bg-sidebar-accent/50'
@@ -228,7 +290,19 @@ function ConversationItem({
               {conversation.agentName}
             </span>
           )}
-          <p className="truncate text-sm font-medium">{conversation.title}</p>
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={handleKeyDown}
+              className="h-6 w-full bg-sidebar-accent px-1.5 text-sm font-medium outline-none"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <p className="truncate text-sm font-medium">{conversation.title}</p>
+          )}
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">
           {formatDistanceToNow(conversation.updatedAt, {
@@ -254,7 +328,11 @@ function ConversationItem({
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent side="right" align="end">
+          <DropdownMenuItem onClick={handleStartRename}>
+            <PencilLine className="mr-2 h-4 w-4" />
+            重命名
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={onTogglePin}>
             <Pin className="mr-2 h-4 w-4" />
             {conversation.pinned ? '取消固定' : '固定对话'}

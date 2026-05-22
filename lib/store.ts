@@ -18,41 +18,12 @@ function getInitialState() {
       currentAgentId: null,
     }
   }
-  
-  try {
-    const savedConversations = localStorage.getItem('polymind-conversations')
-    const savedCurrentId = localStorage.getItem('polymind-current-conversation')
-    const savedCurrentAgentId = localStorage.getItem('polymind-current-agent')
-    
-    if (savedConversations) {
-      const parsed = JSON.parse(savedConversations)
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const conversations = parsed.map((conv: any) => ({
-          ...conv,
-          createdAt: new Date(conv.createdAt),
-          updatedAt: new Date(conv.updatedAt),
-          isStreaming: conv.isStreaming ?? false,
-          messages: conv.messages.map((msg: any) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp)
-          }))
-        }))
-        
-        return {
-          conversations,
-          currentConversationId: savedCurrentId || parsed[0]?.id || null,
-          currentAgentId: savedCurrentAgentId || null,
-        }
-      }
-    }
-  } catch (err) {
-    console.error('Failed to load from localStorage:', err)
-  }
-  
+  const savedCurrentId = localStorage.getItem('polymind-current-conversation')
+  const savedCurrentAgentId = localStorage.getItem('polymind-current-agent')
   return {
     conversations: [],
-    currentConversationId: null,
-    currentAgentId: null,
+    currentConversationId: savedCurrentId || null,
+    currentAgentId: savedCurrentAgentId || null,
   }
 }
 
@@ -131,6 +102,11 @@ export interface ChatState {
   disconnectFromAgent: (agentId: string) => void
   sendMessageToAgent: (agentId: string, sessionId: string | undefined, content: string, onEvent?: (event: any) => void) => Promise<any[]>
   createNewSession: (agentId: string) => Promise<Session>
+
+  // 会话持久化操作
+  fetchConversations: (agentId: string) => Promise<void>
+  refreshConversation: (agentId: string, sessionId: string) => Promise<void>
+  fetchAllConversations: () => Promise<void>
 }
 
 const defaultTools: MCPTool[] = [
@@ -278,7 +254,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   _stoppingInProgress: false,
 
   createConversation: async (agentId?: string, agentName?: string) => {
-     const id = generateUUID()
      let sessionId: string | undefined
      // If agentId is provided, set it as current agent and create a new session
      if (agentId) {
@@ -290,6 +265,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
        }
      }
 
+     const id = sessionId || generateUUID()
      const newConversation: Conversation = {
        id,
        title: '新对话',
@@ -512,14 +488,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
         c.id === id ? { ...c, title } : c
       ),
     }))
+    const conv = get().conversations.find(c => c.id === id)
+    if (conv?.agentId && conv?.sessionId) {
+      sessionService.updateConversation(conv.agentId, conv.sessionId, { title }).catch(err =>
+        console.error('Failed to persist title:', err)
+      )
+    }
   },
 
   togglePinConversation: (id) => {
-    set((state) => ({
-      conversations: state.conversations.map((c) =>
-        c.id === id ? { ...c, pinned: !c.pinned } : c
-      ),
-    }))
+    set((state) => {
+      const conv = state.conversations.find(c => c.id === id)
+      const newPinned = !conv?.pinned
+      if (conv?.agentId && conv?.sessionId) {
+        sessionService.updateConversation(conv.agentId, conv.sessionId, { pinned: newPinned }).catch(err =>
+          console.error('Failed to persist pin:', err)
+        )
+      }
+      return {
+        conversations: state.conversations.map((c) =>
+          c.id === id ? { ...c, pinned: newPinned } : c
+        ),
+      }
+    })
   },
 
   updateSettings: (settings) => {
@@ -835,6 +826,75 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
   
+  fetchConversations: async (agentId: string) => {
+    try {
+      const summaries = await sessionService.getConversations(agentId)
+      const agent = get().agents.find(a => a.id === agentId)
+      const conversations = summaries.map((s: any) =>
+        sessionService.transformConversationSummary(s, agent?.name)
+      )
+      set((state) => {
+        const existingIds = new Set(state.conversations.map(c => c.id))
+        const existingSessionIds = new Set(state.conversations.map(c => c.sessionId).filter(Boolean))
+        const newConversations = conversations.filter(
+          (c: Conversation) => !existingIds.has(c.id) && !existingSessionIds.has(c.sessionId)
+        )
+        return {
+          conversations: [...newConversations, ...state.conversations],
+        }
+      })
+    } catch (error) {
+      console.error('Failed to fetch conversations:', error)
+    }
+  },
+
+  refreshConversation: async (agentId: string, sessionId: string) => {
+    try {
+      const detail = await sessionService.getConversation(agentId, sessionId)
+      const messages = (detail.messages || []).map((msg: any) =>
+        sessionService.transformMessage(msg)
+      )
+      set((state) => ({
+        conversations: state.conversations.map((c) =>
+          c.sessionId === sessionId || c.id === sessionId
+            ? { ...c, messages, updatedAt: new Date(detail.updated_at) }
+            : c
+        ),
+      }))
+    } catch (error) {
+      console.error('Failed to refresh conversation:', error)
+    }
+  },
+
+  fetchAllConversations: async () => {
+    const state = get()
+    const agents = state.agents.length > 0 ? state.agents : []
+    // If no agents loaded yet, try fetching them
+    if (agents.length === 0) {
+      try {
+        const fetchedAgents = await agentService.getAgents()
+        get().setAgents(fetchedAgents)
+        for (const agent of fetchedAgents) {
+          try {
+            await get().fetchConversations(agent.id)
+          } catch (error) {
+            console.error(`Failed to fetch conversations for agent ${agent.id}:`, error)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch agents:', error)
+      }
+    } else {
+      for (const agent of agents) {
+        try {
+          await get().fetchConversations(agent.id)
+        } catch (error) {
+          console.error(`Failed to fetch conversations for agent ${agent.id}:`, error)
+        }
+      }
+    }
+  },
+
   createNewSession: async (agentId: string) => {
     let session: Session
     
@@ -867,17 +927,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
 // 订阅状态变化，自动保存到 localStorage
 if (typeof window !== 'undefined') {
-  let prevConversations = initialState.conversations
   let prevCurrentId = initialState.currentConversationId
   let prevCurrentAgentId = initialState.currentAgentId
   
   useChatStore.subscribe((state) => {
-    if (state.conversations !== prevConversations) {
-      prevConversations = state.conversations
-      if (state.conversations && state.conversations.length > 0) {
-        localStorage.setItem('polymind-conversations', JSON.stringify(state.conversations))
-      }
-    }
     
     if (state.currentConversationId !== prevCurrentId) {
       prevCurrentId = state.currentConversationId

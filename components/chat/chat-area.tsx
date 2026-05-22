@@ -9,6 +9,7 @@ import { ChatHeader } from './chat-header'
 import { WelcomeScreen } from './welcome-screen'
 import type { Message } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
+import { sessionService } from '@/services/session-service'
 
 export function ChatArea() {
   const [isHydrated, setIsHydrated] = useState(false)
@@ -52,6 +53,45 @@ export function ChatArea() {
   )
   const messages = currentConversation?.messages || []
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // When a conversation is selected that has no messages but has a backend session,
+  // fetch its messages from the API
+  const [loadingMessages, setLoadingMessages] = useState(false)
+  const loadedSessionIds = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (!currentConversation) return
+    if (currentConversation.messages.length > 0) return
+    if (!currentConversation.sessionId || !currentConversation.agentId) return
+
+    // Avoid re-fetching the same empty session repeatedly
+    if (loadedSessionIds.current.has(currentConversation.sessionId)) return
+    loadedSessionIds.current.add(currentConversation.sessionId)
+
+    let cancelled = false
+    setLoadingMessages(true)
+    sessionService.getConversation(currentConversation.agentId, currentConversation.sessionId)
+      .then((detail) => {
+        if (cancelled) return
+        const msgs = (detail.messages || []).map((msg: any) =>
+          sessionService.transformMessage(msg)
+        )
+        useChatStore.setState((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id === currentConversation.id
+              ? { ...c, messages: msgs, updatedAt: new Date(detail.updated_at) }
+              : c
+          ),
+        }))
+      })
+      .catch((err) => {
+        console.error('Failed to load conversation messages:', err)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMessages(false)
+      })
+
+    return () => { cancelled = true }
+  }, [currentConversation?.id])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -395,11 +435,33 @@ export function ChatArea() {
     await streamResponse(regenerateContent)
   }, [currentConversationId, deleteMessage, streamResponse])
 
-  if (!isHydrated || messages.length === 0) {
+  if (!isHydrated || (messages.length === 0 && !loadingMessages)) {
     return (
       <div className="flex h-full flex-col bg-background">
         <ChatHeader conversation={currentConversation} />
         <WelcomeScreen onAddPrompt={handleAddPresetPrompt} />
+        <div className="border-t border-border p-4">
+          <ChatInput
+            onSend={handleSendMessage}
+            presetPrompts={presetPrompts}
+            onRemovePresetPrompt={handleRemovePresetPrompt}
+            onClearPresetPrompts={handleClearPresetPrompts}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (loadingMessages) {
+    return (
+      <div className="flex h-full flex-col bg-background">
+        <ChatHeader conversation={currentConversation} />
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm">加载历史会话中...</p>
+          </div>
+        </div>
         <div className="border-t border-border p-4">
           <ChatInput
             onSend={handleSendMessage}
