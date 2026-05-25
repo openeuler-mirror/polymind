@@ -2,7 +2,7 @@
 
 import type { ElementType, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { FolderOpen, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { CheckCircle, FolderOpen, Pencil, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,7 +29,7 @@ interface RepoFormState {
   source_type: SkillRepositorySourceType
   url: string
   branch: string
-  local_path: string
+  uploaded_file?: File
 }
 
 type RepositoryLocation = {
@@ -54,7 +54,6 @@ const initialFormState: RepoFormState = {
   source_type: 'git',
   url: '',
   branch: '',
-  local_path: '',
 }
 
 export function SkillRepoManagement() {
@@ -154,18 +153,43 @@ export function SkillRepoManagement() {
   }
 
   const resetCreateForm = () => {
-    setCreateForm(initialFormState)
+    setCreateForm({ ...initialFormState, uploaded_file: undefined })
   }
 
   const openCreateDialog = (sourceType: SkillRepositorySourceType) => {
     setCreateForm({
       ...initialFormState,
       source_type: sourceType,
+      uploaded_file: undefined,
     })
     setIsCreateOpen(true)
   }
 
   const handleCreate = async () => {
+    if (createForm.source_type === 'local' && createForm.uploaded_file) {
+      try {
+        setSubmitting(true)
+        await skillService.uploadRepoArchive(createForm.uploaded_file)
+        toast({
+          title: '创建成功',
+          description: '仓库源已添加，正在扫描技能...',
+        })
+        setIsCreateOpen(false)
+        resetCreateForm()
+        await fetchRepos()
+      } catch (error) {
+        console.error('Failed to upload repo archive:', error)
+        toast({
+          title: '上传失败',
+          description: '文件上传失败，请检查文件后重试。',
+          variant: 'destructive',
+        })
+      } finally {
+        setSubmitting(false)
+      }
+      return
+    }
+
     const request = buildCreatePayload(createForm)
     if (!request) {
       toast({
@@ -173,7 +197,7 @@ export function SkillRepoManagement() {
         description:
           createForm.source_type === 'git'
             ? '请填写仓库地址。分支可选填写。'
-            : '请填写本地导入路径。',
+            : '请上传 ZIP 压缩包。',
         variant: 'destructive',
       })
       return
@@ -307,7 +331,7 @@ export function SkillRepoManagement() {
         />
         <CreateSourceCard
           title="新增本地源"
-          description="添加本地目录或压缩包路径，作为技能来源。"
+          description="上传本地 ZIP 压缩包，作为技能来源。"
           onClick={() => openCreateDialog('local')}
         />
       </div>
@@ -401,7 +425,7 @@ export function SkillRepoManagement() {
             <DialogDescription>
               {createForm.source_type === 'git'
                 ? '请填写 Git 仓库地址；如有需要，可补充分支信息。'
-                : '请填写本地目录或压缩包路径。'}
+                : '请上传 ZIP 压缩包作为技能来源。'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
@@ -427,15 +451,74 @@ export function SkillRepoManagement() {
                 </FormField>
               </>
             ) : (
-              <FormField label="本地路径" description="支持填写本地目录或压缩包路径。">
-                <Input
-                  value={createForm.local_path}
-                  onChange={(event) =>
-                    setCreateForm((currentForm) => ({ ...currentForm, local_path: event.target.value }))
-                  }
-                  placeholder="例如：/root/skills/repo 或 /tmp/skills.zip"
-                />
-              </FormField>
+              <>
+                <FormField label="上传压缩包" description="上传包含技能的 ZIP 压缩包。">
+                  <div className="mt-2">
+                    <div
+                      className={cn(
+                        'flex h-32 items-center justify-center rounded-lg border-2 border-dashed transition-colors',
+                        createForm.uploaded_file
+                          ? 'border-green-500 bg-green-50'
+                          : 'border-border hover:border-primary hover:bg-primary/5',
+                      )}
+                    >
+                      <input
+                        type="file"
+                        accept=".zip"
+                        className="hidden"
+                        id="repo-upload"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0]
+                          if (file) {
+                            setCreateForm((currentForm) => ({
+                              ...currentForm,
+                              uploaded_file: file,
+                            }))
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor="repo-upload"
+                        className="flex cursor-pointer flex-col items-center gap-2 text-sm text-muted-foreground hover:text-primary"
+                      >
+                        {createForm.uploaded_file ? (
+                          <>
+                            <CheckCircle className="h-8 w-8 text-green-500" />
+                            <span className="text-green-600 font-medium">
+                              {createForm.uploaded_file.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              点击或拖拽更换文件
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-8 w-8" />
+                            <span>点击或拖拽上传 ZIP 文件</span>
+                            <span className="text-xs">最大支持 50MB</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                    {createForm.uploaded_file && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2 h-8 px-2 text-xs text-red-600 hover:text-red-600"
+                        onClick={() =>
+                          setCreateForm((currentForm) => ({
+                            ...currentForm,
+                            uploaded_file: undefined,
+                          }))
+                        }
+                      >
+                        <X className="mr-1 h-3 w-3" />
+                        移除文件
+                      </Button>
+                    )}
+                  </div>
+                </FormField>
+              </>
             )}
           </div>
           <DialogFooter>
@@ -464,8 +547,8 @@ export function SkillRepoManagement() {
           </DialogHeader>
           {editingRepo ? (
             <div className="space-y-4 pt-2">
-              <FormField label="来源类型">
-                <Input value={editingRepo.source_type === 'git' ? 'Git' : '本地导入'} disabled />
+              <FormField label="修改提示">
+                <Input value={editingRepo.source_type === 'git' ? '修改Git仓库' : '不可修改'} disabled />
               </FormField>
               {editingRepo.source_type === 'git' ? (
                 <>
@@ -482,17 +565,7 @@ export function SkillRepoManagement() {
                     />
                   </FormField>
                 </>
-              ) : (
-                <FormField label="本地路径" description="请填写新的本地目录或压缩包路径。">
-                  <Input
-                    value={editForm.local_path}
-                    onChange={(event) =>
-                      setEditForm((currentForm) => ({ ...currentForm, local_path: event.target.value }))
-                    }
-                    placeholder="请输入新的本地路径"
-                  />
-                </FormField>
-              )}
+              ) : null}
             </div>
           ) : null}
           <DialogFooter>
@@ -514,7 +587,6 @@ function buildFormStateFromRepository(repo: SkillRepositoryResponse): RepoFormSt
     source_type: repo.source_type === 'local' ? 'local' : 'git',
     url: repo.url || '',
     branch: repo.branch || '',
-    local_path: repo.local_path || '',
   }
 }
 
@@ -528,8 +600,8 @@ function getRepositoryLocation(repo: SkillRepositoryResponse): RepositoryLocatio
 
   return {
     icon: FolderOpen,
-    label: '本地路径',
-    value: repo.local_path ?? undefined,
+    label: '包名',
+    value: repo.repo_name ?? undefined,
   }
 }
 
@@ -763,14 +835,7 @@ function buildCreatePayload(form: RepoFormState): SkillRepositoryRequest | null 
     }
   }
 
-  if (!form.local_path.trim()) {
-    return null
-  }
-
-  return {
-    source_type: 'local',
-    local_path: form.local_path.trim(),
-  }
+  return null
 }
 
 function buildUpdatePayload(
@@ -785,10 +850,5 @@ function buildUpdatePayload(
     return { branch: nextBranch }
   }
 
-  const nextLocalPath = form.local_path.trim()
-  if (!nextLocalPath || nextLocalPath === (repo.local_path || '')) {
-    return null
-  }
-
-  return { local_path: nextLocalPath }
+  return null
 }

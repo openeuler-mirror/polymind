@@ -77,13 +77,18 @@ class HttpClient {
     const url = `${appConfig.api.baseUrl}${processedConfig.url}`
     
     // 构建请求选项
+    const isFormData = processedConfig.data instanceof FormData
+    const baseHeaders: Record<string, string> = { ...this.defaultHeaders } as Record<string, string>
+    if (isFormData) {
+      delete baseHeaders['Content-Type']
+    }
     const options: RequestInit = {
       method: processedConfig.method || 'GET',
       headers: {
-        ...this.defaultHeaders,
+        ...baseHeaders,
         ...processedConfig.headers
       },
-      body: processedConfig.data ? JSON.stringify(processedConfig.data) : undefined
+      body: isFormData ? processedConfig.data : processedConfig.data ? JSON.stringify(processedConfig.data) : undefined
     }
     
     console.log('Final Request Options:', {
