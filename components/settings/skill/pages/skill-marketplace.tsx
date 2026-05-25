@@ -29,32 +29,41 @@ export function SkillMarketplace() {
   const [installedSkillIds, setInstalledSkillIds] = useState<Set<string>>(new Set())
   const { toast } = useToast()
 
+  const repoById = useMemo(
+    () => new Map(statusItems.map((repo) => [repo.repo_id, repo])),
+    [statusItems],
+  )
+
   const sourceOptions = useMemo(() => {
     const uniqueSources = Array.from(
-      new Set(skills.map((skill) => getSkillSourceValue(skill)).filter(Boolean)),
+      new Set(
+        skills
+          .map((skill) => skill.repo_id ? repoById.get(skill.repo_id)?.repo_name : undefined)
+          .filter((v): v is string => Boolean(v)),
+      ),
     )
 
     return [
       { label: '全部仓库', value: 'all' },
       ...uniqueSources.map((value) => ({ label: value, value })),
     ]
-  }, [skills])
+  }, [skills, repoById])
 
   const filteredSkills = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase()
 
     return skills.filter((skill) => {
-      const sourceValue = getSkillSourceValue(skill)
-      const matchesSource = selectedSource === 'all' || sourceValue === selectedSource
+      const repoName = skill.repo_id ? repoById.get(skill.repo_id)?.repo_name : undefined
+      const matchesSource = selectedSource === 'all' || repoName === selectedSource
       const matchesSearch =
         !keyword ||
-        [sourceValue, skill.skill_md_url, skill.skill_name, skill.relative_path]
+        [repoName, skill.skill_md_url, skill.skill_name, skill.relative_path]
           .filter(Boolean)
           .some((value) => value!.toLowerCase().includes(keyword))
 
       return matchesSource && matchesSearch
     })
-  }, [searchTerm, selectedSource, skills])
+  }, [searchTerm, selectedSource, skills, repoById])
 
   const totalPages = Math.max(1, Math.ceil(filteredSkills.length / pageSize))
 
@@ -119,10 +128,6 @@ export function SkillMarketplace() {
     }
   }
 
-  const repoById = useMemo(
-    () => new Map(statusItems.map((repo) => [repo.repo_id, repo])),
-    [statusItems],
-  )
   const previewRepo = previewSkill && previewSkill.repo_id ? repoById.get(previewSkill.repo_id) : undefined
   const previewIsGit = previewRepo?.source_type === 'git'
 
@@ -300,7 +305,7 @@ export function SkillMarketplace() {
                 <DialogTitle className="text-base">
                   {previewSkill ? extractSkillName(previewSkill.skill_name) : '技能预览'}
                 </DialogTitle>
-                {previewSkill ? <SkillSourceInfo skill={previewSkill} repo={previewRepo} /> : null}
+                {previewSkill ? <SkillSourceInfo repo={previewRepo} /> : null}
               </div>
               {previewSkill?.skill_md_url ? (
                 <InfoLine
@@ -340,10 +345,8 @@ function MarketplaceSummary({
 }
 
 function SkillSourceInfo({
-  skill,
   repo,
 }: {
-  skill: SkillResponse
   repo?: SkillRepositoryResponse
 }) {
   return (
@@ -351,7 +354,7 @@ function SkillSourceInfo({
       <InfoLine
         icon={repo?.source_type === 'git' ? Link2 : FolderOpen}
         label="来源"
-        value={getSkillSourceValue(skill) || '-'}
+        value={repo?.repo_name || '-'}
       />
     </div>
   )
@@ -419,10 +422,6 @@ function extractSkillName(value?: string) {
 function extractSkillDescription(metadata?: Record<string, unknown> | null) {
   const description = metadata?.description
   return typeof description === 'string' ? description.trim() : ''
-}
-
-function getSkillSourceValue(skill: SkillResponse) {
-  return skill.skill_source || ''
 }
 
 function MetadataViewer({ metadata }: { metadata?: Record<string, unknown> | null }) {
