@@ -461,6 +461,25 @@ export function SkillRepoManagement() {
                           ? 'border-green-500 bg-green-50'
                           : 'border-border hover:border-primary hover:bg-primary/5',
                       )}
+                      onDragOver={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                      }}
+                      onDragLeave={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        const file = event.dataTransfer.files?.[0]
+                        if (file && file.name.endsWith('.zip')) {
+                          setCreateForm((currentForm) => ({
+                            ...currentForm,
+                            uploaded_file: file,
+                          }))
+                        }
+                      }}
                     >
                       <input
                         type="file"
