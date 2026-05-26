@@ -1,3 +1,5 @@
+import type { Agent, Conversation } from './types'
+
 const PREFIX = 'pm_cache_'
 
 interface CacheEntry<T> {
@@ -47,5 +49,31 @@ export function cacheDelete(key: string): void {
 
 // Cache keys
 export const CACHE_KEYS = {
-  AGENTS_CONVERSATIONS: 'agents_conv',
+  AGENTS: 'agents',
+  CONVERSATIONS_WITH_NAMES: 'conv_names',
+}
+
+export interface CachedData {
+  agents: Agent[]
+  conversations: Conversation[]
+  sessionAgentNames: [string, string][]
+}
+
+export function cacheGetAll(): CachedData | null {
+  const agents = cacheGet<Agent[]>(CACHE_KEYS.AGENTS)
+  const convData = cacheGet<{ conversations: Conversation[]; sessionAgentNames: [string, string][] }>(CACHE_KEYS.CONVERSATIONS_WITH_NAMES)
+  if (!agents || !convData) return null
+  return {
+    agents,
+    conversations: convData.conversations,
+    sessionAgentNames: convData.sessionAgentNames,
+  }
+}
+
+export function cacheSetAll(data: CachedData, ttlMs: number): void {
+  cacheSet(CACHE_KEYS.AGENTS, data.agents, ttlMs)
+  cacheSet(CACHE_KEYS.CONVERSATIONS_WITH_NAMES, {
+    conversations: data.conversations,
+    sessionAgentNames: data.sessionAgentNames,
+  }, ttlMs)
 }

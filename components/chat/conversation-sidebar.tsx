@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
@@ -15,8 +15,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
-import { cacheGet, CACHE_KEYS } from '@/lib/cache'
-import type { Conversation, Agent } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -44,56 +42,22 @@ export function ConversationSidebar() {
     updateConversationTitle,
     agents: storeAgents,
   } = useChatStore()
-  
-  useEffect(() => {
+
+  useLayoutEffect(() => {
     setIsHydrated(true)
-  }, [])
-
-  useEffect(() => {
-    const fetchAgents = async () => {
-      // Check cache synchronously before any async work
-      const cached = cacheGet<{ agents: Agent[]; conversations: Conversation[]; sessionAgentNames: [string, string][] }>(CACHE_KEYS.AGENTS_CONVERSATIONS)
-      console.log('cached:',cached)
-      if (cached) {
-        // Apply cached data to store INSTANTLY — no loading spinner needed
-        console.log('fetch agents from cache:',{ agents: cached.agents })
-        setAgentsLoading(false)
-        useChatStore.setState(state => {
-          const existingIds = new Set(state.conversations.map(c => c.id))
-          const existingSessionIds = new Set(state.conversations.map(c => c.sessionId).filter(Boolean))
-          const freshConvs = cached.conversations.filter(
-            c => !existingIds.has(c.id) && !existingSessionIds.has(c.sessionId)
-          )
-          const merged = [...freshConvs, ...state.conversations].sort(
-            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          )
-          return { agents: cached.agents, conversations: merged }
-        })
-        // Sync URL params from restored state
-        const state = useChatStore.getState()
-        const conv = state.conversations.find(c => c.id === state.currentConversationId)
-        if (conv?.agentId && conv?.sessionId) {
-          syncUrlParams(conv.agentId, conv.sessionId)
-        }
-      }
-
-      // Always fetch fresh data in background
-      try {
-        if (!cached) setAgentsLoading(true)
-        const store = useChatStore.getState()
-        await store.fetchAgentsWithConversations()
-        const state = useChatStore.getState()
-        const conv = state.conversations.find(c => c.id === state.currentConversationId)
-        if (conv?.agentId && conv?.sessionId) {
-          syncUrlParams(conv.agentId, conv.sessionId)
-        }
-      } catch (err) {
-        console.error('Failed to fetch agents:', err)
-      } finally {
-        setAgentsLoading(false)
-      }
+    
+    const state = useChatStore.getState()
+    const conv = state.conversations.find(c => c.id === state.currentConversationId)
+    if (conv?.agentId && conv?.sessionId) {
+      syncUrlParams(conv.agentId, conv.sessionId)
     }
-    fetchAgents()
+
+    const promise = useChatStore.getState().fetchAgentsWithConversations()
+    promise.catch(err => {
+      console.error('Failed to fetch agents:', err)
+    }).finally(() => {
+      setAgentsLoading(false)
+    })
   }, [])
 
   const agents = storeAgents

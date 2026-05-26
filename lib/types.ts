@@ -23,7 +23,7 @@ export interface Message {
   content: string
   timestamp: Date
   isStreaming?: boolean
-  stopped?: boolean
+  status?: 'generating' | 'completed' | 'error' | 'interrupted'
   toolCalls?: ToolCall[]
   attachments?: Attachment[]
   thinking?: string[]
@@ -77,6 +77,7 @@ export interface Conversation {
   agentName?: string  // 创建该会话的 agent 名称
   sessionId?: string  // 该会话对应的后端 session ID
   isStreaming?: boolean  // 该会话是否正在生成消息
+  hasMore?: boolean  // 是否有更早的历史消息可加载
 }
 
 // ============================================

@@ -124,7 +124,7 @@ class AgentService {
     }
   }
 
-  private transformAgent(agent: any): Agent {
+  public transformAgent(agent: any): Agent {
     if (!agent || typeof agent !== 'object') {
       throw new Error('Agent data is invalid')
     }

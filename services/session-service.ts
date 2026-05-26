@@ -55,15 +55,18 @@ class SessionService {
 
   /**
    * 获取完整会话（含消息和事件），默认最近 20 条消息。
+   * 通过 before 参数加载更早的消息。
    */
   public async getConversation(
     agentId: string,
     sessionId: string,
-    limit: number = 20,
-    offset: number = 0,
+    limit: number = 10,
+    before?: string,
   ): Promise<any> {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (before) params.set('before', before)
     const response = await httpClient.get<any>(
-      `/agents/${agentId}/conversations/${sessionId}?limit=${limit}&offset=${offset}`
+      `/agents/${agentId}/conversations/${sessionId}?${params.toString()}`
     )
     return response.data || response
   }
@@ -106,8 +109,8 @@ class SessionService {
       role: msg.role,
       content: msg.content,
       timestamp: new Date(msg.timestamp || msg.created_at),
-      isStreaming: msg.isStreaming ?? false,
-      stopped:msg.stopped ?? false,
+      isStreaming: msg.isStreaming ?? (msg.status === 'generating'),
+      status: msg.status,
       toolCalls: msg.toolCalls || msg.tool_calls,
       thinking: msg.thinking,
       events: (msg.events || []).map((evt: any) => ({
