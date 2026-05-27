@@ -102,15 +102,22 @@ export interface MCPTool {
 export enum ModelProvider {
   OPENAI = 'openai',
   ANTHROPIC = 'anthropic',
-  GOOGLE = 'google',
-  OLLAMA = 'ollama',
-  AZURE = 'azure',
+  ALIBABA = 'alibaba',
   DEEPSEEK = 'deepseek',
-  GLM = 'glm',
+  ZHIPUAI = 'zhipuai',
   MINIMAX = 'minimax',
-  KIMI = 'kimi',
+  MOONSHOTAI = 'moonshotai',
+  GOOGLE = 'google',
+  XAI = 'xai',
+  SILICONFLOW = 'siliconflow',
+  AZURE = 'azure',
   CUSTOM = 'custom'
 }
+
+/**
+ * API 格式类型
+ */
+export type ApiFormat = 'openai' | 'anthropic'
 
 /**
  * 模型配置接口
@@ -120,7 +127,7 @@ export interface ModelConfig {
   name: string
   provider: ModelProvider | string
   apiBaseUrl?: string
-  description?: string
+  apiFormat?: ApiFormat
   enabled: boolean
   maxTokens?: number
   temperature?: number
@@ -137,7 +144,22 @@ export interface CreateModelRequest {
   provider: ModelProvider | string
   apiKey: string
   apiBaseUrl?: string
-  description?: string
+  apiFormat?: ApiFormat
+  enabled?: boolean
+  maxTokens?: number
+  temperature?: number
+  isDefault?: boolean
+}
+
+/**
+ * 更新模型配置请求接口
+ */
+export interface UpdateModelRequest {
+  name?: string
+  provider?: ModelProvider | string
+  apiKey?: string
+  apiBaseUrl?: string
+  apiFormat?: ApiFormat
   enabled?: boolean
   maxTokens?: number
   temperature?: number
