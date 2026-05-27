@@ -254,7 +254,7 @@ const MessageItem = memo(function MessageItem({
         {/* Message Content - now displayed in events section */}
         {(!message.events || message.events.length === 0) && (
           <>
-            {message.stopped && !message.content ? (
+            {message.status === 'interrupted' && !message.content ? (
               <div className="rounded-2xl px-4 py-3 bg-card border border-border">
                 <div className="flex items-center gap-2 text-muted-foreground text-sm">
                   <AlertCircle className="h-4 w-4" />

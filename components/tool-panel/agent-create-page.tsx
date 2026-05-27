@@ -39,6 +39,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
   const { toast } = useToast()
   const iconSelectorRef = useRef<HTMLDivElement>(null)
   const addAgent = useChatStore(state => state.addAgent)
+  const fetchConversations = useChatStore(state => state.fetchConversations)
 
   // 处理表单变化
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -105,6 +106,8 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
       
       // 添加到全局store，同步到conversation-sidebar
       addAgent(newAgent)
+      // 后端创建agent后会默认创建一个session，拉取会话列表
+      await fetchConversations(newAgent.id)
       
       toast({
         title: '成功',

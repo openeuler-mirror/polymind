@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
@@ -9,15 +9,12 @@ import {
   Pin,
   MoreHorizontal,
   Trash2,
-  Edit3,
   ChevronLeft,
-  Code2,
   Loader2,
+  PencilLine,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
-import { agentService } from '@/services/agent-service'
-import { Agent } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -42,33 +39,50 @@ export function ConversationSidebar() {
     deleteConversation,
     toggleSidebar,
     togglePinConversation,
+    updateConversationTitle,
     agents: storeAgents,
-    setAgents,
-    removeAgent,
   } = useChatStore()
-  
-  useEffect(() => {
-    setIsHydrated(true)
-  }, [])
-  
-  const isEmpty = !isHydrated || conversations.length === 0
 
-  useEffect(() => {
-    const fetchAgents = async () => {
-      try {
-        setAgentsLoading(true)
-        const data = await agentService.getAgents()
-        setAgents(data)
-      } catch (err) {
-        console.error('Failed to fetch agents:', err)
-      } finally {
-        setAgentsLoading(false)
-      }
+  useLayoutEffect(() => {
+    setIsHydrated(true)
+    
+    const state = useChatStore.getState()
+    const conv = state.conversations.find(c => c.id === state.currentConversationId)
+    if (conv?.agentId && conv?.sessionId) {
+      syncUrlParams(conv.agentId, conv.sessionId)
     }
-    fetchAgents()
-  }, [setAgents])
-  
+
+    const promise = useChatStore.getState().fetchAgentsWithConversations()
+    promise.catch(err => {
+      console.error('Failed to fetch agents:', err)
+    }).finally(() => {
+      setAgentsLoading(false)
+    })
+  }, [])
+
   const agents = storeAgents
+
+  const syncUrlParams = (agentId?: string, sessionId?: string) => {
+    const params = new URLSearchParams(window.location.search)
+    if (agentId) params.set('agent', agentId)
+    else params.delete('agent')
+    if (sessionId) params.set('session', sessionId)
+    else params.delete('session')
+    const qs = params.toString()
+    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+    window.history.replaceState(null, '', url)
+  }
+
+  const handleSelectConversation = (convId: string, agentId?: string, sessionId?: string) => {
+    setCurrentConversation(convId)
+    syncUrlParams(agentId, sessionId)
+  }
+
+  const handleCreateConversation = async (agentId: string, agentName?: string) => {
+    const convId = await createConversation(agentId, agentName)
+    const conv = useChatStore.getState().conversations.find(c => c.id === convId)
+    syncUrlParams(agentId, conv?.sessionId)
+  }
 
   const filteredConversations = conversations.filter((c) =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -110,7 +124,7 @@ export function ConversationSidebar() {
               key={agent.id}
               className="w-full justify-start gap-2 mb-1"
               variant="ghost"
-              onClick={async () => await createConversation(agent.id, agent.name)}
+              onClick={async () => await handleCreateConversation(agent.id, agent.name)}
             >
               <MessageSquarePlus className="h-4 w-4" />
               <span className="truncate">{agent.name}</span>
@@ -147,9 +161,10 @@ export function ConversationSidebar() {
                   key={conv.id}
                   conversation={conv}
                   isActive={conv.id === currentConversationId}
-                  onSelect={() => setCurrentConversation(conv.id)}
+                  onSelect={() => handleSelectConversation(conv.id, conv.agentId, conv.sessionId)}
                   onDelete={() => deleteConversation(conv.id)}
                   onTogglePin={() => togglePinConversation(conv.id)}
+                  onRename={(title) => updateConversationTitle(conv.id, title)}
                 />
               ))}
             </div>
@@ -169,9 +184,10 @@ export function ConversationSidebar() {
                 key={conv.id}
                 conversation={conv}
                 isActive={conv.id === currentConversationId}
-                onSelect={() => setCurrentConversation(conv.id)}
+                onSelect={() => handleSelectConversation(conv.id, conv.agentId, conv.sessionId)}
                 onDelete={() => deleteConversation(conv.id)}
                 onTogglePin={() => togglePinConversation(conv.id)}
+                onRename={(title) => updateConversationTitle(conv.id, title)}
               />
             ))}
           </div>
@@ -202,6 +218,7 @@ interface ConversationItemProps {
   onSelect: () => void
   onDelete: () => void
   onTogglePin: () => void
+  onRename: (title: string) => void
 }
 
 function ConversationItem({
@@ -210,12 +227,62 @@ function ConversationItem({
   onSelect,
   onDelete,
   onTogglePin,
+  onRename,
 }: ConversationItemProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(conversation.title)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const editTitleRef = useRef(editTitle)
+  editTitleRef.current = editTitle
+
+  const handleStartRename = () => {
+    setEditTitle(conversation.title)
+    setIsEditing(true)
+  }
+
+  const commitRename = () => {
+    const trimmed = editTitleRef.current.trim()
+    if (trimmed && trimmed !== conversation.title) {
+      onRename(trimmed)
+    }
+    setIsEditing(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      commitRename()
+    } else if (e.key === 'Escape') {
+      setEditTitle(conversation.title)
+      setIsEditing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
+
+  useEffect(() => {
+    if (!isEditing) return
+    const onMouseDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        commitRename()
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [isEditing])
+
   return (
     <div
-      onClick={onSelect}
+      ref={containerRef}
+      onClick={isEditing ? undefined : onSelect}
       className={cn(
         'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 transition-colors',
+        isEditing && 'inset-ring-2 inset-ring-primary bg-sidebar',
         isActive
           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
           : 'hover:bg-sidebar-accent/50'
@@ -228,7 +295,19 @@ function ConversationItem({
               {conversation.agentName}
             </span>
           )}
-          <p className="truncate text-sm font-medium">{conversation.title}</p>
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={handleKeyDown}
+              className="h-6 w-full bg-sidebar-accent px-1.5 text-sm font-medium outline-none"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <p className="truncate text-sm font-medium">{conversation.title}</p>
+          )}
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">
           {formatDistanceToNow(conversation.updatedAt, {
@@ -254,7 +333,11 @@ function ConversationItem({
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent side="right" align="end">
+          <DropdownMenuItem onClick={handleStartRename}>
+            <PencilLine className="mr-2 h-4 w-4" />
+            重命名
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={onTogglePin}>
             <Pin className="mr-2 h-4 w-4" />
             {conversation.pinned ? '取消固定' : '固定对话'}
