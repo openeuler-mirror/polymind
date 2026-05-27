@@ -44,7 +44,7 @@ export interface ToolCall {
   name: string
   status: 'pending' | 'running' | 'completed' | 'error'
   input?: Record<string, unknown>
-  output?: string
+  output?: unknown
   error?: string
   duration?: number
   displayText?: string

@@ -1,5 +1,6 @@
 import type { ChatState } from '@/lib/store'
 import type { Message } from '@/lib/types'
+import { generateUUID } from '@/lib/utils'
 
 type AgentStreamStore = Pick<
   ChatState,
@@ -64,7 +65,7 @@ export function handleAgentStreamEvent({
 
   if (!nextAssistantMessageId) {
     store.deleteMessage(conversationId, thinkingMessageId)
-    nextAssistantMessageId = crypto.randomUUID()
+    nextAssistantMessageId = generateUUID()
     const assistantMessage: Message = {
       id: nextAssistantMessageId,
       role: 'assistant',
@@ -153,7 +154,7 @@ export function handleAgentStreamEvent({
     case 'tool.call.started':
       if (eventData.payload?.tool_name) {
         const toolCall = {
-          id: eventData.payload.tool_call_id || crypto.randomUUID(),
+          id: eventData.payload.tool_call_id || generateUUID(),
           name: eventData.payload.tool_name,
           status: 'running' as const,
           input: eventData.payload.arguments,
@@ -177,7 +178,7 @@ export function handleAgentStreamEvent({
           (!eventData.payload.tool_call_id && item.name === eventData.payload.name && item.status === 'running')
         )
         const toolCall = {
-          id: eventData.payload.tool_call_id || existingToolCall?.id || crypto.randomUUID(),
+          id: eventData.payload.tool_call_id || existingToolCall?.id || generateUUID(),
           name: eventData.payload.name,
           status: eventData.payload.is_error ? 'error' as const : 'completed' as const,
           input: eventData.payload.arguments || existingToolCall?.input,
