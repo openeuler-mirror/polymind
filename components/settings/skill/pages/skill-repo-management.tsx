@@ -473,12 +473,19 @@ export function SkillRepoManagement() {
                         event.preventDefault()
                         event.stopPropagation()
                         const file = event.dataTransfer.files?.[0]
-                        if (file && file.name.endsWith('.zip')) {
-                          setCreateForm((currentForm) => ({
-                            ...currentForm,
-                            uploaded_file: file,
-                          }))
+                        if (!file) return
+                        if (!file.name.endsWith('.zip') && file.type !== 'application/zip' && file.type !== 'application/x-zip-compressed') {
+                          toast({ title: '文件格式错误', description: '仅支持 ZIP 格式的文件。', variant: 'destructive' })
+                          return
                         }
+                        if (file.size > 50 * 1024 * 1024) {
+                          toast({ title: '文件过大', description: '文件大小不能超过 50MB。', variant: 'destructive' })
+                          return
+                        }
+                        setCreateForm((currentForm) => ({
+                          ...currentForm,
+                          uploaded_file: file,
+                        }))
                       }}
                     >
                       <input
@@ -488,12 +495,21 @@ export function SkillRepoManagement() {
                         id="repo-upload"
                         onChange={(event) => {
                           const file = event.target.files?.[0]
-                          if (file) {
-                            setCreateForm((currentForm) => ({
-                              ...currentForm,
-                              uploaded_file: file,
-                            }))
+                          if (!file) return
+                          if (!file.name.endsWith('.zip') && file.type !== 'application/zip' && file.type !== 'application/x-zip-compressed') {
+                            toast({ title: '文件格式错误', description: '仅支持 ZIP 格式的文件。', variant: 'destructive' })
+                            event.target.value = ''
+                            return
                           }
+                          if (file.size > 50 * 1024 * 1024) {
+                            toast({ title: '文件过大', description: '文件大小不能超过 50MB。', variant: 'destructive' })
+                            event.target.value = ''
+                            return
+                          }
+                          setCreateForm((currentForm) => ({
+                            ...currentForm,
+                            uploaded_file: file,
+                          }))
                         }}
                       />
                       <label
