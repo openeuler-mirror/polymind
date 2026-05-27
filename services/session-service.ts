@@ -1,5 +1,5 @@
 import { httpClient } from '@/lib/http-client'
-import { Session, ApiResponse, SessionManagementStrategy } from '@/lib/types'
+import { Session, ApiResponse, SessionManagementStrategy,Conversation,Message} from '@/lib/types'
 import { SessionStatus } from '@/lib/types'
 
 /**
@@ -41,6 +41,88 @@ class SessionService {
    */
   public async abortSession(agentId: string, sessionId: string): Promise<void> {
     await httpClient.post(`/agents/${agentId}/sessions/${sessionId}/abort`)
+  }
+
+  /**
+   * 获取会话列表（含摘要信息）
+   */
+  public async getConversations(agentId: string): Promise<any[]> {
+    const response = await httpClient.get<any[]>(
+      `/agents/${agentId}/conversations`
+    )
+    return Array.isArray(response) ? response : (response as any).data || []
+  }
+
+  /**
+   * 获取完整会话（含消息和事件），默认最近 20 条消息。
+   * 通过 before 参数加载更早的消息。
+   */
+  public async getConversation(
+    agentId: string,
+    sessionId: string,
+    limit: number = 10,
+    before?: string,
+  ): Promise<any> {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (before) params.set('before', before)
+    const response = await httpClient.get<any>(
+      `/agents/${agentId}/conversations/${sessionId}?${params.toString()}`
+    )
+    return response.data || response
+  }
+
+  /**
+   * 更新会话元数据（标题、置顶）
+   */
+  public async updateConversation(
+    agentId: string,
+    sessionId: string,
+    updates: { title?: string; pinned?: boolean }
+  ): Promise<void> {
+    await httpClient.patch(`/agents/${agentId}/conversations/${sessionId}`, updates)
+  }
+
+  /**
+   * 将 API 会话摘要转换为前端 Conversation 类型
+   */
+  public transformConversationSummary(summary: any, agentName?: string): Conversation {
+    return {
+      id: summary.id,
+      title: summary.title || summary.first_message_preview || '新对话',
+      messages: [],
+      createdAt: new Date(summary.created_at),
+      updatedAt: new Date(summary.updated_at),
+      model: summary.model,
+      pinned: summary.pinned,
+      agentId: summary.agent_id,
+      agentName,
+      sessionId: summary.id,
+    }
+  }
+
+  /**
+   * 将 API 会话详情中的消息转换为前端 Message 类型
+   */
+  public transformMessage(msg: any): Message {
+    return {
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      timestamp: new Date(msg.timestamp || msg.created_at),
+      isStreaming: msg.isStreaming ?? (msg.status === 'generating'),
+      status: msg.status,
+      toolCalls: msg.toolCalls || msg.tool_calls,
+      thinking: msg.thinking,
+      events: (msg.events || []).map((evt: any) => ({
+        type: evt.type,
+        content: evt.content || evt.delta || '',
+        timestamp: typeof evt.timestamp === 'number'
+          ? evt.timestamp
+          : evt.timestamp ? new Date(evt.timestamp).getTime() : Date.now(),
+        toolCall: evt.toolCall || undefined,
+      })),
+      usage: msg.usage,
+    }
   }
 
   /**
