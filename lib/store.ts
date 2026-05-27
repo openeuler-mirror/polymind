@@ -97,6 +97,8 @@ export interface ChatState {
   
   // Agent相关操作
   setCurrentAgent: (agentId: string | null) => void
+  agentCreateFlag: number
+  triggerAgentCreate: () => void
   addAgent: (agent: Agent) => void
   updateAgent: (agent: Agent) => void
   removeAgent: (agentId: string) => void
@@ -146,6 +148,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isConnecting: false,
   connectionError: null,
   _stoppingInProgress: false,
+  agentCreateFlag: 0,
 
   createConversation: async (agentId?: string, agentName?: string) => {
      let sessionId: string | undefined
@@ -473,7 +476,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setCurrentAgent: (agentId) => {
     set({ currentAgentId: agentId })
   },
-  
+
+  triggerAgentCreate: () => set((state) => ({
+    agentCreateFlag: state.agentCreateFlag + 1
+  })),
+
   addAgent: (agent) => {
     set((state) => ({
       agents: [...state.agents, agent]

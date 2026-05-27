@@ -55,7 +55,7 @@ export function handleStreamEvent(
   eventData: any,
   conversationId: string,
   messageId: string,
-  updateMessage: (cId: string, mId: string, updates: any) => void,
+  updateMessage: (cId: string, mId: string, updates: Partial<Message> | ((m: Message) => Partial<Message>)) => void,
   setStreaming: (cId: string | null, streaming: boolean) => void,
   locallyCreatedMessageIds?: MutableRefObject<Set<string>>,
 ) {

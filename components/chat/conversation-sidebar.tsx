@@ -10,7 +10,6 @@ import {
   MoreHorizontal,
   Trash2,
   ChevronLeft,
-  Loader2,
   PencilLine,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -28,7 +27,6 @@ import {
 
 export function ConversationSidebar() {
   const [searchQuery, setSearchQuery] = useState('')
-  const [agentsLoading, setAgentsLoading] = useState(true)
   const [isHydrated, setIsHydrated] = useState(false)
   const {
     conversations,
@@ -52,11 +50,8 @@ export function ConversationSidebar() {
       syncUrlParams(conv.agentId, conv.sessionId)
     }
 
-    const promise = useChatStore.getState().fetchAgentsWithConversations()
-    promise.catch(err => {
+    useChatStore.getState().fetchAgentsWithConversations().catch(err => {
       console.error('Failed to fetch agents:', err)
-    }).finally(() => {
-      setAgentsLoading(false)
     })
   }, [])
 
@@ -108,33 +103,29 @@ export function ConversationSidebar() {
         </Button>
       </div>
 
-      {/* Agent List */}
-      <ScrollArea className="p-3 max-h-48">
-        {agentsLoading ? (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
-        ) : agents.filter(agent => agent.status !== 'deleted').length === 0 ? (
-          <div className="text-center py-4 text-muted-foreground text-sm">
-            暂无 Agent
-          </div>
-        ) : (
-          agents.filter(agent => agent.status !== 'deleted').map((agent) => (
-            <Button
-              key={agent.id}
-              className="w-full justify-start gap-2 mb-1"
-              variant="ghost"
-              onClick={async () => await handleCreateConversation(agent.id, agent.name)}
-            >
-              <MessageSquarePlus className="h-4 w-4" />
-              <span className="truncate">{agent.name}</span>
-            </Button>
-          ))
-        )}
-      </ScrollArea>
+      {/* New Task Button */}
+      <div className="p-3">
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+          onClick={async () => {
+            const state = useChatStore.getState()
+            const currentConv = state.conversations.find(c => c.id === state.currentConversationId)
+            const agentId = currentConv?.agentId || state.currentAgentId
+              || state.agents.find(a => a.status !== 'deleted')?.id
+            if (agentId) {
+              const agent = state.agents.find(a => a.id === agentId)
+              await handleCreateConversation(agentId, agent?.name)
+            }
+          }}
+        >
+          <MessageSquarePlus className="h-4 w-4" />
+          <span>新任务</span>
+        </Button>
+      </div>
 
       {/* Search */}
-      <div className="px-3 pb-2">
+      {/* <div className="px-3 pb-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -144,7 +135,7 @@ export function ConversationSidebar() {
             className="pl-9"
           />
         </div>
-      </div>
+      </div> */}
 
       {/* Conversation List */}
       <ScrollArea className="flex-1 min-h-0 px-2">

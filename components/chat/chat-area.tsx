@@ -96,6 +96,8 @@ export function ChatArea() {
   }, [messages])
   // 记录本地创建的信息ids，避免触发reconnect的第二条sse连接
   const locallyCreatedMessageIds = useRef<Set<string>>(new Set())
+  const reconnectRetryRef = useRef(0)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     if (!currentConversation) return
     if (currentConversation.messages.length > 0) return
@@ -134,13 +136,11 @@ export function ChatArea() {
     return () => { cancelled = true }
   }, [currentConversation?.id])
 
-  // 滚动到顶部时自动加载更早的消息（onScroll 绑定在 JSX 上，元素存在即生效）
-  const handleScroll = useCallback(() => {
+  const loadMore = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
     const ctx = scrollCtx.current
     if (!ctx.hasMore || ctx.cooldown) return
-    if (el.scrollTop > 5) return
 
     const oldestMsg = ctx.messages[0]
     if (!oldestMsg?.timestamp || !ctx.agentId || !ctx.sessionId) return
@@ -158,7 +158,15 @@ export function ChatArea() {
         setLoadingMore(false)
         setTimeout(() => { scrollCtx.current.cooldown = false }, 500)
       })
-  }, [])
+  }, [loadMoreMessages])
+
+  // 滚动到顶部时自动加载更早的消息
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    if (el.scrollTop > 5) return
+    loadMore()
+  }, [loadMore])
 
   // 重连，恢复流式响应
   const streamingMsg = messages.find((m) => m.isStreaming)
@@ -178,18 +186,42 @@ export function ChatArea() {
     })
     setStreaming(currentConversationId, true)
 
-    messageService.reconnectStream(agentId, sessionId, (eventData) => {
-      if (cancelled) return
-      handleStreamEvent(eventData, currentConversationId, msgId, updateMessage, setStreaming)
-    }).catch((err) => {
-      if (!cancelled) {
-        console.error('Reconnect stream failed:', err)
-      }
-    }).finally(() => {
-      if (!cancelled) setLoadingMessages(false)
-    })
+    const MAX_RETRIES = 3
+    const BASE_DELAY = 1000
 
-    return () => { cancelled = true }
+    const attemptReconnect = (attempt: number) => {
+      if (cancelled) return
+      messageService.reconnectStream(agentId, sessionId, (eventData) => {
+        if (cancelled) return
+        handleStreamEvent(eventData, currentConversationId, msgId, updateMessage, setStreaming)
+      }).then(() => {
+        if (!cancelled) reconnectRetryRef.current = 0
+      }).catch((err) => {
+        if (cancelled) return
+        console.error('Reconnect stream failed:', err)
+        if (attempt < MAX_RETRIES) {
+          const delay = BASE_DELAY * Math.pow(2, attempt - 1)
+          reconnectTimerRef.current = setTimeout(() => attemptReconnect(attempt + 1), delay)
+        } else {
+          console.error('Reconnect stream failed after max retries')
+          updateMessage(currentConversationId, msgId, {
+            isStreaming: false,
+            content: 'Sorry, there was an error reconnecting the stream. Please refresh and try again.',
+          })
+          setStreaming(currentConversationId, false)
+        }
+      })
+    }
+
+    reconnectRetryRef.current = 1
+    attemptReconnect(1)
+
+    return () => {
+      cancelled = true
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+      }
+    }
   }, [streamingMsg?.id, currentConversationId])
 
   const scrollToBottom = useCallback(() => {
@@ -428,7 +460,7 @@ export function ChatArea() {
           <div className="flex items-center justify-center py-2">
             <button
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={handleScroll}
+              onClick={loadMore}
             >
               查看更早的消息
             </button>
