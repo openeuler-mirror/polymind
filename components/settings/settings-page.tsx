@@ -1,48 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { User, Settings, Bot, Wrench, Sparkles, Cpu, Info } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
 import { useThemeWithStore } from '@/components/theme-provider'
-import { ModelServiceType, MODEL_SERVICES } from '@/lib/types'
 import { SkillsPage } from './skill'
+import { ModelPage } from './model/model-page'
 
 export function SettingsPage() {
   const [activeSection, setActiveSection] = useState('general')
   const { settings, updateSettings } = useChatStore()
   const { setTheme } = useThemeWithStore()
-  
-  // 模型配置状态
-  const [modelConfig, setModelConfig] = useState({
-    adapterType: settings.modelConfig?.adapterType || ModelServiceType.OPENAI,
-    apiKey: settings.modelConfig?.apiKey || '',
-    apiBaseUrl: settings.modelConfig?.apiBaseUrl || ''
-  })
-
-  // 当主题设置变化时，更新next-themes的主题
-  useEffect(() => {
-    // 不再在组件挂载时强制设置主题，避免类型错误
-  }, []) // 只在组件挂载时执行一次，避免无限循环
-  
-  // 处理模型配置变化
-  const handleModelConfigChange = (field: string, value: string) => {
-    setModelConfig(prev => {
-      const newConfig = { ...prev, [field]: value }
-      // 如果切换模型类型，重置配置
-      if (field === 'adapterType') {
-        newConfig.apiKey = ''
-        newConfig.apiBaseUrl = ''
-      }
-      // 保存到全局设置
-      updateSettings({ modelConfig: newConfig })
-      return newConfig
-    })
-  }
 
   const sections = [
     { id: 'account', name: '账号', icon: User },
@@ -89,7 +61,6 @@ export function SettingsPage() {
         <ScrollArea className="min-h-0 flex-1 p-6">
           {activeSection === 'general' && (
             <div className="space-y-8">
-              {/* 基础设置 */}
               <div>
                 <h2 className="text-sm font-medium mb-4">基础设置</h2>
                 <div className="space-y-4">
@@ -129,60 +100,7 @@ export function SettingsPage() {
             </div>
           )}
 
-          {/* 其他部分的内容可以根据需要添加 */}
-          {activeSection === 'model' && (
-            <div className="space-y-8">
-              {/* 模型配置 */}
-              <div>
-                <h2 className="text-sm font-medium mb-4">模型配置</h2>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="modelType">模型服务类型</Label>
-                    <Select 
-                      value={modelConfig.adapterType} 
-                      onValueChange={(value) => handleModelConfigChange('adapterType', value)}
-                    >
-                      <SelectTrigger id="modelType" className="w-full">
-                        <SelectValue placeholder="选择模型服务类型" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(MODEL_SERVICES).map(service => (
-                          <SelectItem key={service.type} value={service.type}>
-                            {service.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="apiKey">API Key</Label>
-                    <Input
-                      id="apiKey"
-                      value={modelConfig.apiKey}
-                      onChange={(e) => handleModelConfigChange('apiKey', e.target.value)}
-                      placeholder={`请输入 ${MODEL_SERVICES[modelConfig.adapterType as ModelServiceType]?.name || '模型'} API Key`}
-                      className="w-full"
-                      type="password"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="apiBaseUrl">API 地址</Label>
-                    <Input
-                      id="apiBaseUrl"
-                      value={modelConfig.apiBaseUrl}
-                      onChange={(e) => handleModelConfigChange('apiBaseUrl', e.target.value)}
-                      placeholder={modelConfig.adapterType === ModelServiceType.AZURE 
-                        ? '请输入 Azure OpenAI Endpoint' 
-                        : `请输入 ${MODEL_SERVICES[modelConfig.adapterType as ModelServiceType]?.name || '模型'} API 地址 (默认: ${MODEL_SERVICES[modelConfig.adapterType as ModelServiceType]?.defaultApiUrl || ''})`}
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {activeSection === 'model' && <ModelPage />}
 
           {activeSection === 'rules' && <SkillsPage />}
           

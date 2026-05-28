@@ -79,7 +79,6 @@ interface ConfigModel {
   }
   isDefault: boolean
   isDeprecated: boolean
-  isRecommended: boolean
 }
 
 interface Config {
@@ -157,19 +156,6 @@ const PROVIDER_LOGOS: Record<string, string> = {
   siliconflow: 'https://siliconflow.cn/favicon.ico'
 }
 
-const POPULAR_MODELS: Record<string, string[]> = {
-  openai: ['gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini'],
-  anthropic: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'],
-  alibaba: ['qwen-max', 'qwen2.5-7b'],
-  deepseek: ['deepseek-chat', 'deepseek-reasoner'],
-  zhipuai: ['glm-4-plus', 'glm-4-air'],
-  minimax: ['MiniMax-M2.7', 'MiniMax-M2.5'],
-  moonshotai: ['moonshot-v1-auto', 'moonshot-v1-128k'],
-  google: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-  xai: ['grok-beta'],
-  siliconflow: ['Qwen/Qwen2.5-7B-Instruct', 'Qwen/Qwen2.5-14B-Instruct']
-}
-
 async function fetchModelsDevData(): Promise<Record<string, ModelsDevProvider>> {
   const response = await fetch('https://models.dev/api.json')
   if (!response.ok) {
@@ -230,8 +216,7 @@ function saveConfig(config: Config): void {
 function transformModelFromDev(
   modelId: string,
   modelData: ModelsDevModel,
-  isDefault: boolean = false,
-  isRecommended: boolean = false
+  isDefault: boolean = false
 ): ConfigModel {
   const modalitiesInput = modelData.modalities?.input || []
   const modalitiesOutput = modelData.modalities?.output || []
@@ -259,15 +244,13 @@ function transformModelFromDev(
       functionCalling: modelData.tool_call || false
     },
     isDefault,
-    isDeprecated: false,
-    isRecommended
+    isDeprecated: false
   }
 }
 
 function updateProviderFromDev(
   existingProvider: ConfigProvider,
-  devProvider: ModelsDevProvider,
-  popularModelIds: string[]
+  devProvider: ModelsDevProvider
 ): ConfigProvider {
   const providerId = PROVIDER_ID_MAP[existingProvider.id] || existingProvider.id
   const providerUrls = PROVIDER_URLS[providerId] || {
@@ -279,33 +262,23 @@ function updateProviderFromDev(
   const devModelIds = Object.keys(devProvider.models)
   
   const existingModelIds = existingProvider.models.map(m => m.id)
-  const allModelIds = new Set([...existingModelIds, ...popularModelIds, ...devModelIds])
+  const allModelIds = new Set([...existingModelIds, ...devModelIds])
   
   for (const modelId of allModelIds) {
     const devModel = devProvider.models[modelId]
     const existingModel = existingProvider.models.find(m => m.id === modelId)
     
-    const isRecommended = popularModelIds.includes(modelId)
     const isDefault = existingModel?.isDefault || false
     
     if (devModel) {
-      models.push(transformModelFromDev(modelId, devModel, isDefault, isRecommended))
+      models.push(transformModelFromDev(modelId, devModel, isDefault))
     } else if (existingModel) {
-      models.push({
-        ...existingModel,
-        isRecommended
-      })
+      models.push({ ...existingModel })
     }
   }
   
   if (models.length > 0 && !models.find(m => m.isDefault)) {
-    const defaultModelId = popularModelIds[0] || models[0].id
-    const defaultModel = models.find(m => m.id === defaultModelId)
-    if (defaultModel) {
-      defaultModel.isDefault = true
-    } else {
-      models[0].isDefault = true
-    }
+    models[0].isDefault = true
   }
   
   return {
@@ -325,8 +298,7 @@ function updateProviderFromDev(
 
 function createProviderFromDev(
   providerId: string,
-  devProvider: ModelsDevProvider,
-  popularModelIds: string[]
+  devProvider: ModelsDevProvider
 ): ConfigProvider {
   const providerUrls = PROVIDER_URLS[providerId] || {
     website: '',
@@ -336,20 +308,13 @@ function createProviderFromDev(
   const models: ConfigModel[] = []
   const devModelIds = Object.keys(devProvider.models)
   
-  const allModelIds = new Set([...popularModelIds, ...devModelIds])
-  
-  for (const modelId of allModelIds) {
+  for (const modelId of devModelIds) {
     const devModel = devProvider.models[modelId]
     
     if (devModel) {
-      const isRecommended = popularModelIds.includes(modelId)
-      const isDefault = popularModelIds.includes(modelId) && popularModelIds.indexOf(modelId) === 0
-      models.push(transformModelFromDev(modelId, devModel, isDefault, isRecommended))
+      const isDefault = models.length === 0
+      models.push(transformModelFromDev(modelId, devModel, isDefault))
     }
-  }
-  
-  if (models.length > 0 && !models.find(m => m.isDefault)) {
-    models[0].isDefault = true
   }
   
   return {
@@ -385,8 +350,7 @@ async function main(): Promise<void> {
     for (const [providerId, tempProvider] of Object.entries(tempModels)) {
       if (PROVIDER_ID_MAP[providerId]) {
         console.log(`    - Creating ${tempProvider.name} from temp...`)
-        const popularModelIds = POPULAR_MODELS[providerId] || []
-        const newProvider = createProviderFromDev(providerId, tempProvider, popularModelIds)
+        const newProvider = createProviderFromDev(providerId, tempProvider)
         updatedProviders.push(newProvider)
       }
     }
@@ -394,8 +358,7 @@ async function main(): Promise<void> {
     for (const [providerId, devProvider] of Object.entries(devData)) {
       if (PROVIDER_ID_MAP[providerId] && !updatedProviders.find(p => p.id === providerId)) {
         console.log(`    - Creating ${devProvider.name} from dev...`)
-        const popularModelIds = POPULAR_MODELS[providerId] || []
-        const newProvider = createProviderFromDev(providerId, devProvider, popularModelIds)
+        const newProvider = createProviderFromDev(providerId, devProvider)
         updatedProviders.push(newProvider)
       }
     }
@@ -408,13 +371,11 @@ async function main(): Promise<void> {
       
       if (tempProvider) {
         console.log(`  - Updating ${existingProvider.name} from temp...`)
-        const popularModelIds = POPULAR_MODELS[providerId] || []
-        const updatedProvider = updateProviderFromDev(existingProvider, tempProvider, popularModelIds)
+        const updatedProvider = updateProviderFromDev(existingProvider, tempProvider)
         updatedProviders.push(updatedProvider)
       } else if (devProvider) {
         console.log(`  - Updating ${existingProvider.name} from dev...`)
-        const popularModelIds = POPULAR_MODELS[providerId] || []
-        const updatedProvider = updateProviderFromDev(existingProvider, devProvider, popularModelIds)
+        const updatedProvider = updateProviderFromDev(existingProvider, devProvider)
         updatedProviders.push(updatedProvider)
       } else {
         console.log(`  - ${existingProvider.name} (no new data)`)
@@ -429,13 +390,11 @@ async function main(): Promise<void> {
         
         if (tempProvider) {
           console.log(`  - Adding ${providerId} from temp...`)
-          const popularModelIds = POPULAR_MODELS[providerId] || []
-          const newProvider = createProviderFromDev(providerId, tempProvider, popularModelIds)
+          const newProvider = createProviderFromDev(providerId, tempProvider)
           updatedProviders.push(newProvider)
         } else if (devProvider) {
           console.log(`  - Adding ${providerId} from dev...`)
-          const popularModelIds = POPULAR_MODELS[providerId] || []
-          const newProvider = createProviderFromDev(providerId, devProvider, popularModelIds)
+          const newProvider = createProviderFromDev(providerId, devProvider)
           updatedProviders.push(newProvider)
         }
       }
