@@ -196,7 +196,9 @@ export function SkillRepoManagement() {
         title: '表单不完整',
         description:
           createForm.source_type === 'git'
-            ? '请填写仓库地址。分支可选填写。'
+            ? createForm.url.trim()
+              ? '仓库地址格式无效，请输入有效的 Git 地址（如 https://github.com/... 或 git@...:...）。'
+              : '请填写仓库地址。分支可选填写。'
             : '请上传 ZIP 压缩包。',
         variant: 'destructive',
       })
@@ -856,9 +858,22 @@ function FormField({
   )
 }
 
+function isValidGitUrl(url: string): boolean {
+  const trimmed = url.trim()
+  if (!trimmed) return false
+  const httpsPattern = /^https?:\/\/[^\s]+/
+  const sshPattern = /^(?:ssh:\/\/)?(?:[\w.-]+@)?[\w.-]+:[^\s]+/
+  const gitProtocolPattern = /^git:\/\/[^\s]+/
+  return httpsPattern.test(trimmed) || sshPattern.test(trimmed) || gitProtocolPattern.test(trimmed)
+}
+
 function buildCreatePayload(form: RepoFormState): SkillRepositoryRequest | null {
   if (form.source_type === 'git') {
     if (!form.url.trim()) {
+      return null
+    }
+
+    if (!isValidGitUrl(form.url)) {
       return null
     }
 
