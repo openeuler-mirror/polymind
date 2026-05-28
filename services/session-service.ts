@@ -1,6 +1,6 @@
 import { httpClient } from '@/lib/http-client'
 import { Session, ApiResponse, SessionManagementStrategy,Conversation,Message} from '@/lib/types'
-import { SessionStatus } from '@/lib/types'
+import { SessionStatus, MessageStatus} from '@/lib/types'
 
 /**
  * 会话服务类 - 负责会话的创建和管理
@@ -97,6 +97,7 @@ class SessionService {
       agentId: summary.agent_id,
       agentName,
       sessionId: summary.id,
+      lastMessageStatus: summary.last_message_status || undefined,
     }
   }
 
@@ -109,18 +110,23 @@ class SessionService {
       role: msg.role,
       content: msg.content,
       timestamp: new Date(msg.timestamp || msg.created_at),
-      isStreaming: msg.isStreaming ?? (msg.status === 'generating'),
+      isStreaming: msg.isStreaming ?? (msg.status === MessageStatus.GENERATING),
       status: msg.status,
       toolCalls: msg.toolCalls || msg.tool_calls,
       thinking: msg.thinking,
-      events: (msg.events || []).map((evt: any) => ({
-        type: evt.type,
-        content: evt.content || evt.delta || '',
-        timestamp: typeof evt.timestamp === 'number'
-          ? evt.timestamp
-          : evt.timestamp ? new Date(evt.timestamp).getTime() : Date.now(),
-        toolCall: evt.toolCall || undefined,
-      })),
+      events: (msg.events || [])
+        .filter((evt: any) => {
+          if (evt.type === 'message.delta' && !evt.delta && !evt.content) return false
+          return true
+        })
+        .map((evt: any) => ({
+          type: evt.type,
+          content: evt.content || evt.delta || '',
+          timestamp: typeof evt.timestamp === 'number'
+            ? evt.timestamp
+            : evt.timestamp ? new Date(evt.timestamp).getTime() : Date.now(),
+          toolCall: evt.toolCall || undefined,
+        })),
       usage: msg.usage,
     }
   }

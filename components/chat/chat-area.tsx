@@ -7,13 +7,14 @@ import { ChatInput, PromptSuggestion } from './chat-input'
 import { ChatHeader } from './chat-header'
 import { WelcomeScreen } from './welcome-screen'
 import type { Message } from '@/lib/types'
+import { MessageStatus } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
 import { sessionService } from '@/services/session-service'
 import { messageService } from '@/services/message-service'
 import { handleStreamEvent } from '@/lib/stream-event-handler'
 
 export function ChatArea() {
-  const [isHydrated, setIsHydrated] = useState(false)
+  const [initialResolved, setInitialResolved] = useState(false)
   const [presetPrompts, setPresetPrompts] = useState<PromptSuggestion[]>([])
   const {
     conversations,
@@ -47,22 +48,17 @@ export function ChatArea() {
   }, [])
 
   useEffect(() => {
-    setIsHydrated(true)
-  }, [])
-
-  useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const urlAgentId = params.get('agent')
     const urlSessionId = params.get('session')
     if (urlAgentId && urlSessionId) {
       useChatStore.getState().refreshConversation(urlAgentId, urlSessionId)
-      return
-    }
-    // Fall back to localStorage
-    const savedConvId = localStorage.getItem('polymind-current-conversation')
-    const savedAgentId = localStorage.getItem('polymind-current-agent')
-    if (savedConvId && savedAgentId) {
-      useChatStore.getState().refreshConversation(savedAgentId, savedConvId)
+        .finally(() => setInitialResolved(true))
+    } else if (urlAgentId) {
+      useChatStore.getState().setCurrentAgent(urlAgentId)
+      setInitialResolved(true)
+    } else {
+      setInitialResolved(true)
     }
   }, [])
 
@@ -206,7 +202,8 @@ export function ChatArea() {
           console.error('Reconnect stream failed after max retries')
           updateMessage(currentConversationId, msgId, {
             isStreaming: false,
-            content: 'Sorry, there was an error reconnecting the stream. Please refresh and try again.',
+            status: MessageStatus.ERROR,
+            content: 'Sorry, there was an error reconnecting the stream. Please refresh and try again.',  
           })
           setStreaming(currentConversationId, false)
         }
@@ -263,7 +260,15 @@ export function ChatArea() {
   }, [messages])
 
   const handleSendMessage = async (content: string, attachments?: File[]) => {
-    if (!currentConversationId) return
+    let convId = currentConversationId
+
+    if (!convId) {
+      const state = useChatStore.getState()
+      const agentId = state.currentAgentId
+      if (!agentId) return
+      const agent = state.agents.find(a => a.id === agentId)
+      convId = state.createLocalConversation(agentId, agent?.name)
+    }
 
     // Add user message
     const userMessage: Message = {
@@ -278,16 +283,15 @@ export function ChatArea() {
         size: file.size,
       })),
     }
-    addMessage(currentConversationId, userMessage)
+    addMessage(convId, userMessage)
 
-    await streamResponse(content)
+    await streamResponse(content, convId)
   }
 
-  const streamResponse = useCallback(async (content: string) => {
-    if (!currentConversationId) return
+  const streamResponse = useCallback(async (content: string, convId: string) => {
 
     // Get current agent and session
-    const { currentAgentId, activeSessions, sendMessageToAgent, createNewSession, initializeAgent } = useChatStore.getState()
+    const { currentAgentId, sendMessageToAgent, createNewSession, initializeAgent } = useChatStore.getState()
 
     let agentId = currentAgentId
 
@@ -309,29 +313,22 @@ export function ChatArea() {
     }
 
     // Ensure there's an active session
-    const currentConv = useChatStore.getState().conversations.find(c => c.id === currentConversationId)
+    const currentConv = useChatStore.getState().conversations.find(c => c.id === convId)
     let sessionId = currentConv?.sessionId
     if (!sessionId) {
-      let session = activeSessions[agentId]
-      if (!session) {
-        try {
-          session = await createNewSession(agentId)
-        } catch (error) {
-          console.error('Failed to create session:', error)
-          return
-        }
+      try {
+        const session = await createNewSession(agentId)
+        sessionId = session.id
+      } catch (error) {
+        console.error('Failed to create session:', error)
+        return
       }
-      sessionId = session.id
       // Persist sessionId back to the conversation for future messages
-      useChatStore.setState((s) => ({
-        conversations: s.conversations.map((c) =>
-          c.id === currentConversationId ? { ...c, sessionId } : c
-        ),
-      }))
+      useChatStore.getState().assignSessionToConversation(convId, sessionId)
     }
 
     // Set streaming state
-    setStreaming(currentConversationId, true)
+    setStreaming(convId, true)
 
     // Create a "thinking" message
     const thinkingMessageId = generateUUID()
@@ -341,8 +338,9 @@ export function ChatArea() {
       content: '',
       timestamp: new Date(),
       isStreaming: true,
+      status: MessageStatus.GENERATING,
     }
-    addMessage(currentConversationId, thinkingMessage)
+    addMessage(convId, thinkingMessage)
     locallyCreatedMessageIds.current.add(thinkingMessageId)
 
     try {
@@ -356,7 +354,7 @@ export function ChatArea() {
         // 当收到第一个事件时，删除思考中消息并创建实际的助手消息
         if (!assistantMessageId) {
           // 删除思考中消息
-          deleteMessage(currentConversationId, thinkingMessageId)
+          deleteMessage(convId, thinkingMessageId)
           locallyCreatedMessageIds.current.delete(thinkingMessageId)
 
           // 创建新的助手消息
@@ -367,21 +365,22 @@ export function ChatArea() {
             content: '',
             timestamp: new Date(),
             isStreaming: true,
+            status: MessageStatus.GENERATING,
             toolCalls: [],
             events: []
           }
-          addMessage(currentConversationId, assistantMessage)
+          addMessage(convId, assistantMessage)
           locallyCreatedMessageIds.current.add(assistantMessageId)
         }
 
         if (assistantMessageId) {
-          handleStreamEvent(eventData, currentConversationId, assistantMessageId, updateMessage, setStreaming, locallyCreatedMessageIds)
+          handleStreamEvent(eventData, convId, assistantMessageId, updateMessage, setStreaming, locallyCreatedMessageIds)
         }
       })
     } catch (error) {
       console.error('Failed to send message:', error)
       // Handle error gracefully
-      deleteMessage(currentConversationId, thinkingMessageId)
+      deleteMessage(convId, thinkingMessageId)
       locallyCreatedMessageIds.current.clear()
       const errorMessageId = generateUUID()
       const errorMessage: Message = {
@@ -390,11 +389,12 @@ export function ChatArea() {
         content: 'Sorry, there was an error sending your message. Please try again.',
         timestamp: new Date(),
         isStreaming: false,
+        status: MessageStatus.ERROR,
       }
-      addMessage(currentConversationId, errorMessage)
-      setStreaming(currentConversationId, false)
+      addMessage(convId, errorMessage)
+      setStreaming(convId, false)
     }
-  }, [currentConversationId, addMessage, updateMessage, deleteMessage, setStreaming])
+  }, [addMessage, updateMessage, deleteMessage, setStreaming])
 
   const handleRegenerate = useCallback(async (assistantMessageId: string) => {
     if (!currentConversationId) return
@@ -404,10 +404,24 @@ export function ChatArea() {
 
     // 用系统提示重新发送（不创建新用户消息，对用户不可见）
     const regenerateContent = '/regenerate'
-    await streamResponse(regenerateContent)
+    await streamResponse(regenerateContent, currentConversationId)
   }, [currentConversationId, deleteMessage, streamResponse])
 
-  if (!isHydrated || (messages.length === 0 && !loadingMessages)) {
+  if (!initialResolved) {
+    return (
+      <div className="flex h-full flex-col bg-background">
+        <ChatHeader conversation={currentConversation} />
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm">加载中...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (messages.length === 0 && !loadingMessages) {
     return (
       <div className="flex h-full flex-col bg-background">
         <ChatHeader conversation={currentConversation} />

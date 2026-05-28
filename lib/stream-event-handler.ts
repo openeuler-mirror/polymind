@@ -1,5 +1,6 @@
 import type { MutableRefObject } from 'react'
 import type { Message } from './types'
+import { MessageStatus } from './types'
 import { generateUUID } from './utils'
 
 export function formatOutput(content: any): string {
@@ -77,6 +78,7 @@ export function handleStreamEvent(
       updateMessage(conversationId, messageId, {
         content: eventData.payload?.text || '',
         isStreaming: false,
+        status: MessageStatus.COMPLETED,
       })
       setStreaming(conversationId, false)
       break
@@ -153,11 +155,18 @@ export function handleStreamEvent(
     case 'client.error':
       console.error('Stream error:', eventData.payload || 'No payload')
       locallyCreatedMessageIds?.current.delete(messageId)
+      updateMessage(conversationId, messageId, {
+        isStreaming: false,
+        status: MessageStatus.ERROR,
+      })
       setStreaming(conversationId, false)
       break
     case 'turn.completed':
       locallyCreatedMessageIds?.current.delete(messageId)
-      updateMessage(conversationId, messageId, { isStreaming: false })
+      updateMessage(conversationId, messageId, {
+        isStreaming: false,
+        status: MessageStatus.COMPLETED,
+      })
       setStreaming(conversationId, false)
       break
   }

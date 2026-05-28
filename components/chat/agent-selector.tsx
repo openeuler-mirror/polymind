@@ -11,9 +11,7 @@ import {
 } from '@/components/ui/popover'
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
   CommandSeparator,
@@ -71,7 +69,7 @@ export function AgentSelector() {
             'flex-1 text-left truncate',
             !currentAgent && 'text-muted-foreground'
           )}>
-            { '@'+currentAgent?.name || '选择智能体'}
+            {currentAgent ? '@' + currentAgent.name : '选择智能体'}
           </span>
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         </button>
@@ -79,22 +77,27 @@ export function AgentSelector() {
       <PopoverContent className="w-[280px] p-0" align="start" side="top" sideOffset={8}>
         <Command>
           <CommandList>
-            <CommandEmpty>暂无智能体</CommandEmpty>
             <CommandGroup heading="智能体">
-              {availableAgents.map((agent) => (
-                <CommandItem
-                  key={agent.id}
-                  value={agent.name}
-                  onSelect={() => handleSelectAgent(agent.id)}
-                  className="flex items-center gap-1"
-                >
-                  <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="flex-1 truncate">{agent.name}</span>
-                  {agent.id === currentAgentId && (
-                    <Check className="h-4 w-4 text-primary shrink-0" />
-                  )}
-                </CommandItem>
-              ))}
+              {availableAgents.length === 0 ? (
+                <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                  暂无智能体
+                </div>
+              ) : (
+                availableAgents.map((agent) => (
+                  <CommandItem
+                    key={agent.id}
+                    value={agent.name}
+                    onSelect={() => handleSelectAgent(agent.id)}
+                    className="flex items-center gap-1"
+                  >
+                    <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="flex-1 truncate">{agent.name}</span>
+                    {agent.id === currentAgentId && (
+                      <Check className="h-4 w-4 text-primary shrink-0" />
+                    )}
+                  </CommandItem>
+                ))
+              )}
             </CommandGroup>
             <CommandSeparator />
             <CommandGroup>

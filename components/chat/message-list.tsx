@@ -48,13 +48,7 @@ interface MessageListProps {
 }
 
 export function MessageList({ messages, onRegenerate }: MessageListProps) {
-  const [isHydrated, setIsHydrated] = useState(false)
-  
-  useEffect(() => {
-    setIsHydrated(true)
-  }, [])
-  
-  if (!isHydrated || messages.length === 0) {
+  if (messages.length === 0) {
     return null
   }
   
@@ -115,7 +109,7 @@ const MessageItem = memo(function MessageItem({
         )}
 
         {/* Events in order */}
-        {message.events && message.events.length > 0 && (
+        {!isUser && message.events && message.events.length > 0 && (
           <div className="space-y-2">
             {(() => {
               const groupedEvents: any[] = []
@@ -232,6 +226,7 @@ const MessageItem = memo(function MessageItem({
                 )
               } else if (group.type === 'delta-group') {
                 const deltaContent = group.events.map((event: EventItem) => event.content).join('')
+                if (!deltaContent) return null
                 return (
                   <div key={`delta-group-${groupIndex}`} className="rounded-2xl px-4 py-3 bg-card border border-border">
                     <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -252,7 +247,7 @@ const MessageItem = memo(function MessageItem({
         )}
 
         {/* Message Content - now displayed in events section */}
-        {(!message.events || message.events.length === 0) && (
+        {(isUser || !message.events || message.events.length === 0) && (
           <>
             {message.status === 'interrupted' && !message.content ? (
               <div className="rounded-2xl px-4 py-3 bg-card border border-border">

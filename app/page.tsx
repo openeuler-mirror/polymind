@@ -22,38 +22,31 @@ export default function Home() {
         <ConversationSidebar />
       </div>
 
-      {/* Main Content Area with Resizable Panels */}
-      {isRightPanelOpen ? (
-        <ResizablePanelGroup direction="horizontal" className="flex-1">
-          {/* Chat Area - Flex grow to fill remaining space */}
-          <ResizablePanel
-            defaultSize={30}
-            minSize={20}
-          >
-            <div className="h-full flex flex-col">
-              <ChatArea />
-            </div>
-          </ResizablePanel>
-
-          {/* Resizable Handle */}
-          <ResizableHandle />
-
-          {/* Right Panel - Settings panel */}
-          <ResizablePanel
-            defaultSize={70}
-            minSize={40}
-            maxSize={80}
-          >
-            <RightPanel />
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      ) : (
-        <div className="flex-1">
+      {/* Main Content Area - ChatArea always rendered in same position */}
+      <ResizablePanelGroup direction="horizontal" className="flex-1">
+        <ResizablePanel
+          defaultSize={isRightPanelOpen ? 30 : 100}
+          minSize={20}
+        >
           <div className="h-full flex flex-col">
             <ChatArea />
           </div>
-        </div>
-      )}
+        </ResizablePanel>
+
+        {/* Resizable Handle */}
+        {isRightPanelOpen && (
+          <>
+            <ResizableHandle />
+            <ResizablePanel 
+            defaultSize={70} 
+            minSize={40} 
+            maxSize={80}
+            >
+              <RightPanel />
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
     </main>
   )
 }

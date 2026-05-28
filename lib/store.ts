@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Conversation, Message, MCPTool, Agent, Session, AgentEvent } from './types'
-import { AgentStatus, AdapterType, SessionStatus, SandboxType } from './types'
+import { AgentStatus, AdapterType, SessionStatus, SandboxType, MessageStatus } from './types'
 import { WebSocketClient } from '@/lib/websocket-client'
 import { messageService } from '@/services/message-service'
 import { agentService } from '@/services/agent-service'
@@ -11,23 +11,24 @@ import { cacheDelete, cacheSetAll, cacheGetAll, CACHE_KEYS } from './cache'
 // 环境变量控制是否使用模拟数据
 const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
 
+function syncUrlParams(agentId?: string, sessionId?: string) {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams(window.location.search)
+  if (agentId) params.set('agent', agentId)
+  else params.delete('agent')
+  if (sessionId) params.set('session', sessionId)
+  else params.delete('session')
+  const qs = params.toString()
+  const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+  window.history.replaceState(null, '', url)
+}
+
 function getInitialState() {
-  if (typeof window === 'undefined') {
-    return {
-      conversations: [],
-      currentConversationId: null,
-      currentAgentId: null,
-      agents: [],
-    }
-  }
-  const savedCurrentId = localStorage.getItem('polymind-current-conversation')
-  const savedCurrentAgentId = localStorage.getItem('polymind-current-agent')
-  const cached = cacheGetAll() 
   return {
-    conversations: cached?.conversations ?? [],
-    currentConversationId: savedCurrentId || null,
-    currentAgentId: savedCurrentAgentId || null,
-    agents: cached?.agents ?? [],
+    conversations: [],
+    currentConversationId: null,
+    currentAgentId: null,
+    agents: [],
   }
 }
 
@@ -65,9 +66,6 @@ export interface ChatState {
   currentAgentId: string | null
   agentStatus: Record<string, Agent['status']>
   
-  // 会话相关状态
-  activeSessions: Record<string, Session> // agentId -> session
-  
   // 连接状态
   wsConnections: Record<string, WebSocketClient> // agentId -> websocket
   isConnecting: boolean
@@ -78,6 +76,9 @@ export interface ChatState {
   
   // Actions
   createConversation: (agentId?: string, agentName?: string) => Promise<string>
+  createLocalConversation: (agentId: string, agentName?: string) => string
+  assignSessionToConversation: (convId: string, sessionId: string) => void
+  startNewTask: (agentId: string) => void
   deleteConversation: (id: string) => Promise<void>
   setCurrentConversation: (id: string) => void
   addMessage: (conversationId: string, message: Message) => void
@@ -106,7 +107,7 @@ export interface ChatState {
   initializeAgent: (config: any) => Promise<Agent>
   connectToAgent: (agentId: string) => Promise<void>
   disconnectFromAgent: (agentId: string) => void
-  sendMessageToAgent: (agentId: string, sessionId: string | undefined, content: string, onEvent?: (event: any) => void) => Promise<any[]>
+  sendMessageToAgent: (agentId: string, sessionId: string, content: string, onEvent?: (event: any) => void) => Promise<any[]>
   createNewSession: (agentId: string) => Promise<Session>
 
   // 会话持久化操作
@@ -143,7 +144,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   agents: initialState.agents,
   currentAgentId: initialState.currentAgentId,
   agentStatus: {},
-  activeSessions: {},
   wsConnections: {},
   isConnecting: false,
   connectionError: null,
@@ -162,7 +162,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
        }
      }
 
-     const id = sessionId || generateUUID()
+     const id = generateUUID()
      const newConversation: Conversation = {
        id,
        title: '新对话',
@@ -175,11 +175,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
        isStreaming: false
      }
     cacheDelete(CACHE_KEYS.CONVERSATIONS_WITH_NAMES)
-    set((state) => ({
-      conversations: [newConversation, ...state.conversations],
-      currentConversationId: id,
-      ...(agentId ? { currentAgentId: agentId } : {})
-    }))
+    set((state) => {
+      syncUrlParams(agentId, sessionId)
+      return {
+        conversations: [newConversation, ...state.conversations],
+        currentConversationId: id,
+        ...(agentId ? { currentAgentId: agentId } : {})
+      }
+    })
 
     return id
   },
@@ -187,7 +190,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   deleteConversation: async (id) => {
     const state = get()
     const conversation = state.conversations.find(c => c.id === id)
-    let deletedSessionId: string | undefined
 
     // If the conversation has its own sessionId, delete the backend session directly
     if (conversation?.sessionId && conversation?.agentId) {
@@ -195,27 +197,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (!USE_MOCK_DATA) {
           await sessionService.deleteSession(conversation.agentId, conversation.sessionId)
         }
-        deletedSessionId = conversation.sessionId
       } catch (error) {
         console.error('Failed to delete session:', error)
-      }
-    } else if (state.currentConversationId === id && state.currentAgentId) {
-      // for conversations without sessionId, fall back to activeSessions
-      const session = state.activeSessions[state.currentAgentId]
-      if (session) {
-        const otherActiveConversations = state.conversations.filter(
-          (conv) => conv.id !== id && conv.messages.length > 0
-        )
-        if (otherActiveConversations.length === 0) {
-          try {
-            if (!USE_MOCK_DATA) {
-              await sessionService.deleteSession(state.currentAgentId, session.id)
-            }
-            deletedSessionId = session.id
-          } catch (error) {
-            console.error('Failed to delete session:', error)
-          }
-        }
       }
     }
 
@@ -226,25 +209,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ? filtered[0]?.id || null
         : state.currentConversationId
 
-      const updates: any = {
-        conversations: filtered,
-        currentConversationId: newCurrentId,
-      }
-
-      // Clean up activeSessions if the deleted session matches
-      if (deletedSessionId) {
-        const deletedAgentId = conversation?.agentId || state.currentAgentId
-        if (deletedAgentId) {
-          const session = state.activeSessions[deletedAgentId]
-          if (session && session.id === deletedSessionId) {
-            const newActiveSessions = { ...state.activeSessions }
-            delete newActiveSessions[deletedAgentId]
-            updates.activeSessions = newActiveSessions
+      // Sync URL: if current conversation was deleted, update URL to fallback or clear session
+      if (state.currentConversationId === id) {
+        if (newCurrentId) {
+          const newConv = filtered.find(c => c.id === newCurrentId)
+          if (newConv) {
+            syncUrlParams(newConv.agentId, newConv.sessionId)
           }
+        } else {
+          syncUrlParams(state.currentAgentId || undefined)
         }
       }
 
-      return updates
+      return {
+        conversations: filtered,
+        currentConversationId: newCurrentId,
+      }
     })
   },
 
@@ -264,6 +244,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setCurrentConversation: (id) => {
     set((state) => {
       const conversation = state.conversations.find(c => c.id === id)
+      if (conversation) {
+        syncUrlParams(conversation.agentId, conversation.sessionId)
+      }
       return {
         currentConversationId: id,
         ...(conversation?.agentId ? { currentAgentId: conversation.agentId } : {})
@@ -296,12 +279,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       next.unshift(updated)
       return { conversations: next }
     })
-
-    if (isFirstMessage && conv.agentId && conv.sessionId) {
-      sessionService.updateConversation(conv.agentId, conv.sessionId, { title: newTitle }).catch(err =>
-        console.error('Failed to persist auto-generated title:', err)
-      )
-    }
   },
 
   updateMessage: (conversationId, messageId, updates) => {
@@ -362,7 +339,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   ? {
                       ...message,
                       isStreaming: false,
-                      status: 'interrupted',
+                      status: MessageStatus.INTERRUPTED,
                       toolCalls: message.toolCalls?.map((toolCall) =>
                         toolCall.status === 'running'
                           ? { ...toolCall, status: 'error' as const, error: toolCall.error || '已停止生成' }
@@ -475,11 +452,56 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Agent相关操作
   setCurrentAgent: (agentId) => {
     set({ currentAgentId: agentId })
+    if (!get().currentConversationId) {
+      syncUrlParams(agentId || undefined)
+    }
   },
 
   triggerAgentCreate: () => set((state) => ({
     agentCreateFlag: state.agentCreateFlag + 1
   })),
+
+  startNewTask: (agentId) => {
+    set({ currentConversationId: null, currentAgentId: agentId })
+    syncUrlParams(agentId)
+  },
+
+  createLocalConversation: (agentId, agentName) => {
+    const id = generateUUID()
+    set((state) => {
+      syncUrlParams(agentId)
+      return {
+        conversations: [
+          {
+            id,
+            title: '新对话',
+            messages: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            agentId,
+            agentName,
+            isStreaming: false,
+          },
+          ...state.conversations,
+        ],
+        currentConversationId: id,
+      }
+    })
+    return id
+  },
+
+  assignSessionToConversation: (convId, sessionId) => {
+    set((state) => {
+      const conv = state.conversations.find(c => c.id === convId)
+      if (!conv) return {}
+      syncUrlParams(conv.agentId, sessionId)
+      return {
+        conversations: state.conversations.map(c =>
+          c.id === convId ? { ...c, sessionId } : c
+        )
+      }
+    })
+  },
 
   addAgent: (agent) => {
     set((state) => ({
@@ -500,18 +522,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const agents = state.agents.filter(a => a.id !== agentId)
       const agentStatus = { ...state.agentStatus }
       delete agentStatus[agentId]
-      const activeSessions = { ...state.activeSessions }
-      delete activeSessions[agentId]
       const conversations = state.conversations.filter(c => c.agentId !== agentId)
       const currentConversationId = state.currentConversationId &&
         conversations.some(c => c.id === state.currentConversationId)
           ? state.currentConversationId
           : null
 
+      // Sync URL if the current conversation was removed with the agent
+      if (!currentConversationId && state.currentConversationId) {
+        syncUrlParams(state.currentAgentId === agentId ? undefined : (state.currentAgentId || undefined))
+      }
+
       return {
         agents,
         agentStatus,
-        activeSessions,
         conversations,
         currentConversationId,
       }
@@ -552,8 +576,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       newAgent = await agentService.createAgent(config)
       get().addAgent(newAgent)
       get().setCurrentAgent(newAgent.id)
-      // 后端创建agent后会默认创建一个session，拉取会话列表
-      await get().fetchConversations(newAgent.id)
     }
     
     return newAgent
@@ -566,14 +588,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // 确保有活动会话
       const currentConvId = get().currentConversationId
       const currentConv = currentConvId ? get().conversations.find(c => c.id === currentConvId) : null
-      let session = get().activeSessions[agentId]
+      let session: Session | undefined
 
       if (currentConv?.sessionId) {
-        // Conversation has its own sessionId — ensure we connect to that session
-        if (!session || session.id !== currentConv.sessionId) {
-          session = { id: currentConv.sessionId } as Session
-        }
-      } else if (!session) {
+        session = { id: currentConv.sessionId } as Session
+      } else {
         session = await get().createNewSession(agentId)
       }
       
@@ -744,16 +763,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })
   },
   
-  sendMessageToAgent: async (agentId: string, sessionId: string | undefined, content: string, onEvent?: (event: any) => void) => {
-    // 获取当前活动会话
-    const sid = sessionId || get().activeSessions[agentId]?.id
-    if (!sid) {
+  sendMessageToAgent: async (agentId: string, sessionId: string, content: string, onEvent?: (event: any) => void) => {
+    if (!sessionId) {
       throw new Error('No active session for agent')
     }
     
     try {
       // 调用流式API发送消息
-      const events = await messageService.sendMessage(agentId, sid, content, onEvent)
+      const events = await messageService.sendMessage(agentId, sessionId, content, onEvent)
       
       return events
     } catch (error) {
@@ -792,12 +809,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       )
       set((state) => {
         const existing = state.conversations.find(
-          c => c.sessionId === sessionId || c.id === sessionId
+          c => c.sessionId === sessionId
         )
         if (existing) {
           return {
             conversations: state.conversations.map((c) =>
-              c.sessionId === sessionId || c.id === sessionId
+              c.sessionId === sessionId
                 ? { ...c, messages, hasMore: detail.has_more ?? false, updatedAt: new Date(detail.updated_at) }
                 : c
             ),
@@ -806,7 +823,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
         }
         const placeholder: Conversation = {
-          id: sessionId,
+          id: generateUUID(),
           title: detail.title || '新对话',
           messages,
           createdAt: new Date(detail.created_at),
@@ -818,12 +835,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
         return {
           conversations: [placeholder, ...state.conversations],
-          currentConversationId: sessionId,
+          currentConversationId: placeholder.id,
           currentAgentId: agentId,
         }
       })
     } catch (error) {
       console.error('Failed to refresh conversation:', error)
+      syncUrlParams(agentId)
     }
   },
 
@@ -835,14 +853,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       )
       set((state) => {
         const existing = state.conversations.find(
-          c => c.sessionId === sessionId || c.id === sessionId
+          c => c.sessionId === sessionId
         )
         if (!existing) return state
         const existingIds = new Set(existing.messages.map((m: Message) => m.id))
         const newMessages = olderMessages.filter((m: Message) => !existingIds.has(m.id))
         return {
           conversations: state.conversations.map((c) =>
-            c.sessionId === sessionId || c.id === sessionId
+            c.sessionId === sessionId
               ? {
                   ...c,
                   messages: [...newMessages, ...c.messages],
@@ -935,6 +953,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           )
 
           const convStillExists = merged.some(c => c.id === state.currentConversationId)
+          if (!convStillExists && state.currentConversationId) {
+            syncUrlParams(state.currentAgentId || undefined)
+          }
           return {
             agents,
             conversations: merged,
@@ -974,36 +995,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // 实际调用API创建会话
       session = await sessionService.createSession(agentId)
     }
-    
-    set((state) => {
-      const activeSessions = { ...state.activeSessions }
-      activeSessions[agentId] = session
-      return { activeSessions }
-    })
-    
+
     return session
   }
 }))
 
-// 订阅状态变化，自动保存到 localStorage
-if (typeof window !== 'undefined') {
-  let prevCurrentId = initialState.currentConversationId
-  let prevCurrentAgentId = initialState.currentAgentId
-  
-  useChatStore.subscribe((state) => {
-    
-    if (state.currentConversationId !== prevCurrentId) {
-      prevCurrentId = state.currentConversationId
-      if (state.currentConversationId) {
-        localStorage.setItem('polymind-current-conversation', state.currentConversationId)
-      }
-    }
-    
-    if (state.currentAgentId !== prevCurrentAgentId) {
-      prevCurrentAgentId = state.currentAgentId
-      if (state.currentAgentId) {
-        localStorage.setItem('polymind-current-agent', state.currentAgentId)
-      }
-    }
-  })
-}

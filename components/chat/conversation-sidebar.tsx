@@ -11,9 +11,15 @@ import {
   Trash2,
   ChevronLeft,
   PencilLine,
+  Loader2,
+  CircleCheck,
+  AlertCircle,
+  CircleMinus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
+import { MessageStatus } from '@/lib/types'
+import type { Message } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -32,51 +38,23 @@ export function ConversationSidebar() {
     conversations,
     currentConversationId,
     isSidebarOpen,
-    createConversation,
     setCurrentConversation,
     deleteConversation,
     toggleSidebar,
     togglePinConversation,
     updateConversationTitle,
-    agents: storeAgents,
   } = useChatStore()
 
   useLayoutEffect(() => {
     setIsHydrated(true)
-    
-    const state = useChatStore.getState()
-    const conv = state.conversations.find(c => c.id === state.currentConversationId)
-    if (conv?.agentId && conv?.sessionId) {
-      syncUrlParams(conv.agentId, conv.sessionId)
-    }
 
     useChatStore.getState().fetchAgentsWithConversations().catch(err => {
       console.error('Failed to fetch agents:', err)
     })
   }, [])
 
-  const agents = storeAgents
-
-  const syncUrlParams = (agentId?: string, sessionId?: string) => {
-    const params = new URLSearchParams(window.location.search)
-    if (agentId) params.set('agent', agentId)
-    else params.delete('agent')
-    if (sessionId) params.set('session', sessionId)
-    else params.delete('session')
-    const qs = params.toString()
-    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname
-    window.history.replaceState(null, '', url)
-  }
-
   const handleSelectConversation = (convId: string, agentId?: string, sessionId?: string) => {
     setCurrentConversation(convId)
-    syncUrlParams(agentId, sessionId)
-  }
-
-  const handleCreateConversation = async (agentId: string, agentName?: string) => {
-    const convId = await createConversation(agentId, agentName)
-    const conv = useChatStore.getState().conversations.find(c => c.id === convId)
-    syncUrlParams(agentId, conv?.sessionId)
   }
 
   const filteredConversations = conversations.filter((c) =>
@@ -108,14 +86,13 @@ export function ConversationSidebar() {
         <Button
           variant="outline"
           className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-          onClick={async () => {
+          onClick={() => {
             const state = useChatStore.getState()
             const currentConv = state.conversations.find(c => c.id === state.currentConversationId)
             const agentId = currentConv?.agentId || state.currentAgentId
               || state.agents.find(a => a.status !== 'deleted')?.id
             if (agentId) {
-              const agent = state.agents.find(a => a.id === agentId)
-              await handleCreateConversation(agentId, agent?.name)
+              state.startNewTask(agentId)
             }
           }}
         >
@@ -204,12 +181,37 @@ interface ConversationItemProps {
     pinned?: boolean
     agentId?: string
     agentName?: string
+    isStreaming?: boolean
+    messages?: Message[]
+    lastMessageStatus?: MessageStatus
   }
   isActive: boolean
   onSelect: () => void
   onDelete: () => void
   onTogglePin: () => void
   onRename: (title: string) => void
+}
+
+function getConversationStatus(conversation: ConversationItemProps['conversation']): MessageStatus | null {
+  if (conversation.isStreaming) return MessageStatus.GENERATING
+  const messages = conversation.messages ?? []
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+  if (lastAssistant?.status) return lastAssistant.status
+  return conversation.lastMessageStatus ?? null
+}
+
+const statusIconMap: Record<MessageStatus, React.ComponentType<{ className?: string }>> = {
+  [MessageStatus.GENERATING]: Loader2,
+  [MessageStatus.COMPLETED]: CircleCheck,
+  [MessageStatus.ERROR]: AlertCircle,
+  [MessageStatus.INTERRUPTED]: CircleMinus,
+}
+
+const statusIconClass: Record<MessageStatus, string> = {
+  [MessageStatus.GENERATING]: 'animate-spin text-muted-foreground',
+  [MessageStatus.COMPLETED]: 'text-emerald-500',
+  [MessageStatus.ERROR]: 'text-red-500',
+  [MessageStatus.INTERRUPTED]: 'text-gray-500',
 }
 
 function ConversationItem({
@@ -226,6 +228,7 @@ function ConversationItem({
   const containerRef = useRef<HTMLDivElement>(null)
   const editTitleRef = useRef(editTitle)
   editTitleRef.current = editTitle
+  const convStatus = getConversationStatus(conversation)
 
   const handleStartRename = () => {
     setEditTitle(conversation.title)
@@ -272,7 +275,7 @@ function ConversationItem({
       ref={containerRef}
       onClick={isEditing ? undefined : onSelect}
       className={cn(
-        'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 transition-colors',
+        'group flex cursor-pointer items-start gap-2 rounded-lg px-3 py-2.5 transition-colors',
         isEditing && 'inset-ring-2 inset-ring-primary bg-sidebar',
         isActive
           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -281,11 +284,14 @@ function ConversationItem({
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 min-w-0">
-          {conversation.agentName && (
-            <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary/80">
-              {conversation.agentName}
-            </span>
-          )}
+          {convStatus && (() => {
+            const IconComponent = statusIconMap[convStatus]
+            return (
+              <IconComponent
+                className={cn('h-4 w-4 shrink-0', statusIconClass[convStatus])}
+              />
+            )
+          })()}
           {isEditing ? (
             <input
               ref={inputRef}
@@ -300,12 +306,20 @@ function ConversationItem({
             <p className="truncate text-sm font-medium">{conversation.title}</p>
           )}
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {formatDistanceToNow(conversation.updatedAt, {
-            addSuffix: true,
-            locale: zhCN,
-          })}
-        </p>
+        <div className="mt-2 flex items-center gap-2">
+          <div className="w-4 shrink-0" />
+          {conversation.agentName && (
+            <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary/80">
+              {conversation.agentName}
+            </span>
+          )}
+          <span className="shrink-0 text-[11px] text-muted-foreground/60">
+            {formatDistanceToNow(conversation.updatedAt, {
+              addSuffix: true,
+              locale: zhCN,
+            })}
+          </span>
+        </div>
       </div>
 
       <DropdownMenu>

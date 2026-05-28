@@ -858,6 +858,7 @@ export function BackportPage() {
       conversationId = await chatStore.createConversation(agentId, 'Patchflow-Agent')
       const sessionId = useChatStore.getState().conversations
         .find((conversation) => conversation.id === conversationId)?.sessionId
+      if (!sessionId) return
 
       const userMessage: Message = {
         id: generateUUID(),
