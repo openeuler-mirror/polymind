@@ -528,9 +528,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ? state.currentConversationId
           : null
 
-      // Sync URL if the current conversation was removed with the agent
-      if (!currentConversationId && state.currentConversationId) {
-        syncUrlParams(state.currentAgentId === agentId ? undefined : (state.currentAgentId || undefined))
+      // If the deleted agent was the current one, pick the next available
+      const isCurrentAgentDeleted = state.currentAgentId === agentId
+      const nextAgentId = isCurrentAgentDeleted
+        ? (agents.find(a => a.status !== 'deleted')?.id ?? null)
+        : state.currentAgentId
+
+      // Sync URL params: removed conversation OR removed current agent
+      const conversationRemoved = !currentConversationId && state.currentConversationId
+      if (conversationRemoved || isCurrentAgentDeleted) {
+        syncUrlParams(nextAgentId || undefined)
       }
 
       return {
@@ -538,6 +545,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         agentStatus,
         conversations,
         currentConversationId,
+        currentAgentId: nextAgentId,
       }
     })
   },

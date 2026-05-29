@@ -48,7 +48,15 @@ export function ConversationSidebar() {
   useLayoutEffect(() => {
     setIsHydrated(true)
 
-    useChatStore.getState().fetchAgentsWithConversations().catch(err => {
+    useChatStore.getState().fetchAgentsWithConversations().then(() => {
+      const state = useChatStore.getState()
+      if (!state.currentAgentId) {
+        const firstAgent = state.agents.find(a => a.status !== 'deleted')
+        if (firstAgent) {
+          state.setCurrentAgent(firstAgent.id)
+        }
+      }
+    }).catch(err => {
       console.error('Failed to fetch agents:', err)
     })
   }, [])
@@ -275,23 +283,23 @@ function ConversationItem({
       ref={containerRef}
       onClick={isEditing ? undefined : onSelect}
       className={cn(
-        'group flex cursor-pointer items-start gap-2 rounded-lg px-3 py-2.5 transition-colors',
-        isEditing && 'inset-ring-2 inset-ring-primary bg-sidebar',
+        'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 transition-colors bg-muted/60',
+        isEditing && 'inset-ring-2 inset-ring-primary bg-sidebar', 
         isActive
-          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-          : 'hover:bg-sidebar-accent/50'
+          ? 'bg-gray-200 text-sidebar-accent-foreground' 
+          : 'hover:bg-muted'
       )}
     >
+      {convStatus && (() => {
+        const IconComponent = statusIconMap[convStatus]
+        return (
+          <IconComponent
+            className={cn('h-5 w-5 shrink-0', statusIconClass[convStatus])}
+          />
+        )
+      })()}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 min-w-0">
-          {convStatus && (() => {
-            const IconComponent = statusIconMap[convStatus]
-            return (
-              <IconComponent
-                className={cn('h-4 w-4 shrink-0', statusIconClass[convStatus])}
-              />
-            )
-          })()}
           {isEditing ? (
             <input
               ref={inputRef}
@@ -306,8 +314,7 @@ function ConversationItem({
             <p className="truncate text-sm font-medium">{conversation.title}</p>
           )}
         </div>
-        <div className="mt-2 flex items-center gap-2">
-          <div className="w-4 shrink-0" />
+        <div className="mt-1 flex items-center gap-2">
           {conversation.agentName && (
             <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary/80">
               {conversation.agentName}

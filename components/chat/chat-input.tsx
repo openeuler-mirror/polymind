@@ -9,8 +9,6 @@ import {
   X,
   FileText,
   StopCircle,
-  Check,
-  ChevronsUpDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
@@ -22,29 +20,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
 import type { AgentSkill } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
 import { AgentSelector } from './agent-selector'
+import { useToast } from '@/hooks/use-toast'
 
 const models = [
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
@@ -72,6 +51,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, onClearPresetPrompts }: ChatInputProps) {
+  const { toast } = useToast()
   const [skills, setSkills] = useState<AgentSkill[]>([])
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
@@ -175,12 +155,21 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
     const trimmedInput = input.trim()
     if (!trimmedInput && attachments.length === 0 && presetPrompts.length === 0) return
     if (isStreaming) return
-
+    
+    if (!currentAgentId) {
+      toast({
+        title: '错误',
+        description: '请先创建并选择智能体',
+        variant: 'destructive',
+        duration: 1500,
+      })
+    }
+    
     // 将预设提示词的内容添加到消息中
     let finalContent = trimmedInput
     if (presetPrompts.length > 0) {
       const presetContent = presetPrompts.map((p) => p.prompt).join('\n\n')
-      finalContent = trimmedInput 
+      finalContent = trimmedInput
         ? `${presetContent}\n\n${trimmedInput}`
         : presetContent
     }
@@ -189,7 +178,7 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
     setInput('')
     setAttachments([])
     onClearPresetPrompts?.()
-  }, [input, attachments, presetPrompts, isStreaming, onSend, onClearPresetPrompts])
+  }, [input, attachments, presetPrompts, isStreaming, onSend, onClearPresetPrompts, currentAgentId])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // 当技能选择器显示时，手动处理键盘导航
