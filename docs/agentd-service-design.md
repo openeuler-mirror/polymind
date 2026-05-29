@@ -1404,42 +1404,44 @@ flowchart TB
 
 | 方法     | 路径                                                         | 说明               |
 | ------ | ---------------------------------------------------------- | ---------------- |
-| POST   | `/api/v1/agents`                                           | 创建 Agent         |
-| GET    | `/api/v1/agents`                                           | 列出 Agent         |
-| GET    | `/api/v1/agents/{agent_id}`                                | 获取 Agent 详情      |
-| PATCH  | `/api/v1/agents/{agent_id}`                                | 更新 Agent 配置      |
-| DELETE | `/api/v1/agents/{agent_id}`                                | 删除 Agent         |
-| POST   | `/api/v1/agents/{agent_id}/pause`                          | 暂停 Agent（管理员操作）  |
-| POST   | `/api/v1/agents/{agent_id}/resume`                         | 恢复 Agent（管理员操作）  |
-| GET    | `/api/v1/agents/{agent_id}/sessions`                       | 列出 Session       |
-| POST   | `/api/v1/agents/{agent_id}/sessions`                       | 创建 Session       |
-| GET    | `/api/v1/agents/{agent_id}/sessions/{session_id}`          | 获取 Session 详情    |
-| DELETE | `/api/v1/agents/{agent_id}/sessions/{session_id}`          | 删除 Session       |
-| POST   | `/api/v1/agents/{agent_id}/sessions/{session_id}/messages` | 发送消息（REST 备选通道）  |
-| WS     | `/api/v1/agents/{agent_id}/ws`                             | WebSocket（主通信通道） |
-| <br /> | 沙箱配置                                                       | <br />           |
-| <br /> | 模型配置                                                       | <br />           |
-| <br /> | <br />                                                     | <br />           |
+| GET    | `/healthz`                                                  | 服务存活检查          |
+| POST   | `/agents`                                                  | 创建 Agent         |
+| GET    | `/agents`                                                  | 列出所有 Agent     |
+| GET    | `/agents/{agent_id}`                                       | 获取 Agent 详情      |
+| DELETE | `/agents/{agent_id}`                                       | 删除 Agent         |
+| POST   | `/agents/{agent_id}/pause`                                 | 暂停 Agent         |
+| POST   | `/agents/{agent_id}/resume`                                | 恢复 Agent         |
+| GET    | `/agents/{agent_id}/sessions`                              | 列出所有会话         |
+| POST   | `/agents/{agent_id}/sessions`                              | 创建会话           |
+| GET    | `/agents/{agent_id}/sessions/{session_id}`                 | 获取会话详情         |
+| DELETE | `/agents/{agent_id}/sessions/{session_id}`                 | 删除会话           |
+| POST   | `/agents/{agent_id}/sessions/{session_id}/messages`        | 发送消息           |
+| POST   | `/agents/{agent_id}/sessions/{session_id}/messages/stream` | 发送消息并以 SSE 流返回 |
+| GET    | `/agents/{agent_id}/sessions/{session_id}/events`          | 查询会话事件回放       |
+| POST   | `/models`                                                  | 添加大模型配置        |
+| GET    | `/models`                                                  | 获取大模型列表        |
+| PUT    | `/models/{model_id}`                                       | 更新大模型配置        |
+| DELETE | `/models/{model_id}`                                       | 删除大模型配置        |
 
 ### 8.2 数据模型
 
-#### AgentStatus 枚举（5 状态）
+#### AgentStatus 枚举
 
 ```python
 class AgentStatus(str, Enum):
-    CREATING = "CREATING"   # 创建中
-    RUNNING = "RUNNING"     # 运行中，可处理消息
-    PAUSED = "PAUSED"      # 已暂停，沙箱已停止，可快速恢复
-    ERROR = "ERROR"         # 错误
+    RUNNING = "running"     # 运行中，可处理消息
+    PAUSED = "paused"      # 已暂停，沙箱已停止，可快速恢复
+    STOPPED = "stopped"    # 已停止
+    ERROR = "error"         # 错误
 ```
 
-#### AdapterType 枚举
+#### SandboxType 枚举
 
 ```python
-class AdapterType(str, Enum):
-    OPENCODE = "opencode"
-    OPENCLAW = "openclaw"
-    CLAUDECODE = "claude-code"
+class SandboxType(str, Enum):
+    DOCKER = "docker"
+    LOCAL_PROCESS = "local_process"
+    E2B = "e2b"
 ```
 
 ### 8.3 请求/响应模型
@@ -1448,75 +1450,89 @@ class AdapterType(str, Enum):
 
 **输入字段：**
 
-| 字段                           | 类型     | 必填 | 说明                                                |
-| ---------------------------- | ------ | -- | ------------------------------------------------- |
-| `name`                       | string | 是  | Agent 名称，用于展示和识别                                  |
-| `adapter_type`               | string | 是  | 适配器类型：`opencode` / `openclaw` / `claude-code`     |
-| `template`                   | object | 是  | Agent 模板配置，参考 agent.yaml 结构                       |
-| `model_override`             | object | 否  | 模型配置覆盖                                            |
-| `model_override.provider`    | string | 否  | 模型提供商：`anthropic` / `openai` / `google`           |
-| `model_override.name`        | string | 否  | 模型名称，如 `claude-sonnet-4-20250514`                 |
-| `model_override.temperature` | number | 否  | 温度参数，0.0-1.0                                      |
-| `model_override.max_tokens`  | number | 否  | 最大 token 数                                        |
-| `sandbox_config`             | object | 否  | 沙箱配置                                              |
-| `sandbox_config.type`        | string | 否  | 沙箱类型：`docker` / `e2b` / `opensandbox`，默认 `docker` |
-| `sandbox_config.timeout`     | number | 否  | 超时时间（秒），默认 3600                                   |
-| `idle_timeout`               | number | 否  | 空闲超时时间（秒），默认 300                                  |
+| 字段                     | 类型      | 必填 | 说明                                  |
+| ---------------------- | ------- | -- | ----------------------------------- |
+| `name`                 | string  | 是  | Agent 名称，最小长度 1                     |
+| `description`          | string  | 否  | Agent 描述，默认空字符串                     |
+| `sandbox_type`         | string  | 是  | 沙箱类型：`docker`、`local_process`、`e2b` |
+| `adapter_type`         | string  | 是  | 适配器类型：如 `openclaw`                  |
+| `idle_timeout_seconds` | integer | 是  | 空闲超时时间（秒），必须大于 0                    |
+| `sandbox_id`           | string  | 否  | 沙箱 ID                               |
+| `has_scheduled_tasks`  | boolean | 否  | 是否有定时任务，默认 `false`                  |
 
 ```json
 {
     "name": "my-agent",
-    "adapter_type": "opencode",
-    "template": {
-        "agent": {
-            "name": "my-agent",
-            "prompt": {
-                "system": "You are a helpful assistant."
-            }
-        }
-    },
-    "model_override": {
-        "provider": "anthropic",
-        "name": "claude-sonnet-4-20250514",
-        "temperature": 0.7
-    },
-    "sandbox_config": {
-        "type": "docker",
-        "timeout": 3600
-    },
-    "idle_timeout": 300
+    "description": "这是一个测试智能体",
+    "sandbox_type": "docker",
+    "adapter_type": "openclaw",
+    "idle_timeout_seconds": 3600,
+    "sandbox_id": null,
+    "has_scheduled_tasks": false
 }
 ```
 
-#### CreateAgentResponse / AgentInfo
+#### AgentResponse
 
 **输出字段：**
 
-| 字段                    | 类型      | 说明                                                   |
-| --------------------- | ------- | ---------------------------------------------------- |
-| `id`                  | string  | Agent 唯一标识符 (UUID)                                   |
-| `name`                | string  | Agent 名称                                             |
-| `adapter_type`        | string  | 适配器类型                                                |
-| `status`              | string  | Agent 状态：`CREATING` / `RUNNING` / `PAUSED` / `ERROR` |
-| `sandbox_id`          | string  | 关联的沙箱 ID                                             |
-| `default_session_id`  | string  | 默认会话 ID                                              |
-| `has_scheduled_tasks` | boolean | 是否有定时任务                                              |
-| `idle_timeout`        | number  | 空闲超时时间（秒）                                            |
-| `created_at`          | string  | 创建时间 (ISO 8601)                                      |
-| `updated_at`          | string  | 更新时间 (ISO 8601)                                      |
+| 字段                     | 类型             | 说明                                    |
+| ---------------------- | -------------- | ------------------------------------- |
+| `id`                   | string         | Agent 唯一标识                            |
+| `name`                 | string         | Agent 名称                              |
+| `description`          | string         | Agent 描述                              |
+| `sandbox_type`         | string         | 沙箱类型                                  |
+| `adapter_type`         | string         | 适配器类型                                 |
+| `status`               | string         | Agent 状态：`running`、`paused`、`stopped` |
+| `sandbox_id`           | string \| null | 沙箱 ID                                 |
+| `workspace_path`       | string         | 工作区路径                                 |
+| `idle_timeout_seconds` | integer        | 空闲超时时间                                |
+| `has_scheduled_tasks`  | boolean        | 是否有定时任务                               |
+| `created_at`           | datetime       | 创建时间                                  |
+| `updated_at`           | datetime       | 更新时间                                  |
+| `default_session_id`   | string \| null | 默认会话 ID                               |
 
 ```json
 {
-    "id": "agent-uuid-xxx",
+    "id": "agent-uuid",
     "name": "my-agent",
-    "adapter_type": "opencode",
-    "status": "RUNNING",
-    "sandbox_id": "sandbox-uuid-xxx",
-    "default_session_id": "session-uuid-xxx",
+    "description": "这是一个测试智能体",
+    "sandbox_type": "docker",
+    "adapter_type": "openclaw",
+    "status": "running",
+    "sandbox_id": null,
+    "workspace_path": "/path/to/workspace",
+    "idle_timeout_seconds": 3600,
     "has_scheduled_tasks": false,
-    "idle_timeout": 300,
-    "created_at": "2026-03-27T10:00:00Z",
-    "updated_at": "2026-03-27T10:05:00Z"
+    "created_at": "2026-04-10T12:00:00",
+    "updated_at": "2026-04-10T12:00:00",
+    "default_session_id": "session-uuid"
+}
+```
+
+#### SessionResponse
+
+**输出字段：**
+
+| 字段                    | 类型       | 说明                             |
+| --------------------- | -------- | ------------------------------ |
+| `id`                  | string   | 会话唯一标识                         |
+| `agent_id`            | string   | 所属 Agent ID                    |
+| `status`              | string   | 会话运行态：`running`、`idle`、`error` |
+| `context_initialized` | boolean  | witty-agent-server 是否已完成上下文初始化 |
+| `runtime_type`        | string   | 运行时类型：如 `openclaw`             |
+| `created_at`          | datetime | 创建时间                           |
+| `updated_at`          | datetime | 更新时间                           |
+
+```json
+{
+    "id": "session-uuid",
+    "agent_id": "agent-uuid",
+    "status": "idle",
+    "context_initialized": true,
+    "runtime_type": "openclaw",
+    "created_at": "2026-04-10T12:00:00",
+    "updated_at": "2026-04-10T12:00:00"
 }
 ```
 
@@ -1524,79 +1540,191 @@ class AdapterType(str, Enum):
 
 **输入字段：**
 
-| 字段            | 类型     | 必填 | 说明         |
-| ------------- | ------ | -- | ---------- |
-| `session_id`  | string | 是  | 目标会话 ID    |
-| `content`     | string | 是  | 消息内容       |
-| `attachments` | array  | 否  | 附件列表，如文件路径 |
+| 字段        | 类型     | 必填 | 说明          |
+| --------- | ------ | -- | ----------- |
+| `content` | string | 是  | 消息内容，最小长度 1 |
 
 ```json
 {
-    "session_id": "session-uuid-xxx",
-    "content": "帮我写一个快速排序函数",
-    "attachments": []
+    "content": "帮我查一下最近的错误日志"
 }
 ```
 
-#### SendMessageResponse / WebSocket 事件
-
-**输出字段（流式）：**
-
-| 字段             | 类型     | 说明                                                          |
-| -------------- | ------ | ----------------------------------------------------------- |
-| `type`         | string | 事件类型：`thinking` / `message` / `tool_use` / `done` / `error` |
-| `content`      | string | 事件内容                                                        |
-| `timestamp`    | string | 事件时间 (ISO 8601)                                             |
-| `name`         | string | (tool\_use 时) 工具名称                                          |
-| `input`        | object | (tool\_use 时) 工具输入参数                                        |
-| `tool_call_id` | string | (tool\_use 时) 工具调用 ID                                       |
-
-```json
-{"type": "thinking", "content": "正在思考...", "timestamp": "2026-03-27T10:00:01Z"}
-{"type": "message", "content": "这是一个...", "timestamp": "2026-03-27T10:00:02Z"}
-{"type": "tool_use", "name": "write", "input": {"path": "sort.py", "content": "..."}, "timestamp": "2026-03-27T10:00:03Z"}
-{"type": "done", "content": "", "timestamp": "2026-03-27T10:00:04Z"}
-```
-
-#### SessionInfo
+#### MessageEventsResponse
 
 **输出字段：**
 
-| 字段           | 类型     | 说明                              |
-| ------------ | ------ | ------------------------------- |
-| `id`         | string | Session 唯一标识符 (UUID)            |
-| `agent_id`   | string | 所属 Agent ID                     |
-| `status`     | string | Session 状态：`ACTIVE` / `STOPPED` |
-| `created_at` | string | 创建时间 (ISO 8601)                 |
+| 字段             | 类型     | 说明                                                                           |
+| -------------- | ------ | ---------------------------------------------------------------------------- |
+| `sandbox_type` | string | Agent 的沙箱类型，取值来自 agent 配置的 sandbox backend，例如 `docker`、`local_process`、`e2b` |
+| `events`       | array  | 事件数组，每个事件包含 type、session\_id、event\_id、ts\_ms、runtime\_type、payload          |
 
 ```json
 {
-    "id": "session-uuid-xxx",
-    "agent_id": "agent-uuid-xxx",
-    "status": "ACTIVE",
-    "created_at": "2026-03-27T10:00:00Z"
+    "sandbox_type": "local_process",
+    "events": [
+        {
+            "type": "message.delta",
+            "session_id": "session-id",
+            "event_id": "uuid",
+            "ts_ms": 1775650000123,
+            "runtime_type": "openclaw",
+            "payload": {"delta": "当"}
+        },
+        {
+            "type": "message.completed",
+            "session_id": "session-id",
+            "event_id": "uuid",
+            "ts_ms": 1775650000123,
+            "runtime_type": "openclaw",
+            "payload": {"text": "当前工作环境..."}
+        }
+    ]
 }
 ```
 
-#### UpdateAgentRequest
+#### 事件类型
+
+| type                      | 含义                   | payload 关键字段                                                |
+| ------------------------- | -------------------- | ----------------------------------------------------------- |
+| `message.delta`           | assistant 增量输出       | `delta`                                                     |
+| `message.completed`       | assistant 输出完成       | `text`                                                      |
+| `tool.call.started`       | 工具调用开始               | `tool_name`, `tool_call_id`, `arguments`, `stage`           |
+| `tool.call.response`      | 工具调用结果/过程输出          | `tool_name`, `tool_call_id`, `content`, `is_error`, `stage` |
+| `usage.updated`           | 用量更新                 | `input_tokens`, `output_tokens`, `total_cost`               |
+| `session.runtime.changed` | runtime session 标识变化 | runtime 原始字段                                                |
+| `stream.error`            | 运行时流异常               | `code`, `message`                                           |
+| `client.error`            | 客户端事件错误              | `code`, `message`, `details`                                |
+
+#### SessionEventPage
+
+**输出字段：**
+
+| 字段            | 类型      | 说明         |
+| ------------- | ------- | ---------- |
+| `items`       | array   | 事件列表       |
+| `pagination`  | object  | 分页信息       |
+| `offset`      | integer | 分页偏移       |
+| `limit`       | integer | 每页数量       |
+| `total`       | integer | 总数量        |
+
+```json
+{
+    "items": [
+        {
+            "id": "event-id",
+            "session_id": "session-id",
+            "type": "message.delta",
+            "source": "assistant",
+            "payload": {},
+            "timestamp": "2026-03-31T12:34:56.000000Z"
+        }
+    ],
+    "pagination": {
+        "offset": 0,
+        "limit": 50,
+        "total": 1
+    }
+}
+```
+
+#### CreateModelRequest
 
 **输入字段：**
 
-| 字段               | 类型     | 必填 | 说明       |
-| ---------------- | ------ | -- | -------- |
-| `name`           | string | 否  | 新名称      |
-| `model_override` | object | 否  | 新的模型配置   |
-| `idle_timeout`   | number | 否  | 新的空闲超时时间 |
+| 字段             | 类型      | 必填 | 说明                                                                                              |
+| -------------- | ------- | -- | ----------------------------------------------------------------------------------------------- |
+| `name`         | string  | 是  | 模型名称，如 `gpt-4o`、`claude-3-opus-20240229`                                                        |
+| `provider`     | string  | 是  | 模型提供商：`openai`、`anthropic`、`alibaba`、`deepseek`、`zhipuai`、`minimax`、`moonshotai`、`google`、`xai`、`siliconflow`、`azure`、`custom` |
+| `api_key`      | string  | 是  | API 密钥                                                                                          |
+| `api_base_url` | string  | 否  | API 基础地址，默认根据 provider 自动设置                                                                     |
+| `description`  | string  | 否  | 模型描述，默认空字符串                                                                                     |
+| `enabled`      | boolean | 否  | 是否启用，默认 `true`                                                                                  |
+| `max_tokens`   | integer | 否  | 最大输出 tokens 数，默认 4096                                                                           |
+| `temperature`  | number  | 否  | 生成温度，范围 0-2，默认 0.7                                                                              |
+| `is_default`   | boolean | 否  | 是否设为默认模型，默认 `false`                                                                             |
+
+#### ModelResponse
+
+**输出字段：**
+
+| 字段             | 类型       | 说明            |
+| -------------- | -------- | ------------- |
+| `id`           | string   | 模型配置唯一标识      |
+| `name`         | string   | 模型名称          |
+| `provider`     | string   | 模型提供商         |
+| `api_base_url` | string   | API 基础地址      |
+| `enabled`      | boolean  | 是否启用          |
+| `max_tokens`   | integer  | 最大输出 tokens 数 |
+| `temperature`  | number   | 生成温度          |
+| `is_default`   | boolean  | 是否为默认模型       |
+| `created_at`   | datetime | 创建时间          |
+| `updated_at`   | datetime | 更新时间          |
 
 ```json
 {
-    "name": "new-name",
-    "model_override": {
-        "temperature": 0.9
-    },
-    "idle_timeout": 600
+    "id": "model-uuid",
+    "name": "gpt-4o",
+    "provider": "openai",
+    "api_base_url": "https://api.openai.com/v1",
+    "enabled": true,
+    "max_tokens": 4096,
+    "temperature": 0.7,
+    "is_default": true,
+    "created_at": "2026-04-13T10:00:00",
+    "updated_at": "2026-04-13T10:00:00"
 }
 ```
+
+#### UpdateModelRequest
+
+**输入字段：**
+
+| 字段             | 类型      | 必填 | 说明                                                                                              |
+| -------------- | ------- | -- | ----------------------------------------------------------------------------------------------- |
+| `name`         | string  | 否  | 模型名称，如 `gpt-4o`、`claude-3-opus-20240229`                                                        |
+| `provider`     | string  | 否  | 模型提供商：`openai`、`anthropic`、`alibaba`、`deepseek`、`zhipuai`、`minimax`、`moonshotai`、`google`、`xai`、`siliconflow`、`azure`、`custom` |
+| `api_key`      | string  | 否  | API 密钥                                                                                          |
+| `api_base_url` | string  | 否  | API 基础地址，默认根据 provider 自动设置                                                                     |
+| `enabled`      | boolean | 否  | 是否启用                                                                                  |
+| `max_tokens`   | integer | 否  | 最大输出 tokens 数                                                                           |
+| `temperature`  | number  | 否  | 生成温度，范围 0-2                                                                              |
+| `is_default`   | boolean | 否  | 是否设为默认模型                                                                             |
+
+#### 通用错误模型
+
+所有业务错误统一返回：
+
+```json
+{
+    "error": {
+        "code": "ERROR_CODE",
+        "message": "error message",
+        "details": {}
+    }
+}
+```
+
+#### 常见错误码
+
+| code                            | HTTP 状态码 | 说明                                  |
+| ------------------------------- | -------- | ----------------------------------- |
+| `INVALID_AGENT_TRANSITION`      | 409      | Agent 状态转换不合法                       |
+| `AGENT_NOT_FOUND`               | 404      | Agent 不存在                           |
+| `SESSION_NOT_FOUND`             | 404      | 会话不存在（两边都查不到）                       |
+| `SESSION_CREATE_FAILED`         | 500      | 透传创建会话失败                            |
+| `SESSION_DELETE_FAILED`         | 500      | 透传删除会话失败                            |
+| `SESSION_LIST_FAILED`           | 500      | 透传列出会话失败                            |
+| `SESSION_AGENT_MISMATCH`        | 400      | Session 与 Agent 不匹配                 |
+| `AGENT_NOT_RUNNING`             | 409      | Agent 未运行（可能处于 paused 或 stopped 状态） |
+| `SANDBOX_STATE_NOT_FOUND`       | 404      | 沙箱状态不存在                             |
+| `AGENT_CREATE_FAILED`           | 500      | Agent 创建失败                          |
+| `AGENT_PAUSE_FAILED`            | 500      | Agent 暂停失败                          |
+| `AGENT_RESUME_FAILED`           | 500      | Agent 恢复失败                          |
+| `AGENT_DELETE_FAILED`           | 500      | Agent 删除失败                          |
+| `RUNTIME_BACKUP_NOT_FOUND`      | 404      | 运行时备份不存在                            |
+| `RUNTIME_BACKUP_RESTORE_FAILED` | 500      | 恢复备份失败                              |
+| `RUNTIME_START_FAILED`          | 500      | 启动运行时失败                             |
 
 ### 8.4 接口时序图
 

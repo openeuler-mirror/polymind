@@ -2,16 +2,19 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useChatStore } from '@/lib/store'
-import { withInterruptionPrefix } from '@/lib/utils'
 import { MessageList } from './message-list'
 import { ChatInput, PromptSuggestion } from './chat-input'
 import { ChatHeader } from './chat-header'
 import { WelcomeScreen } from './welcome-screen'
 import type { Message } from '@/lib/types'
+import { MessageStatus } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
+import { sessionService } from '@/services/session-service'
+import { messageService } from '@/services/message-service'
+import { handleStreamEvent } from '@/lib/stream-event-handler'
 
 export function ChatArea() {
-  const [isHydrated, setIsHydrated] = useState(false)
+  const [initialResolved, setInitialResolved] = useState(false)
   const [presetPrompts, setPresetPrompts] = useState<PromptSuggestion[]>([])
   const {
     conversations,
@@ -20,6 +23,7 @@ export function ChatArea() {
     updateMessage,
     deleteMessage,
     setStreaming,
+    loadMoreMessages,
   } = useChatStore()
 
   // 添加预设提示词
@@ -44,7 +48,18 @@ export function ChatArea() {
   }, [])
 
   useEffect(() => {
-    setIsHydrated(true)
+    const params = new URLSearchParams(window.location.search)
+    const urlAgentId = params.get('agent')
+    const urlSessionId = params.get('session')
+    if (urlAgentId && urlSessionId) {
+      useChatStore.getState().refreshConversation(urlAgentId, urlSessionId)
+        .finally(() => setInitialResolved(true))
+    } else if (urlAgentId) {
+      useChatStore.getState().setCurrentAgent(urlAgentId)
+      setInitialResolved(true)
+    } else {
+      setInitialResolved(true)
+    }
   }, [])
 
   const currentConversation = conversations.find(
@@ -53,14 +68,207 @@ export function ChatArea() {
   const messages = currentConversation?.messages || []
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  const [loadingMessages, setLoadingMessages] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const loadedSessionIds = useRef<Set<string>>(new Set())
+  const skipAutoScroll = useRef(false)
+  const scrollHeightBeforeLoad = useRef(0)
+
+  // 用 ref 存储 scroll handler 需要的值，handleScroll 内部通过 ref 读取最新数据
+  const scrollCtx = useRef({
+    hasMore: false,
+    agentId: '',
+    sessionId: '',
+    messages: [] as Message[],
+    cooldown: false,
+  })
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    scrollCtx.current.hasMore = currentConversation?.hasMore ?? false
+    scrollCtx.current.agentId = currentConversation?.agentId ?? ''
+    scrollCtx.current.sessionId = currentConversation?.sessionId ?? ''
+  }, [currentConversation?.hasMore, currentConversation?.agentId, currentConversation?.sessionId])
+  useEffect(() => {
+    scrollCtx.current.messages = messages
+  }, [messages])
+  // 记录本地创建的信息ids，避免触发reconnect的第二条sse连接
+  const locallyCreatedMessageIds = useRef<Set<string>>(new Set())
+  const reconnectRetryRef = useRef(0)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (!currentConversation) return
+    if (currentConversation.messages.length > 0) return
+    if (!currentConversation.sessionId || !currentConversation.agentId) return
+
+    // 避免重复请求空会话
+    if (loadedSessionIds.current.has(currentConversation.sessionId)) return
+    loadedSessionIds.current.add(currentConversation.sessionId)
+
+    let cancelled = false
+    setLoadingMessages(true)
+    sessionService.getConversation(currentConversation.agentId, currentConversation.sessionId)
+      .then((detail) => {
+        if (cancelled) return
+        const msgs = (detail.messages || []).map((msg: any) =>
+          sessionService.transformMessage(msg)
+        )
+        const hasStreaming = msgs.some((m: Message) => m.isStreaming)
+        if (hasStreaming && currentConversation.sessionId) {
+          loadedSessionIds.current.delete(currentConversation.sessionId)
+        }
+        useChatStore.setState((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id === currentConversation.id
+              ? { ...c, messages: msgs, updatedAt: new Date(detail.updated_at), isStreaming: hasStreaming, hasMore: detail.has_more ?? false }
+              : c
+          ),
+        }))
+      })
+      .catch((err) => {
+        console.error('Failed to load conversation messages:', err)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMessages(false)
+      })
+    return () => { cancelled = true }
+  }, [currentConversation?.id])
+
+  const loadMore = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const ctx = scrollCtx.current
+    if (!ctx.hasMore || ctx.cooldown) return
+
+    const oldestMsg = ctx.messages[0]
+    if (!oldestMsg?.timestamp || !ctx.agentId || !ctx.sessionId) return
+
+    ctx.cooldown = true
+    scrollHeightBeforeLoad.current = el.scrollHeight
+    setLoadingMore(true)
+    skipAutoScroll.current = true
+
+    const before = oldestMsg.timestamp instanceof Date
+      ? oldestMsg.timestamp.toISOString()
+      : new Date(oldestMsg.timestamp).toISOString()
+    loadMoreMessages(ctx.agentId, ctx.sessionId, before)
+      .finally(() => {
+        setLoadingMore(false)
+        setTimeout(() => { scrollCtx.current.cooldown = false }, 500)
+      })
+  }, [loadMoreMessages])
+
+  // 滚动到顶部时自动加载更早的消息
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    if (el.scrollTop > 5) return
+    loadMore()
+  }, [loadMore])
+
+  // 重连，恢复流式响应
+  const streamingMsg = messages.find((m) => m.isStreaming)
+  useEffect(() => {
+    if (!streamingMsg || !currentConversation?.sessionId || !currentConversation?.agentId) return
+    if (!currentConversationId) return
+    if (locallyCreatedMessageIds.current.has(streamingMsg.id)) return
+
+    const agentId = currentConversation.agentId
+    const sessionId = currentConversation.sessionId
+    const msgId = streamingMsg.id
+    let cancelled = false
+
+    updateMessage(currentConversationId, msgId, {
+      content: '',
+      events: [],
+    })
+    setStreaming(currentConversationId, true)
+
+    const MAX_RETRIES = 3
+    const BASE_DELAY = 1000
+
+    const attemptReconnect = (attempt: number) => {
+      if (cancelled) return
+      messageService.reconnectStream(agentId, sessionId, (eventData) => {
+        if (cancelled) return
+        handleStreamEvent(eventData, currentConversationId, msgId, updateMessage, setStreaming)
+      }).then(() => {
+        if (!cancelled) reconnectRetryRef.current = 0
+      }).catch((err) => {
+        if (cancelled) return
+        console.error('Reconnect stream failed:', err)
+        if (attempt < MAX_RETRIES) {
+          const delay = BASE_DELAY * Math.pow(2, attempt - 1)
+          reconnectTimerRef.current = setTimeout(() => attemptReconnect(attempt + 1), delay)
+        } else {
+          console.error('Reconnect stream failed after max retries')
+          updateMessage(currentConversationId, msgId, {
+            isStreaming: false,
+            status: MessageStatus.ERROR,
+            content: 'Sorry, there was an error reconnecting the stream. Please refresh and try again.',  
+          })
+          setStreaming(currentConversationId, false)
+        }
+      })
     }
+
+    reconnectRetryRef.current = 1
+    attemptReconnect(1)
+
+    return () => {
+      cancelled = true
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+      }
+    }
+  }, [streamingMsg?.id, currentConversationId])
+
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      }
+    })
+  }, [])
+
+  // 初始加载完成后滚动到底部
+  const prevLoadingMessages = useRef(false)
+  useEffect(() => {
+    if (prevLoadingMessages.current && !loadingMessages && messages.length > 0) {
+      scrollToBottom()
+    }
+    prevLoadingMessages.current = loadingMessages
+  }, [loadingMessages, messages.length, scrollToBottom])
+
+  // 新消息时自动滚动到底部（prepend 历史消息时恢复滚动位置）
+  useEffect(() => {
+    if (!scrollRef.current) return
+
+    if (skipAutoScroll.current) {
+      skipAutoScroll.current = false
+      // 恢复滚动位置：新加载内容插入顶部后，保持原先可见的消息不跳动
+      if (scrollHeightBeforeLoad.current > 0) {
+        requestAnimationFrame(() => {
+          if (scrollRef.current) {
+            const heightDelta = scrollRef.current.scrollHeight - scrollHeightBeforeLoad.current
+            scrollRef.current.scrollTop = heightDelta
+            scrollHeightBeforeLoad.current = 0
+          }
+        })
+      }
+      return
+    }
+    scrollToBottom()
   }, [messages])
 
   const handleSendMessage = async (content: string, attachments?: File[]) => {
-    if (!currentConversationId) return
+    let convId = currentConversationId
+
+    if (!convId) {
+      const state = useChatStore.getState()
+      const agentId = state.currentAgentId
+      if (!agentId) return
+      const agent = state.agents.find(a => a.id === agentId)
+      convId = state.createLocalConversation(agentId, agent?.name)
+    }
 
     // Add user message
     const userMessage: Message = {
@@ -75,17 +283,15 @@ export function ChatArea() {
         size: file.size,
       })),
     }
-    addMessage(currentConversationId, userMessage)
+    addMessage(convId, userMessage)
 
-    const prefixedContent = withInterruptionPrefix(content, messages)
-    await streamResponse(prefixedContent)
+    await streamResponse(content, convId)
   }
 
-  const streamResponse = useCallback(async (content: string) => {
-    if (!currentConversationId) return
+  const streamResponse = useCallback(async (content: string, convId: string) => {
 
     // Get current agent and session
-    const { currentAgentId, activeSessions, sendMessageToAgent, createNewSession, initializeAgent } = useChatStore.getState()
+    const { currentAgentId, sendMessageToAgent, createNewSession, initializeAgent } = useChatStore.getState()
 
     let agentId = currentAgentId
 
@@ -107,28 +313,22 @@ export function ChatArea() {
     }
 
     // Ensure there's an active session
-    let sessionId = currentConversation?.sessionId
+    const currentConv = useChatStore.getState().conversations.find(c => c.id === convId)
+    let sessionId = currentConv?.sessionId
     if (!sessionId) {
-      let session = activeSessions[agentId]
-      if (!session) {
-        try {
-          session = await createNewSession(agentId)
-        } catch (error) {
-          console.error('Failed to create session:', error)
-          return
-        }
+      try {
+        const session = await createNewSession(agentId)
+        sessionId = session.id
+      } catch (error) {
+        console.error('Failed to create session:', error)
+        return
       }
-      sessionId = session.id
       // Persist sessionId back to the conversation for future messages
-      useChatStore.setState((s) => ({
-        conversations: s.conversations.map((c) =>
-          c.id === currentConversationId ? { ...c, sessionId } : c
-        ),
-      }))
+      useChatStore.getState().assignSessionToConversation(convId, sessionId)
     }
 
     // Set streaming state
-    setStreaming(currentConversationId, true)
+    setStreaming(convId, true)
 
     // Create a "thinking" message
     const thinkingMessageId = generateUUID()
@@ -138,8 +338,10 @@ export function ChatArea() {
       content: '',
       timestamp: new Date(),
       isStreaming: true,
+      status: MessageStatus.GENERATING,
     }
-    addMessage(currentConversationId, thinkingMessage)
+    addMessage(convId, thinkingMessage)
+    locallyCreatedMessageIds.current.add(thinkingMessageId)
 
     try {
       // 创建助手消息ID，用于后续更新
@@ -148,12 +350,13 @@ export function ChatArea() {
 
       // 发送消息到 agent，使用实时回调处理流式事件
       await sendMessageToAgent(agentId, sessionId, content, (eventData) => {
-        
+
         // 当收到第一个事件时，删除思考中消息并创建实际的助手消息
         if (!assistantMessageId) {
           // 删除思考中消息
-          deleteMessage(currentConversationId, thinkingMessageId)
-          
+          deleteMessage(convId, thinkingMessageId)
+          locallyCreatedMessageIds.current.delete(thinkingMessageId)
+
           // 创建新的助手消息
           assistantMessageId = generateUUID()
           assistantMessage = {
@@ -162,215 +365,23 @@ export function ChatArea() {
             content: '',
             timestamp: new Date(),
             isStreaming: true,
+            status: MessageStatus.GENERATING,
             toolCalls: [],
             events: []
           }
-          addMessage(currentConversationId, assistantMessage)
+          addMessage(convId, assistantMessage)
+          locallyCreatedMessageIds.current.add(assistantMessageId)
         }
-        
-        // 确保助手消息已创建
-        if (assistantMessageId && assistantMessage) {
-          // 获取最新的消息状态
-          const currentMessage = useChatStore.getState().conversations.find(
-            c => c.id === currentConversationId
-          )?.messages.find(
-            m => m.id === assistantMessageId
-          ) || assistantMessage
 
-          switch (eventData.type) {
-            case 'message.delta':
-              if (eventData.payload?.delta) {
-                updateMessage(currentConversationId, assistantMessageId, {
-                  content: (currentMessage.content || '') + eventData.payload.delta,
-                  events: [...(currentMessage.events || []), {
-                    type: 'message.delta',
-                    content: eventData.payload.delta,
-                    timestamp: eventData.ts_ms || Date.now()
-                  }]
-                })
-              }
-              break
-            case 'message.completed':
-              if (eventData.payload?.text) {
-                updateMessage(currentConversationId, assistantMessageId, {
-                  content: eventData.payload.text,
-                  isStreaming: false
-                })
-                setStreaming(currentConversationId, false)
-              } else {
-                // If no text in payload, still mark as completed
-                updateMessage(currentConversationId, assistantMessageId, {
-                  isStreaming: false
-                })
-                setStreaming(currentConversationId, false)
-              }
-              break
-            case 'thinking':
-              if (eventData.payload?.thinking) {
-                updateMessage(currentConversationId, assistantMessageId, {
-                  thinking: [...(currentMessage.thinking || []), eventData.payload.thinking],
-                  displayText: [...(currentMessage.displayText || []), eventData.payload.display_text || `AI正在思考：${eventData.payload.thinking}`],
-                  events: [...(currentMessage.events || []), {
-                    type: 'thinking',
-                    content: eventData.payload.display_text || `AI正在思考：${eventData.payload.thinking}`,
-                    timestamp: eventData.ts_ms || Date.now()
-                  }]
-                })
-              }
-              break
-            case 'tool.call.started':
-              if (eventData.payload?.tool_name) {
-                const toolCall = {
-                  id: eventData.payload.tool_call_id || generateUUID(),
-                  name: eventData.payload.tool_name,
-                  status: 'running' as const,
-                  input: eventData.payload.arguments,
-                  displayText: eventData.payload.display_text || `正在调用工具：${eventData.payload.tool_name}`
-                }
-                updateMessage(currentConversationId, assistantMessageId, {
-                  toolCalls: [...(currentMessage.toolCalls || []), toolCall],
-                  events: [...(currentMessage.events || []), {
-                    type: 'tool.call.started',
-                    content: eventData.payload.display_text || `正在调用工具：${eventData.payload.tool_name}`,
-                    timestamp: eventData.ts_ms || Date.now(),
-                    toolCall
-                  }]
-                })
-              }
-              break
-            case 'tool.call.response':
-              if (eventData.payload?.name) {
-                // 格式化输出内容，使其更易读
-                const formatOutput = (content: any): string => {
-                  // 空值检查
-                  if (content === null || content === undefined) {
-                    return ''
-                  }
-                  
-                  // 如果是字符串，直接返回
-                  if (typeof content === 'string') {
-                    return content
-                  }
-                  
-                  // 如果是对象，尝试提取关键信息
-                  if (typeof content === 'object') {
-                    // 如果有 details.content，优先使用
-                    if (content.details?.content) {
-                      const detailsContent = content.details.content
-                      return typeof detailsContent === 'string' ? detailsContent : JSON.stringify(detailsContent)
-                    }
-                    
-                    // 如果有 text 字段
-                    if (content.text && typeof content.text === 'string') {
-                      return content.text
-                    }
-                    
-                    // 如果有 content 数组，提取文本内容
-                    if (Array.isArray(content.content)) {
-                      const texts = content.content
-                        .filter((item: any) => item && item.type === 'text' && typeof item.text === 'string')
-                        .map((item: any) => item.text)
-                        .join('\n')
-                      if (texts) {
-                        return texts
-                      }
-                    }
-                    
-                    // 如果有 error 字段
-                    if (content.error && typeof content.error === 'string') {
-                      return content.error
-                    }
-                    
-                    // 如果有 message 字段（通常用于错误信息）
-                    if (content.message && typeof content.message === 'string') {
-                      return content.message
-                    }
-                    
-                    // 最后尝试 JSON 序列化
-                    try {
-                      return JSON.stringify(content, null, 2)
-                    } catch (e) {
-                      console.error('Failed to stringify content:', e)
-                      return '[无法序列化的内容]'
-                    }
-                  }
-                  
-                  // 其他类型转换为字符串
-                  try {
-                    return String(content)
-                  } catch (e) {
-                    return '[无法转换的内容]'
-                  }
-                }
-
-                // 格式化显示文本
-                const formatDisplayText = (payload: any): string => {
-                  if (payload.display_text) {
-                    return payload.display_text
-                  }
-                  
-                  if (payload.is_error) {
-                    const errorContent = formatOutput(payload.content)
-                    return `工具调用失败：${errorContent.substring(0, 100)}${errorContent.length > 100 ? '...' : ''}`
-                  }
-                  
-                  const outputContent = formatOutput(payload.content)
-                  return `工具调用结果：${outputContent.substring(0, 100)}${outputContent.length > 100 ? '...' : ''}`
-                }
-
-                const toolCall = {
-                  id: eventData.payload.tool_call_id || generateUUID(),
-                  name: eventData.payload.name,
-                  status: eventData.payload.is_error ? 'error' as const : 'completed' as const,
-                  input: eventData.payload.arguments,
-                  output: eventData.payload.content,
-                  error: eventData.payload.is_error ? eventData.payload.content : undefined,
-                  duration: eventData.payload.duration,
-                  displayText: formatDisplayText(eventData.payload)
-                }
-                updateMessage(currentConversationId, assistantMessageId, {
-                  toolCalls: [...(currentMessage.toolCalls || []), toolCall],
-                  events: [...(currentMessage.events || []), {
-                    type: 'tool.call.response',
-                    content: formatDisplayText(eventData.payload),
-                    timestamp: eventData.ts_ms || Date.now(),
-                    toolCall
-                  }]
-                })
-              }
-              break
-            case 'usage.updated':
-              if (eventData.payload) {
-                updateMessage(currentConversationId, assistantMessageId, {
-                  usage: {
-                    inputTokens: eventData.payload.input_tokens,
-                    outputTokens: eventData.payload.output_tokens,
-                    totalCost: eventData.payload.total_cost
-                  }
-                })
-              }
-              break
-            case 'stream.error':
-            case 'client.error':
-              // Handle errors
-              console.error('Error event:', eventData.payload || 'No payload')
-              setStreaming(currentConversationId, false)
-              break
-            case 'turn.completed':
-              updateMessage(currentConversationId, assistantMessageId, {
-                isStreaming: false
-              })
-              setStreaming(currentConversationId, false)
-              break
-            default:
-              console.log('Unknown event type:', eventData.type)
-          }
+        if (assistantMessageId) {
+          handleStreamEvent(eventData, convId, assistantMessageId, updateMessage, setStreaming, locallyCreatedMessageIds)
         }
       })
     } catch (error) {
       console.error('Failed to send message:', error)
       // Handle error gracefully
-      deleteMessage(currentConversationId, thinkingMessageId)
+      deleteMessage(convId, thinkingMessageId)
+      locallyCreatedMessageIds.current.clear()
       const errorMessageId = generateUUID()
       const errorMessage: Message = {
         id: errorMessageId,
@@ -378,11 +389,12 @@ export function ChatArea() {
         content: 'Sorry, there was an error sending your message. Please try again.',
         timestamp: new Date(),
         isStreaming: false,
+        status: MessageStatus.ERROR,
       }
-      addMessage(currentConversationId, errorMessage)
-      setStreaming(currentConversationId, false)
+      addMessage(convId, errorMessage)
+      setStreaming(convId, false)
     }
-  }, [currentConversationId, addMessage, updateMessage, deleteMessage, setStreaming])
+  }, [addMessage, updateMessage, deleteMessage, setStreaming])
 
   const handleRegenerate = useCallback(async (assistantMessageId: string) => {
     if (!currentConversationId) return
@@ -392,10 +404,24 @@ export function ChatArea() {
 
     // 用系统提示重新发送（不创建新用户消息，对用户不可见）
     const regenerateContent = '/regenerate'
-    await streamResponse(regenerateContent)
+    await streamResponse(regenerateContent, currentConversationId)
   }, [currentConversationId, deleteMessage, streamResponse])
 
-  if (!isHydrated || messages.length === 0) {
+  if (!initialResolved) {
+    return (
+      <div className="flex h-full flex-col bg-background">
+        <ChatHeader conversation={currentConversation} />
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm">加载中...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (messages.length === 0 && !loadingMessages) {
     return (
       <div className="flex h-full flex-col bg-background">
         <ChatHeader conversation={currentConversation} />
@@ -412,10 +438,48 @@ export function ChatArea() {
     )
   }
 
+  if (loadingMessages) {
+    return (
+      <div className="flex h-full flex-col bg-background">
+        <ChatHeader conversation={currentConversation} />
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm">加载历史会话中...</p>
+          </div>
+        </div>
+        <div className="border-t border-border p-4">
+          <ChatInput
+            onSend={handleSendMessage}
+            presetPrompts={presetPrompts}
+            onRemovePresetPrompt={handleRemovePresetPrompt}
+            onClearPresetPrompts={handleClearPresetPrompts}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full flex-col bg-background">
       <ChatHeader conversation={currentConversation} />
-      <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto scrollbar-thin">
+        {loadingMore && (
+          <div className="flex items-center justify-center py-3">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <span className="ml-2 text-xs text-muted-foreground">加载更早的消息...</span>
+          </div>
+        )}
+        {currentConversation?.hasMore && !loadingMore && (
+          <div className="flex items-center justify-center py-2">
+            <button
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={loadMore}
+            >
+              查看更早的消息
+            </button>
+          </div>
+        )}
         <MessageList messages={messages} onRegenerate={handleRegenerate} />
       </div>
       <div className="border-t border-border p-4">

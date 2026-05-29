@@ -105,7 +105,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
       
       // 添加到全局store，同步到conversation-sidebar
       addAgent(newAgent)
-      
+
       toast({
         title: '成功',
         description: '智能体创建成功',

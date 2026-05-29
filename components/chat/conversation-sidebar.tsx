@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
@@ -9,15 +9,17 @@ import {
   Pin,
   MoreHorizontal,
   Trash2,
-  Edit3,
   ChevronLeft,
-  Code2,
+  PencilLine,
   Loader2,
+  CircleCheck,
+  AlertCircle,
+  CircleMinus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
-import { agentService } from '@/services/agent-service'
-import { Agent } from '@/lib/types'
+import { MessageStatus } from '@/lib/types'
+import type { Message } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -31,44 +33,29 @@ import {
 
 export function ConversationSidebar() {
   const [searchQuery, setSearchQuery] = useState('')
-  const [agentsLoading, setAgentsLoading] = useState(true)
   const [isHydrated, setIsHydrated] = useState(false)
   const {
     conversations,
     currentConversationId,
     isSidebarOpen,
-    createConversation,
     setCurrentConversation,
     deleteConversation,
     toggleSidebar,
     togglePinConversation,
-    agents: storeAgents,
-    setAgents,
-    removeAgent,
+    updateConversationTitle,
   } = useChatStore()
-  
-  useEffect(() => {
-    setIsHydrated(true)
-  }, [])
-  
-  const isEmpty = !isHydrated || conversations.length === 0
 
-  useEffect(() => {
-    const fetchAgents = async () => {
-      try {
-        setAgentsLoading(true)
-        const data = await agentService.getAgents()
-        setAgents(data)
-      } catch (err) {
-        console.error('Failed to fetch agents:', err)
-      } finally {
-        setAgentsLoading(false)
-      }
-    }
-    fetchAgents()
-  }, [setAgents])
-  
-  const agents = storeAgents
+  useLayoutEffect(() => {
+    setIsHydrated(true)
+
+    useChatStore.getState().fetchAgentsWithConversations().catch(err => {
+      console.error('Failed to fetch agents:', err)
+    })
+  }, [])
+
+  const handleSelectConversation = (convId: string, agentId?: string, sessionId?: string) => {
+    setCurrentConversation(convId)
+  }
 
   const filteredConversations = conversations.filter((c) =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -94,33 +81,28 @@ export function ConversationSidebar() {
         </Button>
       </div>
 
-      {/* Agent List */}
-      <ScrollArea className="p-3 max-h-48">
-        {agentsLoading ? (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
-        ) : agents.filter(agent => agent.status !== 'deleted').length === 0 ? (
-          <div className="text-center py-4 text-muted-foreground text-sm">
-            暂无 Agent
-          </div>
-        ) : (
-          agents.filter(agent => agent.status !== 'deleted').map((agent) => (
-            <Button
-              key={agent.id}
-              className="w-full justify-start gap-2 mb-1"
-              variant="ghost"
-              onClick={async () => await createConversation(agent.id, agent.name)}
-            >
-              <MessageSquarePlus className="h-4 w-4" />
-              <span className="truncate">{agent.name}</span>
-            </Button>
-          ))
-        )}
-      </ScrollArea>
+      {/* New Task Button */}
+      <div className="p-3">
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+          onClick={() => {
+            const state = useChatStore.getState()
+            const currentConv = state.conversations.find(c => c.id === state.currentConversationId)
+            const agentId = currentConv?.agentId || state.currentAgentId
+              || state.agents.find(a => a.status !== 'deleted')?.id
+            if (agentId) {
+              state.startNewTask(agentId)
+            }
+          }}
+        >
+          <MessageSquarePlus className="h-4 w-4" />
+          <span>新任务</span>
+        </Button>
+      </div>
 
       {/* Search */}
-      <div className="px-3 pb-2">
+      {/* <div className="px-3 pb-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -130,7 +112,7 @@ export function ConversationSidebar() {
             className="pl-9"
           />
         </div>
-      </div>
+      </div> */}
 
       {/* Conversation List */}
       <ScrollArea className="flex-1 min-h-0 px-2">
@@ -147,9 +129,10 @@ export function ConversationSidebar() {
                   key={conv.id}
                   conversation={conv}
                   isActive={conv.id === currentConversationId}
-                  onSelect={() => setCurrentConversation(conv.id)}
+                  onSelect={() => handleSelectConversation(conv.id, conv.agentId, conv.sessionId)}
                   onDelete={() => deleteConversation(conv.id)}
                   onTogglePin={() => togglePinConversation(conv.id)}
+                  onRename={(title) => updateConversationTitle(conv.id, title)}
                 />
               ))}
             </div>
@@ -169,9 +152,10 @@ export function ConversationSidebar() {
                 key={conv.id}
                 conversation={conv}
                 isActive={conv.id === currentConversationId}
-                onSelect={() => setCurrentConversation(conv.id)}
+                onSelect={() => handleSelectConversation(conv.id, conv.agentId, conv.sessionId)}
                 onDelete={() => deleteConversation(conv.id)}
                 onTogglePin={() => togglePinConversation(conv.id)}
+                onRename={(title) => updateConversationTitle(conv.id, title)}
               />
             ))}
           </div>
@@ -197,11 +181,37 @@ interface ConversationItemProps {
     pinned?: boolean
     agentId?: string
     agentName?: string
+    isStreaming?: boolean
+    messages?: Message[]
+    lastMessageStatus?: MessageStatus
   }
   isActive: boolean
   onSelect: () => void
   onDelete: () => void
   onTogglePin: () => void
+  onRename: (title: string) => void
+}
+
+function getConversationStatus(conversation: ConversationItemProps['conversation']): MessageStatus | null {
+  if (conversation.isStreaming) return MessageStatus.GENERATING
+  const messages = conversation.messages ?? []
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+  if (lastAssistant?.status) return lastAssistant.status
+  return conversation.lastMessageStatus ?? null
+}
+
+const statusIconMap: Record<MessageStatus, React.ComponentType<{ className?: string }>> = {
+  [MessageStatus.GENERATING]: Loader2,
+  [MessageStatus.COMPLETED]: CircleCheck,
+  [MessageStatus.ERROR]: AlertCircle,
+  [MessageStatus.INTERRUPTED]: CircleMinus,
+}
+
+const statusIconClass: Record<MessageStatus, string> = {
+  [MessageStatus.GENERATING]: 'animate-spin text-muted-foreground',
+  [MessageStatus.COMPLETED]: 'text-emerald-500',
+  [MessageStatus.ERROR]: 'text-red-500',
+  [MessageStatus.INTERRUPTED]: 'text-gray-500',
 }
 
 function ConversationItem({
@@ -210,12 +220,63 @@ function ConversationItem({
   onSelect,
   onDelete,
   onTogglePin,
+  onRename,
 }: ConversationItemProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(conversation.title)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const editTitleRef = useRef(editTitle)
+  editTitleRef.current = editTitle
+  const convStatus = getConversationStatus(conversation)
+
+  const handleStartRename = () => {
+    setEditTitle(conversation.title)
+    setIsEditing(true)
+  }
+
+  const commitRename = () => {
+    const trimmed = editTitleRef.current.trim()
+    if (trimmed && trimmed !== conversation.title) {
+      onRename(trimmed)
+    }
+    setIsEditing(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      commitRename()
+    } else if (e.key === 'Escape') {
+      setEditTitle(conversation.title)
+      setIsEditing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
+
+  useEffect(() => {
+    if (!isEditing) return
+    const onMouseDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        commitRename()
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [isEditing])
+
   return (
     <div
-      onClick={onSelect}
+      ref={containerRef}
+      onClick={isEditing ? undefined : onSelect}
       className={cn(
-        'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 transition-colors',
+        'group flex cursor-pointer items-start gap-2 rounded-lg px-3 py-2.5 transition-colors',
+        isEditing && 'inset-ring-2 inset-ring-primary bg-sidebar',
         isActive
           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
           : 'hover:bg-sidebar-accent/50'
@@ -223,19 +284,42 @@ function ConversationItem({
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 min-w-0">
+          {convStatus && (() => {
+            const IconComponent = statusIconMap[convStatus]
+            return (
+              <IconComponent
+                className={cn('h-4 w-4 shrink-0', statusIconClass[convStatus])}
+              />
+            )
+          })()}
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={handleKeyDown}
+              className="h-6 w-full bg-sidebar-accent px-1.5 text-sm font-medium outline-none"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <p className="truncate text-sm font-medium">{conversation.title}</p>
+          )}
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <div className="w-4 shrink-0" />
           {conversation.agentName && (
-            <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary/80">
+            <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary/80">
               {conversation.agentName}
             </span>
           )}
-          <p className="truncate text-sm font-medium">{conversation.title}</p>
+          <span className="shrink-0 text-[11px] text-muted-foreground/60">
+            {formatDistanceToNow(conversation.updatedAt, {
+              addSuffix: true,
+              locale: zhCN,
+            })}
+          </span>
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {formatDistanceToNow(conversation.updatedAt, {
-            addSuffix: true,
-            locale: zhCN,
-          })}
-        </p>
       </div>
 
       <DropdownMenu>
@@ -254,7 +338,11 @@ function ConversationItem({
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent side="right" align="end">
+          <DropdownMenuItem onClick={handleStartRename}>
+            <PencilLine className="mr-2 h-4 w-4" />
+            重命名
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={onTogglePin}>
             <Pin className="mr-2 h-4 w-4" />
             {conversation.pinned ? '取消固定' : '固定对话'}

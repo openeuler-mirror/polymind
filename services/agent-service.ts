@@ -44,6 +44,15 @@ class AgentService {
     return transformedAgents
   }
 
+  /** Fetch agents together with their conversation summaries in one request. */
+  public async getAgentsWithConversations(): Promise<any[]> {
+    const response = await httpClient.get<any[]>('/agents?include_conversations=true')
+    if (!response) {
+      throw new Error('Invalid API response: no response received')
+    }
+    return Array.isArray(response) ? response : []
+  }
+
   public async getAgent(agentId: string): Promise<Agent> {
     const response = await httpClient.get<ApiResponse<Agent>>(`/agents/${agentId}`)
     if (!response || !response.data) {
@@ -115,7 +124,7 @@ class AgentService {
     }
   }
 
-  private transformAgent(agent: any): Agent {
+  public transformAgent(agent: any): Agent {
     if (!agent || typeof agent !== 'object') {
       throw new Error('Agent data is invalid')
     }

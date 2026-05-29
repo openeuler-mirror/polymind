@@ -5,6 +5,87 @@ import { AgentEventType } from '@/lib/types'
 import { appConfig } from '@/app/config'
 import { sessionService } from './session-service'
 
+
+function buildSSERequestOptions(overrides: RequestInit = {}, body?: Record<string, unknown>): RequestInit {
+  const options: RequestInit = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    } as Record<string, string>,
+    ...overrides,
+  } as RequestInit & { duplex?: string }
+
+  ;(options as any).duplex = 'half'
+
+  const authToken = process.env.NEXT_PUBLIC_AUTH_TOKEN
+  if (authToken) {
+    (options.headers as Record<string, string>)['Authorization'] = `Bearer ${authToken}`
+  }
+
+  if (body) {
+    options.body = JSON.stringify(body)
+  }
+
+  return options
+}
+
+function parseSSEStream(
+  response: Response,
+  onEvent?: (event: any) => void,
+  logPrefix: string = '[SSE]',
+): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    if (!response.body) {
+      resolve([])
+      return
+    }
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    const events: any[] = []
+    let buffer = ''
+
+    const processStream = async () => {
+      const { done, value } = await reader.read()
+      if (done) {
+        resolve(events)
+        return
+      }
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.substring(6)
+          if (data) {
+            try {
+              const event = JSON.parse(data)
+              events.push(event)
+              console.log(`${logPrefix} type: ${event.event?.type || event.type}`)
+              if (onEvent) {
+                onEvent(event.event || event)
+              }
+            } catch (error) {
+              console.error(`Error parsing ${logPrefix} event:`, error)
+            }
+          }
+        }
+      }
+      await processStream()
+    }
+
+    processStream().catch(err => {
+      if (err?.name === 'AbortError') {
+        resolve(events)
+      } else {
+        reject(err)
+      }
+    })
+  })
+}
+
 // 发送消息命令
 class SendMessageCommand implements Command {
   private agentId: string
@@ -22,148 +103,29 @@ class SendMessageCommand implements Command {
   }
 
   async execute(): Promise<any[]> {
-    const request = {
-      content: this.content
-    }
-    
-    console.log('Sending message to streaming API:', {
-      agentId: this.agentId,
-      sessionId: this.sessionId,
-      content: this.content
-    })
-    
-    // 使用流式 API 端点
     const url = `/agents/${this.agentId}/sessions/${this.sessionId}/messages/stream`
-    
-    // 构建完整的 URL
     const fullUrl = `${appConfig.api.baseUrl}${url}`
-    console.log('Full streaming API URL:', fullUrl)
-    
-    return new Promise((resolve, reject) => {
-      const events: any[] = []
-      
-      // 构建请求选项
-      const options: RequestInit = {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive'
-        },
-        body: JSON.stringify(request),
-        signal: this.signal
-      } as RequestInit & { duplex?: string }
-      
-      // 添加流式传输需要的duplex配置（TypeScript类型扩展）
-      ;(options as any).duplex = 'half'
-      
-      // 应用请求拦截器
-      const processedOptions = this.applyRequestInterceptors(options, url)
-      
-      // 发送流式请求
-      fetch(fullUrl, processedOptions)
-      .then(async response => {
-        if (!response.ok) {
-          // 读取错误响应内容
-          let errorDetails = ''
-          try {
-            const errorData = await response.json()
-            errorDetails = JSON.stringify(errorData, null, 2)
-          } catch {
-            errorDetails = await response.text()
-          }
-          console.error('Streaming API error response:', {
-            status: response.status,
-            statusText: response.statusText,
-            details: errorDetails
-          })
-          throw new Error(`HTTP error! status: ${response.status}, details: ${errorDetails}`)
-        }
-        
-        if (!response.body) {
-          throw new Error('No response body')
-        }
-        
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ''
-        
-        // 处理流式响应
-        const processStream = async () => {
-          const { done, value } = await reader.read()
-          
-          if (done) {
-            // 流结束
-            resolve(events)
-            return
-          }
-          
-          // 解码数据
-          buffer += decoder.decode(value, { stream: true })
-          
-          // 处理 SSE 格式的数据
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.substring(6)
-              if (data) {
-                try {
-                  const event = JSON.parse(data)
-                  events.push(event)
-                  const eventType = (event.event?.type || event.type)
-                  console.log(`[Stream] type: ${eventType}`)
-                  if (this.onEvent) {
-                    this.onEvent(event.event || event)
-                  }
-                } catch (error) {
-                  console.error('Error parsing streaming event:', error)
-                }
-              }
-            }
-          }
-          
-          // 继续处理流
-          await processStream()
-        }
-        
-        processStream().catch(error => {
-          if (error?.name === 'AbortError') {
-            resolve(events)
-            return
-          }
-          reject(error)
-        })
-      })
-      .catch(error => {
-        if (error?.name === 'AbortError') {
-          resolve(events)
-          return
-        }
-        console.error('Streaming request error:', error)
-        reject(error)
-      })
-    })
-  }
-  
-  /**
-   * 应用请求拦截器
-   */
-  private applyRequestInterceptors(options: RequestInit, url: string): RequestInit {
-    // 模拟 httpClient 的请求拦截器逻辑
-    const authToken = process.env.NEXT_PUBLIC_AUTH_TOKEN
-    if (authToken) {
-      return {
-        ...options,
-        headers: {
-          ...options.headers,
-          'Authorization': `Bearer ${authToken}`
-        }
+
+    const options = buildSSERequestOptions({ signal: this.signal }, { content: this.content })
+
+    const response = await fetch(fullUrl, options)
+    if (!response.ok) {
+      let errorDetails = ''
+      try {
+        const errorData = await response.json()
+        errorDetails = JSON.stringify(errorData, null, 2)
+      } catch {
+        errorDetails = await response.text()
       }
+      console.error('Streaming API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        details: errorDetails,
+      })
+      throw new Error(`HTTP error! status: ${response.status}, details: ${errorDetails}`)
     }
-    return options
+
+    return parseSSEStream(response, this.onEvent, '[Stream]')
   }
 }
 
@@ -197,15 +159,32 @@ class MessageService {
 
     // 直接调用 HTTP abort 端点，确保后端同步中断（不依赖 SSE 断连检测）
     if (sessionId) {
-      sessionService.abortSession(agentId,sessionId)
+      sessionService.abortSession(agentId, sessionId)
     }
+  }
+
+  /**
+   * 重连到正在进行的消息流（页面刷新后恢复流式响应）
+   */
+  public async reconnectStream(agentId: string, sessionId: string, onEvent?: (event: any) => void): Promise<any[]> {
+    const url = `/agents/${agentId}/sessions/${sessionId}/messages/stream/reconnect`
+    const fullUrl = `${appConfig.api.baseUrl}${url}`
+    const options = buildSSERequestOptions()
+    const response = await fetch(fullUrl, options)
+    if (!response.ok) {
+      const errorBody = await response.text()
+      console.error('Reconnect stream error:', response.status, errorBody)
+      throw new Error(`Reconnect stream failed: ${response.status} ${errorBody}`)
+    }
+
+    return parseSSEStream(response, onEvent, '[Reconnect]')
   }
 
   /**
    * 建立WebSocket连接以接收实时消息
    */
   public connectForMessages(
-    agentId: string, 
+    agentId: string,
     sessionId: string,
     onMessage: (event: any) => void,
     onError?: (error: any) => void
@@ -214,17 +193,17 @@ class MessageService {
     const baseUrl = appConfig.api.baseUrl
     // 构建正确的WebSocket URL，根据设计文档应该是 /agent/sessions/{session_id}/ws
     const wsUrl = baseUrl.replace('http', 'ws') + `/agent/sessions/${sessionId}/ws`
-    
+
     console.log('Connecting to WebSocket:', wsUrl)
-    
+
     // 关闭已存在的连接
     if (this.webSocketClients[agentId]) {
       this.webSocketClients[agentId].close()
     }
-    
+
     this.webSocketClients[agentId] = new WebSocketClient(wsUrl)
     const wsClient = this.webSocketClients[agentId]
-    
+
     wsClient.on('message', (data: any) => {
       onMessage(data)
     })
@@ -237,7 +216,7 @@ class MessageService {
       console.error('WebSocket connection error:', error)
       if (onError) onError(error)
     })
-    
+
     return wsClient
   }
 
