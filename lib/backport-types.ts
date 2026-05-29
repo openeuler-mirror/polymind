@@ -23,6 +23,7 @@ export interface BackportConfig {
 
 export interface BackportConfigUpdateResponse {
   ok: boolean
+  config_path?: string
 }
 
 export interface BackportBrowseEntry {
@@ -126,6 +127,7 @@ export interface BackportOperationResultData {
   summary?: string
   artifacts?: BackportOperationArtifacts
   report?: {
+    report_path?: string
     commit_count?: number
     commits?: BackportCommitItem[]
     raw?: Record<string, unknown> | null
