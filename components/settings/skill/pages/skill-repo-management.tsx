@@ -119,6 +119,25 @@ export function SkillRepoManagement() {
     setEditForm(buildFormStateFromRepository(editingRepo))
   }, [editingRepo])
 
+  const validateUploadFile = (file: File) => {
+    const isZipFile =
+      file.name.toLowerCase().endsWith('.zip') ||
+      file.type === 'application/zip' ||
+      file.type === 'application/x-zip-compressed'
+
+    if (!isZipFile) {
+      toast({ title: '文件格式错误', description: '仅支持 ZIP 格式的文件。', variant: 'destructive' })
+      return false
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast({ title: '文件过大', description: '文件大小不能超过 50MB。', variant: 'destructive' })
+      return false
+    }
+
+    return true
+  }
+
   const fetchRepos = async () => {
     try {
       setLoading(true)
@@ -476,12 +495,7 @@ export function SkillRepoManagement() {
                         event.stopPropagation()
                         const file = event.dataTransfer.files?.[0]
                         if (!file) return
-                        if (!file.name.endsWith('.zip') && file.type !== 'application/zip' && file.type !== 'application/x-zip-compressed') {
-                          toast({ title: '文件格式错误', description: '仅支持 ZIP 格式的文件。', variant: 'destructive' })
-                          return
-                        }
-                        if (file.size > 50 * 1024 * 1024) {
-                          toast({ title: '文件过大', description: '文件大小不能超过 50MB。', variant: 'destructive' })
+                        if (!validateUploadFile(file)) {
                           return
                         }
                         setCreateForm((currentForm) => ({
@@ -498,13 +512,7 @@ export function SkillRepoManagement() {
                         onChange={(event) => {
                           const file = event.target.files?.[0]
                           if (!file) return
-                          if (!file.name.endsWith('.zip') && file.type !== 'application/zip' && file.type !== 'application/x-zip-compressed') {
-                            toast({ title: '文件格式错误', description: '仅支持 ZIP 格式的文件。', variant: 'destructive' })
-                            event.target.value = ''
-                            return
-                          }
-                          if (file.size > 50 * 1024 * 1024) {
-                            toast({ title: '文件过大', description: '文件大小不能超过 50MB。', variant: 'destructive' })
+                          if (!validateUploadFile(file)) {
                             event.target.value = ''
                             return
                           }
