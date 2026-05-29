@@ -129,14 +129,6 @@ export function InstalledSkills() {
   }
 
   const handleUninstallSkill = async (skill: AgentSkillResponse) => {
-    if (isProtectedBuiltinSkill(skill)) {
-      toast({
-        title: '不可卸载',
-        description: 'openclaw-bundled / openclaw-extra 技能不支持在此处卸载。',
-      })
-      return
-    }
-
     if (!currentAgentId) {
       toast({
         title: '未选择 Agent',
@@ -268,15 +260,12 @@ export function InstalledSkills() {
                         className="h-auto p-0 text-red-600 hover:text-red-700 disabled:text-muted-foreground"
                         onClick={() => void handleUninstallSkill(skill)}
                         disabled={
-                          isProtectedBuiltinSkill(skill) ||
                           uninstallingSkillId === skill.skill_id ||
                           !currentAgentId
                         }
                       >
                         <Trash2 className="mr-1 h-3.5 w-3.5" />
-                        {isProtectedBuiltinSkill(skill)
-                          ? '不可卸载'
-                          : uninstallingSkillId === skill.skill_id
+                        {uninstallingSkillId === skill.skill_id
                             ? '卸载中...'
                             : '卸载'}
                       </Button>
@@ -404,14 +393,6 @@ function extractSkillDescription(metadata?: Record<string, unknown> | null) {
 
 function isHttpUrl(value: string): boolean {
   return value.startsWith('http://') || value.startsWith('https://')
-}
-
-function isProtectedBuiltinSkill(skill: AgentSkillResponse): boolean {
-  const source = skill.metadata?.source
-  if (typeof source !== 'string') {
-    return false
-  }
-  return source === 'openclaw-extra' || source === 'openclaw-bundled'
 }
 
 function formatInstalledAt(value: string): string {

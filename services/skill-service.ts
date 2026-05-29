@@ -3,10 +3,10 @@ import {
   AgentSkillResponse,
   InstallAgentSkillRequest,
   InstallAgentSkillResponse,
-  UninstallAgentSkillRequest,
   SkillRepositoryRequest,
   SkillRepositoryResponse,
   SkillResponse,
+  UninstallAgentSkillRequest,
 } from '@/lib/types'
 
 class SkillService {
@@ -17,6 +17,12 @@ class SkillService {
 
   public async createRepo(request: SkillRepositoryRequest): Promise<SkillRepositoryResponse> {
     return httpClient.post<SkillRepositoryResponse>('/skills/repos', request)
+  }
+
+  public async uploadRepoArchive(file: File): Promise<SkillRepositoryResponse> {
+    const formData = new FormData()
+    formData.append('file', file)
+    return httpClient.post<SkillRepositoryResponse>('/skills/repos/upload', formData)
   }
 
   public async updateRepo(
