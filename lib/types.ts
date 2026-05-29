@@ -3,6 +3,16 @@
 // ============================================
 
 /**
+ * 消息状态枚举
+ */
+export enum MessageStatus {
+  GENERATING = 'generating',
+  COMPLETED = 'completed',
+  ERROR = 'error',
+  INTERRUPTED = 'interrupted'
+}
+
+/**
  * 消息接口
  */
 export interface EventItem {
@@ -23,7 +33,7 @@ export interface Message {
   content: string
   timestamp: Date
   isStreaming?: boolean
-  status?: 'generating' | 'completed' | 'error' | 'interrupted'
+  status?: MessageStatus
   toolCalls?: ToolCall[]
   attachments?: Attachment[]
   thinking?: string[]
@@ -78,6 +88,7 @@ export interface Conversation {
   sessionId?: string  // 该会话对应的后端 session ID
   isStreaming?: boolean  // 该会话是否正在生成消息
   hasMore?: boolean  // 是否有更早的历史消息可加载
+  lastMessageStatus?: MessageStatus  // 最后一条助手消息的状态
 }
 
 // ============================================

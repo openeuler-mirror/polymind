@@ -170,11 +170,11 @@ class MessageService {
     const url = `/agents/${agentId}/sessions/${sessionId}/messages/stream/reconnect`
     const fullUrl = `${appConfig.api.baseUrl}${url}`
     const options = buildSSERequestOptions()
-
     const response = await fetch(fullUrl, options)
     if (!response.ok) {
-      console.error('Reconnect stream error:', response.status, await response.text())
-      return []
+      const errorBody = await response.text()
+      console.error('Reconnect stream error:', response.status, errorBody)
+      throw new Error(`Reconnect stream failed: ${response.status} ${errorBody}`)
     }
 
     return parseSSEStream(response, onEvent, '[Reconnect]')

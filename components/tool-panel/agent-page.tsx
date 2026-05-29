@@ -37,6 +37,7 @@ export function AgentPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
   const removeAgent = useChatStore(state => state.removeAgent)
+  const agentCreateFlag = useChatStore(state => state.agentCreateFlag)
 
   // 监听isCreating状态变化，保存到localStorage
   useEffect(() => {
@@ -66,6 +67,13 @@ export function AgentPage() {
   useEffect(() => {
     fetchAgents()
   }, [])
+
+  // 响应来自 AgentSelector 的创建信号
+  useEffect(() => {
+    if (agentCreateFlag > 0) {
+      setIsCreating(true)
+    }
+  }, [agentCreateFlag])
 
   // 处理智能体状态变更
   const handleAgentAction = async (agentId: string, action: 'pause' | 'resume' | 'delete') => {

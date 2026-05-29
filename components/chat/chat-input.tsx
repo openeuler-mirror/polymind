@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/command'
 import type { AgentSkill } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
+import { AgentSelector } from './agent-selector'
 
 const models = [
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
@@ -319,6 +320,9 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
             'focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20'
           )}
         >
+          {/* Agent Selector Bar */}
+          <AgentSelector />
+
           {/* Skill选择器 - 绝对定位悬浮在上方，不占用高度，完全手动实现避免组件内置逻辑冲突 */}
             {showSkillSelector && (
               <div className="absolute bottom-full left-0 right-0 px-4 pb-2 z-50">
