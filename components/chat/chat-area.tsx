@@ -108,6 +108,12 @@ export function ChatArea() {
     sessionService.getConversation(currentConversation.agentId, currentConversation.sessionId)
       .then((detail) => {
         if (cancelled) return
+        const latestConversation = useChatStore.getState().conversations.find(
+          c => c.id === currentConversation.id
+        )
+        if (!latestConversation || latestConversation.messages.length > 0 || latestConversation.isStreaming) {
+          return
+        }
         const msgs = (detail.messages || []).map((msg: any) =>
           sessionService.transformMessage(msg)
         )
@@ -169,6 +175,8 @@ export function ChatArea() {
   useEffect(() => {
     if (!streamingMsg || !currentConversation?.sessionId || !currentConversation?.agentId) return
     if (!currentConversationId) return
+    if (currentConversation.skipReconnect) return
+    if (streamingMsg.skipReconnect) return
     if (locallyCreatedMessageIds.current.has(streamingMsg.id)) return
 
     const agentId = currentConversation.agentId

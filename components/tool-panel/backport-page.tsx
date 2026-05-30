@@ -871,6 +871,13 @@ export function BackportPage() {
       const agentId = await patchflowAgentService.getOrCreatePatchflowAgent()
       const chatStore = useChatStore.getState()
       conversationId = await chatStore.createConversation(agentId, 'Patchflow-Agent')
+      useChatStore.setState((state) => ({
+        conversations: state.conversations.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, skipReconnect: true }
+            : conversation
+        ),
+      }))
       const sessionId = useChatStore.getState().conversations
         .find((conversation) => conversation.id === conversationId)?.sessionId
       if (!sessionId) return
@@ -891,6 +898,7 @@ export function BackportPage() {
         content: '',
         timestamp: new Date(),
         isStreaming: true,
+        skipReconnect: true,
       }
       chatStore.addMessage(conversationId, thinkingMessage)
 
@@ -905,6 +913,7 @@ export function BackportPage() {
           thinkingMessageId: thinkingMessageId as string,
           assistantMessageId,
           eventData,
+          skipReconnect: true,
         })
       })
 

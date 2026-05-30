@@ -54,12 +54,14 @@ export function handleAgentStreamEvent({
   thinkingMessageId,
   assistantMessageId,
   eventData,
+  skipReconnect = false,
 }: {
   store: AgentStreamStore
   conversationId: string
   thinkingMessageId: string
   assistantMessageId: string | null
   eventData: any
+  skipReconnect?: boolean
 }): string | null {
   let nextAssistantMessageId = assistantMessageId
 
@@ -72,6 +74,7 @@ export function handleAgentStreamEvent({
       content: '',
       timestamp: new Date(),
       isStreaming: true,
+      skipReconnect,
       toolCalls: [],
       events: [],
     }
