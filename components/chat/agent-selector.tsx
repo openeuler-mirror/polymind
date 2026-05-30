@@ -75,7 +75,7 @@ export function AgentSelector() {
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[280px] p-0" align="start" side="top" sideOffset={8}>
-        <Command>
+        <Command value={currentAgent?.name}>
           <CommandList>
             <CommandGroup heading="智能体">
               {availableAgents.length === 0 ? (
