@@ -315,7 +315,11 @@ export function BackportPage() {
     } else {
       setError('')
       if (result.summary) {
-        addTimeline(result.summary, 'success')
+        const generatedReportPath =
+          result.operation === 'generate_report'
+            ? result.artifacts?.report_path || result.report?.report_path || ''
+            : ''
+        addTimeline(result.summary, 'success', generatedReportPath || undefined)
       }
     }
 
@@ -488,9 +492,13 @@ export function BackportPage() {
     setSavingConfig(true)
     try {
       const persistedConfig = normalizeBackportConfig(config)
-      await backportService.updateConfig(persistedConfig)
+      const response = await backportService.updateConfig(persistedConfig)
       setConfig(persistedConfig)
-      addTimeline('配置已保存', 'success')
+      const savedConfigPath = response.config_path || ''
+      if (savedConfigPath) {
+        setConfigPath(savedConfigPath)
+      }
+      addTimeline('配置已保存', 'success', savedConfigPath || undefined)
       if (!silent) {
         toast({
           title: '成功',
@@ -618,7 +626,9 @@ export function BackportPage() {
 
   const openPathBrowser = async () => {
     setPathBrowserOpen(true)
-    await loadBrowsePath(excelPath.trim() || undefined)
+    const currentExcelPath = excelPath.trim()
+    const initialBrowsePath = currentExcelPath ? currentExcelPath.replace(/\/[^/]*$/, '') || '/' : undefined
+    await loadBrowsePath(initialBrowsePath)
   }
 
   const resolveCommitsForSave = (): { commits: BackportCommitItem[]; source: 'selected' | 'filtered' | 'all' } => {
@@ -694,7 +704,12 @@ export function BackportPage() {
 
   const canApplyRow = (row: BackportCommitRow): boolean => {
     if (running) return false
-    if (isSkippedRow(row.data) || row.data.merged_in_target === true) return false
+    if (
+      isSkippedRow(row.data) ||
+      row.data.merged_in_target === true ||
+      Boolean(row.data.empty_patch) ||
+      Boolean(row.data.equivalent_exists)
+    ) return false
     if (stringifyValue(row.data.applied_commit).trim()) return false
     return resolveRowApplyValue(row).length > 0 && baseReportPath.trim().length > 0
   }

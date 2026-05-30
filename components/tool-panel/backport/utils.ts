@@ -124,11 +124,25 @@ export function mergeCommitRows(baseRows: BackportCommitRow[], updatedCommits: B
     if (!update) return row
 
     updatesById.delete(identity)
+    const baseData = deepClone(row.data)
+    const updateData = deepClone(update)
+    const basePatches = (baseData.patches as BackportPatchMap | undefined) || {}
+    const updatePatches = (updateData.patches as BackportPatchMap | undefined) || {}
+    const mergedPatches = {
+      ...basePatches,
+      ...updatePatches,
+      backported:
+        basePatches.backported?.exists && updatePatches.backported?.exists === false
+          ? basePatches.backported
+          : updatePatches.backported || basePatches.backported,
+    }
+
     return {
       ...row,
       data: {
-        ...deepClone(row.data),
-        ...deepClone(update),
+        ...baseData,
+        ...updateData,
+        patches: mergedPatches,
       },
     }
   })
