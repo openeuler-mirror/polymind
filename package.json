@@ -17,10 +17,9 @@
     "polymind": "./bin/start.js"
   },
   "files": [
-    ".next/**/*",
-    "public/**/*",
+    ".next/standalone/**/*",
     "bin/**/*",
-    "scripts/**/*",
+    "scripts/postinstall.js",
     "next.config.js",
     "next.config.mjs",
     "package.json"

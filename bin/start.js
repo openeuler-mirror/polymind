@@ -9,6 +9,36 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, '..');
 
+// 查找 Next.js standalone 目录（兼容嵌套和扁平两种结构）
+function findStandaloneDir() {
+  const base = path.join(rootDir, '.next', 'standalone');
+
+  // 情况1: server.js 直接在 standalone/ 下
+  if (fs.existsSync(path.join(base, 'server.js'))) {
+    return base;
+  }
+
+  // 情况2: server.js 在 standalone/<name>/ 子目录下（Next.js 按包名嵌套）
+  try {
+    const entries = fs.readdirSync(base, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const candidate = path.join(base, entry.name);
+        if (fs.existsSync(path.join(candidate, 'server.js'))) {
+          return candidate;
+        }
+      }
+    }
+  } catch (e) {
+    // 目录不存在等情况，回退到默认路径
+  }
+
+  // 回退：返回默认路径，让后续报错给出清晰的错误信息
+  return base;
+}
+
+const standaloneDir = findStandaloneDir();
+
 // 处理命令行参数
 const args = process.argv.slice(2);
 const portIndex = args.indexOf('--port');
@@ -76,7 +106,7 @@ envContent.split('\n').forEach(line => {
 });
 
 // 生成动态配置文件，注入到前端
-const publicDir = path.join(rootDir, '.next', 'standalone', 'public');
+const publicDir = path.join(standaloneDir, 'public');
 const envJsPath = path.join(publicDir, 'env.js');
 
 // 兼容原有代码，直接挂载到window.process.env
@@ -112,14 +142,14 @@ if (host === '0.0.0.0' || host === '::') {
 }
 
 // 启动Next.js独立服务，直接传递参数确保生效
-const serverPath = path.join(rootDir, '.next', 'standalone', 'server.js');
+const serverPath = path.join(standaloneDir, 'server.js');
 const serverArgs = [serverPath, '--host', host, '--port', port];
 
 // 打印执行命令方便排查
 console.log(`🔧 启动命令: node ${serverArgs.join(' ')}`);
 
 const server = spawn('node', serverArgs, {
-  cwd: rootDir,
+  cwd: standaloneDir,
   env: {
     ...process.env,
     HOST: host,
