@@ -27,7 +27,7 @@
   ],
   "scripts": {
     "dev": "bash scripts/load-env.sh next dev -H 0.0.0.0",
-    "build": "next build",
+    "build": "next build && node scripts/copy-static.js",
     "start": "bash scripts/load-env.sh next start",
     "lint": "eslint .",
     "lint-staged": "node scripts/run-lint-staged.js",

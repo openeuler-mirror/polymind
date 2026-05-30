@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { agentService } from '@/services/agent-service'
-import { SandboxType, SANDBOX_CONFIGS } from '@/lib/types'
+import { SandboxType } from '@/lib/types'
 import { useChatStore } from '@/lib/store'
 import {
   Bot,
@@ -29,10 +29,10 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
   const [agentForm, setAgentForm] = useState({
     name: '',
     description: '',
-    adapterType: 'openclaw', // 默认为 openclaw
-    sandboxType: SandboxType.DOCKER,
-    idleTimeout: 3600, // 默认 1 小时
-    icon: 'bot' // 默认图标
+    adapterType: 'openclaw',
+    sandboxType: SandboxType.LOCAL_PROCESS,
+    idleTimeout: 3600,
+    icon: 'bot'
   })
   const [showIconSelector, setShowIconSelector] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -217,8 +217,6 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="openclaw">OpenClaw</SelectItem>
-                <SelectItem value="opencode">OpenCode</SelectItem>
-                <SelectItem value="claude-code">Claude Code</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -233,11 +231,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                 <SelectValue placeholder="选择沙箱类型" />
               </SelectTrigger>
               <SelectContent>
-                {Object.values(SANDBOX_CONFIGS).map(sandbox => (
-                  <SelectItem key={sandbox.type} value={sandbox.type}>
-                    {sandbox.name}
-                  </SelectItem>
-                ))}
+                <SelectItem value={SandboxType.LOCAL_PROCESS}>本地进程</SelectItem>
               </SelectContent>
             </Select>
           </div>

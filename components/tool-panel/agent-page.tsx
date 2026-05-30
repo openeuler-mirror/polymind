@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Filter, RefreshCw, Plus, Trash2, Play, Pause, MoreVertical, Loader2 } from 'lucide-react'
+import { Search, Filter, RefreshCw, Plus, Trash2, Play, Pause, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -310,18 +310,6 @@ export function AgentPage() {
                         删除
                       </Button>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>查看详情</DropdownMenuItem>
-                        <DropdownMenuItem>编辑配置</DropdownMenuItem>
-                        <DropdownMenuItem>查看日志</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </div>
                 </CardContent>
               </Card>

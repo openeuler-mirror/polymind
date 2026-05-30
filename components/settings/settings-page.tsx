@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { User, Settings, Bot, Wrench, Sparkles, Cpu, Info } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
@@ -12,9 +12,19 @@ import { SkillsPage } from './skill'
 import { ModelPage } from './model/model-page'
 
 export function SettingsPage() {
-  const [activeSection, setActiveSection] = useState('general')
-  const { settings, updateSettings } = useChatStore()
+  const { settings, updateSettings, settingsActiveSection, setSettingsActiveSection } = useChatStore()
   const { setTheme } = useThemeWithStore()
+  
+  const [localActiveSection, setLocalActiveSection] = useState(settingsActiveSection || 'general')
+  
+  useEffect(() => {
+    if (settingsActiveSection) {
+      setLocalActiveSection(settingsActiveSection)
+      setSettingsActiveSection(null)
+    }
+  }, [settingsActiveSection, setSettingsActiveSection])
+  
+  const activeSection = localActiveSection
 
   const sections = [
     { id: 'account', name: '账号', icon: User },
@@ -34,7 +44,7 @@ export function SettingsPage() {
           {sections.map((section) => (
             <button
               key={section.id}
-              onClick={() => setActiveSection(section.id)}
+              onClick={() => setLocalActiveSection(section.id)}
               className={cn(
                 'flex items-center gap-3 w-full px-3 py-2 text-sm rounded-md transition-colors',
                 activeSection === section.id

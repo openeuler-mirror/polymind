@@ -4,7 +4,6 @@ import {
   PanelLeftOpen,
   Share2,
   MoreHorizontal,
-  Download,
   Trash2,
   Moon,
   Sun,
@@ -130,10 +129,6 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <Download className="mr-2 h-4 w-4" />
-              导出对话
-            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
                 const { isRightPanelOpen, toggleRightPanel, addRightPanelTab, setActiveRightPanelTab, activeRightPanelTab, rightPanelTabs } = useChatStore.getState();

@@ -9,8 +9,6 @@ import {
   Copy,
   Check,
   RefreshCw,
-  ThumbsUp,
-  ThumbsDown,
   Wrench,
   FileText,
   Image as ImageIcon,
@@ -72,9 +70,22 @@ const MessageItem = memo(function MessageItem({
   const isUser = message.role === 'user'
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(message.content)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(message.content)
+      } else {
+        const textArea = document.createElement('textarea')
+        textArea.value = message.content
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+      }
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
   }
 
   // 调试：打印 message 对象
@@ -295,7 +306,7 @@ const MessageItem = memo(function MessageItem({
             {format(message.timestamp, 'HH:mm', { locale: zhCN })}
           </span>
 
-          {!isUser && !message.isStreaming && (
+          {!message.isStreaming && (
             <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
@@ -316,37 +327,25 @@ const MessageItem = memo(function MessageItem({
                   <TooltipContent>复制</TooltipContent>
                 </Tooltip>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={() => onRegenerate?.(message.id)}
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>重新生成</TooltipContent>
-                </Tooltip>
+                {!isUser && (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => onRegenerate?.(message.id)}
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>重新生成</TooltipContent>
+                    </Tooltip>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                      <ThumbsUp className="h-3 w-3" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>有帮助</TooltipContent>
-                </Tooltip>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                      <ThumbsDown className="h-3 w-3" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>没帮助</TooltipContent>
-                </Tooltip>
+                  </>
+                )}
               </TooltipProvider>
             </div>
           )}
