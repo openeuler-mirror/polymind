@@ -155,15 +155,7 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
     const trimmedInput = input.trim()
     if (!trimmedInput && attachments.length === 0 && presetPrompts.length === 0) return
     if (isStreaming) return
-    
-    if (!currentAgentId) {
-      toast({
-        title: '错误',
-        description: '请先创建并选择智能体',
-        variant: 'destructive',
-        duration: 1500,
-      })
-    }
+    if (!currentAgentId) return
     
     // 将预设提示词的内容添加到消息中
     let finalContent = trimmedInput
@@ -448,17 +440,21 @@ export function ChatInput({ onSend, presetPrompts = [], onRemovePresetPrompt, on
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={handleSubmit}
-                      disabled={!input.trim() && attachments.length === 0}
-                    >
-                      <Send className="h-4 w-4" />
-                      <span className="sr-only">发送</span>
-                    </Button>
+                    <span className="inline-flex">
+                      <Button
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={handleSubmit}
+                        disabled={!currentAgentId || (!input.trim() && attachments.length === 0)}
+                      >
+                        <Send className="h-4 w-4" />
+                        <span className="sr-only">发送</span>
+                      </Button>
+                    </span>
                   </TooltipTrigger>
-                  <TooltipContent>发送</TooltipContent>
+                  <TooltipContent>
+                    {currentAgentId ? '发送' : '请先选择上方的智能体'}
+                  </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
