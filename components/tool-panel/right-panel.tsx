@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Code, FileText, Terminal, Globe, GitBranch, Figma, Bot, Settings, LayoutGrid, ChevronRight, ChevronLeft, Plus, Bug, Wrench } from 'lucide-react'
+import { X, Bot, Settings, LayoutGrid, ChevronRight, Plus, Bug, Wrench, Sparkles, Cpu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
@@ -12,29 +12,36 @@ import { CvePage } from './cve-page'
 import { BackportPage } from './backport-page'
 
 export function RightPanel() {
-  const { isRightPanelOpen, toggleRightPanel, rightPanelTabs, activeRightPanelTab, addRightPanelTab, removeRightPanelTab, setActiveRightPanelTab } = useChatStore()
+  const { isRightPanelOpen, toggleRightPanel, rightPanelTabs, activeRightPanelTab, addRightPanelTab, removeRightPanelTab, setActiveRightPanelTab, setSettingsActiveSection } = useChatStore()
 
   if (!isRightPanelOpen) {
     return null
   }
 
   const tools = [
-    { id: 'editor', name: '编辑器', icon: Code, color: 'text-green-500' },
-    { id: 'terminal', name: '终端', icon: Terminal, color: 'text-yellow-500' },
-    { id: 'browser', name: '浏览器', icon: Globe, color: 'text-red-500' },
-    { id: 'code-change', name: '代码变更', icon: GitBranch, color: 'text-purple-500' },
     { id: 'agent', name: '智能体', icon: Bot, color: 'text-cyan-500' },
-    { id: 'mcp', name: 'MCP', icon: Terminal, color: 'text-orange-500' },
     { id: 'cve', name: 'CVE', icon: Bug, color: 'text-rose-500' },
     { id: 'backport', name: 'Backport', icon: Wrench, color: 'text-blue-500' },
+    { id: 'settings', name: '设置', icon: Settings, color: 'text-gray-500', settingsSection: 'general' },
+    { id: 'skills', name: '技能', icon: Sparkles, color: 'text-amber-500', settingsSection: 'rules' },
+    { id: 'model', name: '模型', icon: Cpu, color: 'text-indigo-500', settingsSection: 'model' },
   ]
 
-  const handleToolClick = (tool: { id: string; name: string; icon: React.ElementType; color: string }) => {
-    const existingTab = rightPanelTabs.find(tab => tab.id === tool.id)
-    if (!existingTab) {
-      addRightPanelTab({ id: tool.id, name: tool.name, icon: tool.icon, color: tool.color })
+  const handleToolClick = (tool: { id: string; name: string; icon: React.ElementType; color: string; settingsSection?: string }) => {
+    if (tool.settingsSection) {
+      setSettingsActiveSection(tool.settingsSection)
+      const existingTab = rightPanelTabs.find(tab => tab.id === 'settings')
+      if (!existingTab) {
+        addRightPanelTab({ id: 'settings', name: '设置', icon: Settings, color: 'text-gray-500' })
+      }
+      setActiveRightPanelTab('settings')
+    } else {
+      const existingTab = rightPanelTabs.find(tab => tab.id === tool.id)
+      if (!existingTab) {
+        addRightPanelTab({ id: tool.id, name: tool.name, icon: tool.icon, color: tool.color })
+      }
+      setActiveRightPanelTab(tool.id)
     }
-    setActiveRightPanelTab(tool.id)
   }
 
   // 保存设置前的活跃标签页

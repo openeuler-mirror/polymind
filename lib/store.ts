@@ -60,6 +60,7 @@ export interface ChatState {
   settings: Settings
   rightPanelTabs: Tab[]
   activeRightPanelTab: string | null
+  settingsActiveSection: string | null
   
   // Agent相关状态
   agents: Agent[]
@@ -95,6 +96,7 @@ export interface ChatState {
   addRightPanelTab: (tab: Tab) => void
   removeRightPanelTab: (tabId: string) => void
   setActiveRightPanelTab: (tabId: string | null) => void
+  setSettingsActiveSection: (section: string | null) => void
   
   // Agent相关操作
   setCurrentAgent: (agentId: string | null) => void
@@ -139,6 +141,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   rightPanelTabs: [],
   activeRightPanelTab: null,
+  settingsActiveSection: null,
   
   // Agent相关状态
   agents: initialState.agents,
@@ -449,11 +452,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })
   },
   
+  setSettingsActiveSection: (section) => {
+    set({
+      settingsActiveSection: section
+    })
+  },
+  
   // Agent相关操作
   setCurrentAgent: (agentId) => {
+    const currentSessionId = new URLSearchParams(window.location.search).get('session')
     set({ currentAgentId: agentId })
     if (!get().currentConversationId) {
-      syncUrlParams(agentId || undefined)
+      syncUrlParams(agentId || undefined, currentSessionId || undefined)
     }
   },
 
@@ -849,7 +859,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       })
     } catch (error) {
       console.error('Failed to refresh conversation:', error)
-      syncUrlParams(agentId)
+      const currentSessionId = new URLSearchParams(window.location.search).get('session')
+      syncUrlParams(agentId, currentSessionId || undefined)
     }
   },
 

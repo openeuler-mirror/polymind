@@ -283,11 +283,11 @@ function ConversationItem({
       ref={containerRef}
       onClick={isEditing ? undefined : onSelect}
       className={cn(
-        'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 transition-colors bg-muted/60',
+        'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 transition-colors',
         isEditing && 'inset-ring-2 inset-ring-primary bg-sidebar', 
         isActive
-          ? 'bg-gray-200 text-sidebar-accent-foreground' 
-          : 'hover:bg-muted'
+          ? 'bg-accent text-accent-foreground' 
+          : 'bg-muted/60 hover:bg-muted'
       )}
     >
       {convStatus && (() => {
