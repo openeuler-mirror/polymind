@@ -68,7 +68,7 @@ DEFAULT_BACKEND_PORT="${BACKEND_PORT:-8000}"
 DEFAULT_FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 
 # ---------- pre-check ----------
-section "0/3  启动前检查"
+section "0/4  启动前检查"
 
 if ! command -v witty-service &> /dev/null; then
   log_err "witty-service 未安装, 请先运行 install.sh"
@@ -86,6 +86,66 @@ if [ -f "$ENV_FILE" ]; then
   log_ok "配置文件: $ENV_FILE"
 else
   log_warn "配置文件不存在, 将使用默认配置"
+fi
+
+# ---------- host config ----------
+section "1/4  网络配置"
+
+# 按优先级确定 ALLOWED_ORIGINS: 环境变量 > 配置文件 > 交互输入
+if [ -n "${ALLOWED_ORIGINS:-}" ]; then
+  # 从环境变量获取（最高优先级，支持脚本化部署）
+  log_info "使用环境变量中的 ALLOWED_ORIGINS: $ALLOWED_ORIGINS"
+elif [ -f "$ENV_FILE" ] && grep -q '^ALLOWED_ORIGINS=' "$ENV_FILE" 2>/dev/null; then
+  # 从配置文件读取（持久化配置）
+  ALLOWED_ORIGINS=$(grep '^ALLOWED_ORIGINS=' "$ENV_FILE" | head -1 | cut -d'=' -f2-)
+  if grep -q '^BACKEND_HOST=' "$ENV_FILE" 2>/dev/null; then
+    BACKEND_HOST=$(grep '^BACKEND_HOST=' "$ENV_FILE" | head -1 | cut -d'=' -f2-)
+  fi
+  log_info "使用配置文件中的 ALLOWED_ORIGINS: $ALLOWED_ORIGINS"
+elif [ -t 0 ]; then
+  # 仅在交互式终端中提示输入
+  echo ""
+  echo "  请配置允许访问服务的IP地址"
+  echo "  默认为本地访问 (127.0.0.1, localhost)"
+  echo "  如果需要从外部访问, 请添加虚拟机IP"
+  echo ""
+  read -r -p "  请输入虚拟机IP地址 (留空则仅本地访问): " VM_HOST
+  VM_HOST=$(echo "$VM_HOST" | tr -d ' ')
+
+  ALLOWED_ORIGINS="127.0.0.1,localhost"
+  if [ -n "$VM_HOST" ]; then
+    ALLOWED_ORIGINS="$ALLOWED_ORIGINS,$VM_HOST"
+    BACKEND_HOST="$VM_HOST"
+  fi
+
+  # 持久化到配置文件
+  mkdir -p "$POLYMIND_DIR"
+  if [ -f "$ENV_FILE" ] && grep -q '^ALLOWED_ORIGINS=' "$ENV_FILE" 2>/dev/null; then
+    # 更新已有配置项
+    grep -v '^ALLOWED_ORIGINS=' "$ENV_FILE" > "${ENV_FILE}.tmp"
+    echo "ALLOWED_ORIGINS=$ALLOWED_ORIGINS" >> "${ENV_FILE}.tmp"
+    mv "${ENV_FILE}.tmp" "$ENV_FILE"
+  else
+    # 添加新配置项
+    echo "ALLOWED_ORIGINS=$ALLOWED_ORIGINS" >> "$ENV_FILE"
+  fi
+  log_info "允许访问的IP: $ALLOWED_ORIGINS"
+  log_info "已保存到配置文件: $ENV_FILE"
+  # 同步持久化 BACKEND_HOST
+  if [ -n "${BACKEND_HOST:-}" ]; then
+    if grep -q '^BACKEND_HOST=' "$ENV_FILE" 2>/dev/null; then
+      grep -v '^BACKEND_HOST=' "$ENV_FILE" > "${ENV_FILE}.tmp"
+      echo "BACKEND_HOST=$BACKEND_HOST" >> "${ENV_FILE}.tmp"
+      mv "${ENV_FILE}.tmp" "$ENV_FILE"
+    else
+      echo "BACKEND_HOST=$BACKEND_HOST" >> "$ENV_FILE"
+    fi
+    log_info "后端主机: $BACKEND_HOST"
+  fi
+else
+  # 非交互式环境，使用默认值
+  ALLOWED_ORIGINS="127.0.0.1,localhost"
+  log_info "非交互式环境，使用默认 ALLOWED_ORIGINS: $ALLOWED_ORIGINS"
 fi
 
 # 检测并选择可用端口
@@ -112,7 +172,7 @@ if [ "$FRONTEND_PORT" != "$DEFAULT_FRONTEND_PORT" ]; then
 fi
 
 # ---------- start backend ----------
-section "1/3  启动后端"
+section "2/4  启动后端"
 
 log_info "启动后端 witty-service (端口 $BACKEND_PORT) ..."
 witty-service --port "$BACKEND_PORT" &
@@ -127,10 +187,10 @@ else
 fi
 
 # ---------- start frontend ----------
-section "2/3  启动前端"
+section "3/4  启动前端"
 
 log_info "启动前端 polymind (端口 $FRONTEND_PORT) ..."
-BACKEND_PORT="$BACKEND_PORT" FRONTEND_PORT="$FRONTEND_PORT" polymind --port "$FRONTEND_PORT" &
+ALLOWED_ORIGINS="$ALLOWED_ORIGINS" BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}" BACKEND_PORT="$BACKEND_PORT" FRONTEND_PORT="$FRONTEND_PORT" polymind --port "$FRONTEND_PORT" &
 FRONTEND_PID=$!
 sleep 2
 
@@ -143,7 +203,7 @@ else
 fi
 
 # ---------- done ----------
-section "3/3  启动完成"
+section "4/4  启动完成"
 
 echo ""
 echo -e "  前端:  ${BOLD}http://localhost:$FRONTEND_PORT${NC}"

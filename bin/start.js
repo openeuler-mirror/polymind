@@ -65,20 +65,22 @@ function replaceBackendUrlInBuild() {
     // 默认配置，无需替换
     return;
   }
-  
+
   const targetDir = path.join(standaloneDir, '.next');
   if (!fs.existsSync(targetDir)) {
     return;
   }
-  
-  const oldApiUrl = 'http://127.0.0.1:8000';
-  const oldWsUrl = 'ws://127.0.0.1:8000';
+
   const newApiUrl = `http://${backendHost}:${backendPort}`;
   const newWsUrl = `ws://${backendHost}:${backendPort}`;
-  
-  console.log(`🔄 动态替换构建代码中的后端地址: ${oldApiUrl} -> ${newApiUrl}`);
-  
-  // 递归查找并替换所有 .js 文件
+
+  console.log(`🔄 动态替换构建代码中的后端地址 -> ${newApiUrl}`);
+
+  // 使用正则匹配任意端口号（解决上次替换后本次无法匹配旧端口的问题）
+  const apiRegex = /http:\/\/127\.0\.0\.1:\d+/g;
+  const wsRegex = /ws:\/\/127\.0\.0\.1:\d+/g;
+
+  // 递归查找所有 .js 文件
   const files = [];
   function walk(dir) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -90,20 +92,20 @@ function replaceBackendUrlInBuild() {
       }
     }
   }
-  
+
   try {
     walk(targetDir);
   } catch (e) {
     return;
   }
-  
+
   for (const file of files) {
     try {
       let content = fs.readFileSync(file, 'utf-8');
-      const hasOldUrl = content.includes(oldApiUrl) || content.includes(oldWsUrl);
-      if (hasOldUrl) {
-        content = content.replaceAll(oldApiUrl, newApiUrl);
-        content = content.replaceAll(oldWsUrl, newWsUrl);
+      const oldContent = content;
+      content = content.replace(apiRegex, newApiUrl);
+      content = content.replace(wsRegex, newWsUrl);
+      if (content !== oldContent) {
         fs.writeFileSync(file, content);
         console.log(`   ✓ ${path.relative(rootDir, file)}`);
       }
@@ -113,8 +115,70 @@ function replaceBackendUrlInBuild() {
   }
 }
 
+// 动态替换 server.js 中的 allowedDevOrigins
+function replaceAllowedOrigins() {
+  // 1. 优先从环境变量获取，其次从 .env 配置文件读取
+  let allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
+
+  if (!allowedOriginsEnv || allowedOriginsEnv.trim() === '') {
+    // 环境变量未设置，尝试从 .env 文件读取（支持持久化配置）
+    if (fs.existsSync(envPath)) {
+      try {
+        const envContent = fs.readFileSync(envPath, 'utf-8');
+        const match = envContent.match(/^ALLOWED_ORIGINS=(.+)$/m);
+        if (match && match[1].trim() !== '') {
+          allowedOriginsEnv = match[1].trim();
+        }
+      } catch (e) {
+        // 读取失败，忽略
+      }
+    }
+  }
+
+  if (!allowedOriginsEnv || allowedOriginsEnv.trim() === '') {
+    // 未配置，使用默认值
+    return;
+  }
+
+  const serverPath = path.join(standaloneDir, 'server.js');
+  if (!fs.existsSync(serverPath)) {
+    return;
+  }
+
+  // 将逗号分隔的字符串转换为 JSON 数组格式
+  const originsArray = allowedOriginsEnv
+    .split(',')
+    .map(o => o.trim())
+    .filter(o => o !== '');
+
+  if (originsArray.length === 0) {
+    console.warn('⚠️  ALLOWED_ORIGINS 格式无效，使用默认值');
+    return;
+  }
+
+  const newAllowedOrigins = JSON.stringify(originsArray);
+
+  try {
+    let content = fs.readFileSync(serverPath, 'utf-8');
+    const oldContent = content;
+    // 匹配 "allowedDevOrigins":[...] 格式并替换（支持 IPv6、端口号等）
+    content = content.replace(
+      /"allowedDevOrigins"\s*:\s*\[[^\]]*\]/g,
+      `"allowedDevOrigins":${newAllowedOrigins}`
+    );
+
+    if (content !== oldContent) {
+      fs.writeFileSync(serverPath, content);
+      console.log(`🔄 动态配置允许的访问来源: ${newAllowedOrigins}`);
+    }
+  } catch (e) {
+    console.warn(`⚠️  无法修改 allowedDevOrigins: ${e.message}`);
+  }
+}
+
 // 执行替换
 replaceBackendUrlInBuild();
+replaceAllowedOrigins();
 
 // 默认配置内容（动态插入后端端口）
 const defaultEnvContent = `# PolyMind 全局配置文件
@@ -134,6 +198,10 @@ NEXT_PUBLIC_RECONNECT_INTERVAL=3000
 NEXT_PUBLIC_APP_NAME=PolyMind
 # 应用版本
 NEXT_PUBLIC_APP_VERSION=1.0.0
+# 后端服务地址（默认 127.0.0.1，远程访问时设为虚拟机 IP）
+BACKEND_HOST=127.0.0.1
+# 允许访问的来源（逗号分隔，修改后重启生效）
+ALLOWED_ORIGINS=127.0.0.1,localhost
 # 调试模式
 NEXT_PUBLIC_DEBUG=false
 `;

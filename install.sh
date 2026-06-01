@@ -67,7 +67,7 @@ DEFAULT_BACKEND_PORT="${BACKEND_PORT:-8000}"
 DEFAULT_FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 
 # ---------- check deps ----------
-section "1/4  环境检测"
+section "1/5  环境检测"
 
 check_cmd() {
   if command -v "$1" &> /dev/null; then
@@ -98,7 +98,7 @@ if [ "$MISSING" -eq 1 ]; then
 fi
 
 # ---------- mirror ----------
-section "2/4  镜像源"
+section "2/5  镜像源"
 
 echo ""
 echo "  检测到国内网络环境, 推荐使用国内镜像加速"
@@ -120,8 +120,62 @@ case "$MIRROR_CHOICE" in
     ;;
 esac
 
+# ---------- host config ----------
+section "3/5  网络配置"
+
+# 按优先级确定 ALLOWED_ORIGINS: 环境变量 > 配置文件 > 交互输入
+if [ -n "${ALLOWED_ORIGINS:-}" ]; then
+  log_info "使用环境变量中的 ALLOWED_ORIGINS: $ALLOWED_ORIGINS"
+elif [ -f "$ENV_FILE" ] && grep -q '^ALLOWED_ORIGINS=' "$ENV_FILE" 2>/dev/null; then
+  ALLOWED_ORIGINS=$(grep '^ALLOWED_ORIGINS=' "$ENV_FILE" | head -1 | cut -d'=' -f2-)
+  if grep -q '^BACKEND_HOST=' "$ENV_FILE" 2>/dev/null; then
+    BACKEND_HOST=$(grep '^BACKEND_HOST=' "$ENV_FILE" | head -1 | cut -d'=' -f2-)
+  fi
+  log_info "使用配置文件中的 ALLOWED_ORIGINS: $ALLOWED_ORIGINS"
+elif [ -t 0 ]; then
+  echo ""
+  echo "  请配置允许访问服务的IP地址"
+  echo "  默认为本地访问 (127.0.0.1, localhost)"
+  echo "  如果需要从外部访问, 请添加虚拟机IP"
+  echo ""
+  read -r -p "  请输入虚拟机IP地址 (留空则仅本地访问): " VM_HOST
+  VM_HOST=$(echo "$VM_HOST" | tr -d ' ')
+
+  ALLOWED_ORIGINS="127.0.0.1,localhost"
+  if [ -n "$VM_HOST" ]; then
+    ALLOWED_ORIGINS="$ALLOWED_ORIGINS,$VM_HOST"
+    BACKEND_HOST="$VM_HOST"
+  fi
+
+  # 持久化到配置文件
+  mkdir -p "$POLYMIND_DIR"
+  if [ -f "$ENV_FILE" ] && grep -q '^ALLOWED_ORIGINS=' "$ENV_FILE" 2>/dev/null; then
+    grep -v '^ALLOWED_ORIGINS=' "$ENV_FILE" > "${ENV_FILE}.tmp"
+    echo "ALLOWED_ORIGINS=$ALLOWED_ORIGINS" >> "${ENV_FILE}.tmp"
+    mv "${ENV_FILE}.tmp" "$ENV_FILE"
+  else
+    echo "ALLOWED_ORIGINS=$ALLOWED_ORIGINS" >> "$ENV_FILE"
+  fi
+  log_info "允许访问的IP: $ALLOWED_ORIGINS"
+  log_info "已保存到配置文件: $ENV_FILE"
+  # 同步持久化 BACKEND_HOST
+  if [ -n "${BACKEND_HOST:-}" ]; then
+    if grep -q '^BACKEND_HOST=' "$ENV_FILE" 2>/dev/null; then
+      grep -v '^BACKEND_HOST=' "$ENV_FILE" > "${ENV_FILE}.tmp"
+      echo "BACKEND_HOST=$BACKEND_HOST" >> "${ENV_FILE}.tmp"
+      mv "${ENV_FILE}.tmp" "$ENV_FILE"
+    else
+      echo "BACKEND_HOST=$BACKEND_HOST" >> "$ENV_FILE"
+    fi
+    log_info "后端主机: $BACKEND_HOST"
+  fi
+else
+  ALLOWED_ORIGINS="127.0.0.1,localhost"
+  log_info "非交互式环境，使用默认 ALLOWED_ORIGINS: $ALLOWED_ORIGINS"
+fi
+
 # ---------- install packages ----------
-section "3/4  安装依赖包"
+section "4/5  安装依赖包"
 
 # --- pnpm: polymind ---
 if $USE_MIRROR; then
@@ -153,7 +207,7 @@ log_ok "witty-service 安装完成"
 
 
 # ---------- start services ----------
-section "4/4  启动服务"
+section "5/5  启动服务"
 
 # 检测并选择可用端口
 BACKEND_PORT=$(find_available_port "$DEFAULT_BACKEND_PORT" 8099)
@@ -194,7 +248,7 @@ fi
 # 启动前端
 log_info "启动前端 polymind (端口 $FRONTEND_PORT) ..."
 echo ""
-BACKEND_PORT="$BACKEND_PORT" FRONTEND_PORT="$FRONTEND_PORT" polymind --port "$FRONTEND_PORT" &
+ALLOWED_ORIGINS="$ALLOWED_ORIGINS" BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}" BACKEND_PORT="$BACKEND_PORT" FRONTEND_PORT="$FRONTEND_PORT" polymind --port "$FRONTEND_PORT" &
 FRONTEND_PID=$!
 sleep 2
 
