@@ -59,6 +59,13 @@ section() {
   echo -e "${BOLD}============================================${NC}"
 }
 
+# ---------- config ----------
+POLYMIND_DIR="$HOME/.polymind"
+ENV_FILE="$POLYMIND_DIR/.env"
+
+DEFAULT_BACKEND_PORT="${BACKEND_PORT:-8000}"
+DEFAULT_FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+
 # ---------- check deps ----------
 section "1/4  环境检测"
 
@@ -149,26 +156,26 @@ log_ok "witty-service 安装完成"
 section "4/4  启动服务"
 
 # 检测并选择可用端口
-BACKEND_PORT=$(find_available_port 8000 8099)
-FRONTEND_PORT=$(find_available_port d 3099)
+BACKEND_PORT=$(find_available_port "$DEFAULT_BACKEND_PORT" 8099)
+FRONTEND_PORT=$(find_available_port "$DEFAULT_FRONTEND_PORT" 3099)
 
 if [ -z "$BACKEND_PORT" ]; then
-  log_err "后端端口 8000-8099 全部被占用"
+  log_err "后端端口 $DEFAULT_BACKEND_PORT-8099 全部被占用"
   exit 1
 fi
 
 if [ -z "$FRONTEND_PORT" ]; then
-  log_err "前端端口 3000-3099 全部被占用"
+  log_err "前端端口 $DEFAULT_FRONTEND_PORT-3099 全部被占用"
   exit 1
 fi
 
 # 检查默认端口是否被占用
-if [ "$BACKEND_PORT" != "8000" ]; then
-  log_warn "默认后端端口 8000 被占用, 使用备用端口 $BACKEND_PORT"
+if [ "$BACKEND_PORT" != "$DEFAULT_BACKEND_PORT" ]; then
+  log_warn "默认后端端口 $DEFAULT_BACKEND_PORT 被占用, 使用备用端口 $BACKEND_PORT"
 fi
 
-if [ "$FRONTEND_PORT" != "3000" ]; then
-  log_warn "默认前端端口 3000 被占用, 使用备用端口 $FRONTEND_PORT"
+if [ "$FRONTEND_PORT" != "$DEFAULT_FRONTEND_PORT" ]; then
+  log_warn "默认前端端口 $DEFAULT_FRONTEND_PORT 被占用, 使用备用端口 $FRONTEND_PORT"
 fi
 
 # 启动后端
@@ -187,7 +194,7 @@ fi
 # 启动前端
 log_info "启动前端 polymind (端口 $FRONTEND_PORT) ..."
 echo ""
-polymind --port "$FRONTEND_PORT" &
+BACKEND_PORT="$BACKEND_PORT" FRONTEND_PORT="$FRONTEND_PORT" polymind --port "$FRONTEND_PORT" &
 FRONTEND_PID=$!
 sleep 2
 
