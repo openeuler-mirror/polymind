@@ -61,6 +61,9 @@ temp/
 .github/
 .gitlab-ci.yml
 
+# Next.js standalone 中不应发布的文件（在 files 白名单范围内）
+.next/standalone/.env
+
 # 其他
 README.zh-CN.md
 CHANGELOG.md
