@@ -55,14 +55,75 @@ const publicEnv = {};
 // 确保配置目录存在
 fs.mkdirSync(polymindDir, { recursive: true });
 
-// 默认配置内容
+// 获取后端端口（从环境变量或默认值）
+const backendPort = process.env.BACKEND_PORT || '8000';
+const backendHost = process.env.BACKEND_HOST || '127.0.0.1';
+
+// 动态替换构建后代码中的硬编码后端地址
+function replaceBackendUrlInBuild() {
+  if (backendPort === '8000' && backendHost === '127.0.0.1') {
+    // 默认配置，无需替换
+    return;
+  }
+  
+  const targetDir = path.join(standaloneDir, '.next');
+  if (!fs.existsSync(targetDir)) {
+    return;
+  }
+  
+  const oldApiUrl = 'http://127.0.0.1:8000';
+  const oldWsUrl = 'ws://127.0.0.1:8000';
+  const newApiUrl = `http://${backendHost}:${backendPort}`;
+  const newWsUrl = `ws://${backendHost}:${backendPort}`;
+  
+  console.log(`🔄 动态替换构建代码中的后端地址: ${oldApiUrl} -> ${newApiUrl}`);
+  
+  // 递归查找并替换所有 .js 文件
+  const files = [];
+  function walk(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        walk(path.join(dir, entry.name));
+      } else if (entry.name.endsWith('.js')) {
+        files.push(path.join(dir, entry.name));
+      }
+    }
+  }
+  
+  try {
+    walk(targetDir);
+  } catch (e) {
+    return;
+  }
+  
+  for (const file of files) {
+    try {
+      let content = fs.readFileSync(file, 'utf-8');
+      const hasOldUrl = content.includes(oldApiUrl) || content.includes(oldWsUrl);
+      if (hasOldUrl) {
+        content = content.replaceAll(oldApiUrl, newApiUrl);
+        content = content.replaceAll(oldWsUrl, newWsUrl);
+        fs.writeFileSync(file, content);
+        console.log(`   ✓ ${path.relative(rootDir, file)}`);
+      }
+    } catch (e) {
+      // 忽略无法读取/写入的文件
+    }
+  }
+}
+
+// 执行替换
+replaceBackendUrlInBuild();
+
+// 默认配置内容（动态插入后端端口）
 const defaultEnvContent = `# PolyMind 全局配置文件
 # 修改后重启服务即可生效
 # ==============================================
 # 后端API地址
-NEXT_PUBLIC_AGENTD_API_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_AGENTD_API_URL=http://${backendHost}:${backendPort}
 # WebSocket地址
-NEXT_PUBLIC_WS_URL=ws://127.0.0.1:8000/ws
+NEXT_PUBLIC_WS_URL=ws://${backendHost}:${backendPort}/ws
 # API请求超时时间(毫秒)
 NEXT_PUBLIC_API_TIMEOUT=30000
 # 最大重连次数
@@ -77,16 +138,35 @@ NEXT_PUBLIC_APP_VERSION=1.0.0
 NEXT_PUBLIC_DEBUG=false
 `;
 
-// 如果配置文件不存在则创建默认配置
-if (!fs.existsSync(envPath)) {
-  fs.writeFileSync(envPath, defaultEnvContent);
+// 检查是否需要动态更新后端端口配置
+let envContent = '';
+if (fs.existsSync(envPath)) {
+  envContent = fs.readFileSync(envPath, 'utf-8');
+  
+  // 如果环境变量指定了后端端口，强制更新配置文件
+  if (process.env.BACKEND_PORT) {
+    const newApiUrl = `NEXT_PUBLIC_AGENTD_API_URL=http://${backendHost}:${backendPort}`;
+    const newWsUrl = `NEXT_PUBLIC_WS_URL=ws://${backendHost}:${backendPort}/ws`;
+    
+    // 使用正则替换现有的配置
+    envContent = envContent.replace(/NEXT_PUBLIC_AGENTD_API_URL=.*/, newApiUrl);
+    envContent = envContent.replace(/NEXT_PUBLIC_WS_URL=.*/, newWsUrl);
+    
+    // 写入更新后的配置文件
+    fs.writeFileSync(envPath, envContent);
+    console.log(`🔄 动态更新后端地址: ${newApiUrl}`);
+    console.log(`🔄 动态更新WebSocket地址: ${newWsUrl}`);
+  }
+} else {
+  // 配置文件不存在，使用默认配置（已包含动态端口）
+  envContent = defaultEnvContent;
+  fs.writeFileSync(envPath, envContent);
   console.log(`📝 已生成默认配置文件: ${envPath}`);
 }
 
 // 读取全局配置文件
 console.log(`📝 加载全局配置: ${envPath}`);
 console.log(`💡 修改配置后重启服务即可生效`);
-const envContent = fs.readFileSync(envPath, 'utf-8');
 
 // 解析.env文件内容
 envContent.split('\n').forEach(line => {
@@ -152,6 +232,7 @@ const server = spawn('node', serverArgs, {
   cwd: standaloneDir,
   env: {
     ...process.env,
+    PORT: port,
     HOST: host,
     HOSTNAME: host,
   },

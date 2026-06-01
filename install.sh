@@ -17,6 +17,41 @@ log_ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 log_err()   { echo -e "${RED}[ERR]${NC}   $*"; }
 
+# 检测端口是否被占用
+check_port() {
+  local port=$1
+  if command -v ss &> /dev/null; then
+    if ss -tuln | grep -q ":$port "; then
+      return 1
+    fi
+  elif command -v lsof &> /dev/null; then
+    if lsof -Pi ":$port" -sTCP:LISTEN -t &> /dev/null; then
+      return 1
+    fi
+  elif command -v netstat &> /dev/null; then
+    if netstat -tuln | grep -q ":$port "; then
+      return 1
+    fi
+  else
+    log_warn "无法检测端口状态 (lsof/ss/netstat 均未安装)"
+    return 0
+  fi
+  return 0
+}
+
+# 查找可用端口
+find_available_port() {
+  local start_port=$1
+  local end_port=$2
+  for port in $(seq "$start_port" "$end_port"); do
+    if check_port "$port"; then
+      echo "$port"
+      return 0
+    fi
+  done
+  return 1
+}
+
 section() {
   echo ""
   echo -e "${BOLD}============================================${NC}"
@@ -25,7 +60,7 @@ section() {
 }
 
 # ---------- check deps ----------
-section "1/5  环境检测"
+section "1/4  环境检测"
 
 check_cmd() {
   if command -v "$1" &> /dev/null; then
@@ -39,21 +74,24 @@ check_cmd() {
 
 MISSING=0
 
-check_cmd node   || MISSING=1
-check_cmd npm    || MISSING=1
-check_cmd python3 || check_cmd python || MISSING=1
-check_cmd pip3   || check_cmd pip   || MISSING=1
+check_cmd node     || MISSING=1
+check_cmd pnpm     || MISSING=1
+check_cmd python3  || check_cmd python || MISSING=1
+check_cmd pip3     || check_cmd pip    || MISSING=1
+check_cmd openclaw || MISSING=1
 
 if [ "$MISSING" -eq 1 ]; then
   echo ""
   log_err "请先安装缺少的依赖后重新运行本脚本"
-  echo "  Node.js: https://nodejs.org/"
-  echo "  Python:  https://www.python.org/downloads/"
+  echo "  Node.js:   https://nodejs.org/"
+  echo "  Python:    https://www.python.org/downloads/"
+  echo "  pnpm:      npm install -g pnpm"
+  echo "  OpenClaw:  pnpm add -g openclaw"
   exit 1
 fi
 
 # ---------- mirror ----------
-section "2/5  镜像源"
+section "2/4  镜像源"
 
 echo ""
 echo "  检测到国内网络环境, 推荐使用国内镜像加速"
@@ -65,9 +103,9 @@ USE_MIRROR=false
 case "$MIRROR_CHOICE" in
   [yY]|[yY][eE][sS]|是)
     USE_MIRROR=true
-    NPM_MIRROR="https://registry.npmmirror.com"
+    PNPM_MIRROR="https://mirrors.huaweicloud.com/repository/npm/"
     PIP_MIRROR="https://repo.huaweicloud.com/repository/pypi/simple"
-    log_info "npm 镜像:  $NPM_MIRROR"
+    log_info "pnpm 镜像: $PNPM_MIRROR"
     log_info "pip 镜像:  $PIP_MIRROR"
     ;;
   *)
@@ -76,17 +114,17 @@ case "$MIRROR_CHOICE" in
 esac
 
 # ---------- install packages ----------
-section "3/5  安装依赖包"
+section "3/4  安装依赖包"
 
-# --- npm: polymind ---
+# --- pnpm: polymind ---
 if $USE_MIRROR; then
-  NPM_INSTALL_CMD="npm install -g polymind --registry=$NPM_MIRROR"
+  PNPM_INSTALL_CMD="pnpm add -g polymind --registry=$PNPM_MIRROR"
 else
-  NPM_INSTALL_CMD="npm install -g polymind"
+  PNPM_INSTALL_CMD="pnpm add -g polymind"
 fi
 
 log_info "安装前端包 polymind ..."
-$NPM_INSTALL_CMD
+$PNPM_INSTALL_CMD
 log_ok "polymind 安装完成"
 
 # --- pip: witty-service ---
@@ -97,7 +135,7 @@ else
 fi
 
 if $USE_MIRROR; then
-  PIP_INSTALL_CMD="$PIP_CMD install witty-service -i $PIP_MIRROR --trusted-host pypi.tuna.tsinghua.edu.cn"
+  PIP_INSTALL_CMD="$PIP_CMD install witty-service -i $PIP_MIRROR --trusted-host repo.huaweicloud.com"
 else
   PIP_INSTALL_CMD="$PIP_CMD install witty-service"
 fi
@@ -106,67 +144,55 @@ log_info "安装后端包 witty-service ..."
 $PIP_INSTALL_CMD
 log_ok "witty-service 安装完成"
 
-# ---------- config ----------
-section "4/5  生成配置"
-
-POLYMIND_DIR="$HOME/.polymind"
-ENV_FILE="$POLYMIND_DIR/.env"
-
-mkdir -p "$POLYMIND_DIR"
-
-if [ -f "$ENV_FILE" ]; then
-  log_warn "配置文件已存在, 跳过生成"
-  log_info "如需重新生成, 请先删除: rm $ENV_FILE"
-else
-  cat > "$ENV_FILE" << 'ENVEOF'
-# PolyMind 全局配置文件
-# 修改后重启服务即可生效
-# ==============================================
-# 后端API地址
-NEXT_PUBLIC_AGENTD_API_URL=http://127.0.0.1:8000
-# WebSocket地址
-NEXT_PUBLIC_WS_URL=ws://127.0.0.1:8000/ws
-# API请求超时时间(毫秒)
-NEXT_PUBLIC_API_TIMEOUT=30000
-# 最大重连次数
-NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS=5
-# 重连间隔(毫秒)
-NEXT_PUBLIC_RECONNECT_INTERVAL=3000
-# 应用名称
-NEXT_PUBLIC_APP_NAME=PolyMind
-# 应用版本
-NEXT_PUBLIC_APP_VERSION=1.0.0
-# 调试模式
-NEXT_PUBLIC_DEBUG=false
-ENVEOF
-  log_ok "配置文件已生成: $ENV_FILE"
-fi
 
 # ---------- start services ----------
-section "5/5  启动服务"
+section "4/4  启动服务"
+
+# 检测并选择可用端口
+BACKEND_PORT=$(find_available_port 8000 8099)
+FRONTEND_PORT=$(find_available_port d 3099)
+
+if [ -z "$BACKEND_PORT" ]; then
+  log_err "后端端口 8000-8099 全部被占用"
+  exit 1
+fi
+
+if [ -z "$FRONTEND_PORT" ]; then
+  log_err "前端端口 3000-3099 全部被占用"
+  exit 1
+fi
+
+# 检查默认端口是否被占用
+if [ "$BACKEND_PORT" != "8000" ]; then
+  log_warn "默认后端端口 8000 被占用, 使用备用端口 $BACKEND_PORT"
+fi
+
+if [ "$FRONTEND_PORT" != "3000" ]; then
+  log_warn "默认前端端口 3000 被占用, 使用备用端口 $FRONTEND_PORT"
+fi
 
 # 启动后端
-log_info "启动后端 witty-service (端口 8000) ..."
-witty-service --port 8000 &
+log_info "启动后端 witty-service (端口 $BACKEND_PORT) ..."
+witty-service --port "$BACKEND_PORT" &
 BACKEND_PID=$!
 sleep 2
 
 if kill -0 "$BACKEND_PID" 2>/dev/null; then
-  log_ok "后端已启动  PID=$BACKEND_PID  http://127.0.0.1:8000"
+  log_ok "后端已启动  PID=$BACKEND_PID  http://127.0.0.1:$BACKEND_PORT"
 else
   log_err "后端启动失败, 请检查日志"
   exit 1
 fi
 
 # 启动前端
-log_info "启动前端 polymind (端口 3000) ..."
+log_info "启动前端 polymind (端口 $FRONTEND_PORT) ..."
 echo ""
-polymind --port 3000 &
+polymind --port "$FRONTEND_PORT" &
 FRONTEND_PID=$!
 sleep 2
 
 if kill -0 "$FRONTEND_PID" 2>/dev/null; then
-  log_ok "前端已启动  PID=$FRONTEND_PID  http://localhost:3000"
+  log_ok "前端已启动  PID=$FRONTEND_PID  http://localhost:$FRONTEND_PORT"
 else
   log_err "前端启动失败, 请检查日志"
   kill "$BACKEND_PID" 2>/dev/null
@@ -179,8 +205,8 @@ echo -e "${GREEN}============================================${NC}"
 echo -e "${GREEN}  PolyMind 启动成功!${NC}"
 echo -e "${GREEN}============================================${NC}"
 echo ""
-echo -e "  前端:  ${BOLD}http://localhost:3000${NC}"
-echo -e "  后端:  ${BOLD}http://127.0.0.1:8000${NC}"
+echo -e "  前端:  ${BOLD}http://localhost:$FRONTEND_PORT${NC}"
+echo -e "  后端:  ${BOLD}http://127.0.0.1:$BACKEND_PORT${NC}"
 echo ""
 echo -e "  后端 PID:  $BACKEND_PID"
 echo -e "  前端 PID:  $FRONTEND_PID"
