@@ -1,0 +1,2003 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "AgentD Service API",
+    "description": "AgentD后端服务API接口文档，用于前端应用连接和管理AI代理",
+    "version": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "Health"
+    },
+    {
+      "name": "Agents"
+    },
+    {
+      "name": "Sessions"
+    },
+    {
+      "name": "Messages"
+    },
+    {
+      "name": "Models"
+    },
+    {
+      "name": "Events"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "健康检查",
+        "deprecated": false,
+        "description": "服务存活检查",
+        "tags": [
+          "Health"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "服务正常运行",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok"
+                      ],
+                      "description": "服务状态"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents": {
+      "get": {
+        "summary": "列出所有 Agent",
+        "deprecated": false,
+        "description": "列出所有 Agent",
+        "tags": [
+          "Agents"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功获取代理列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentResponse"
+                  }
+                },
+                "example": [
+                  {
+                    "id": "agent-uuid-1",
+                    "name": "my-agent",
+                    "description": "这是一个测试智能体",
+                    "sandbox_type": "docker",
+                    "adapter_type": "openclaw",
+                    "status": "running",
+                    "sandbox_id": null,
+                    "workspace_path": "/path/to/workspace",
+                    "idle_timeout_seconds": 3600,
+                    "has_scheduled_tasks": false,
+                    "created_at": "2026-04-10T12:00:00",
+                    "updated_at": "2026-04-10T12:00:00",
+                    "default_session_id": "session-uuid"
+                  }
+                ]
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "创建 Agent",
+        "deprecated": false,
+        "description": "创建新 Agent，启动沙箱和 Adapter",
+        "tags": [
+          "Agents"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentRequest"
+              },
+              "example": {
+                "name": "my-agent",
+                "description": "这是一个测试智能体",
+                "sandbox_type": "docker",
+                "adapter_type": "openclaw",
+                "idle_timeout_seconds": 3600,
+                "sandbox_id": null,
+                "has_scheduled_tasks": false
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "成功创建代理",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "example": {
+                  "id": "agent-uuid",
+                  "name": "my-agent",
+                  "description": "这是一个测试智能体",
+                  "sandbox_type": "docker",
+                  "adapter_type": "openclaw",
+                  "status": "running",
+                  "sandbox_id": null,
+                  "workspace_path": "/path/to/workspace",
+                  "idle_timeout_seconds": 3600,
+                  "has_scheduled_tasks": false,
+                  "created_at": "2026-04-10T12:00:00",
+                  "updated_at": "2026-04-10T12:00:00",
+                  "default_session_id": "session-uuid"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict",
+            "description": "资源状态冲突"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}": {
+      "get": {
+        "summary": "获取 Agent 详情",
+        "deprecated": false,
+        "description": "根据ID获取特定AI代理的详细信息",
+        "tags": [
+          "Agents"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取代理信息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "example": {
+                  "id": "agent-uuid",
+                  "name": "my-agent",
+                  "description": "这是一个测试智能体",
+                  "sandbox_type": "docker",
+                  "adapter_type": "openclaw",
+                  "status": "running",
+                  "sandbox_id": null,
+                  "workspace_path": "/path/to/workspace",
+                  "idle_timeout_seconds": 3600,
+                  "has_scheduled_tasks": false,
+                  "created_at": "2026-04-10T12:00:00",
+                  "updated_at": "2026-04-10T12:00:00",
+                  "default_session_id": "session-uuid"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "summary": "删除 Agent",
+        "deprecated": false,
+        "description": "删除 Agent - 备份运行时 → 停止运行时 → 清理沙箱 → 删除本地记录",
+        "tags": [
+          "Agents"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "成功删除代理",
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}/pause": {
+      "post": {
+        "summary": "暂停 Agent",
+        "deprecated": false,
+        "description": "暂停 Agent，保留沙箱状态和所有资源",
+        "tags": [
+          "Agents"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功暂停代理",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "example": {
+                  "id": "agent-uuid",
+                  "name": "my-agent",
+                  "description": "这是一个测试智能体",
+                  "sandbox_type": "docker",
+                  "adapter_type": "openclaw",
+                  "status": "paused",
+                  "sandbox_id": "container-id",
+                  "workspace_path": "/path/to/workspace",
+                  "idle_timeout_seconds": 3600,
+                  "has_scheduled_tasks": false,
+                  "created_at": "2026-04-10T12:00:00",
+                  "updated_at": "2026-04-10T12:30:00",
+                  "default_session_id": "session-uuid"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict",
+            "description": "资源状态冲突"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}/resume": {
+      "post": {
+        "summary": "恢复 Agent",
+        "deprecated": false,
+        "description": "恢复已暂停的 Agent，根据状态分支处理",
+        "tags": [
+          "Agents"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功恢复代理",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "example": {
+                  "id": "agent-uuid",
+                  "name": "my-agent",
+                  "description": "这是一个测试智能体",
+                  "sandbox_type": "docker",
+                  "adapter_type": "openclaw",
+                  "status": "running",
+                  "sandbox_id": "container-id",
+                  "workspace_path": "/path/to/workspace",
+                  "idle_timeout_seconds": 3600,
+                  "has_scheduled_tasks": false,
+                  "created_at": "2026-04-10T12:00:00",
+                  "updated_at": "2026-04-10T12:35:00",
+                  "default_session_id": "session-uuid"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict",
+            "description": "资源状态冲突"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}/sessions": {
+      "get": {
+        "summary": "列出 Agent 的所有会话",
+        "deprecated": false,
+        "description": "列出 Agent 的所有会话（以 witty-agent-server 为主，刷新本地缓存）",
+        "tags": [
+          "Sessions"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runtime_agent_id",
+            "in": "query",
+            "description": "远端 witty-agent-server 中的 runtime agent ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取会话列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionResponse"
+                  }
+                },
+                "example": [
+                  {
+                    "id": "session-uuid",
+                    "agent_id": "agent-uuid",
+                    "status": "idle",
+                    "context_initialized": true,
+                    "runtime_type": "openclaw",
+                    "created_at": "2026-04-10T12:00:00",
+                    "updated_at": "2026-04-10T12:00:00"
+                  }
+                ]
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "创建会话",
+        "deprecated": false,
+        "description": "创建新会话（透传到 witty-agent-server）",
+        "tags": [
+          "Sessions"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runtime_agent_id",
+            "in": "query",
+            "description": "远端 witty-agent-server 中的 runtime agent ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "成功创建会话",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                },
+                "example": {
+                  "id": "session-uuid",
+                  "agent_id": "agent-uuid",
+                  "status": "idle",
+                  "context_initialized": true,
+                  "runtime_type": "openclaw",
+                  "created_at": "2026-04-10T12:00:00",
+                  "updated_at": "2026-04-10T12:00:00"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict",
+            "description": "资源状态冲突"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}/sessions/{session_id}": {
+      "get": {
+        "summary": "获取会话详情",
+        "deprecated": false,
+        "description": "获取会话详情（优先本地，透传 witty-agent-server）",
+        "tags": [
+          "Sessions"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "会话唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runtime_agent_id",
+            "in": "query",
+            "description": "远端 witty-agent-server 中的 runtime agent ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取会话详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                },
+                "example": {
+                  "id": "session-uuid",
+                  "agent_id": "agent-uuid",
+                  "status": "idle",
+                  "context_initialized": true,
+                  "runtime_type": "openclaw",
+                  "created_at": "2026-04-10T12:00:00",
+                  "updated_at": "2026-04-10T12:00:00"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "summary": "删除会话",
+        "deprecated": false,
+        "description": "删除会话（透传到 witty-agent-server，删除本地记录）",
+        "tags": [
+          "Sessions"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "会话唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runtime_agent_id",
+            "in": "query",
+            "description": "远端 witty-agent-server 中的 runtime agent ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "成功删除会话",
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}/sessions/{session_id}/messages": {
+      "post": {
+        "summary": "发送消息（非流式）",
+        "deprecated": false,
+        "description": "witty-service 对外通过 REST 发送消息并返回非流式聚合结果；内部到 witty-agent-server 的消息通道仍是 WebSocket",
+        "tags": [
+          "Messages"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "会话唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageRequest"
+              },
+              "example": {
+                "content": "帮我查一下最近的错误日志"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功发送消息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageEventsResponse"
+                },
+                "example": {
+                  "sandbox_type": "local_process",
+                  "events": [
+                    {
+                      "type": "message.delta",
+                      "session_id": "session-id",
+                      "event_id": "uuid",
+                      "ts_ms": 1775650000123,
+                      "runtime_type": "openclaw",
+                      "payload": {
+                        "delta": "当"
+                      }
+                    },
+                    {
+                      "type": "message.delta",
+                      "session_id": "session-id",
+                      "event_id": "uuid",
+                      "ts_ms": 1775650000123,
+                      "runtime_type": "openclaw",
+                      "payload": {
+                        "delta": "前环境"
+                      }
+                    },
+                    {
+                      "type": "message.completed",
+                      "session_id": "session-id",
+                      "event_id": "uuid",
+                      "ts_ms": 1775650000123,
+                      "runtime_type": "openclaw",
+                      "payload": {
+                        "text": "当前工作环境..."
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict",
+            "description": "资源状态冲突"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}/sessions/{session_id}/messages/stream": {
+      "post": {
+        "summary": "发送消息（流式）",
+        "deprecated": false,
+        "description": "witty-service 对外通过 REST 提供 SSE 流式返回；内部到 witty-agent-server 的消息通道仍是 WebSocket",
+        "tags": [
+          "Messages"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "会话唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageRequest"
+              },
+              "example": {
+                "content": "帮我查一下最近的错误日志"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功建立流连接",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "data: {\"sandbox_type\":\"local_process\",\"event\":{\"type\":\"message.delta\",\"session_id\":\"session-id\",\"event_id\":\"uuid\",\"ts_ms\":1775650000123,\"runtime_type\":\"openclaw\",\"payload\":{\"delta\":\"当\"}}}"
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict",
+            "description": "资源状态冲突"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}/sessions/{session_id}/events": {
+      "get": {
+        "summary": "查询会话事件回放",
+        "deprecated": false,
+        "description": "查询会话事件回放（透传到 witty-agent-server）",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "会话唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runtime_agent_id",
+            "in": "query",
+            "description": "远端 witty-agent-server 中的 runtime agent ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "分页偏移",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "每页数量",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取事件列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionEventPage"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": "event-id",
+                      "session_id": "session-id",
+                      "type": "message.delta",
+                      "source": "assistant",
+                      "payload": {},
+                      "timestamp": "2026-03-31T12:34:56.000000Z"
+                    }
+                  ],
+                  "pagination": {
+                    "offset": 0,
+                    "limit": 50,
+                    "total": 1
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/models": {
+      "get": {
+        "summary": "获取大模型列表",
+        "deprecated": false,
+        "description": "获取所有大模型配置列表",
+        "tags": [
+          "Models"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功获取模型列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModelResponse"
+                  }
+                },
+                "example": [
+                  {
+                    "id": "model-uuid-1",
+                    "name": "gpt-4o",
+                    "provider": "openai",
+                    "api_base_url": "https://api.openai.com/v1",
+                    "enabled": true,
+                    "max_tokens": 4096,
+                    "temperature": 0.7,
+                    "is_default": true,
+                    "created_at": "2026-04-13T10:00:00",
+                    "updated_at": "2026-04-13T10:00:00"
+                  },
+                  {
+                    "id": "model-uuid-2",
+                    "name": "claude-3-opus-20240229",
+                    "provider": "anthropic",
+                    "api_base_url": "https://api.anthropic.com/v1",
+                    "enabled": true,
+                    "max_tokens": 4096,
+                    "temperature": 0.7,
+                    "is_default": false,
+                    "created_at": "2026-04-13T11:00:00",
+                    "updated_at": "2026-04-13T11:00:00"
+                  }
+                ]
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "添加大模型配置",
+        "deprecated": false,
+        "description": "添加新的大模型配置",
+        "tags": [
+          "Models"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateModelRequest"
+              },
+              "example": {
+                "name": "gpt-4o",
+                "provider": "openai",
+                "api_key": "sk-xxxxxxxxxx",
+                "api_base_url": "https://api.openai.com/v1",
+                "enabled": true,
+                "max_tokens": 4096,
+                "temperature": 0.7,
+                "is_default": true
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "成功创建模型配置",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelResponse"
+                },
+                "example": {
+                  "id": "model-uuid",
+                  "name": "gpt-4o",
+                  "provider": "openai",
+                  "api_base_url": "https://api.openai.com/v1",
+                  "enabled": true,
+                  "max_tokens": 4096,
+                  "temperature": 0.7,
+                  "is_default": true,
+                  "created_at": "2026-04-13T10:00:00",
+                  "updated_at": "2026-04-13T10:00:00"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict",
+            "description": "资源状态冲突"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/models/{model_id}": {
+      "put": {
+        "summary": "更新大模型配置",
+        "deprecated": false,
+        "description": "更新指定的大模型配置",
+        "tags": [
+          "Models"
+        ],
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateModelRequest"
+              },
+              "example": {
+                "name": "gpt-4o-updated",
+                "api_base_url": "https://api.openai.com/v1",
+                "description": "Updated OpenAI GPT-4 Omni 模型",
+                "enabled": true,
+                "max_tokens": 8192,
+                "temperature": 0.8,
+                "is_default": true
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功更新模型配置",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelResponse"
+                },
+                "example": {
+                  "id": "model-uuid",
+                  "name": "gpt-4o-updated",
+                  "provider": "openai",
+                  "api_base_url": "https://api.openai.com/v1",
+                  "description": "Updated OpenAI GPT-4 Omni 模型",
+                  "enabled": true,
+                  "max_tokens": 8192,
+                  "temperature": 0.8,
+                  "is_default": true,
+                  "created_at": "2026-04-13T10:00:00",
+                  "updated_at": "2026-04-14T12:00:00"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "summary": "删除大模型配置",
+        "deprecated": false,
+        "description": "删除指定的大模型配置",
+        "tags": [
+          "Models"
+        ],
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "description": "模型配置唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "成功删除模型配置",
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgentResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Agent 唯一标识"
+          },
+          "name": {
+            "type": "string",
+            "description": "Agent 名称"
+          },
+          "description": {
+            "type": "string",
+            "description": "Agent 描述",
+            "nullable": true
+          },
+          "sandbox_type": {
+            "type": "string",
+            "enum": [
+              "docker",
+              "local_process",
+              "e2b"
+            ],
+            "description": "沙箱类型"
+          },
+          "adapter_type": {
+            "type": "string",
+            "description": "适配器类型：如 openclaw"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "paused",
+              "stopped",
+              "error"
+            ],
+            "description": "Agent 状态"
+          },
+          "sandbox_id": {
+            "type": "string",
+            "description": "沙箱 ID",
+            "nullable": true
+          },
+          "workspace_path": {
+            "type": "string",
+            "description": "工作区路径"
+          },
+          "idle_timeout_seconds": {
+            "type": "integer",
+            "description": "空闲超时时间（秒）"
+          },
+          "has_scheduled_tasks": {
+            "type": "boolean",
+            "description": "是否有定时任务"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新时间"
+          },
+          "default_session_id": {
+            "type": "string",
+            "description": "默认会话 ID",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "sandbox_type",
+          "adapter_type",
+          "status",
+          "workspace_path",
+          "idle_timeout_seconds",
+          "has_scheduled_tasks",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "CreateAgentRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Agent 名称，最小长度 1"
+          },
+          "description": {
+            "type": "string",
+            "description": "Agent 描述，默认空字符串",
+            "nullable": true
+          },
+          "sandbox_type": {
+            "type": "string",
+            "enum": [
+              "docker",
+              "local_process",
+              "e2b"
+            ],
+            "description": "沙箱类型：docker、local_process、e2b"
+          },
+          "adapter_type": {
+            "type": "string",
+            "description": "适配器类型：如 openclaw"
+          },
+          "idle_timeout_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "空闲超时时间（秒），必须大于 0"
+          },
+          "sandbox_id": {
+            "type": "string",
+            "description": "沙箱 ID",
+            "nullable": true
+          },
+          "has_scheduled_tasks": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否有定时任务，默认 false"
+          }
+        },
+        "required": [
+          "name",
+          "sandbox_type",
+          "adapter_type",
+          "idle_timeout_seconds"
+        ]
+      },
+      "SessionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "会话唯一标识"
+          },
+          "agent_id": {
+            "type": "string",
+            "description": "所属 Agent ID"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "idle",
+              "error"
+            ],
+            "description": "会话运行态"
+          },
+          "context_initialized": {
+            "type": "boolean",
+            "description": "witty-agent-server 是否已完成上下文初始化"
+          },
+          "runtime_type": {
+            "type": "string",
+            "description": "运行时类型：如 openclaw"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新时间"
+          }
+        },
+        "required": [
+          "id",
+          "agent_id",
+          "status",
+          "context_initialized",
+          "runtime_type",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "SendMessageRequest": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "description": "消息内容，最小长度 1"
+          }
+        },
+        "required": [
+          "content"
+        ]
+      },
+      "MessageEvent": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "事件类型",
+            "enum": [
+              "message.delta",
+              "message.completed",
+              "tool.call.started",
+              "tool.call.response",
+              "usage.updated",
+              "session.runtime.changed",
+              "stream.error",
+              "client.error"
+            ]
+          },
+          "session_id": {
+            "type": "string",
+            "description": "会话 ID"
+          },
+          "event_id": {
+            "type": "string",
+            "description": "事件 ID"
+          },
+          "ts_ms": {
+            "type": "integer",
+            "description": "时间戳（毫秒）"
+          },
+          "runtime_type": {
+            "type": "string",
+            "description": "运行时类型"
+          },
+          "payload": {
+            "type": "object",
+            "description": "事件负载，结构取决于事件类型",
+            "properties": {}
+          }
+        },
+        "required": [
+          "type",
+          "session_id",
+          "event_id",
+          "ts_ms",
+          "runtime_type",
+          "payload"
+        ]
+      },
+      "MessageEventsResponse": {
+        "type": "object",
+        "properties": {
+          "sandbox_type": {
+            "type": "string",
+            "description": "Agent 的沙箱类型，取值来自 agent 配置的 sandbox backend，例如 docker、local_process、e2b"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageEvent"
+            },
+            "description": "事件数组，每个事件包含 type、session_id、event_id、ts_ms、runtime_type、payload"
+          }
+        },
+        "required": [
+          "sandbox_type",
+          "events"
+        ]
+      },
+      "SessionEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "事件 ID"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "会话 ID"
+          },
+          "type": {
+            "type": "string",
+            "description": "事件类型"
+          },
+          "source": {
+            "type": "string",
+            "description": "事件来源"
+          },
+          "payload": {
+            "type": "object",
+            "description": "事件负载",
+            "properties": {}
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "时间戳"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "type",
+          "source",
+          "payload",
+          "timestamp"
+        ]
+      },
+      "SessionEventPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionEvent"
+            },
+            "description": "事件列表"
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "offset": {
+                "type": "integer",
+                "description": "分页偏移"
+              },
+              "limit": {
+                "type": "integer",
+                "description": "每页数量"
+              },
+              "total": {
+                "type": "integer",
+                "description": "总数量"
+              }
+            },
+            "required": [
+              "offset",
+              "limit",
+              "total"
+            ],
+            "description": "分页信息"
+          }
+        },
+        "required": [
+          "items",
+          "pagination"
+        ]
+      },
+      "ModelResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "模型配置唯一标识"
+          },
+          "name": {
+            "type": "string",
+            "description": "模型名称"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "anthropic",
+              "alibaba",
+              "deepseek",
+              "zhipuai",
+              "minimax",
+              "moonshotai",
+              "google",
+              "xai",
+              "siliconflow",
+              "azure",
+              "custom"
+            ],
+            "description": "模型提供商"
+          },
+          "api_base_url": {
+            "type": "string",
+            "description": "API 基础地址"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "最大输出 tokens 数"
+          },
+          "temperature": {
+            "type": "number",
+            "description": "生成温度"
+          },
+          "is_default": {
+            "type": "boolean",
+            "description": "是否为默认模型"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新时间"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "provider",
+          "api_base_url",
+          "enabled",
+          "max_tokens",
+          "temperature",
+          "is_default",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "CreateModelRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "模型名称，如 gpt-4o、claude-3-opus-20240229"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "anthropic",
+              "alibaba",
+              "deepseek",
+              "zhipuai",
+              "minimax",
+              "moonshotai",
+              "google",
+              "xai",
+              "siliconflow",
+              "azure",
+              "custom"
+            ],
+            "description": "模型提供商"
+          },
+          "api_key": {
+            "type": "string",
+            "description": "API 密钥"
+          },
+          "api_base_url": {
+            "type": "string",
+            "description": "API 基础地址，默认根据 provider 自动设置",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "模型描述，默认空字符串",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否启用，默认 true"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "default": 4096,
+            "description": "最大输出 tokens 数，默认 4096"
+          },
+          "temperature": {
+            "type": "number",
+            "default": 0.7,
+            "description": "生成温度，范围 0-2，默认 0.7"
+          },
+          "is_default": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否设为默认模型，默认 false"
+          }
+        },
+        "required": [
+          "name",
+          "provider",
+          "api_key"
+        ]
+      },
+      "UpdateModelRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "模型名称"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "anthropic",
+              "alibaba",
+              "deepseek",
+              "zhipuai",
+              "minimax",
+              "moonshotai",
+              "google",
+              "xai",
+              "siliconflow",
+              "azure",
+              "custom"
+            ],
+            "description": "模型提供商"
+          },
+          "api_key": {
+            "type": "string",
+            "description": "API 密钥"
+          },
+          "api_base_url": {
+            "type": "string",
+            "description": "API 基础地址"
+          },
+          "description": {
+            "type": "string",
+            "description": "模型描述"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "最大输出 tokens 数"
+          },
+          "temperature": {
+            "type": "number",
+            "description": "生成温度，范围 0-2"
+          },
+          "is_default": {
+            "type": "boolean",
+            "description": "是否设为默认模型"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "稳定错误码"
+              },
+              "message": {
+                "type": "string",
+                "description": "人类可读错误信息"
+              },
+              "details": {
+                "type": "object",
+                "description": "可选，结构化错误细节",
+                "properties": {}
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "INVALID_AGENT_TRANSITION",
+          "AGENT_NOT_FOUND",
+          "SESSION_NOT_FOUND",
+          "SESSION_CREATE_FAILED",
+          "SESSION_DELETE_FAILED",
+          "SESSION_LIST_FAILED",
+          "SESSION_AGENT_MISMATCH",
+          "AGENT_NOT_RUNNING",
+          "SANDBOX_STATE_NOT_FOUND",
+          "AGENT_CREATE_FAILED",
+          "AGENT_PAUSE_FAILED",
+          "AGENT_RESUME_FAILED",
+          "AGENT_DELETE_FAILED",
+          "RUNTIME_BACKUP_NOT_FOUND",
+          "RUNTIME_BACKUP_RESTORE_FAILED",
+          "RUNTIME_START_FAILED",
+          "MODEL_NOT_FOUND",
+          "MODEL_DUPLICATE",
+          "MODEL_CREATE_FAILED",
+          "MODEL_UPDATE_FAILED",
+          "MODEL_DELETE_FAILED"
+        ],
+        "description": "错误码"
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "请求参数错误",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "SessionAgentMismatch": {
+                "summary": "Session 与 Agent 不匹配",
+                "value": {
+                  "error": {
+                    "code": "SESSION_AGENT_MISMATCH",
+                    "message": "Session 与 Agent 不匹配",
+                    "details": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "未授权",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "InvalidToken": {
+                "summary": "无效或缺失认证令牌",
+                "value": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "Invalid or missing authentication token",
+                    "details": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "资源不存在",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "AgentNotFound": {
+                "summary": "Agent 不存在",
+                "value": {
+                  "error": {
+                    "code": "AGENT_NOT_FOUND",
+                    "message": "Agent 不存在",
+                    "details": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "资源状态冲突",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "InvalidAgentTransition": {
+                "summary": "Agent 状态转换不合法",
+                "value": {
+                  "error": {
+                    "code": "INVALID_AGENT_TRANSITION",
+                    "message": "Agent 状态转换不合法",
+                    "details": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "服务器内部错误",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "examples": {
+              "AgentCreateFailed": {
+                "summary": "Agent 创建失败",
+                "value": {
+                  "error": {
+                    "code": "AGENT_CREATE_FAILED",
+                    "message": "Agent 创建失败",
+                    "details": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {}
+  },
+  "servers": [],
+  "security": []
+}
