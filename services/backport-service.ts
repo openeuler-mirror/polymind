@@ -2,6 +2,8 @@ import { httpClient } from '@/lib/http-client'
 import {
   BackportApplyRowRequest,
   BackportBrowseResponse,
+  BackportCommitMessagePreview,
+  BackportCommitMessagePreviewRequest,
   BackportConfig,
   BackportConfigUpdateResponse,
   BackportExecuteRequest,
@@ -22,6 +24,7 @@ type BackportAction =
   | 'load_git_log'
   | 'load_git_show'
   | 'load_patch_preview'
+  | 'preview_commit_message'
   | 'execute_selected'
   | 'apply_row'
   | 'check_manual_patch'
@@ -76,6 +79,30 @@ class BackportService {
       throw new Error('未返回 patch 预览内容')
     }
     return patch
+  }
+
+  public async previewCommitMessage(
+    request: BackportCommitMessagePreviewRequest,
+    onEvent?: (event: any) => void,
+  ): Promise<BackportCommitMessagePreview> {
+    const response = await this.runAction(
+      {
+        action: 'preview_commit_message',
+        payload: {
+          config: request.config,
+          base_report_path: request.baseReportPath,
+          working_report_path: request.workingReportPath,
+          row: request.row,
+          commit_message_template: request.commitMessageTemplate,
+        },
+      },
+      onEvent,
+    )
+    const preview = response.parsedResult?.commit_message
+    if (!preview) {
+      throw new Error('未返回 commit message 预览内容')
+    }
+    return preview
   }
 
   public async generateReport(

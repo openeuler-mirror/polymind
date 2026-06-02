@@ -16,6 +16,9 @@ export interface BackportConfig {
   patch_dataset_dir: string
   signer_name: string
   signer_email: string
+  commit_message_template: string
+  linux_repo_path: string
+  commit_sort: string
   current_excel_path: string
   current_report_path: string
   current_filtered_report_path: string
@@ -114,6 +117,13 @@ export interface BackportOperationDiagnostics {
   last_tool?: BackportToolSnapshot | null
 }
 
+export interface BackportCommitMessagePreview {
+  message: string
+  context: Record<string, unknown>
+  source_detection: Record<string, unknown>
+  warnings: string[]
+}
+
 export interface BackportManualPatchResult {
   returncode: string
   stdout: string
@@ -138,6 +148,7 @@ export interface BackportOperationResultData {
     show_content?: string
   }
   patch?: BackportPatchPreviewResponse
+  commit_message?: BackportCommitMessagePreview
   manual_patch?: BackportManualPatchResult
   diagnostics?: BackportOperationDiagnostics
 }
@@ -185,6 +196,14 @@ export interface BackportApplyRowRequest {
   baseReportPath: string
   workingReportPath?: string
   row: BackportCommitItem
+}
+
+export interface BackportCommitMessagePreviewRequest {
+  config: BackportConfig
+  baseReportPath: string
+  workingReportPath?: string
+  row: BackportCommitItem
+  commitMessageTemplate?: string
 }
 
 export interface BackportManualPatchRequest {

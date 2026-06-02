@@ -9,6 +9,14 @@ import type {
   BackportStage,
 } from '@/lib/backport-types'
 
+export const DEFAULT_COMMIT_MESSAGE_TEMPLATE = `{{subject}}
+
+commit {{commit_id}} {{source}}
+
+{{body}}
+
+{{trailers}}`
+
 export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   project_url: '',
   project_dir: '',
@@ -18,6 +26,9 @@ export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   patch_dataset_dir: '',
   signer_name: '',
   signer_email: '',
+  commit_message_template: DEFAULT_COMMIT_MESSAGE_TEMPLATE,
+  linux_repo_path: '~/Image/linux',
+  commit_sort: 'describe',
   current_excel_path: '',
   current_report_path: '',
   current_filtered_report_path: '',
@@ -34,10 +45,14 @@ export type BackportConflictAnalysisPatch = {
 }
 
 export function normalizeBackportConfig(config: Partial<BackportConfig>): BackportConfig {
-  return {
+  const normalized = {
     ...DEFAULT_BACKPORT_CONFIG,
     ...config,
   }
+  if (!normalized.commit_message_template.trim()) {
+    normalized.commit_message_template = DEFAULT_COMMIT_MESSAGE_TEMPLATE
+  }
+  return normalized
 }
 
 export function deepClone<T>(value: T): T {
@@ -457,6 +472,7 @@ function buildInvestigationContext({
     input_commit: stringifyValue(row.data.input_commit).trim(),
     title: resolveCommitTitle(row.data),
     committed_datetime: stringifyValue(row.data.committed_datetime).trim(),
+    git_describe: stringifyValue(row.data.git_describe).trim(),
     source_branch: config.source_branch,
     target_branch: config.target_release,
     source_repo_path: config.project_dir,

@@ -220,11 +220,11 @@ export function CommitTable({
                 </div>
                 <div className="min-w-0">
                   <div className="h-5 text-foreground">Commit</div>
-                  <Input
+                  <input
                     value={searchQuery}
                     onChange={(e) => updateFilter(onSearchQueryChange, e.target.value)}
-                    placeholder="commit / title"
-                    className="mt-1 h-7 w-full bg-white px-2 text-[11px] font-normal"
+                    placeholder="筛选commit"
+                    className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] font-normal outline-none placeholder:text-muted-foreground/70 focus:border-primary"
                   />
                 </div>
                 <div className="min-w-0">

@@ -1,6 +1,6 @@
 'use client'
 
-import { FileCode2, RefreshCw } from 'lucide-react'
+import { FileCode2, GitBranch, RefreshCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -74,7 +74,13 @@ export function SupportPanel({
               </Button>
             </div>
             {supportTab === 'git' ? (
-              <Button variant="ghost" size="sm" disabled={gitLogLoading || running} onClick={onLoadGitLog}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 border-slate-200 px-2 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                disabled={gitLogLoading || running}
+                onClick={onLoadGitLog}
+              >
                 <RefreshCw className={cn('h-4 w-4', gitLogLoading && 'animate-spin')} />
               </Button>
             ) : (
@@ -138,8 +144,14 @@ export function SupportPanel({
             ) : null}
 
             <div className="grid gap-3 lg:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]">
-              <div className="overflow-hidden rounded-md border">
-                <div className="border-b bg-muted/30 px-3 py-2 text-[11px] font-medium text-muted-foreground">提交列表</div>
+              <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+                <div className="flex items-center gap-2 border-b bg-slate-50/90 px-3 py-2 text-[11px] font-semibold text-slate-700">
+                  <FileCode2 className="h-3.5 w-3.5 text-blue-500" />
+                  提交列表
+                  <span className="ml-auto rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-600">
+                    {gitLogEntries.length}
+                  </span>
+                </div>
                 <div className="max-h-[320px] overflow-auto">
                   {gitLogEntries.length === 0 ? (
                     <div className="px-3 py-10 text-center text-xs text-muted-foreground">
@@ -150,18 +162,30 @@ export function SupportPanel({
                       <button
                         key={entry.hash}
                         className={cn(
-                          'w-full border-b px-3 py-2 text-left transition-colors hover:bg-accent/40',
-                          selectedGitRevision === entry.hash ? 'bg-accent/50' : 'bg-background',
+                          'w-full border-b px-3 py-2.5 text-left transition-colors hover:bg-slate-50/80',
+                          selectedGitRevision === entry.hash
+                            ? 'bg-blue-50/50 shadow-[inset_3px_0_0_rgb(59,130,246)]'
+                            : 'bg-white',
                         )}
                         onClick={() => onLoadGitShow(entry.hash)}
                       >
                         <div className="flex items-center gap-2 text-[11px]">
-                          <span className="font-mono font-medium text-foreground">{entry.shortHash}</span>
-                          <span className="ml-auto text-muted-foreground">{formatGitDate(entry.committedAt)}</span>
+                          <span
+                            className={cn(
+                              'font-mono font-semibold',
+                              selectedGitRevision === entry.hash ? 'text-blue-700' : 'text-slate-900',
+                            )}
+                          >
+                            {entry.shortHash}
+                          </span>
+                          <span className="ml-auto font-mono text-slate-500">{formatGitDate(entry.committedAt)}</span>
                         </div>
-                        <div className="mt-1 line-clamp-2 text-xs text-foreground">{entry.subject}</div>
+                        <div className="mt-1 line-clamp-2 text-xs font-medium text-slate-900">{entry.subject}</div>
                         {entry.refs ? (
-                          <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{entry.refs}</div>
+                          <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md bg-slate-50 px-1.5 py-0.5 font-mono text-[11px] text-emerald-700">
+                            <GitBranch className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{entry.refs}</span>
+                          </div>
                         ) : null}
                       </button>
                     ))
@@ -169,20 +193,24 @@ export function SupportPanel({
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-md border">
-                <div className="border-b bg-muted/30 px-3 py-2 text-[11px] font-medium text-muted-foreground">
+              <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+                <div className="flex items-center gap-2 border-b bg-slate-50/90 px-3 py-2 text-[11px] font-semibold text-slate-700">
+                  <FileCode2 className="h-3.5 w-3.5 text-blue-500" />
                   {selectedGitEntry ? `提交详情 ${selectedGitEntry.shortHash}` : '提交详情'}
                 </div>
                 <div className="max-h-[320px] overflow-auto px-3 py-3">
                   {selectedGitEntry ? (
-                    <div className="mb-3 space-y-1 rounded-md border bg-background px-3 py-2">
+                    <div className="mb-3 space-y-2 rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5">
                       <div className="flex items-center gap-2 text-[11px]">
-                        <span className="font-mono font-medium text-foreground">{selectedGitEntry.hash}</span>
-                        <span className="ml-auto text-muted-foreground">{formatGitDate(selectedGitEntry.committedAt)}</span>
+                        <span className="break-all font-mono font-semibold text-slate-900">{selectedGitEntry.hash}</span>
+                        <span className="ml-auto shrink-0 font-mono text-slate-500">{formatGitDate(selectedGitEntry.committedAt)}</span>
                       </div>
-                      <p className="text-xs font-medium text-foreground">{selectedGitEntry.subject}</p>
+                      <p className="text-xs font-medium text-slate-900">{selectedGitEntry.subject}</p>
                       {selectedGitEntry.refs ? (
-                        <p className="font-mono text-[11px] text-muted-foreground">{selectedGitEntry.refs}</p>
+                        <p className="inline-flex max-w-full items-center gap-1 rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] text-emerald-700">
+                          <GitBranch className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{selectedGitEntry.refs}</span>
+                        </p>
                       ) : null}
                     </div>
                   ) : null}
@@ -190,7 +218,7 @@ export function SupportPanel({
                   {gitShowLoading ? (
                     <div className="py-10 text-center text-xs text-muted-foreground">正在读取提交详情...</div>
                   ) : gitShowContent ? (
-                    <pre className="whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-muted-foreground">
+                    <pre className="whitespace-pre-wrap break-all rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] leading-5 text-slate-700">
                       {gitShowContent}
                     </pre>
                   ) : (
