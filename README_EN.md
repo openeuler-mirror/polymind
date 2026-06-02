@@ -185,24 +185,6 @@ PolyMind uses `~/.polymind/.env` as the global configuration file, which is auto
 
 ## Deployment
 
-### Development Environment
-
-Suitable for local development and debugging with hot reload:
-
-```bash
-# Clone repository
-git clone https://atomgit.com/openeuler/polymind.git
-cd polymind
-
-# Install dependencies
-pnpm install
-
-# Start development server
-pnpm run dev
-```
-
-The development server listens on `0.0.0.0:3000` by default.
-
 ### Testing Environment
 
 Suitable for integration testing and feature validation:

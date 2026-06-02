@@ -177,24 +177,6 @@ PolyMind 使用 `~/.polymind/.env` 作为全局配置文件，首次运行时自
 
 ## 部署流程
 
-### 开发环境
-
-适用于本地开发和调试，支持热重载：
-
-```bash
-# 克隆仓库
-git clone https://atomgit.com/openeuler/polymind.git
-cd polymind
-
-# 安装依赖
-pnpm install
-
-# 启动开发服务器
-pnpm run dev
-```
-
-开发服务器默认监听 `0.0.0.0:3000`，可在局域网内访问。
-
 ### 测试环境
 
 适用于集成测试和功能验证：
