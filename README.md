@@ -50,7 +50,7 @@
 
 | 依赖 | 说明 | 安装方式 |
 |------|------|----------|
-| Node.js | v18+ | [nodejs.org](https://nodejs.org/) |
+| Node.js | v22+ | [nodejs.org](https://nodejs.org/) |
 | pnpm | 包管理器 | `npm install -g pnpm` |
 | Python 3 | 后端运行时 | [python.org](https://www.python.org/downloads/) |
 | pip | Python 包管理器 | 随 Python 一同安装 |

@@ -58,7 +58,7 @@ The project provides an `install.sh` script that automatically completes environ
 
 | Dependency | Description | Installation |
 |------------|-------------|--------------|
-| Node.js | v18+ | [nodejs.org](https://nodejs.org/) |
+| Node.js | v22+ | [nodejs.org](https://nodejs.org/) |
 | pnpm | Package manager | `npm install -g pnpm` |
 | Python 3 | Backend runtime | [python.org](https://www.python.org/downloads/) |
 | pip | Python package manager | Included with Python |
