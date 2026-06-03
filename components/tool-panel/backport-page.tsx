@@ -19,6 +19,7 @@ import {
 import { SupportPanel } from '@/components/tool-panel/backport/support-panel'
 import {
   DEFAULT_BACKPORT_CONFIG,
+  DEFAULT_COMMIT_MESSAGE_TEMPLATE,
   type BackportConflictAnalysisPatch,
   type RowStatusKind,
   buildCompactBackportConflictAnalysisMessage,
@@ -51,6 +52,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { handleAgentStreamEvent } from '@/lib/agent-stream-events'
 import { parseUnifiedDiff } from '@/lib/patch-utils'
@@ -121,6 +123,10 @@ export function BackportPage() {
   const [manualPatchText, setManualPatchText] = useState('')
   const [manualPatchLoading, setManualPatchLoading] = useState<'check' | 'apply' | null>(null)
   const [manualPatchResult, setManualPatchResult] = useState<BackportOperationResultData | null>(null)
+  const [commitMessagePreviewLoadingRowId, setCommitMessagePreviewLoadingRowId] = useState<string | null>(null)
+  const [lastSavedCommitMessageTemplate, setLastSavedCommitMessageTemplate] = useState(
+    DEFAULT_BACKPORT_CONFIG.commit_message_template,
+  )
 
   const titleCandidates = useMemo(() => {
     const uniqueTitles = new Set<string>()
@@ -452,6 +458,7 @@ export function BackportPage() {
       setExcelPath(sanitizedConfig.current_excel_path || '')
       setBaseReportPath(sanitizedConfig.current_report_path || '')
       setFilteredReportPath(sanitizedConfig.current_filtered_report_path || '')
+      setLastSavedCommitMessageTemplate(sanitizedConfig.commit_message_template)
       if (sanitizedConfig.current_report_path.trim()) {
         addTimeline('已恢复当前 report 路径', 'info', sanitizedConfig.current_report_path.trim())
       }
@@ -492,8 +499,25 @@ export function BackportPage() {
     setSavingConfig(true)
     try {
       const persistedConfig = normalizeBackportConfig(config)
+      const templateChanged = persistedConfig.commit_message_template !== lastSavedCommitMessageTemplate
       const response = await backportService.updateConfig(persistedConfig)
       setConfig(persistedConfig)
+      setLastSavedCommitMessageTemplate(persistedConfig.commit_message_template)
+      if (templateChanged) {
+        setWorkingCommits((prev) =>
+          prev.map((row) =>
+            stringifyValue(row.data.commit_message_preview).trim()
+              ? {
+                  ...row,
+                  data: {
+                    ...row.data,
+                    commit_message_preview_stale: true,
+                  },
+                }
+              : row,
+          ),
+        )
+      }
       const savedConfigPath = response.config_path || ''
       if (savedConfigPath) {
         setConfigPath(savedConfigPath)
@@ -516,6 +540,63 @@ export function BackportPage() {
       })
     } finally {
       setSavingConfig(false)
+    }
+  }
+
+  const handleRefreshCommitMessagePreview = async (row: BackportCommitRow) => {
+    if (!baseReportPath.trim()) {
+      toast({
+        title: '提示',
+        description: '请先生成 report',
+        duration: 1200,
+      })
+      return
+    }
+
+    setCommitMessagePreviewLoadingRowId(row.rowId)
+    try {
+      const preview = await backportService.previewCommitMessage(
+        {
+          config,
+          baseReportPath,
+          workingReportPath: filteredReportPath || baseReportPath,
+          row: deepClone(row.data),
+          commitMessageTemplate: config.commit_message_template,
+        },
+        handleAgentEvent,
+      )
+      setWorkingCommits((prev) =>
+        prev.map((item) =>
+          item.rowId === row.rowId
+            ? {
+                ...item,
+                data: {
+                  ...item.data,
+                  commit_message_preview: preview.message,
+                  commit_message_context: preview.context,
+                  source_detection: preview.source_detection,
+                  commit_message_warnings: preview.warnings,
+                  commit_message_template_snapshot: config.commit_message_template,
+                  commit_message_preview_stale: false,
+                },
+              }
+            : item,
+        ),
+      )
+      toast({
+        title: '预览已刷新',
+        description: resolveCommitTitle(row.data) || stringifyValue(row.data.commit || row.data.input_commit) || 'Commit Message',
+        duration: 1200,
+      })
+    } catch (cause) {
+      toast({
+        title: '预览刷新失败',
+        description: cause instanceof Error ? cause.message : 'Commit Message 预览刷新失败',
+        variant: 'destructive',
+        duration: 1800,
+      })
+    } finally {
+      setCommitMessagePreviewLoadingRowId(null)
     }
   }
 
@@ -1300,6 +1381,14 @@ export function BackportPage() {
                       className="font-mono text-xs"
                     />
                   </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <p className="text-xs text-muted-foreground">Linux 验证仓库 (linux_repo_path)</p>
+                    <Input
+                      value={config.linux_repo_path}
+                      onChange={(e) => setConfig((prev) => ({ ...prev, linux_repo_path: e.target.value }))}
+                      className="font-mono text-xs"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1341,6 +1430,43 @@ export function BackportPage() {
                     <div className="mt-1 break-all font-mono text-[12px] text-slate-900">{configPath || '--'}</div>
                   </div>
                 </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm xl:col-span-2">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Message Template</p>
+                    <h4 className="mt-1 text-sm font-semibold text-foreground">目标仓库提交信息模板</h4>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      可用变量：{'{{subject}}'}、{'{{commit_id}}'}、{'{{source}}'}、{'{{body}}'}、{'{{trailers}}'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setConfig((prev) => ({ ...prev, commit_message_template: DEFAULT_COMMIT_MESSAGE_TEMPLATE }))}
+                      disabled={running || loadingConfig}
+                    >
+                      <RotateCcw className="mr-1 h-4 w-4" />
+                      恢复默认模板
+                    </Button>
+                  </div>
+                </div>
+                <Textarea
+                  value={config.commit_message_template}
+                  onChange={(event) => setConfig((prev) => ({ ...prev, commit_message_template: event.target.value }))}
+                  onBlur={() =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      commit_message_template: prev.commit_message_template.trim()
+                        ? prev.commit_message_template
+                        : DEFAULT_COMMIT_MESSAGE_TEMPLATE,
+                    }))
+                  }
+                  className="min-h-[220px] resize-y font-mono text-xs leading-5"
+                  spellCheck={false}
+                />
               </div>
             </CardContent>
           ) : null}
@@ -1444,6 +1570,8 @@ export function BackportPage() {
         onCopyText={(text, label) => void handleCopyText(text, label)}
         onDownloadPatch={handleDownloadPatch}
         onLoadPatchPreview={loadPatchPreview}
+        commitMessagePreviewLoading={commitMessagePreviewLoadingRowId === inspectedRow?.rowId}
+        onRefreshCommitMessagePreview={(row) => void handleRefreshCommitMessagePreview(row)}
       />
 
       <Dialog open={pathBrowserOpen} onOpenChange={setPathBrowserOpen}>
