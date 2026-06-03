@@ -1,8 +1,16 @@
 {
   "name": "polymind",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Self-hosted AI agent interaction platform with native agentd service integration.",
-  "keywords": ["ai", "agent", "ai-chat", "agent-platform", "self-hosted", "agentd", "open-source"],
+  "keywords": [
+    "ai",
+    "agent",
+    "ai-chat",
+    "agent-platform",
+    "self-hosted",
+    "agentd",
+    "open-source"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -17,10 +25,9 @@
     "polymind": "./bin/start.js"
   },
   "files": [
-    ".next/**/*",
-    "public/**/*",
+    ".next/standalone/**/*",
     "bin/**/*",
-    "scripts/**/*",
+    "scripts/postinstall.js",
     "next.config.js",
     "next.config.mjs",
     "package.json"

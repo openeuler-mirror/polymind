@@ -37,15 +37,23 @@ function copyDirectory(src, dest) {
 console.log('📁 构建后复制静态资源...');
 
 const standaloneDir = path.join(rootDir, '.next', 'standalone');
+const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
+const appDir = path.join(standaloneDir, pkg.name);
+
+let targetDir = standaloneDir;
+if (fs.existsSync(appDir) && fs.lstatSync(appDir).isDirectory()) {
+  console.log(`🔍 检测到应用子目录: ${appDir}`);
+  targetDir = appDir;
+}
 
 copyDirectory(
   path.join(rootDir, 'public'),
-  path.join(standaloneDir, 'public')
+  path.join(targetDir, 'public')
 );
 
 copyDirectory(
   path.join(rootDir, '.next', 'static'),
-  path.join(standaloneDir, '.next', 'static')
+  path.join(targetDir, '.next', 'static')
 );
 
 console.log('✅ 静态资源复制完成');
