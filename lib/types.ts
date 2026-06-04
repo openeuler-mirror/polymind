@@ -324,6 +324,13 @@ export interface Agent {
 }
 
 /**
+ * MCP服务器配置接口
+ */
+export interface MCPServerConfig {
+  [key: string]: any
+}
+
+/**
  * 创建Agent请求接口
  */
 export interface CreateAgentRequest {
@@ -334,6 +341,9 @@ export interface CreateAgentRequest {
   idleTimeoutSeconds: number
   sandboxId?: string
   hasScheduledTasks?: boolean
+  modelId?: string
+  mcpServerName?: string
+  mcpServerConfig?: MCPServerConfig
 }
 
 /**

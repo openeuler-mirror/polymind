@@ -10,7 +10,7 @@ import { generateUUID } from '@/lib/utils'
 
 class AgentService {
   public async createAgent(request: CreateAgentRequest): Promise<Agent> {
-    const backendRequest = {
+    const backendRequest: Record<string, any> = {
       name: request.name,
       description: request.description || '',
       adapter_type: request.adapterType,
@@ -18,6 +18,16 @@ class AgentService {
       idle_timeout_seconds: request.idleTimeoutSeconds,
       sandbox_id: request.sandboxId,
       has_scheduled_tasks: request.hasScheduledTasks
+    }
+
+    if (request.modelId) {
+      backendRequest.model_id = request.modelId
+    }
+    if (request.mcpServerName) {
+      backendRequest.mcp_server_name = request.mcpServerName
+    }
+    if (request.mcpServerConfig) {
+      backendRequest.mcp_server_config = request.mcpServerConfig
     }
 
     console.log('创建智能体请求:', backendRequest)
