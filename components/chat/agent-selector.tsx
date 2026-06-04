@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Bot, Check, ChevronDown, Plus } from 'lucide-react'
+import { Bot, Check, ChevronDown, Plus, Loader2 } from 'lucide-react'
 import { useChatStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,6 +29,7 @@ export function AgentSelector() {
     addRightPanelTab,
     setActiveRightPanelTab,
     triggerAgentCreate,
+    isAgentsLoading,
   } = useChatStore()
 
   const currentAgent = agents.find(a => a.id === currentAgentId)
@@ -78,7 +79,12 @@ export function AgentSelector() {
         <Command value={currentAgentId || undefined}>
           <CommandList>
             <CommandGroup heading="智能体">
-              {availableAgents.length === 0 ? (
+              {isAgentsLoading ? (
+                <div className="px-2 py-4 flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />
+                  <span className="text-sm text-muted-foreground">加载中...</span>
+                </div>
+              ) : availableAgents.length === 0 ? (
                 <div className="px-2 py-4 text-center text-sm text-muted-foreground">
                   暂无智能体
                 </div>

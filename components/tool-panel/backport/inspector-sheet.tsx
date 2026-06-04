@@ -66,6 +66,8 @@ interface InspectorSheetProps {
   onUpdateMergedInTarget: (rowId: string, value: boolean | null) => void
   onCopyText: (text: string, label: string) => void
   onDownloadPatch: (preview: ReadyPatchLoadState) => void
+  commitMessagePreviewLoading: boolean
+  onRefreshCommitMessagePreview: (row: BackportCommitRow) => void
   onLoadPatchPreview: (
     row: BackportCommitRow,
     resource: BackportPatchResource,
@@ -113,6 +115,8 @@ export function InspectorSheet({
   onUpdateMergedInTarget,
   onCopyText,
   onDownloadPatch,
+  commitMessagePreviewLoading,
+  onRefreshCommitMessagePreview,
   onLoadPatchPreview,
 }: InspectorSheetProps) {
   const patchResources = row ? buildDisplayPatchResources(row.data, row.rowId) : []
@@ -128,7 +132,7 @@ export function InspectorSheet({
                   {stringifyValue(row.data.commit || row.data.input_commit).slice(0, 12)} · {resolveCommitTitle(row.data) || '未命名提交'}
                 </SheetTitle>
                 <SheetDescription className="mt-1 text-left">
-                  “详情预览”是以当前这一行 commit 为单位展示完整信息，不是每个单元格各开一个新详情。
+                  “详情预览”展示这一行 commit 的完整信息。
                 </SheetDescription>
               </div>
             </SheetHeader>
@@ -176,10 +180,70 @@ export function InspectorSheet({
                       <div className="grid gap-3 md:grid-cols-2">
                         <DetailField label="完整 Commit" value={stringifyValue(row.data.commit || row.data.input_commit)} mono />
                         <DetailField label="提交时间" value={formatGitDate(stringifyValue(row.data.committed_datetime))} />
+                        <DetailField label="排序标签" value={stringifyValue(row.data.git_describe) || '--'} mono />
                         <DetailField label="标题" value={resolveCommitTitle(row.data)} />
                         <DetailField label="目标分支" value={stringifyValue(row.data.target_branch || config.target_release || '--')} />
                       </div>
                     </div>
+
+                    {(() => {
+                      const sourceDetection =
+                        row.data.source_detection && typeof row.data.source_detection === 'object'
+                          ? (row.data.source_detection as Record<string, unknown>)
+                          : {}
+                      const preview = stringifyValue(row.data.commit_message_preview).trim()
+                      const templateSnapshot = stringifyValue(row.data.commit_message_template_snapshot)
+                      const previewStale =
+                        Boolean(row.data.commit_message_preview_stale) ||
+                        Boolean(preview && templateSnapshot && templateSnapshot !== config.commit_message_template)
+                      const warnings = Array.isArray(row.data.commit_message_warnings)
+                        ? row.data.commit_message_warnings.map((item) => stringifyValue(item)).filter(Boolean)
+                        : []
+                      if (!preview && Object.keys(sourceDetection).length === 0 && warnings.length === 0) return null
+                      return (
+                        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+                          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <FileCode2 className="h-4 w-4 text-violet-600" />
+                              <h4 className="text-sm font-semibold text-slate-950">Commit Message 预览</h4>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className={cn(
+                                'h-8 px-2 text-[11px]',
+                                previewStale && 'border-amber-200 bg-amber-50/70 text-amber-800 hover:bg-amber-100',
+                              )}
+                              disabled={commitMessagePreviewLoading}
+                              onClick={() => onRefreshCommitMessagePreview(row)}
+                            >
+                              {commitMessagePreviewLoading ? <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                              刷新预览
+                            </Button>
+                          </div>
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <DetailField label="来源" value={stringifyValue(sourceDetection.source) || '--'} />
+                            <DetailField label="Commit ID" value={stringifyValue(sourceDetection.commit_id) || '--'} mono />
+                            <DetailField label="识别依据" value={stringifyValue(sourceDetection.method) || '--'} />
+                          </div>
+                          {warnings.length > 0 ? (
+                            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-900">
+                              {warnings.join('；')}
+                            </div>
+                          ) : null}
+                          {previewStale ? (
+                            <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-xs text-sky-900">
+                              模板已变更，此预览可能基于旧模板生成。可刷新当前行预览。
+                            </div>
+                          ) : null}
+                          {preview ? (
+                            <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-white p-4 font-mono text-[11px] leading-5 text-slate-800 shadow-inner">
+                              {preview}
+                            </pre>
+                          ) : null}
+                        </div>
+                      )
+                    })()}
 
                     <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
                       <div className="mb-3 flex items-center gap-2">

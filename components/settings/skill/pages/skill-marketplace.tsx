@@ -17,6 +17,7 @@ import { SkillPaginationBar } from '../pagination-bar'
 
 export function SkillMarketplace() {
   const currentAgentId = useChatStore((state) => state.currentAgentId)
+  const agents = useChatStore((state) => state.agents)
   const [skills, setSkills] = useState<SkillResponse[]>([])
   const [statusItems, setStatusItems] = useState<SkillRepositoryResponse[]>([])
   const [installingSkillKey, setInstallingSkillKey] = useState<string | null>(null)
@@ -28,6 +29,10 @@ export function SkillMarketplace() {
   const [pageSize, setPageSize] = useState<number>(12)
   const [installedSkillIds, setInstalledSkillIds] = useState<Set<string>>(new Set())
   const { toast } = useToast()
+  const activeAgentId = useMemo(
+    () => (currentAgentId && agents.some((agent) => agent.id === currentAgentId) ? currentAgentId : null),
+    [agents, currentAgentId],
+  )
 
   const repoById = useMemo(
     () => new Map(statusItems.map((repo) => [repo.repo_id, repo])),
@@ -87,12 +92,12 @@ export function SkillMarketplace() {
   }, [])
 
   useEffect(() => {
-    if (!currentAgentId) {
+    if (!activeAgentId) {
       setInstalledSkillIds(new Set())
       return
     }
-    void refreshInstalledSkillIds(currentAgentId)
-  }, [currentAgentId])
+    void refreshInstalledSkillIds(activeAgentId)
+  }, [activeAgentId])
 
   const refreshMarketplace = async () => {
     try {
@@ -132,7 +137,7 @@ export function SkillMarketplace() {
   const previewIsGit = previewRepo?.source_type === 'git'
 
   const handleInstallSkill = async (skill: SkillResponse) => {
-    if (!currentAgentId) {
+    if (!activeAgentId) {
       toast({
         title: '未选择 Agent',
         description: '请先在聊天区选择一个 Agent，再安装技能。',
@@ -162,7 +167,7 @@ export function SkillMarketplace() {
     const skillKey = skill.skill_id
     try {
       setInstallingSkillKey(skillKey)
-      await skillService.installSkill(currentAgentId, {
+      await skillService.installSkill(activeAgentId, {
         skill_id: skill.skill_id,
         skill_name: skill.skill_name,
       })
@@ -267,7 +272,7 @@ export function SkillMarketplace() {
                           className="h-auto p-0 text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground"
                           onClick={() => void handleInstallSkill(skill)}
                           disabled={
-                            !currentAgentId ||
+                            !activeAgentId ||
                             !skill.skill_id ||
                             installedSkillIds.has(skill.skill_id) ||
                             installingSkillKey === skill.skill_id

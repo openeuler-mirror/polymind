@@ -9,6 +9,14 @@ import type {
   BackportStage,
 } from '@/lib/backport-types'
 
+export const DEFAULT_COMMIT_MESSAGE_TEMPLATE = `{{subject}}
+
+commit {{commit_id}} {{source}}
+
+{{body}}
+
+{{trailers}}`
+
 export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   project_url: '',
   project_dir: '',
@@ -18,12 +26,16 @@ export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   patch_dataset_dir: '',
   signer_name: '',
   signer_email: '',
+  commit_message_template: DEFAULT_COMMIT_MESSAGE_TEMPLATE,
+  commit_message_source: 'auto',
+  linux_repo_path: '~/Image/linux',
+  commit_sort: 'describe',
   current_excel_path: '',
   current_report_path: '',
   current_filtered_report_path: '',
 }
 
-export type RowStatusKind = 'success' | 'failed' | 'conflict' | 'noop' | 'skipped'
+export type RowStatusKind = 'success' | 'failed' | 'conflict' | 'noop' | 'skipped' | 'unmatched'
 
 const RELEVANT_PATCH_HUNK_CHAR_LIMIT = 1600
 
@@ -34,10 +46,17 @@ export type BackportConflictAnalysisPatch = {
 }
 
 export function normalizeBackportConfig(config: Partial<BackportConfig>): BackportConfig {
-  return {
+  const normalized = {
     ...DEFAULT_BACKPORT_CONFIG,
     ...config,
   }
+  if (!normalized.commit_message_template.trim()) {
+    normalized.commit_message_template = DEFAULT_COMMIT_MESSAGE_TEMPLATE
+  }
+  if (!['auto', 'openEuler', 'upstream'].includes(normalized.commit_message_source)) {
+    normalized.commit_message_source = 'auto'
+  }
+  return normalized
 }
 
 export function deepClone<T>(value: T): T {
@@ -124,11 +143,25 @@ export function mergeCommitRows(baseRows: BackportCommitRow[], updatedCommits: B
     if (!update) return row
 
     updatesById.delete(identity)
+    const baseData = deepClone(row.data)
+    const updateData = deepClone(update)
+    const basePatches = (baseData.patches as BackportPatchMap | undefined) || {}
+    const updatePatches = (updateData.patches as BackportPatchMap | undefined) || {}
+    const mergedPatches = {
+      ...basePatches,
+      ...updatePatches,
+      backported:
+        basePatches.backported?.exists && updatePatches.backported?.exists === false
+          ? basePatches.backported
+          : updatePatches.backported || basePatches.backported,
+    }
+
     return {
       ...row,
       data: {
-        ...deepClone(row.data),
-        ...deepClone(update),
+        ...baseData,
+        ...updateData,
+        patches: mergedPatches,
       },
     }
   })
@@ -200,6 +233,11 @@ export function hasPatchResource(item: BackportCommitItem, kind: BackportPatchKi
   return descriptor?.exists ?? Boolean(fallbackPath)
 }
 
+function isCommitLookupFailure(item: BackportCommitItem): boolean {
+  const error = `${stringifyValue(item.error)} ${stringifyValue(item.conflict_check_error)}`
+  return error.includes('无法根据 commit title 找到提交') || error.includes('commit title 为空')
+}
+
 export function resolveBackportProgressText(item: BackportCommitItem): string {
   const appliedCommit = stringifyValue(item.applied_commit).trim()
   if (appliedCommit) return `已应用到目标仓: ${appliedCommit.slice(0, 12)}`
@@ -242,6 +280,13 @@ export function resolveStatusMeta(item: BackportCommitItem): {
   }
 
   if (status === 'failed' || status === 'error' || stringifyValue(item.error).trim()) {
+    if (isCommitLookupFailure(item)) {
+      return {
+        kind: 'unmatched',
+        label: '未匹配',
+        className: 'border-orange-200 bg-orange-50 text-orange-700',
+      }
+    }
     return {
       kind: 'failed',
       label: '失败',
@@ -297,6 +342,13 @@ export function resolveConflictMeta(item: BackportCommitItem): {
   }
 
   if (error) {
+    if (isCommitLookupFailure(item)) {
+      return {
+        label: '未匹配',
+        className: 'border-orange-200 bg-orange-50 text-orange-700',
+        detail: error,
+      }
+    }
     return {
       label: '检查失败',
       className: 'border-red-200 bg-red-50 text-red-700',
@@ -443,6 +495,7 @@ function buildInvestigationContext({
     input_commit: stringifyValue(row.data.input_commit).trim(),
     title: resolveCommitTitle(row.data),
     committed_datetime: stringifyValue(row.data.committed_datetime).trim(),
+    git_describe: stringifyValue(row.data.git_describe).trim(),
     source_branch: config.source_branch,
     target_branch: config.target_release,
     source_repo_path: config.project_dir,

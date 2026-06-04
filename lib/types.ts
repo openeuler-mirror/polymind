@@ -33,6 +33,7 @@ export interface Message {
   content: string
   timestamp: Date
   isStreaming?: boolean
+  skipReconnect?: boolean
   status?: MessageStatus
   toolCalls?: ToolCall[]
   attachments?: Attachment[]
@@ -87,6 +88,7 @@ export interface Conversation {
   agentName?: string  // 创建该会话的 agent 名称
   sessionId?: string  // 该会话对应的后端 session ID
   isStreaming?: boolean  // 该会话是否正在生成消息
+  skipReconnect?: boolean  // 当前会话的流由专题页面主动消费，不由 ChatArea 自动重连
   hasMore?: boolean  // 是否有更早的历史消息可加载
   lastMessageStatus?: MessageStatus  // 最后一条助手消息的状态
 }

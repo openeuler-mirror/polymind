@@ -19,6 +19,7 @@ import {
 import { SupportPanel } from '@/components/tool-panel/backport/support-panel'
 import {
   DEFAULT_BACKPORT_CONFIG,
+  DEFAULT_COMMIT_MESSAGE_TEMPLATE,
   type BackportConflictAnalysisPatch,
   type RowStatusKind,
   buildCompactBackportConflictAnalysisMessage,
@@ -51,6 +52,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { handleAgentStreamEvent } from '@/lib/agent-stream-events'
 import { parseUnifiedDiff } from '@/lib/patch-utils'
@@ -121,6 +124,10 @@ export function BackportPage() {
   const [manualPatchText, setManualPatchText] = useState('')
   const [manualPatchLoading, setManualPatchLoading] = useState<'check' | 'apply' | null>(null)
   const [manualPatchResult, setManualPatchResult] = useState<BackportOperationResultData | null>(null)
+  const [commitMessagePreviewLoadingRowId, setCommitMessagePreviewLoadingRowId] = useState<string | null>(null)
+  const [lastSavedCommitMessageTemplate, setLastSavedCommitMessageTemplate] = useState(
+    DEFAULT_BACKPORT_CONFIG.commit_message_template,
+  )
 
   const titleCandidates = useMemo(() => {
     const uniqueTitles = new Set<string>()
@@ -315,7 +322,11 @@ export function BackportPage() {
     } else {
       setError('')
       if (result.summary) {
-        addTimeline(result.summary, 'success')
+        const generatedReportPath =
+          result.operation === 'generate_report'
+            ? result.artifacts?.report_path || result.report?.report_path || ''
+            : ''
+        addTimeline(result.summary, 'success', generatedReportPath || undefined)
       }
     }
 
@@ -448,6 +459,7 @@ export function BackportPage() {
       setExcelPath(sanitizedConfig.current_excel_path || '')
       setBaseReportPath(sanitizedConfig.current_report_path || '')
       setFilteredReportPath(sanitizedConfig.current_filtered_report_path || '')
+      setLastSavedCommitMessageTemplate(sanitizedConfig.commit_message_template)
       if (sanitizedConfig.current_report_path.trim()) {
         addTimeline('已恢复当前 report 路径', 'info', sanitizedConfig.current_report_path.trim())
       }
@@ -488,9 +500,30 @@ export function BackportPage() {
     setSavingConfig(true)
     try {
       const persistedConfig = normalizeBackportConfig(config)
-      await backportService.updateConfig(persistedConfig)
+      const templateChanged = persistedConfig.commit_message_template !== lastSavedCommitMessageTemplate
+      const response = await backportService.updateConfig(persistedConfig)
       setConfig(persistedConfig)
-      addTimeline('配置已保存', 'success')
+      setLastSavedCommitMessageTemplate(persistedConfig.commit_message_template)
+      if (templateChanged) {
+        setWorkingCommits((prev) =>
+          prev.map((row) =>
+            stringifyValue(row.data.commit_message_preview).trim()
+              ? {
+                  ...row,
+                  data: {
+                    ...row.data,
+                    commit_message_preview_stale: true,
+                  },
+                }
+              : row,
+          ),
+        )
+      }
+      const savedConfigPath = response.config_path || ''
+      if (savedConfigPath) {
+        setConfigPath(savedConfigPath)
+      }
+      addTimeline('配置已保存', 'success', savedConfigPath || undefined)
       if (!silent) {
         toast({
           title: '成功',
@@ -508,6 +541,63 @@ export function BackportPage() {
       })
     } finally {
       setSavingConfig(false)
+    }
+  }
+
+  const handleRefreshCommitMessagePreview = async (row: BackportCommitRow) => {
+    if (!baseReportPath.trim()) {
+      toast({
+        title: '提示',
+        description: '请先生成 report',
+        duration: 1200,
+      })
+      return
+    }
+
+    setCommitMessagePreviewLoadingRowId(row.rowId)
+    try {
+      const preview = await backportService.previewCommitMessage(
+        {
+          config,
+          baseReportPath,
+          workingReportPath: filteredReportPath || baseReportPath,
+          row: deepClone(row.data),
+          commitMessageTemplate: config.commit_message_template,
+        },
+        handleAgentEvent,
+      )
+      setWorkingCommits((prev) =>
+        prev.map((item) =>
+          item.rowId === row.rowId
+            ? {
+                ...item,
+                data: {
+                  ...item.data,
+                  commit_message_preview: preview.message,
+                  commit_message_context: preview.context,
+                  source_detection: preview.source_detection,
+                  commit_message_warnings: preview.warnings,
+                  commit_message_template_snapshot: config.commit_message_template,
+                  commit_message_preview_stale: false,
+                },
+              }
+            : item,
+        ),
+      )
+      toast({
+        title: '预览已刷新',
+        description: resolveCommitTitle(row.data) || stringifyValue(row.data.commit || row.data.input_commit) || 'Commit Message',
+        duration: 1200,
+      })
+    } catch (cause) {
+      toast({
+        title: '预览刷新失败',
+        description: cause instanceof Error ? cause.message : 'Commit Message 预览刷新失败',
+        variant: 'destructive',
+        duration: 1800,
+      })
+    } finally {
+      setCommitMessagePreviewLoadingRowId(null)
     }
   }
 
@@ -618,7 +708,9 @@ export function BackportPage() {
 
   const openPathBrowser = async () => {
     setPathBrowserOpen(true)
-    await loadBrowsePath(excelPath.trim() || undefined)
+    const currentExcelPath = excelPath.trim()
+    const initialBrowsePath = currentExcelPath ? currentExcelPath.replace(/\/[^/]*$/, '') || '/' : undefined
+    await loadBrowsePath(initialBrowsePath)
   }
 
   const resolveCommitsForSave = (): { commits: BackportCommitItem[]; source: 'selected' | 'filtered' | 'all' } => {
@@ -694,7 +786,12 @@ export function BackportPage() {
 
   const canApplyRow = (row: BackportCommitRow): boolean => {
     if (running) return false
-    if (isSkippedRow(row.data) || row.data.merged_in_target === true) return false
+    if (
+      isSkippedRow(row.data) ||
+      row.data.merged_in_target === true ||
+      Boolean(row.data.empty_patch) ||
+      Boolean(row.data.equivalent_exists)
+    ) return false
     if (stringifyValue(row.data.applied_commit).trim()) return false
     return resolveRowApplyValue(row).length > 0 && baseReportPath.trim().length > 0
   }
@@ -856,6 +953,13 @@ export function BackportPage() {
       const agentId = await patchflowAgentService.getOrCreatePatchflowAgent()
       const chatStore = useChatStore.getState()
       conversationId = await chatStore.createConversation(agentId, 'Patchflow-Agent')
+      useChatStore.setState((state) => ({
+        conversations: state.conversations.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, skipReconnect: true }
+            : conversation
+        ),
+      }))
       const sessionId = useChatStore.getState().conversations
         .find((conversation) => conversation.id === conversationId)?.sessionId
       if (!sessionId) return
@@ -876,6 +980,7 @@ export function BackportPage() {
         content: '',
         timestamp: new Date(),
         isStreaming: true,
+        skipReconnect: true,
       }
       chatStore.addMessage(conversationId, thinkingMessage)
 
@@ -890,6 +995,7 @@ export function BackportPage() {
           thinkingMessageId: thinkingMessageId as string,
           assistantMessageId,
           eventData,
+          skipReconnect: true,
         })
       })
 
@@ -1141,6 +1247,7 @@ export function BackportPage() {
       conflict: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'conflict').length,
       noop: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'noop').length,
       skipped: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'skipped').length,
+      unmatched: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'unmatched').length,
       failed: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'failed').length,
     }
   }, [workingCommits])
@@ -1179,6 +1286,11 @@ export function BackportPage() {
             <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
               冲突 {rowSummary.conflict}
             </Badge>
+            {rowSummary.unmatched > 0 ? (
+              <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
+                未匹配 {rowSummary.unmatched}
+              </Badge>
+            ) : null}
             <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
               无需移植 {rowSummary.noop + rowSummary.skipped}
             </Badge>
@@ -1276,6 +1388,14 @@ export function BackportPage() {
                       className="font-mono text-xs"
                     />
                   </div>
+                  <div className="space-y-1 md:col-span-2">
+                    <p className="text-xs text-muted-foreground">Linux 验证仓库 (linux_repo_path)</p>
+                    <Input
+                      value={config.linux_repo_path}
+                      onChange={(e) => setConfig((prev) => ({ ...prev, linux_repo_path: e.target.value }))}
+                      className="font-mono text-xs"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1317,6 +1437,67 @@ export function BackportPage() {
                     <div className="mt-1 break-all font-mono text-[12px] text-slate-900">{configPath || '--'}</div>
                   </div>
                 </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm xl:col-span-2">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Message Template</p>
+                    <h4 className="mt-1 text-sm font-semibold text-foreground">目标仓库提交信息模板</h4>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-2 text-xs text-muted-foreground">
+                      <span>可用变量：</span>
+                      <span>{'{{subject}}'}、</span>
+                      <span>{'{{commit_id}}'}、</span>
+                      <span>{'{{source}}'} =</span>
+                      <Select
+                        value={config.commit_message_source}
+                        onValueChange={(value) =>
+                          setConfig((prev) => ({
+                            ...prev,
+                            commit_message_source:
+                              value === 'openEuler' || value === 'upstream' ? value : 'auto',
+                          }))
+                        }
+                        disabled={running || loadingConfig}
+                      >
+                        <SelectTrigger className="h-7 w-[156px] bg-white px-2 text-xs" size="sm">
+                          <SelectValue placeholder="自动判断" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">自动判断</SelectItem>
+                          <SelectItem value="openEuler">全部使用 openEuler</SelectItem>
+                          <SelectItem value="upstream">全部使用 upstream</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span>、{'{{body}}'}、{'{{trailers}}'}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setConfig((prev) => ({ ...prev, commit_message_template: DEFAULT_COMMIT_MESSAGE_TEMPLATE }))}
+                      disabled={running || loadingConfig}
+                    >
+                      <RotateCcw className="mr-1 h-4 w-4" />
+                      恢复默认模板
+                    </Button>
+                  </div>
+                </div>
+                <Textarea
+                  value={config.commit_message_template}
+                  onChange={(event) => setConfig((prev) => ({ ...prev, commit_message_template: event.target.value }))}
+                  onBlur={() =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      commit_message_template: prev.commit_message_template.trim()
+                        ? prev.commit_message_template
+                        : DEFAULT_COMMIT_MESSAGE_TEMPLATE,
+                    }))
+                  }
+                  className="min-h-[220px] resize-y font-mono text-xs leading-5"
+                  spellCheck={false}
+                />
               </div>
             </CardContent>
           ) : null}
@@ -1420,6 +1601,8 @@ export function BackportPage() {
         onCopyText={(text, label) => void handleCopyText(text, label)}
         onDownloadPatch={handleDownloadPatch}
         onLoadPatchPreview={loadPatchPreview}
+        commitMessagePreviewLoading={commitMessagePreviewLoadingRowId === inspectedRow?.rowId}
+        onRefreshCommitMessagePreview={(row) => void handleRefreshCommitMessagePreview(row)}
       />
 
       <Dialog open={pathBrowserOpen} onOpenChange={setPathBrowserOpen}>

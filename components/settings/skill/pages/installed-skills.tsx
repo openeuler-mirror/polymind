@@ -17,6 +17,7 @@ import { SkillPaginationBar } from '../pagination-bar'
 
 export function InstalledSkills() {
   const currentAgentId = useChatStore((state) => state.currentAgentId)
+  const agents = useChatStore((state) => state.agents)
   const [installedSkills, setInstalledSkills] = useState<AgentSkillResponse[]>([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -28,6 +29,10 @@ export function InstalledSkills() {
   const { toast } = useToast()
 
   const mergedSkills = installedSkills
+  const activeAgentId = useMemo(
+    () => (currentAgentId && agents.some((agent) => agent.id === currentAgentId) ? currentAgentId : null),
+    [agents, currentAgentId],
+  )
 
   const sourceOptions = useMemo(() => {
     const uniqueSourceTypes = Array.from(new Set(mergedSkills.map((skill) => skill.source_type)))
@@ -80,12 +85,12 @@ export function InstalledSkills() {
   }, [currentPage, filteredSkills, pageSize])
 
   useEffect(() => {
-    if (!currentAgentId) {
+    if (!activeAgentId) {
       setInstalledSkills([])
       return
     }
-    void refreshInstalledSkills(currentAgentId)
-  }, [currentAgentId])
+    void refreshInstalledSkills(activeAgentId)
+  }, [activeAgentId])
 
   const refreshInstalledSkills = async (agentId: string) => {
     try {
@@ -105,12 +110,12 @@ export function InstalledSkills() {
   }
 
   const handleRefresh = async () => {
-    if (!currentAgentId) {
+    if (!activeAgentId) {
       return
     }
     try {
       setLoading(true)
-      const synced = await skillService.syncInstalledSkills(currentAgentId)
+      const synced = await skillService.syncInstalledSkills(activeAgentId)
       setInstalledSkills(synced)
       toast({
         title: '刷新成功',
@@ -129,7 +134,7 @@ export function InstalledSkills() {
   }
 
   const handleUninstallSkill = async (skill: AgentSkillResponse) => {
-    if (!currentAgentId) {
+    if (!activeAgentId) {
       toast({
         title: '未选择 Agent',
         description: '请先在聊天区选择一个 Agent，再卸载技能。',
@@ -140,7 +145,7 @@ export function InstalledSkills() {
 
     try {
       setUninstallingSkillId(skill.skill_id)
-      await skillService.uninstallSkill(currentAgentId, { skill_id: skill.skill_id })
+      await skillService.uninstallSkill(activeAgentId, { skill_id: skill.skill_id })
       setInstalledSkills((prev) => prev.filter((item) => item.skill_id !== skill.skill_id))
       setPreviewSkill((prev) => (prev?.skill_id === skill.skill_id ? null : prev))
       toast({
@@ -205,7 +210,7 @@ export function InstalledSkills() {
               <Button
                 variant="outline"
                 onClick={() => void handleRefresh()}
-                disabled={!currentAgentId || loading}
+                disabled={!activeAgentId || loading}
                 title="同步已安装技能"
               >
                 <RefreshCw className={`mr-1 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -215,7 +220,7 @@ export function InstalledSkills() {
           </div>
         </CardHeader>
         <CardContent>
-          {!currentAgentId ? (
+          {!activeAgentId ? (
             <EmptyState text="请先在聊天区选择一个 Agent。" />
           ) : loading ? (
             <EmptyState text="正在加载已安装技能..." />
@@ -261,7 +266,7 @@ export function InstalledSkills() {
                         onClick={() => void handleUninstallSkill(skill)}
                         disabled={
                           uninstallingSkillId === skill.skill_id ||
-                          !currentAgentId
+                          !activeAgentId
                         }
                       >
                         <Trash2 className="mr-1 h-3.5 w-3.5" />

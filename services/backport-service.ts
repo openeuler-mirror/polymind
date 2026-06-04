@@ -2,6 +2,8 @@ import { httpClient } from '@/lib/http-client'
 import {
   BackportApplyRowRequest,
   BackportBrowseResponse,
+  BackportCommitMessagePreview,
+  BackportCommitMessagePreviewRequest,
   BackportConfig,
   BackportConfigUpdateResponse,
   BackportExecuteRequest,
@@ -22,6 +24,7 @@ type BackportAction =
   | 'load_git_log'
   | 'load_git_show'
   | 'load_patch_preview'
+  | 'preview_commit_message'
   | 'execute_selected'
   | 'apply_row'
   | 'check_manual_patch'
@@ -30,6 +33,14 @@ type BackportAction =
 type BackportRunRequest = {
   action: BackportAction
   payload: Record<string, unknown>
+}
+
+type BackportAsyncRunResponse = {
+  run_id: string
+  action: string
+  status: 'running' | 'success' | 'failed'
+  result: BackportRunResponse | null
+  error: string
 }
 
 function parseJsonObject(text: string): Record<string, unknown> {
@@ -78,20 +89,75 @@ class BackportService {
     return patch
   }
 
-  public async generateReport(
-    request: BackportGenerateReportRequest,
+  public async previewCommitMessage(
+    request: BackportCommitMessagePreviewRequest,
     onEvent?: (event: any) => void,
-  ): Promise<BackportRunResponse> {
-    return this.runAction(
+  ): Promise<BackportCommitMessagePreview> {
+    const response = await this.runAction(
       {
-        action: 'generate_report',
+        action: 'preview_commit_message',
         payload: {
           config: request.config,
-          excel_path: request.excelPath,
+          base_report_path: request.baseReportPath,
+          working_report_path: request.workingReportPath,
+          row: request.row,
+          commit_message_template: request.commitMessageTemplate,
         },
       },
       onEvent,
     )
+    const preview = response.parsedResult?.commit_message
+    if (!preview) {
+      throw new Error('未返回 commit message 预览内容')
+    }
+    return preview
+  }
+
+  public async generateReport(
+    request: BackportGenerateReportRequest,
+    onEvent?: (event: any) => void,
+  ): Promise<BackportRunResponse> {
+    onEvent?.({ type: 'message.started', payload: {} })
+
+    const runRequest: BackportRunRequest = {
+      action: 'generate_report',
+      payload: {
+        config: request.config,
+        excel_path: request.excelPath,
+      },
+    }
+    const created = await httpClient.post<BackportAsyncRunResponse>(
+      '/backport/runs',
+      runRequest,
+      { timeout: 30000 },
+    )
+
+    let current = created
+    while (current.status === 'running') {
+      await new Promise((resolve) => setTimeout(resolve, 15000))
+      current = await httpClient.get<BackportAsyncRunResponse>(
+        `/backport/runs/${encodeURIComponent(created.run_id)}`,
+        { timeout: 30000 },
+      )
+    }
+
+    if (current.status === 'failed') {
+      throw new Error(current.error || '生成配置与报告失败')
+    }
+    if (!current.result) {
+      throw new Error('生成配置与报告未返回结果')
+    }
+
+    this.emitSyntheticToolEvents(current.result.toolSnapshots, onEvent)
+
+    onEvent?.({
+      type: 'message.completed',
+      payload: {
+        text: current.result.assistantText,
+      },
+    })
+
+    return current.result
   }
 
   public async loadGitLog(

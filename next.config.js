@@ -1,5 +1,5 @@
 // next.config.js
 export default {
   output: 'standalone',
-  allowedDevOrigins: ['127.0.0.1'],
+  allowedDevOrigins: ['192.168.137.135'],
 };
