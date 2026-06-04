@@ -35,6 +35,14 @@ type BackportRunRequest = {
   payload: Record<string, unknown>
 }
 
+type BackportAsyncRunResponse = {
+  run_id: string
+  action: string
+  status: 'running' | 'success' | 'failed'
+  result: BackportRunResponse | null
+  error: string
+}
+
 function parseJsonObject(text: string): Record<string, unknown> {
   try {
     const value = JSON.parse(text)
@@ -109,16 +117,47 @@ class BackportService {
     request: BackportGenerateReportRequest,
     onEvent?: (event: any) => void,
   ): Promise<BackportRunResponse> {
-    return this.runAction(
-      {
-        action: 'generate_report',
-        payload: {
-          config: request.config,
-          excel_path: request.excelPath,
-        },
+    onEvent?.({ type: 'message.started', payload: {} })
+
+    const runRequest: BackportRunRequest = {
+      action: 'generate_report',
+      payload: {
+        config: request.config,
+        excel_path: request.excelPath,
       },
-      onEvent,
+    }
+    const created = await httpClient.post<BackportAsyncRunResponse>(
+      '/backport/runs',
+      runRequest,
+      { timeout: 30000 },
     )
+
+    let current = created
+    while (current.status === 'running') {
+      await new Promise((resolve) => setTimeout(resolve, 15000))
+      current = await httpClient.get<BackportAsyncRunResponse>(
+        `/backport/runs/${encodeURIComponent(created.run_id)}`,
+        { timeout: 30000 },
+      )
+    }
+
+    if (current.status === 'failed') {
+      throw new Error(current.error || '生成配置与报告失败')
+    }
+    if (!current.result) {
+      throw new Error('生成配置与报告未返回结果')
+    }
+
+    this.emitSyntheticToolEvents(current.result.toolSnapshots, onEvent)
+
+    onEvent?.({
+      type: 'message.completed',
+      payload: {
+        text: current.result.assistantText,
+      },
+    })
+
+    return current.result
   }
 
   public async loadGitLog(

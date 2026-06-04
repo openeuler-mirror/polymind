@@ -27,6 +27,7 @@ export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   signer_name: '',
   signer_email: '',
   commit_message_template: DEFAULT_COMMIT_MESSAGE_TEMPLATE,
+  commit_message_source: 'auto',
   linux_repo_path: '~/Image/linux',
   commit_sort: 'describe',
   current_excel_path: '',
@@ -34,7 +35,7 @@ export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   current_filtered_report_path: '',
 }
 
-export type RowStatusKind = 'success' | 'failed' | 'conflict' | 'noop' | 'skipped'
+export type RowStatusKind = 'success' | 'failed' | 'conflict' | 'noop' | 'skipped' | 'unmatched'
 
 const RELEVANT_PATCH_HUNK_CHAR_LIMIT = 1600
 
@@ -51,6 +52,9 @@ export function normalizeBackportConfig(config: Partial<BackportConfig>): Backpo
   }
   if (!normalized.commit_message_template.trim()) {
     normalized.commit_message_template = DEFAULT_COMMIT_MESSAGE_TEMPLATE
+  }
+  if (!['auto', 'openEuler', 'upstream'].includes(normalized.commit_message_source)) {
+    normalized.commit_message_source = 'auto'
   }
   return normalized
 }
@@ -229,6 +233,11 @@ export function hasPatchResource(item: BackportCommitItem, kind: BackportPatchKi
   return descriptor?.exists ?? Boolean(fallbackPath)
 }
 
+function isCommitLookupFailure(item: BackportCommitItem): boolean {
+  const error = `${stringifyValue(item.error)} ${stringifyValue(item.conflict_check_error)}`
+  return error.includes('无法根据 commit title 找到提交') || error.includes('commit title 为空')
+}
+
 export function resolveBackportProgressText(item: BackportCommitItem): string {
   const appliedCommit = stringifyValue(item.applied_commit).trim()
   if (appliedCommit) return `已应用到目标仓: ${appliedCommit.slice(0, 12)}`
@@ -271,6 +280,13 @@ export function resolveStatusMeta(item: BackportCommitItem): {
   }
 
   if (status === 'failed' || status === 'error' || stringifyValue(item.error).trim()) {
+    if (isCommitLookupFailure(item)) {
+      return {
+        kind: 'unmatched',
+        label: '未匹配',
+        className: 'border-orange-200 bg-orange-50 text-orange-700',
+      }
+    }
     return {
       kind: 'failed',
       label: '失败',
@@ -326,6 +342,13 @@ export function resolveConflictMeta(item: BackportCommitItem): {
   }
 
   if (error) {
+    if (isCommitLookupFailure(item)) {
+      return {
+        label: '未匹配',
+        className: 'border-orange-200 bg-orange-50 text-orange-700',
+        detail: error,
+      }
+    }
     return {
       label: '检查失败',
       className: 'border-red-200 bg-red-50 text-red-700',

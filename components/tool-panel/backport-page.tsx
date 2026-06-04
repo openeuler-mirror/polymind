@@ -52,6 +52,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { handleAgentStreamEvent } from '@/lib/agent-stream-events'
@@ -1246,6 +1247,7 @@ export function BackportPage() {
       conflict: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'conflict').length,
       noop: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'noop').length,
       skipped: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'skipped').length,
+      unmatched: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'unmatched').length,
       failed: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'failed').length,
     }
   }, [workingCommits])
@@ -1284,6 +1286,11 @@ export function BackportPage() {
             <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
               冲突 {rowSummary.conflict}
             </Badge>
+            {rowSummary.unmatched > 0 ? (
+              <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
+                未匹配 {rowSummary.unmatched}
+              </Badge>
+            ) : null}
             <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
               无需移植 {rowSummary.noop + rowSummary.skipped}
             </Badge>
@@ -1437,11 +1444,35 @@ export function BackportPage() {
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Message Template</p>
                     <h4 className="mt-1 text-sm font-semibold text-foreground">目标仓库提交信息模板</h4>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      可用变量：{'{{subject}}'}、{'{{commit_id}}'}、{'{{source}}'}、{'{{body}}'}、{'{{trailers}}'}
-                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-2 text-xs text-muted-foreground">
+                      <span>可用变量：</span>
+                      <span>{'{{subject}}'}、</span>
+                      <span>{'{{commit_id}}'}、</span>
+                      <span>{'{{source}}'} =</span>
+                      <Select
+                        value={config.commit_message_source}
+                        onValueChange={(value) =>
+                          setConfig((prev) => ({
+                            ...prev,
+                            commit_message_source:
+                              value === 'openEuler' || value === 'upstream' ? value : 'auto',
+                          }))
+                        }
+                        disabled={running || loadingConfig}
+                      >
+                        <SelectTrigger className="h-7 w-[156px] bg-white px-2 text-xs" size="sm">
+                          <SelectValue placeholder="自动判断" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">自动判断</SelectItem>
+                          <SelectItem value="openEuler">全部使用 openEuler</SelectItem>
+                          <SelectItem value="upstream">全部使用 upstream</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span>、{'{{body}}'}、{'{{trailers}}'}</span>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-end gap-3">
                     <Button
                       variant="outline"
                       size="sm"

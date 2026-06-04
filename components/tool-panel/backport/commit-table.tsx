@@ -250,6 +250,7 @@ export function CommitTable({
                     <option value="all">全部</option>
                     <option value="success">成功</option>
                     <option value="conflict">冲突</option>
+                    <option value="unmatched">未匹配</option>
                     <option value="failed">失败</option>
                     <option value="noop">无需移植</option>
                     <option value="skipped">跳过</option>

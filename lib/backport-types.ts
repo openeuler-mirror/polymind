@@ -17,6 +17,7 @@ export interface BackportConfig {
   signer_name: string
   signer_email: string
   commit_message_template: string
+  commit_message_source: 'auto' | 'openEuler' | 'upstream'
   linux_repo_path: string
   commit_sort: string
   current_excel_path: string
