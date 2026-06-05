@@ -9,14 +9,24 @@ export enum MessageStatus {
   GENERATING = 'generating',
   COMPLETED = 'completed',
   ERROR = 'error',
-  INTERRUPTED = 'interrupted'
+  INTERRUPTED = 'interrupted',
 }
 
 /**
  * 消息接口
  */
 export interface EventItem {
-  type: 'thinking' | 'tool.call.started' | 'tool.call.response' | 'message.delta' | 'message.completed' | 'turn.completed' | 'usage.updated' | 'session.runtime.changed' | 'stream.error' | 'client.error'
+  type:
+    | 'thinking'
+    | 'tool.call.started'
+    | 'tool.call.response'
+    | 'message.delta'
+    | 'message.completed'
+    | 'turn.completed'
+    | 'usage.updated'
+    | 'session.runtime.changed'
+    | 'stream.error'
+    | 'client.error'
   session_id?: string
   event_id?: string
   ts_ms?: number
@@ -84,13 +94,13 @@ export interface Conversation {
   updatedAt: Date
   model?: string
   pinned?: boolean
-  agentId?: string  // 创建该会话的 agent ID
-  agentName?: string  // 创建该会话的 agent 名称
-  sessionId?: string  // 该会话对应的后端 session ID
-  isStreaming?: boolean  // 该会话是否正在生成消息
-  skipReconnect?: boolean  // 当前会话的流由专题页面主动消费，不由 ChatArea 自动重连
-  hasMore?: boolean  // 是否有更早的历史消息可加载
-  lastMessageStatus?: MessageStatus  // 最后一条助手消息的状态
+  agentId?: string // 创建该会话的 agent ID
+  agentName?: string // 创建该会话的 agent 名称
+  sessionId?: string // 该会话对应的后端 session ID
+  isStreaming?: boolean // 该会话是否正在生成消息
+  skipReconnect?: boolean // 当前会话的流由专题页面主动消费，不由 ChatArea 自动重连
+  hasMore?: boolean // 是否有更早的历史消息可加载
+  lastMessageStatus?: MessageStatus // 最后一条助手消息的状态
 }
 
 // ============================================
@@ -124,7 +134,7 @@ export enum ModelProvider {
   XAI = 'xai',
   SILICONFLOW = 'siliconflow',
   AZURE = 'azure',
-  CUSTOM = 'custom'
+  CUSTOM = 'custom',
 }
 
 /**
@@ -189,7 +199,7 @@ export interface UpdateModelRequest {
 export enum AgentStatus {
   RUNNING = 'running',
   PAUSED = 'paused',
-  ERROR = 'error'
+  ERROR = 'error',
 }
 
 /**
@@ -199,7 +209,7 @@ export enum ModelServiceType {
   OPENAI = 'openai',
   ANTHROPIC = 'anthropic',
   GOOGLE = 'google',
-  AZURE = 'azure'
+  AZURE = 'azure',
 }
 
 /**
@@ -220,26 +230,26 @@ export const MODEL_SERVICES: Record<ModelServiceType, ModelServiceConfig> = {
     type: ModelServiceType.OPENAI,
     name: 'OpenAI',
     defaultApiUrl: 'https://api.openai.com/v1',
-    description: 'OpenAI 模型服务'
+    description: 'OpenAI 模型服务',
   },
   [ModelServiceType.ANTHROPIC]: {
     type: ModelServiceType.ANTHROPIC,
     name: 'Anthropic',
     defaultApiUrl: 'https://api.anthropic.com/v1',
-    description: 'Anthropic 模型服务'
+    description: 'Anthropic 模型服务',
   },
   [ModelServiceType.GOOGLE]: {
     type: ModelServiceType.GOOGLE,
     name: 'Google AI',
     defaultApiUrl: 'https://generativelanguage.googleapis.com/v1',
-    description: 'Google AI 模型服务'
+    description: 'Google AI 模型服务',
   },
   [ModelServiceType.AZURE]: {
     type: ModelServiceType.AZURE,
     name: 'Azure OpenAI',
     defaultApiUrl: '',
-    description: 'Azure OpenAI 模型服务'
-  }
+    description: 'Azure OpenAI 模型服务',
+  },
 }
 
 /**
@@ -248,7 +258,7 @@ export const MODEL_SERVICES: Record<ModelServiceType, ModelServiceConfig> = {
 export enum AdapterType {
   OPENCODE = 'opencode',
   OPENCLAW = 'openclaw',
-  CLAUDE_CODE = 'claude-code'
+  CLAUDE_CODE = 'claude-code',
 }
 
 /**
@@ -257,7 +267,7 @@ export enum AdapterType {
 export enum SandboxType {
   DOCKER = 'docker',
   LOCAL_PROCESS = 'local_process',
-  E2B = 'e2b'
+  E2B = 'e2b',
 }
 
 /**
@@ -278,20 +288,20 @@ export const SANDBOX_CONFIGS: Record<SandboxType, SandboxConfig> = {
     type: SandboxType.DOCKER,
     name: 'Docker',
     description: '使用 Docker 容器作为沙箱环境',
-    value: 'docker'
+    value: 'docker',
   },
   [SandboxType.LOCAL_PROCESS]: {
     type: SandboxType.LOCAL_PROCESS,
     name: '本地进程',
     description: '使用本地进程作为沙箱环境',
-    value: 'local_process'
+    value: 'local_process',
   },
   [SandboxType.E2B]: {
     type: SandboxType.E2B,
     name: 'E2B云沙箱',
     description: '使用E2B云沙箱作为运行环境',
-    value: 'e2b'
-  }
+    value: 'e2b',
+  },
 }
 
 /**
@@ -321,6 +331,7 @@ export interface Agent {
   defaultSessionId?: string | null
   processPort?: number | null
   skills?: AgentSkill[]
+  mcpServerList?: string[]
   createdAt: string
   updatedAt: string
 }
@@ -330,6 +341,57 @@ export interface Agent {
  */
 export interface MCPServerConfig {
   [key: string]: any
+}
+
+// ============================================
+// MCP Server 配置相关类型
+// ============================================
+
+/**
+ * MCP Server 配置响应
+ */
+export interface McpServerResponse {
+  id: string
+  mcp_server_name: string
+  mcp_server_config: Record<
+    string,
+    {
+      command?: string
+      args?: string[]
+      env?: Record<string, string>
+    }
+  >
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * 创建 MCP Server 配置请求
+ */
+export interface CreateMcpServerRequest {
+  mcp_server_config: Record<
+    string,
+    {
+      command?: string
+      args?: string[]
+      env?: Record<string, string>
+    }
+  >
+}
+
+/**
+ * 更新 MCP Server 配置请求
+ */
+export interface UpdateMcpServerRequest {
+  mcp_server_name?: string
+  mcp_server_config?: Record<
+    string,
+    {
+      command?: string
+      args?: string[]
+      env?: Record<string, string>
+    }
+  >
 }
 
 /**
@@ -366,7 +428,7 @@ export interface UpdateAgentRequest {
  */
 export enum SessionStatus {
   ACTIVE = 'active',
-  CLOSED = 'closed'
+  CLOSED = 'closed',
 }
 
 /**
@@ -403,7 +465,7 @@ export enum AgentEventType {
   MESSAGE = 'message',
   TOOL_USE = 'tool_use',
   DONE = 'done',
-  ERROR = 'error'
+  ERROR = 'error',
 }
 
 /**
@@ -538,7 +600,6 @@ export interface CveArtifactResponse {
   content: string
 }
 
-
 // ============================================
 // Skills Repo相关类型
 // ============================================
@@ -575,7 +636,7 @@ export interface SkillRepositoryRequest {
 /**
  * 技能响应（/skills）
  */
-export interface SkillResponse {    
+export interface SkillResponse {
   skill_id: string
   repo_id: string | null
   skill_name: string

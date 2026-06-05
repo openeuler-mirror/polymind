@@ -53,6 +53,7 @@ next.config.js
 .next/cache/
 
 # Environment variables
+.env
 .env.local
 pnpm-lock.yaml
 

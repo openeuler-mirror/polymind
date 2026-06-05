@@ -1,14 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  ChevronDown,
-  ChevronUp,
-  RefreshCw,
-  RotateCcw,
-  Save,
-  Wrench,
-} from 'lucide-react'
+import { ChevronDown, ChevronUp, RefreshCw, RotateCcw, Save, Wrench } from 'lucide-react'
 
 import { CommitTable } from '@/components/tool-panel/backport/commit-table'
 import {
@@ -52,7 +45,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { handleAgentStreamEvent } from '@/lib/agent-stream-events'
@@ -99,7 +98,9 @@ export function BackportPage() {
   const [titleFilter, setTitleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | RowStatusKind>('all')
   const [conflictFilter, setConflictFilter] = useState<'all' | 'true' | 'false'>('all')
-  const [mergedFilter, setMergedFilter] = useState<'all' | 'true' | 'false' | 'none' | 'skipped'>('all')
+  const [mergedFilter, setMergedFilter] = useState<'all' | 'true' | 'false' | 'none' | 'skipped'>(
+    'all'
+  )
   const [searchQuery, setSearchQuery] = useState('')
   const [commitPage, setCommitPage] = useState(1)
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([])
@@ -123,10 +124,14 @@ export function BackportPage() {
   const [patchPreviews, setPatchPreviews] = useState<Record<string, PatchLoadState>>({})
   const [manualPatchText, setManualPatchText] = useState('')
   const [manualPatchLoading, setManualPatchLoading] = useState<'check' | 'apply' | null>(null)
-  const [manualPatchResult, setManualPatchResult] = useState<BackportOperationResultData | null>(null)
-  const [commitMessagePreviewLoadingRowId, setCommitMessagePreviewLoadingRowId] = useState<string | null>(null)
+  const [manualPatchResult, setManualPatchResult] = useState<BackportOperationResultData | null>(
+    null
+  )
+  const [commitMessagePreviewLoadingRowId, setCommitMessagePreviewLoadingRowId] = useState<
+    string | null
+  >(null)
   const [lastSavedCommitMessageTemplate, setLastSavedCommitMessageTemplate] = useState(
-    DEFAULT_BACKPORT_CONFIG.commit_message_template,
+    DEFAULT_BACKPORT_CONFIG.commit_message_template
   )
 
   const titleCandidates = useMemo(() => {
@@ -143,7 +148,7 @@ export function BackportPage() {
     const query = searchQuery.trim()
     const normalizedTitleFilter = titleFilter.trim().toLowerCase()
 
-    return workingCommits.filter((row) => {
+    return workingCommits.filter(row => {
       const item = row.data
       const title = resolveCommitTitle(item)
       const commit = stringifyValue(item.commit || item.input_commit || '')
@@ -191,7 +196,10 @@ export function BackportPage() {
       const value = rest.join(':').trim()
 
       if (!key) {
-        return title.toLowerCase().includes(query.toLowerCase()) || commit.toLowerCase().includes(query.toLowerCase())
+        return (
+          title.toLowerCase().includes(query.toLowerCase()) ||
+          commit.toLowerCase().includes(query.toLowerCase())
+        )
       }
 
       if (['title', 'commit_title', 'tiltle'].includes(key)) {
@@ -222,7 +230,7 @@ export function BackportPage() {
 
   const totalCommitPages = useMemo(
     () => Math.max(1, Math.ceil(filteredRows.length / BACKPORT_COMMIT_PAGE_SIZE)),
-    [filteredRows.length],
+    [filteredRows.length]
   )
   const currentCommitPage = Math.min(Math.max(commitPage, 1), totalCommitPages)
   const paginatedRows = useMemo(() => {
@@ -233,9 +241,15 @@ export function BackportPage() {
     if (totalCommitPages <= 7) {
       return Array.from({ length: totalCommitPages }, (_, index) => index + 1)
     }
-    const pages = new Set<number>([1, totalCommitPages, currentCommitPage - 1, currentCommitPage, currentCommitPage + 1])
+    const pages = new Set<number>([
+      1,
+      totalCommitPages,
+      currentCommitPage - 1,
+      currentCommitPage,
+      currentCommitPage + 1,
+    ])
     const ordered = [...pages]
-      .filter((page) => page >= 1 && page <= totalCommitPages)
+      .filter(page => page >= 1 && page <= totalCommitPages)
       .sort((a, b) => a - b)
 
     const items: Array<number | string> = []
@@ -251,29 +265,34 @@ export function BackportPage() {
 
   const selectedRowSet = useMemo(() => new Set(selectedRowIds), [selectedRowIds])
   const allFilteredSelected = useMemo(
-    () => paginatedRows.length > 0 && paginatedRows.every((row) => selectedRowSet.has(row.rowId)),
-    [paginatedRows, selectedRowSet],
+    () => paginatedRows.length > 0 && paginatedRows.every(row => selectedRowSet.has(row.rowId)),
+    [paginatedRows, selectedRowSet]
   )
   const selectedGitEntry = useMemo(
-    () => gitLogEntries.find((entry) => entry.hash === selectedGitRevision || entry.shortHash === selectedGitRevision) || null,
-    [gitLogEntries, selectedGitRevision],
+    () =>
+      gitLogEntries.find(
+        entry => entry.hash === selectedGitRevision || entry.shortHash === selectedGitRevision
+      ) || null,
+    [gitLogEntries, selectedGitRevision]
   )
   const inspectedRow = useMemo(
-    () => workingCommits.find((row) => row.rowId === inspectedRowId) || null,
-    [workingCommits, inspectedRowId],
+    () => workingCommits.find(row => row.rowId === inspectedRowId) || null,
+    [workingCommits, inspectedRowId]
   )
   const inspectedPatchResources = useMemo(() => {
     if (!inspectedRow) return []
-    return buildPatchResources(inspectedRow.data, inspectedRow.rowId).filter((resource) => resource.exists)
+    return buildPatchResources(inspectedRow.data, inspectedRow.rowId).filter(
+      resource => resource.exists
+    )
   }, [inspectedRow])
   const activePatchPreview = activePatchKey ? patchPreviews[activePatchKey] : null
   const compareLeftResource = useMemo(
     () => inspectedPatchResources[0] || null,
-    [inspectedPatchResources],
+    [inspectedPatchResources]
   )
   const compareRightResource = useMemo(
     () => inspectedPatchResources[1] || null,
-    [inspectedPatchResources],
+    [inspectedPatchResources]
   )
   const compareLeftPreview =
     inspectedRow && compareLeftResource
@@ -289,11 +308,15 @@ export function BackportPage() {
   }, [searchQuery, titleFilter, statusFilter, conflictFilter, mergedFilter])
 
   useEffect(() => {
-    setCommitPage((prev) => Math.min(Math.max(prev, 1), totalCommitPages))
+    setCommitPage(prev => Math.min(Math.max(prev, 1), totalCommitPages))
   }, [totalCommitPages])
 
-  const addTimeline = (title: string, level: BackportTimelineEntry['level'] = 'info', details?: string) => {
-    setTimeline((prev) => {
+  const addTimeline = (
+    title: string,
+    level: BackportTimelineEntry['level'] = 'info',
+    details?: string
+  ) => {
+    setTimeline(prev => {
       const next = [
         {
           id: `timeline-${Date.now()}-${Math.random()}`,
@@ -332,7 +355,7 @@ export function BackportPage() {
 
     if (result.operation === 'generate_report') {
       setFilteredReportPath('')
-      setConfig((prev) => ({ ...prev, current_filtered_report_path: '' }))
+      setConfig(prev => ({ ...prev, current_filtered_report_path: '' }))
       setPatchPreviews({})
       setActivePatchKey(null)
       setInspectedRowId(null)
@@ -348,13 +371,16 @@ export function BackportPage() {
       const reportPath = result.artifacts.base_report_path || result.artifacts.report_path || ''
       if (reportPath) {
         setBaseReportPath(reportPath)
-        setConfig((prev) => ({ ...prev, current_report_path: reportPath }))
+        setConfig(prev => ({ ...prev, current_report_path: reportPath }))
       }
     }
 
     if (result.artifacts?.filtered_report_path) {
       setFilteredReportPath(result.artifacts.filtered_report_path)
-      setConfig((prev) => ({ ...prev, current_filtered_report_path: result.artifacts?.filtered_report_path || '' }))
+      setConfig(prev => ({
+        ...prev,
+        current_filtered_report_path: result.artifacts?.filtered_report_path || '',
+      }))
     }
 
     if (Array.isArray(result.report?.commits)) {
@@ -363,7 +389,7 @@ export function BackportPage() {
         setOriginalCommits(nextRows)
         setWorkingCommits(nextRows)
       } else {
-        setWorkingCommits((prev) => mergeCommitRows(prev, result.report?.commits || []))
+        setWorkingCommits(prev => mergeCommitRows(prev, result.report?.commits || []))
       }
       setSelectedRowIds([])
     }
@@ -371,7 +397,9 @@ export function BackportPage() {
     if (Array.isArray(result.git?.entries)) {
       setGitLogEntries(result.git.entries)
       if (result.git.entries[0]?.hash) {
-        setSelectedGitRevision((prev) => prev || result.git?.revision || result.git?.entries?.[0]?.hash || null)
+        setSelectedGitRevision(
+          prev => prev || result.git?.revision || result.git?.entries?.[0]?.hash || null
+        )
       }
     }
 
@@ -408,7 +436,7 @@ export function BackportPage() {
     if (event.type === 'tool.call.response') {
       addTimeline(
         `${String(payload.name || payload.tool_name || 'unknown')} 工具调用${payload.is_error ? '失败' : '完成'}`,
-        payload.is_error ? 'error' : 'success',
+        payload.is_error ? 'error' : 'success'
       )
       return
     }
@@ -420,7 +448,7 @@ export function BackportPage() {
 
   const runOperation = async (
     label: string,
-    runner: () => Promise<Awaited<ReturnType<typeof backportService.generateReport>>>,
+    runner: () => Promise<Awaited<ReturnType<typeof backportService.generateReport>>>
   ) => {
     setRunning(true)
     setRunningLabel(label)
@@ -441,7 +469,6 @@ export function BackportPage() {
         title: '错误',
         description: message,
         variant: 'destructive',
-        duration: 1500,
       })
       throw cause
     } finally {
@@ -469,7 +496,6 @@ export function BackportPage() {
         title: '错误',
         description: '加载 Backport 配置失败',
         variant: 'destructive',
-        duration: 1200,
       })
     } finally {
       setLoadingConfig(false)
@@ -491,7 +517,10 @@ export function BackportPage() {
     if (compareLeftResource?.exists) {
       void loadPatchPreview(inspectedRow, compareLeftResource, { activate: false })
     }
-    if (compareRightResource?.exists && compareRightResource.fileId !== compareLeftResource?.fileId) {
+    if (
+      compareRightResource?.exists &&
+      compareRightResource.fileId !== compareLeftResource?.fileId
+    ) {
       void loadPatchPreview(inspectedRow, compareRightResource, { activate: false })
     }
   }, [inspectorTab, inspectedRow, compareLeftResource, compareRightResource])
@@ -500,13 +529,14 @@ export function BackportPage() {
     setSavingConfig(true)
     try {
       const persistedConfig = normalizeBackportConfig(config)
-      const templateChanged = persistedConfig.commit_message_template !== lastSavedCommitMessageTemplate
+      const templateChanged =
+        persistedConfig.commit_message_template !== lastSavedCommitMessageTemplate
       const response = await backportService.updateConfig(persistedConfig)
       setConfig(persistedConfig)
       setLastSavedCommitMessageTemplate(persistedConfig.commit_message_template)
       if (templateChanged) {
-        setWorkingCommits((prev) =>
-          prev.map((row) =>
+        setWorkingCommits(prev =>
+          prev.map(row =>
             stringifyValue(row.data.commit_message_preview).trim()
               ? {
                   ...row,
@@ -515,8 +545,8 @@ export function BackportPage() {
                     commit_message_preview_stale: true,
                   },
                 }
-              : row,
-          ),
+              : row
+          )
         )
       }
       const savedConfigPath = response.config_path || ''
@@ -528,7 +558,6 @@ export function BackportPage() {
         toast({
           title: '成功',
           description: 'Backport 配置已保存',
-          duration: 1200,
         })
       }
     } catch (cause) {
@@ -537,7 +566,6 @@ export function BackportPage() {
         title: '错误',
         description: '保存 Backport 配置失败',
         variant: 'destructive',
-        duration: 1200,
       })
     } finally {
       setSavingConfig(false)
@@ -549,7 +577,6 @@ export function BackportPage() {
       toast({
         title: '提示',
         description: '请先生成 report',
-        duration: 1200,
       })
       return
     }
@@ -564,10 +591,10 @@ export function BackportPage() {
           row: deepClone(row.data),
           commitMessageTemplate: config.commit_message_template,
         },
-        handleAgentEvent,
+        handleAgentEvent
       )
-      setWorkingCommits((prev) =>
-        prev.map((item) =>
+      setWorkingCommits(prev =>
+        prev.map(item =>
           item.rowId === row.rowId
             ? {
                 ...item,
@@ -581,20 +608,21 @@ export function BackportPage() {
                   commit_message_preview_stale: false,
                 },
               }
-            : item,
-        ),
+            : item
+        )
       )
       toast({
         title: '预览已刷新',
-        description: resolveCommitTitle(row.data) || stringifyValue(row.data.commit || row.data.input_commit) || 'Commit Message',
-        duration: 1200,
+        description:
+          resolveCommitTitle(row.data) ||
+          stringifyValue(row.data.commit || row.data.input_commit) ||
+          'Commit Message',
       })
     } catch (cause) {
       toast({
         title: '预览刷新失败',
         description: cause instanceof Error ? cause.message : 'Commit Message 预览刷新失败',
         variant: 'destructive',
-        duration: 1800,
       })
     } finally {
       setCommitMessagePreviewLoadingRowId(null)
@@ -606,21 +634,20 @@ export function BackportPage() {
       toast({
         title: '提示',
         description: '请先填写 Excel 路径',
-        duration: 1200,
       })
       return
     }
 
     await handleSaveConfig(true)
-    setConfig((prev) => ({ ...prev, current_excel_path: excelPath.trim() }))
+    setConfig(prev => ({ ...prev, current_excel_path: excelPath.trim() }))
     await runOperation('生成配置与报告', () =>
       backportService.generateReport(
         {
           config,
           excelPath: excelPath.trim(),
         },
-        handleAgentEvent,
-      ),
+        handleAgentEvent
+      )
     )
   }
 
@@ -629,7 +656,6 @@ export function BackportPage() {
       toast({
         title: '提示',
         description: '当前没有可刷新的 report',
-        duration: 1200,
       })
       return
     }
@@ -640,8 +666,8 @@ export function BackportPage() {
           config,
           baseReportPath: baseReportPath.trim(),
         },
-        handleAgentEvent,
-      ),
+        handleAgentEvent
+      )
     )
   }
 
@@ -649,7 +675,9 @@ export function BackportPage() {
     setGitLogLoading(true)
     setGitLogError('')
     try {
-      const response = await runOperation('刷新 git log', () => backportService.loadGitLog({ config }, handleAgentEvent))
+      const response = await runOperation('刷新 git log', () =>
+        backportService.loadGitLog({ config }, handleAgentEvent)
+      )
       const result = response.parsedResult
       if (result?.status === 'failed') {
         setGitLogError(result.summary || result.diagnostics?.error_text || '刷新 git log 失败')
@@ -672,8 +700,8 @@ export function BackportPage() {
             config,
             revision,
           },
-          handleAgentEvent,
-        ),
+          handleAgentEvent
+        )
       )
       const result = response.parsedResult
       if (result?.status === 'failed') {
@@ -699,7 +727,6 @@ export function BackportPage() {
         title: '错误',
         description: message,
         variant: 'destructive',
-        duration: 1200,
       })
     } finally {
       setBrowseLoading(false)
@@ -709,11 +736,16 @@ export function BackportPage() {
   const openPathBrowser = async () => {
     setPathBrowserOpen(true)
     const currentExcelPath = excelPath.trim()
-    const initialBrowsePath = currentExcelPath ? currentExcelPath.replace(/\/[^/]*$/, '') || '/' : undefined
+    const initialBrowsePath = currentExcelPath
+      ? currentExcelPath.replace(/\/[^/]*$/, '') || '/'
+      : undefined
     await loadBrowsePath(initialBrowsePath)
   }
 
-  const resolveCommitsForSave = (): { commits: BackportCommitItem[]; source: 'selected' | 'filtered' | 'all' } => {
+  const resolveCommitsForSave = (): {
+    commits: BackportCommitItem[]
+    source: 'selected' | 'filtered' | 'all'
+  } => {
     const selectedSet = new Set(selectedRowIds)
     const hasSelections = selectedSet.size > 0
     const hasActiveFilters =
@@ -726,20 +758,22 @@ export function BackportPage() {
     if (hasSelections) {
       return {
         source: 'selected',
-        commits: workingCommits.filter((row) => selectedSet.has(row.rowId)).map((row) => deepClone(row.data)),
+        commits: workingCommits
+          .filter(row => selectedSet.has(row.rowId))
+          .map(row => deepClone(row.data)),
       }
     }
 
     if (hasActiveFilters) {
       return {
         source: 'filtered',
-        commits: filteredRows.map((row) => deepClone(row.data)),
+        commits: filteredRows.map(row => deepClone(row.data)),
       }
     }
 
     return {
       source: 'all',
-      commits: workingCommits.map((row) => deepClone(row.data)),
+      commits: workingCommits.map(row => deepClone(row.data)),
     }
   }
 
@@ -749,7 +783,6 @@ export function BackportPage() {
       toast({
         title: '提示',
         description: '请先生成 report',
-        duration: 1200,
       })
       return
     }
@@ -757,7 +790,6 @@ export function BackportPage() {
       toast({
         title: '提示',
         description: '当前没有可执行的条目',
-        duration: 1200,
       })
       return
     }
@@ -772,16 +804,18 @@ export function BackportPage() {
           selectedCommits: resolved.commits,
           source: resolved.source,
         },
-        handleAgentEvent,
-      ),
+        handleAgentEvent
+      )
     )
   }
 
   const resolveRowApplyValue = (row: BackportCommitRow): string => {
-    const commitValue = stringifyValue(row.data.row_id || row.data.commit || row.data.input_commit).trim()
+    const commitValue = stringifyValue(
+      row.data.row_id || row.data.commit || row.data.input_commit
+    ).trim()
     if (commitValue) return commitValue
     const resources = buildPatchResources(row.data, row.rowId)
-    return resources.some((resource) => resource.exists) ? row.rowId : ''
+    return resources.some(resource => resource.exists) ? row.rowId : ''
   }
 
   const canApplyRow = (row: BackportCommitRow): boolean => {
@@ -791,7 +825,8 @@ export function BackportPage() {
       row.data.merged_in_target === true ||
       Boolean(row.data.empty_patch) ||
       Boolean(row.data.equivalent_exists)
-    ) return false
+    )
+      return false
     if (stringifyValue(row.data.applied_commit).trim()) return false
     return resolveRowApplyValue(row).length > 0 && baseReportPath.trim().length > 0
   }
@@ -806,8 +841,8 @@ export function BackportPage() {
           workingReportPath: filteredReportPath || baseReportPath,
           row: deepClone(row.data),
         },
-        handleAgentEvent,
-      ),
+        handleAgentEvent
+      )
     )
   }
 
@@ -817,7 +852,6 @@ export function BackportPage() {
       toast({
         title: '提示',
         description: '请先粘贴要检查的 Patch',
-        duration: 1200,
       })
       return
     }
@@ -831,7 +865,7 @@ export function BackportPage() {
       addTimeline(
         result?.status === 'success' ? '手动 Patch 检查通过' : '手动 Patch 检查失败',
         result?.status === 'success' ? 'success' : 'error',
-        result?.diagnostics?.error_text || result?.manual_patch?.stderr || result?.summary,
+        result?.diagnostics?.error_text || result?.manual_patch?.stderr || result?.summary
       )
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : '手动 Patch 检查失败'
@@ -859,7 +893,7 @@ export function BackportPage() {
       addTimeline(
         result?.status === 'success' ? '手动 Patch 已应用' : '手动 Patch 应用失败',
         result?.status === 'success' ? 'success' : 'error',
-        result?.diagnostics?.error_text || result?.manual_patch?.stderr || result?.summary,
+        result?.diagnostics?.error_text || result?.manual_patch?.stderr || result?.summary
       )
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : '手动 Patch 应用失败'
@@ -875,7 +909,12 @@ export function BackportPage() {
   }
 
   const canResolveConflictRow = (row: BackportCommitRow): boolean => {
-    return !running && Boolean(row.data.has_conflict) && !isSkippedRow(row.data) && baseReportPath.trim().length > 0
+    return (
+      !running &&
+      Boolean(row.data.has_conflict) &&
+      !isSkippedRow(row.data) &&
+      baseReportPath.trim().length > 0
+    )
   }
 
   const handleResolveConflictRow = async (row: BackportCommitRow) => {
@@ -889,17 +928,19 @@ export function BackportPage() {
           selectedCommits: [deepClone(row.data)],
           source: 'selected',
         },
-        handleAgentEvent,
-      ),
+        handleAgentEvent
+      )
     )
   }
 
   const canAnalyzeConflictRow = (row: BackportCommitRow): boolean => {
-    return !running
-      && !analyzingConflictRowId
-      && Boolean(row.data.has_conflict)
-      && !isSkippedRow(row.data)
-      && baseReportPath.trim().length > 0
+    return (
+      !running &&
+      !analyzingConflictRowId &&
+      Boolean(row.data.has_conflict) &&
+      !isSkippedRow(row.data) &&
+      baseReportPath.trim().length > 0
+    )
   }
 
   const handleAnalyzeConflictRow = async (row: BackportCommitRow) => {
@@ -908,7 +949,6 @@ export function BackportPage() {
       toast({
         title: '提示',
         description: '请先生成 report 后再分析冲突',
-        duration: 1200,
       })
       return
     }
@@ -922,8 +962,8 @@ export function BackportPage() {
 
       const currentWorkingReportPath = filteredReportPath.trim() || baseReportPath.trim()
       const patchResources = buildPatchResources(row.data, row.rowId)
-        .filter((resource) => resource.exists)
-        .filter((resource) => resource.kind === 'original' || resource.kind === 'backported')
+        .filter(resource => resource.exists)
+        .filter(resource => resource.kind === 'original' || resource.kind === 'backported')
       const analysisPatches: BackportConflictAnalysisPatch[] = []
       for (const resource of patchResources) {
         try {
@@ -953,15 +993,16 @@ export function BackportPage() {
       const agentId = await patchflowAgentService.getOrCreatePatchflowAgent()
       const chatStore = useChatStore.getState()
       conversationId = await chatStore.createConversation(agentId, 'Patchflow-Agent')
-      useChatStore.setState((state) => ({
-        conversations: state.conversations.map((conversation) =>
+      useChatStore.setState(state => ({
+        conversations: state.conversations.map(conversation =>
           conversation.id === conversationId
             ? { ...conversation, skipReconnect: true }
             : conversation
         ),
       }))
-      const sessionId = useChatStore.getState().conversations
-        .find((conversation) => conversation.id === conversationId)?.sessionId
+      const sessionId = useChatStore
+        .getState()
+        .conversations.find(conversation => conversation.id === conversationId)?.sessionId
       if (!sessionId) return
 
       const userMessage: Message = {
@@ -984,10 +1025,15 @@ export function BackportPage() {
       }
       chatStore.addMessage(conversationId, thinkingMessage)
 
-      addTimeline('已发起冲突分析', 'info', resolveCommitTitle(row.data) || stringifyValue(row.data.row_id || row.data.commit || row.rowId))
+      addTimeline(
+        '已发起冲突分析',
+        'info',
+        resolveCommitTitle(row.data) ||
+          stringifyValue(row.data.row_id || row.data.commit || row.rowId)
+      )
 
       let assistantMessageId: string | null = null
-      await chatStore.sendMessageToAgent(agentId, sessionId, taskMessage, (eventData) => {
+      await chatStore.sendMessageToAgent(agentId, sessionId, taskMessage, eventData => {
         const store = useChatStore.getState()
         assistantMessageId = handleAgentStreamEvent({
           store,
@@ -1002,8 +1048,8 @@ export function BackportPage() {
       if (assistantMessageId) {
         const store = useChatStore.getState()
         const assistantMessage = store.conversations
-          .find((conversation) => conversation.id === conversationId)
-          ?.messages.find((message) => message.id === assistantMessageId)
+          .find(conversation => conversation.id === conversationId)
+          ?.messages.find(message => message.id === assistantMessageId)
 
         if (assistantMessage?.isStreaming) {
           store.updateMessage(conversationId, assistantMessageId, {
@@ -1034,7 +1080,6 @@ export function BackportPage() {
         title: '错误',
         description: message,
         variant: 'destructive',
-        duration: 1500,
       })
     } finally {
       setAnalyzingConflictRowId(null)
@@ -1059,7 +1104,7 @@ export function BackportPage() {
   const handleDeleteSelectedRows = () => {
     const selected = new Set(selectedRowIds)
     if (selected.size === 0) return
-    setWorkingCommits((prev) => prev.filter((row) => !selected.has(row.rowId)))
+    setWorkingCommits(prev => prev.filter(row => !selected.has(row.rowId)))
     if (inspectedRowId && selected.has(inspectedRowId)) {
       setInspectorOpen(false)
       setInspectedRowId(null)
@@ -1100,7 +1145,7 @@ export function BackportPage() {
   }
 
   const toggleRowSelection = (rowId: string, checked: boolean) => {
-    setSelectedRowIds((prev) => {
+    setSelectedRowIds(prev => {
       const next = new Set(prev)
       if (checked) next.add(rowId)
       else next.delete(rowId)
@@ -1113,7 +1158,7 @@ export function BackportPage() {
       setSelectedRowIds([])
       return
     }
-    setSelectedRowIds(paginatedRows.map((row) => row.rowId))
+    setSelectedRowIds(paginatedRows.map(row => row.rowId))
   }
 
   const handleCopyText = async (text: string, label: string) => {
@@ -1123,7 +1168,6 @@ export function BackportPage() {
       toast({
         title: '已复制',
         description: `${label} 已复制到剪贴板`,
-        duration: 1000,
       })
     } catch (cause) {
       console.error(`Failed to copy ${label}:`, cause)
@@ -1131,7 +1175,6 @@ export function BackportPage() {
         title: '复制失败',
         description: `无法复制 ${label}`,
         variant: 'destructive',
-        duration: 1200,
       })
     }
   }
@@ -1157,7 +1200,7 @@ export function BackportPage() {
   const loadPatchPreview = async (
     row: BackportCommitRow,
     resource: BackportPatchResource,
-    options: { activate?: boolean } = {},
+    options: { activate?: boolean } = {}
   ): Promise<Extract<PatchLoadState, { status: 'ready' }> | null> => {
     if (!resource.exists || !baseReportPath.trim()) return null
 
@@ -1175,7 +1218,7 @@ export function BackportPage() {
       return existingPreview
     }
 
-    setPatchPreviews((prev) => ({
+    setPatchPreviews(prev => ({
       ...prev,
       [previewKey]: { status: 'loading', resource },
     }))
@@ -1188,7 +1231,7 @@ export function BackportPage() {
         kind: resource.kind,
       })
       const summary = parseUnifiedDiff(resource.kind, response.patch_text)
-      setPatchPreviews((prev) => ({
+      setPatchPreviews(prev => ({
         ...prev,
         [previewKey]: {
           status: 'ready',
@@ -1205,7 +1248,7 @@ export function BackportPage() {
       }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : '读取 Patch 失败'
-      setPatchPreviews((prev) => ({
+      setPatchPreviews(prev => ({
         ...prev,
         [previewKey]: {
           status: 'error',
@@ -1217,15 +1260,14 @@ export function BackportPage() {
         title: '错误',
         description: message,
         variant: 'destructive',
-        duration: 1500,
       })
       return null
     }
   }
 
   const updateMergedInTarget = (rowId: string, value: boolean | null) => {
-    setWorkingCommits((prev) =>
-      prev.map((item) =>
+    setWorkingCommits(prev =>
+      prev.map(item =>
         item.rowId === rowId
           ? {
               ...item,
@@ -1234,8 +1276,8 @@ export function BackportPage() {
                 merged_in_target: value,
               },
             }
-          : item,
-      ),
+          : item
+      )
     )
   }
 
@@ -1243,12 +1285,14 @@ export function BackportPage() {
     const total = workingCommits.length
     return {
       total,
-      success: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'success').length,
-      conflict: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'conflict').length,
-      noop: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'noop').length,
-      skipped: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'skipped').length,
-      unmatched: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'unmatched').length,
-      failed: workingCommits.filter((row) => resolveStatusMeta(row.data).kind === 'failed').length,
+      success: workingCommits.filter(row => resolveStatusMeta(row.data).kind === 'success').length,
+      conflict: workingCommits.filter(row => resolveStatusMeta(row.data).kind === 'conflict')
+        .length,
+      noop: workingCommits.filter(row => resolveStatusMeta(row.data).kind === 'noop').length,
+      skipped: workingCommits.filter(row => resolveStatusMeta(row.data).kind === 'skipped').length,
+      unmatched: workingCommits.filter(row => resolveStatusMeta(row.data).kind === 'unmatched')
+        .length,
+      failed: workingCommits.filter(row => resolveStatusMeta(row.data).kind === 'failed').length,
     }
   }, [workingCommits])
 
@@ -1262,7 +1306,9 @@ export function BackportPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-slate-950">Backport 工作台</h2>
-              <p className="text-sm text-slate-600">面向补丁回移植的任务管理界面，支持生成报告、跟踪进度、处理冲突并查看相关 Patch 产物</p>
+              <p className="text-sm text-slate-600">
+                面向补丁回移植的任务管理界面，支持生成报告、跟踪进度、处理冲突并查看相关 Patch 产物
+              </p>
             </div>
           </div>
 
@@ -1272,7 +1318,7 @@ export function BackportPage() {
               className={cn(
                 'border-slate-200 bg-slate-50 text-slate-700',
                 stage === 'completed' && 'border-emerald-200 bg-emerald-50 text-emerald-700',
-                stage === 'failed' && 'border-red-200 bg-red-50 text-red-700',
+                stage === 'failed' && 'border-red-200 bg-red-50 text-red-700'
               )}
             >
               {stageLabel(stage)}
@@ -1310,11 +1356,16 @@ export function BackportPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleSaveConfig()} disabled={savingConfig || running || loadingConfig}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSaveConfig()}
+                  disabled={savingConfig || running || loadingConfig}
+                >
                   <Save className="mr-1 h-4 w-4" />
                   {savingConfig ? '保存中...' : '保存'}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setConfigExpanded((prev) => !prev)}>
+                <Button variant="ghost" size="sm" onClick={() => setConfigExpanded(prev => !prev)}>
                   {configExpanded ? (
                     <>
                       <ChevronUp className="mr-1 h-4 w-4" />
@@ -1335,7 +1386,9 @@ export function BackportPage() {
             <CardContent className="grid gap-4 pt-0 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
               <div className="rounded-2xl border border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.95),rgba(255,255,255,0.98))] p-4 shadow-sm">
                 <div className="mb-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Repository Setup</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                    Repository Setup
+                  </p>
                   <h4 className="mt-1 text-sm font-semibold text-foreground">基础仓库配置</h4>
                 </div>
 
@@ -1344,7 +1397,7 @@ export function BackportPage() {
                     <p className="text-xs text-muted-foreground">项目地址 (project_url)</p>
                     <Input
                       value={config.project_url}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, project_url: e.target.value }))}
+                      onChange={e => setConfig(prev => ({ ...prev, project_url: e.target.value }))}
                       className="font-mono text-xs"
                     />
                   </div>
@@ -1352,7 +1405,7 @@ export function BackportPage() {
                     <p className="text-xs text-muted-foreground">源仓目录 (project_dir)</p>
                     <Input
                       value={config.project_dir}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, project_dir: e.target.value }))}
+                      onChange={e => setConfig(prev => ({ ...prev, project_dir: e.target.value }))}
                       className="font-mono text-xs"
                     />
                   </div>
@@ -1360,7 +1413,9 @@ export function BackportPage() {
                     <p className="text-xs text-muted-foreground">源分支 (source_branch)</p>
                     <Input
                       value={config.source_branch}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, source_branch: e.target.value }))}
+                      onChange={e =>
+                        setConfig(prev => ({ ...prev, source_branch: e.target.value }))
+                      }
                       className="font-mono text-xs"
                     />
                   </div>
@@ -1368,7 +1423,7 @@ export function BackportPage() {
                     <p className="text-xs text-muted-foreground">目标仓目录 (target_path)</p>
                     <Input
                       value={config.target_path}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, target_path: e.target.value }))}
+                      onChange={e => setConfig(prev => ({ ...prev, target_path: e.target.value }))}
                       className="font-mono text-xs"
                     />
                   </div>
@@ -1376,23 +1431,33 @@ export function BackportPage() {
                     <p className="text-xs text-muted-foreground">目标分支 (target_release)</p>
                     <Input
                       value={config.target_release}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, target_release: e.target.value }))}
+                      onChange={e =>
+                        setConfig(prev => ({ ...prev, target_release: e.target.value }))
+                      }
                       className="font-mono text-xs"
                     />
                   </div>
                   <div className="space-y-1 md:col-span-2">
-                    <p className="text-xs text-muted-foreground">补丁数据集目录 (patch_dataset_dir)</p>
+                    <p className="text-xs text-muted-foreground">
+                      补丁数据集目录 (patch_dataset_dir)
+                    </p>
                     <Input
                       value={config.patch_dataset_dir}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, patch_dataset_dir: e.target.value }))}
+                      onChange={e =>
+                        setConfig(prev => ({ ...prev, patch_dataset_dir: e.target.value }))
+                      }
                       className="font-mono text-xs"
                     />
                   </div>
                   <div className="space-y-1 md:col-span-2">
-                    <p className="text-xs text-muted-foreground">Linux 验证仓库 (linux_repo_path)</p>
+                    <p className="text-xs text-muted-foreground">
+                      Linux 验证仓库 (linux_repo_path)
+                    </p>
                     <Input
                       value={config.linux_repo_path}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, linux_repo_path: e.target.value }))}
+                      onChange={e =>
+                        setConfig(prev => ({ ...prev, linux_repo_path: e.target.value }))
+                      }
                       className="font-mono text-xs"
                     />
                   </div>
@@ -1401,9 +1466,13 @@ export function BackportPage() {
 
               <div className="rounded-2xl border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] p-4 shadow-sm">
                 <div className="mb-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Commit Identity</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                    Commit Identity
+                  </p>
                   <h4 className="mt-1 text-sm font-semibold text-foreground">提交身份设置</h4>
-                  <p className="mt-1 text-xs text-muted-foreground">执行回移植补丁应用时传给 agent 的 signer 信息</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    执行回移植补丁应用时传给 agent 的 signer 信息
+                  </p>
                 </div>
 
                 <div className="space-y-3">
@@ -1411,7 +1480,7 @@ export function BackportPage() {
                     <p className="text-xs text-muted-foreground">提交人姓名 (signer_name)</p>
                     <Input
                       value={config.signer_name}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, signer_name: e.target.value }))}
+                      onChange={e => setConfig(prev => ({ ...prev, signer_name: e.target.value }))}
                       className="text-xs"
                     />
                   </div>
@@ -1420,21 +1489,33 @@ export function BackportPage() {
                     <Input
                       type="email"
                       value={config.signer_email}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, signer_email: e.target.value }))}
+                      onChange={e => setConfig(prev => ({ ...prev, signer_email: e.target.value }))}
                       className="text-xs"
                     />
                   </div>
                   <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">当前 report</div>
-                    <div className="mt-1 break-all font-mono text-[12px] text-slate-900">{baseReportPath || '--'}</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      当前 report
+                    </div>
+                    <div className="mt-1 break-all font-mono text-[12px] text-slate-900">
+                      {baseReportPath || '--'}
+                    </div>
                   </div>
                   <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">过滤后 report</div>
-                    <div className="mt-1 break-all font-mono text-[12px] text-slate-900">{filteredReportPath || '--'}</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      过滤后 report
+                    </div>
+                    <div className="mt-1 break-all font-mono text-[12px] text-slate-900">
+                      {filteredReportPath || '--'}
+                    </div>
                   </div>
                   <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">生成配置路径</div>
-                    <div className="mt-1 break-all font-mono text-[12px] text-slate-900">{configPath || '--'}</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      生成配置路径
+                    </div>
+                    <div className="mt-1 break-all font-mono text-[12px] text-slate-900">
+                      {configPath || '--'}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1442,8 +1523,12 @@ export function BackportPage() {
               <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm xl:col-span-2">
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Message Template</p>
-                    <h4 className="mt-1 text-sm font-semibold text-foreground">目标仓库提交信息模板</h4>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                      Message Template
+                    </p>
+                    <h4 className="mt-1 text-sm font-semibold text-foreground">
+                      目标仓库提交信息模板
+                    </h4>
                     <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-2 text-xs text-muted-foreground">
                       <span>可用变量：</span>
                       <span>{'{{subject}}'}、</span>
@@ -1451,8 +1536,8 @@ export function BackportPage() {
                       <span>{'{{source}}'} =</span>
                       <Select
                         value={config.commit_message_source}
-                        onValueChange={(value) =>
-                          setConfig((prev) => ({
+                        onValueChange={value =>
+                          setConfig(prev => ({
                             ...prev,
                             commit_message_source:
                               value === 'openEuler' || value === 'upstream' ? value : 'auto',
@@ -1469,14 +1554,21 @@ export function BackportPage() {
                           <SelectItem value="upstream">全部使用 upstream</SelectItem>
                         </SelectContent>
                       </Select>
-                      <span>、{'{{body}}'}、{'{{trailers}}'}</span>
+                      <span>
+                        、{'{{body}}'}、{'{{trailers}}'}
+                      </span>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-end gap-3">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setConfig((prev) => ({ ...prev, commit_message_template: DEFAULT_COMMIT_MESSAGE_TEMPLATE }))}
+                      onClick={() =>
+                        setConfig(prev => ({
+                          ...prev,
+                          commit_message_template: DEFAULT_COMMIT_MESSAGE_TEMPLATE,
+                        }))
+                      }
                       disabled={running || loadingConfig}
                     >
                       <RotateCcw className="mr-1 h-4 w-4" />
@@ -1486,9 +1578,11 @@ export function BackportPage() {
                 </div>
                 <Textarea
                   value={config.commit_message_template}
-                  onChange={(event) => setConfig((prev) => ({ ...prev, commit_message_template: event.target.value }))}
+                  onChange={event =>
+                    setConfig(prev => ({ ...prev, commit_message_template: event.target.value }))
+                  }
                   onBlur={() =>
-                    setConfig((prev) => ({
+                    setConfig(prev => ({
                       ...prev,
                       commit_message_template: prev.commit_message_template.trim()
                         ? prev.commit_message_template
@@ -1545,15 +1639,19 @@ export function BackportPage() {
           onCopyText={handleCopyText}
           onLoadPatchPreview={(row, resource) => void loadPatchPreview(row, resource)}
           canAnalyzeConflictRow={canAnalyzeConflictRow}
-          onAnalyzeConflictRow={(row) => void handleAnalyzeConflictRow(row)}
+          onAnalyzeConflictRow={row => void handleAnalyzeConflictRow(row)}
           canApplyRow={canApplyRow}
           canResolveConflictRow={canResolveConflictRow}
-          onApplyRow={(row) => void handleApplyRow(row)}
-          onResolveConflictRow={(row) => void handleResolveConflictRow(row)}
+          onApplyRow={row => void handleApplyRow(row)}
+          onResolveConflictRow={row => void handleResolveConflictRow(row)}
         />
 
         <div className="space-y-4">
-          {error ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+          {error ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
 
           <SupportPanel
             supportTab={supportTab}
@@ -1589,7 +1687,7 @@ export function BackportPage() {
         compareLeftPreview={compareLeftPreview}
         compareRightPreview={compareRightPreview}
         manualPatchText={manualPatchText}
-        onManualPatchTextChange={(value) => {
+        onManualPatchTextChange={value => {
           setManualPatchText(value)
           setManualPatchResult(null)
         }}
@@ -1602,24 +1700,31 @@ export function BackportPage() {
         onDownloadPatch={handleDownloadPatch}
         onLoadPatchPreview={loadPatchPreview}
         commitMessagePreviewLoading={commitMessagePreviewLoadingRowId === inspectedRow?.rowId}
-        onRefreshCommitMessagePreview={(row) => void handleRefreshCommitMessagePreview(row)}
+        onRefreshCommitMessagePreview={row => void handleRefreshCommitMessagePreview(row)}
       />
 
       <Dialog open={pathBrowserOpen} onOpenChange={setPathBrowserOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>选择服务器上的 Excel 文件</DialogTitle>
-            <DialogDescription>点击目录进入，点击 Excel 文件后自动回填到表格路径输入框</DialogDescription>
+            <DialogDescription>
+              点击目录进入，点击 Excel 文件后自动回填到表格路径输入框
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Input
                 value={browsePath}
-                onChange={(e) => setBrowsePath(e.target.value)}
+                onChange={e => setBrowsePath(e.target.value)}
                 className="font-mono text-xs"
               />
-              <Button variant="outline" size="sm" onClick={() => loadBrowsePath(browsePath)} disabled={browseLoading}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadBrowsePath(browsePath)}
+                disabled={browseLoading}
+              >
                 {browseLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : '打开'}
               </Button>
               <Button
@@ -1635,7 +1740,7 @@ export function BackportPage() {
             <div className="max-h-[420px] overflow-hidden rounded-md border">
               <ScrollArea className="h-[420px]">
                 <div className="divide-y">
-                  {browseEntries.map((entry) => {
+                  {browseEntries.map(entry => {
                     const isExcel = !entry.is_dir && /\.(xlsx|xls)$/i.test(entry.name)
                     return (
                       <button
@@ -1653,9 +1758,13 @@ export function BackportPage() {
                       >
                         <div className="min-w-0">
                           <div className="truncate font-medium">{entry.name}</div>
-                          <div className="truncate font-mono text-[11px] text-muted-foreground">{entry.path}</div>
+                          <div className="truncate font-mono text-[11px] text-muted-foreground">
+                            {entry.path}
+                          </div>
                         </div>
-                        <Badge variant="outline">{entry.is_dir ? '目录' : isExcel ? 'Excel' : '文件'}</Badge>
+                        <Badge variant="outline">
+                          {entry.is_dir ? '目录' : isExcel ? 'Excel' : '文件'}
+                        </Badge>
                       </button>
                     )
                   })}

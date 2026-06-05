@@ -1,10 +1,5 @@
 import { httpClient } from '@/lib/http-client'
-import {
-  Agent,
-  CreateAgentRequest,
-  UpdateAgentRequest,
-  ApiResponse
-} from '@/lib/types'
+import { Agent, CreateAgentRequest, UpdateAgentRequest, ApiResponse } from '@/lib/types'
 import { AgentStatus, AdapterType } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
 
@@ -17,7 +12,7 @@ class AgentService {
       sandbox_type: request.sandboxType,
       idle_timeout_seconds: request.idleTimeoutSeconds,
       sandbox_id: request.sandboxId,
-      has_scheduled_tasks: request.hasScheduledTasks
+      has_scheduled_tasks: request.hasScheduledTasks,
     }
 
     if (request.modelId) {
@@ -155,9 +150,28 @@ class AgentService {
       defaultSessionId: agent.default_session_id || agent.defaultSessionId,
       processPort: agent.process_port || agent.processPort,
       skills: agent.skills || [],
+      mcpServerList: agent.mcp_server_list || [],
       createdAt: agent.created_at || agent.createdAt,
-      updatedAt: agent.updated_at || agent.updatedAt
+      updatedAt: agent.updated_at || agent.updatedAt,
     }
+  }
+
+  public async enableMcpServer(agentId: string, serverId: string): Promise<any> {
+    const response = await httpClient.post<any>(`/agents/${agentId}/mcp-servers/${serverId}/enable`)
+    if (!response) {
+      throw new Error('Invalid API response: no response received')
+    }
+    return response
+  }
+
+  public async disableMcpServer(agentId: string, serverId: string): Promise<any> {
+    const response = await httpClient.post<any>(
+      `/agents/${agentId}/mcp-servers/${serverId}/disable`
+    )
+    if (!response) {
+      throw new Error('Invalid API response: no response received')
+    }
+    return response
   }
 }
 
@@ -178,7 +192,7 @@ class AgentFactory {
       processPort: undefined,
       skills: [],
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     }
   }
 }
