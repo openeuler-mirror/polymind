@@ -35,7 +35,7 @@ export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   current_filtered_report_path: '',
 }
 
-export type RowStatusKind = 'success' | 'failed' | 'conflict' | 'noop' | 'skipped' | 'unmatched'
+export type RowStatusKind = 'success' | 'failed' | 'conflict' | 'noop' | 'skipped' | 'unmatched' | 'pending'
 
 const RELEVANT_PATCH_HUNK_CHAR_LIMIT = 1600
 
@@ -240,8 +240,10 @@ function isCommitLookupFailure(item: BackportCommitItem): boolean {
 
 export function resolveBackportProgressText(item: BackportCommitItem): string {
   const appliedCommit = stringifyValue(item.applied_commit).trim()
+  const status = stringifyValue(item.status).trim().toLowerCase()
   if (appliedCommit) return `已应用到目标仓: ${appliedCommit.slice(0, 12)}`
   if (isSkippedRow(item)) return '当前条目已跳过'
+  if (status === 'pending') return '等待继续检查'
   if (item.merged_in_target === true) return '目标分支已包含该改动'
   if (Boolean(item.has_conflict) && hasPatchResource(item, 'backported')) {
     return '冲突已完成回移植，已生成回移植 Patch，尚未应用'
@@ -279,6 +281,14 @@ export function resolveStatusMeta(item: BackportCommitItem): {
     }
   }
 
+  if (status === 'pending') {
+    return {
+      kind: 'pending',
+      label: '待检查',
+      className: 'border-slate-200 bg-slate-50 text-slate-600',
+    }
+  }
+
   if (status === 'failed' || status === 'error' || stringifyValue(item.error).trim()) {
     if (isCommitLookupFailure(item)) {
       return {
@@ -312,7 +322,7 @@ export function resolveStatusMeta(item: BackportCommitItem): {
 
   return {
     kind: 'success',
-    label: '待应用',
+    label: '无冲突待合入',
     className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   }
 }
@@ -324,12 +334,21 @@ export function resolveConflictMeta(item: BackportCommitItem): {
 } {
   const method = stringifyValue(item.conflict_check_method).trim()
   const error = stringifyValue(item.conflict_check_error).trim()
+  const status = stringifyValue(item.status).trim().toLowerCase()
 
   if (isSkippedRow(item)) {
     return {
       label: '已跳过',
       className: 'border-slate-200 bg-slate-50 text-slate-700',
       detail: error || 'Merge commit 已跳过',
+    }
+  }
+
+  if (status === 'pending') {
+    return {
+      label: '待检查',
+      className: 'border-slate-200 bg-slate-50 text-slate-600',
+      detail: '尚未执行冲突检测',
     }
   }
 
@@ -470,6 +489,7 @@ function normalizePatchPath(path: string): string {
 
 function resolveEffectiveStatus(item: BackportCommitItem): string {
   if (isSkippedRow(item)) return 'skipped'
+  if (stringifyValue(item.status).trim().toLowerCase() === 'pending') return 'pending'
   if (Boolean(item.has_conflict)) return 'conflict'
   if (Boolean(item.empty_patch)) return 'empty_patch'
   if (Boolean(item.equivalent_exists)) return 'equivalent_exists'

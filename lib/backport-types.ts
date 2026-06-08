@@ -199,6 +199,25 @@ export interface BackportApplyRowRequest {
   row: BackportCommitItem
 }
 
+export interface BackportContinueReportRequest {
+  config: BackportConfig
+  baseReportPath: string
+}
+
+export interface BackportRecheckConflictRequest {
+  config: BackportConfig
+  baseReportPath: string
+  workingReportPath?: string
+  row: BackportCommitItem
+}
+
+export interface BackportTryResolveRequest {
+  config: BackportConfig
+  baseReportPath: string
+  workingReportPath?: string
+  row: BackportCommitItem
+}
+
 export interface BackportCommitMessagePreviewRequest {
   config: BackportConfig
   baseReportPath: string
@@ -210,9 +229,4 @@ export interface BackportCommitMessagePreviewRequest {
 export interface BackportManualPatchRequest {
   config: BackportConfig
   patchText: string
-}
-
-export interface BackportRefreshReportRequest {
-  config: BackportConfig
-  baseReportPath: string
 }

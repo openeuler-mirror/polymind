@@ -268,6 +268,16 @@ export function BackportPage() {
     () => paginatedRows.length > 0 && paginatedRows.every(row => selectedRowSet.has(row.rowId)),
     [paginatedRows, selectedRowSet]
   )
+  const firstBlockingConflictRow = useMemo(
+    () => workingCommits.find((row) => Boolean(row.data.has_conflict) && !isSkippedRow(row.data)) || null,
+    [workingCommits],
+  )
+  const firstBlockingConflictRowId = firstBlockingConflictRow?.rowId || null
+  const hasPendingRows = useMemo(
+    () => workingCommits.some((row) => stringifyValue(row.data.status).trim().toLowerCase() === 'pending'),
+    [workingCommits],
+  )
+  const canContinueReport = Boolean(baseReportPath.trim()) && hasPendingRows && !firstBlockingConflictRow
   const selectedGitEntry = useMemo(
     () =>
       gitLogEntries.find(
@@ -385,7 +395,7 @@ export function BackportPage() {
 
     if (Array.isArray(result.report?.commits)) {
       const nextRows = normalizeCommitRows(result.report.commits)
-      if (result.operation === 'generate_report' || result.operation === 'refresh_report') {
+      if (result.operation === 'generate_report' || result.operation === 'continue_report') {
         setOriginalCommits(nextRows)
         setWorkingCommits(nextRows)
       } else {
@@ -651,17 +661,34 @@ export function BackportPage() {
     )
   }
 
-  const handleRefreshReport = async () => {
+  const handleContinueReport = async () => {
     if (!baseReportPath.trim()) {
       toast({
         title: '提示',
-        description: '当前没有可刷新的 report',
+        description: '当前没有可继续检查的 report',
+        duration: 1200,
+      })
+      return
+    }
+    if (firstBlockingConflictRow) {
+      toast({
+        title: '提示',
+        description: '请先检测或处理当前冲突',
+        duration: 1200,
+      })
+      return
+    }
+    if (!hasPendingRows) {
+      toast({
+        title: '提示',
+        description: '当前没有待检查的提交',
+        duration: 1200,
       })
       return
     }
 
-    await runOperation('刷新当前 report', () =>
-      backportService.refreshReport(
+    await runOperation('继续检查', () =>
+      backportService.continueReport(
         {
           config,
           baseReportPath: baseReportPath.trim(),
@@ -820,6 +847,7 @@ export function BackportPage() {
 
   const canApplyRow = (row: BackportCommitRow): boolean => {
     if (running) return false
+    if (stringifyValue(row.data.status).trim().toLowerCase() === 'pending') return false
     if (
       isSkippedRow(row.data) ||
       row.data.merged_in_target === true ||
@@ -909,24 +937,44 @@ export function BackportPage() {
   }
 
   const canResolveConflictRow = (row: BackportCommitRow): boolean => {
-    return (
-      !running &&
-      Boolean(row.data.has_conflict) &&
-      !isSkippedRow(row.data) &&
-      baseReportPath.trim().length > 0
-    )
+    return !running
+      && row.rowId === firstBlockingConflictRowId
+      && Boolean(row.data.has_conflict)
+      && !isSkippedRow(row.data)
+      && baseReportPath.trim().length > 0
   }
 
   const handleResolveConflictRow = async (row: BackportCommitRow) => {
     await handleSaveConfig(true)
     await runOperation('处理冲突条目', () =>
-      backportService.executeSelected(
+      backportService.tryResolve(
         {
           config,
           baseReportPath,
           workingReportPath: filteredReportPath || baseReportPath,
-          selectedCommits: [deepClone(row.data)],
-          source: 'selected',
+          row: deepClone(row.data),
+        },
+        handleAgentEvent,
+      ),
+    )
+  }
+
+  const canRecheckConflictRow = (row: BackportCommitRow): boolean => {
+    return !running
+      && row.rowId === firstBlockingConflictRowId
+      && Boolean(row.data.has_conflict)
+      && !isSkippedRow(row.data)
+      && baseReportPath.trim().length > 0
+  }
+
+  const handleRecheckConflictRow = async (row: BackportCommitRow) => {
+    await runOperation('检测当前冲突', () =>
+      backportService.recheckConflict(
+        {
+          config,
+          baseReportPath,
+          workingReportPath: filteredReportPath || baseReportPath,
+          row: deepClone(row.data),
         },
         handleAgentEvent
       )
@@ -1629,9 +1677,10 @@ export function BackportPage() {
           paginationItems={paginationItems}
           onCommitPageChange={setCommitPage}
           originalCommitCount={originalCommits.length}
+          canContinueReport={canContinueReport}
           onOpenPathBrowser={openPathBrowser}
           onGenerateReport={handleGenerateReport}
-          onRefreshReport={handleRefreshReport}
+          onContinueReport={handleContinueReport}
           onExecuteSelected={handleExecuteSelected}
           onDeleteSelectedRows={handleDeleteSelectedRows}
           onResetWorkingRows={handleResetWorkingRows}
@@ -1639,7 +1688,10 @@ export function BackportPage() {
           onCopyText={handleCopyText}
           onLoadPatchPreview={(row, resource) => void loadPatchPreview(row, resource)}
           canAnalyzeConflictRow={canAnalyzeConflictRow}
-          onAnalyzeConflictRow={row => void handleAnalyzeConflictRow(row)}
+          onAnalyzeConflictRow={(row) => void handleAnalyzeConflictRow(row)}
+          firstBlockingConflictRowId={firstBlockingConflictRowId}
+          canRecheckConflictRow={canRecheckConflictRow}
+          onRecheckConflictRow={(row) => void handleRecheckConflictRow(row)}
           canApplyRow={canApplyRow}
           canResolveConflictRow={canResolveConflictRow}
           onApplyRow={row => void handleApplyRow(row)}

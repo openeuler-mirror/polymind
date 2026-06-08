@@ -69,9 +69,10 @@ interface CommitTableProps {
   paginationItems: Array<number | string>
   onCommitPageChange: (updater: number | ((prev: number) => number)) => void
   originalCommitCount: number
+  canContinueReport: boolean
   onOpenPathBrowser: () => void
   onGenerateReport: () => void
-  onRefreshReport: () => void
+  onContinueReport: () => void
   onExecuteSelected: () => void
   onDeleteSelectedRows: () => void
   onResetWorkingRows: () => void
@@ -80,6 +81,9 @@ interface CommitTableProps {
   onLoadPatchPreview: (row: BackportCommitRow, resource: BackportPatchResource) => void
   canAnalyzeConflictRow: (row: BackportCommitRow) => boolean
   onAnalyzeConflictRow: (row: BackportCommitRow) => void
+  firstBlockingConflictRowId: string | null
+  canRecheckConflictRow: (row: BackportCommitRow) => boolean
+  onRecheckConflictRow: (row: BackportCommitRow) => void
   canApplyRow: (row: BackportCommitRow) => boolean
   canResolveConflictRow: (row: BackportCommitRow) => boolean
   onApplyRow: (row: BackportCommitRow) => void
@@ -118,9 +122,10 @@ export function CommitTable({
   paginationItems,
   onCommitPageChange,
   originalCommitCount,
+  canContinueReport,
   onOpenPathBrowser,
   onGenerateReport,
-  onRefreshReport,
+  onContinueReport,
   onExecuteSelected,
   onDeleteSelectedRows,
   onResetWorkingRows,
@@ -129,6 +134,9 @@ export function CommitTable({
   onLoadPatchPreview,
   canAnalyzeConflictRow,
   onAnalyzeConflictRow,
+  firstBlockingConflictRowId,
+  canRecheckConflictRow,
+  onRecheckConflictRow,
   canApplyRow,
   canResolveConflictRow,
   onApplyRow,
@@ -171,13 +179,20 @@ export function CommitTable({
                 )}
                 导入 Excel 并生成报告
               </Button>
-              <Button variant="outline" size="sm" className="h-8" onClick={onRefreshReport} disabled={running || !baseReportPath.trim()}>
-                {running && runningLabel === '刷新当前 report' ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={onContinueReport}
+                disabled={running || !baseReportPath.trim() || !canContinueReport}
+                title={canContinueReport ? '从第一条待检查提交继续推进' : '需要无阻塞冲突且存在待检查提交'}
+              >
+                {running && runningLabel === '继续检查' ? (
                   <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
                 ) : (
                   <RefreshCw className="mr-1 h-4 w-4" />
                 )}
-                刷新 report
+                继续检查
               </Button>
               <Button variant="outline" size="sm" className="h-8" onClick={onExecuteSelected} disabled={running || filteredRows.length === 0}>
                 <Play className="mr-1 h-4 w-4" />
@@ -253,6 +268,7 @@ export function CommitTable({
                     <option value="unmatched">未匹配</option>
                     <option value="failed">失败</option>
                     <option value="noop">无需移植</option>
+                    <option value="pending">待检查</option>
                     <option value="skipped">跳过</option>
                   </select>
                 </div>
@@ -309,6 +325,7 @@ export function CommitTable({
                     const isAnalyzingConflictRow = analyzingConflictRowId === row.rowId
                     const hasActionableConflict = Boolean(row.data.has_conflict) && !isSkippedRow(row.data)
                     const canApplyBackportedPatch = hasActionableConflict && hasPatchResource(row.data, 'backported')
+                    const isFirstBlockingConflict = row.rowId === firstBlockingConflictRowId
 
                     return (
                       <div
@@ -425,6 +442,23 @@ export function CommitTable({
                           >
                             详情
                           </Button>
+                          {hasActionableConflict ? (
+                            isFirstBlockingConflict ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 justify-start border-slate-200 bg-white px-2 text-[11px] text-slate-700 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-800"
+                                disabled={!canRecheckConflictRow(row)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onRecheckConflictRow(row)
+                                }}
+                              >
+                                <RefreshCw className="mr-1 h-3 w-3" />
+                                检测冲突
+                              </Button>
+                            ) : null
+                          ) : null}
                           {hasActionableConflict ? (
                             <Button
                               variant="outline"

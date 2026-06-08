@@ -6,6 +6,7 @@ import {
   BackportCommitMessagePreviewRequest,
   BackportConfig,
   BackportConfigUpdateResponse,
+  BackportContinueReportRequest,
   BackportExecuteRequest,
   BackportGenerateReportRequest,
   BackportLoadGitLogRequest,
@@ -13,20 +14,23 @@ import {
   BackportLoadGitShowRequest,
   BackportManualPatchRequest,
   BackportPatchPreviewResponse,
-  BackportRefreshReportRequest,
+  BackportRecheckConflictRequest,
   BackportRunResponse,
   BackportToolSnapshot,
+  BackportTryResolveRequest,
 } from '@/lib/backport-types'
 
 type BackportAction =
   | 'generate_report'
-  | 'refresh_report'
+  | 'continue_report'
+  | 'recheck_conflict'
   | 'load_git_log'
   | 'load_git_show'
   | 'load_patch_preview'
   | 'preview_commit_message'
   | 'execute_selected'
   | 'apply_row'
+  | 'try_resolve'
   | 'check_manual_patch'
   | 'apply_manual_patch'
 
@@ -175,16 +179,34 @@ class BackportService {
     )
   }
 
-  public async refreshReport(
-    request: BackportRefreshReportRequest,
+  public async continueReport(
+    request: BackportContinueReportRequest,
     onEvent?: (event: any) => void,
   ): Promise<BackportRunResponse> {
     return this.runAction(
       {
-        action: 'refresh_report',
+        action: 'continue_report',
         payload: {
           config: request.config,
           base_report_path: request.baseReportPath,
+        },
+      },
+      onEvent,
+    )
+  }
+
+  public async recheckConflict(
+    request: BackportRecheckConflictRequest,
+    onEvent?: (event: any) => void,
+  ): Promise<BackportRunResponse> {
+    return this.runAction(
+      {
+        action: 'recheck_conflict',
+        payload: {
+          config: request.config,
+          base_report_path: request.baseReportPath,
+          working_report_path: request.workingReportPath,
+          row: request.row,
         },
       },
       onEvent,
@@ -233,6 +255,24 @@ class BackportService {
     return this.runAction(
       {
         action: 'apply_row',
+        payload: {
+          config: request.config,
+          base_report_path: request.baseReportPath,
+          working_report_path: request.workingReportPath,
+          row: request.row,
+        },
+      },
+      onEvent,
+    )
+  }
+
+  public async tryResolve(
+    request: BackportTryResolveRequest,
+    onEvent?: (event: any) => void,
+  ): Promise<BackportRunResponse> {
+    return this.runAction(
+      {
+        action: 'try_resolve',
         payload: {
           config: request.config,
           base_report_path: request.baseReportPath,
