@@ -25,6 +25,7 @@ import {
   Settings,
   Search,
   Database,
+  Plus,
 } from 'lucide-react'
 
 interface AgentCreatePageProps {
@@ -41,19 +42,21 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
     idleTimeout: 3600,
     icon: 'bot',
     modelId: '',
-    mcpServerName: '',
-    mcpServerConfig: '',
   })
   const [models, setModels] = useState<ModelConfig[]>([])
   const [existingAgentNames, setExistingAgentNames] = useState<string[]>([])
   const [nameError, setNameError] = useState('')
   const [showIconSelector, setShowIconSelector] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [mcpConfigError, setMcpConfigError] = useState('')
+  const [loadingModels, setLoadingModels] = useState(true)
   const { toast } = useToast()
   const iconSelectorRef = useRef<HTMLDivElement>(null)
   const addAgent = useChatStore(state => state.addAgent)
   const setCurrentAgent = useChatStore(state => state.setCurrentAgent)
+  const rightPanelTabs = useChatStore(state => state.rightPanelTabs)
+  const setSettingsActiveSection = useChatStore(state => state.setSettingsActiveSection)
+  const addRightPanelTab = useChatStore(state => state.addRightPanelTab)
+  const setActiveRightPanelTab = useChatStore(state => state.setActiveRightPanelTab)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -66,6 +69,8 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
         setExistingAgentNames(agentsData.map(agent => agent.name))
       } catch (error) {
         console.error('Failed to fetch data:', error)
+      } finally {
+        setLoadingModels(false)
       }
     }
     fetchData()
@@ -133,30 +138,6 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
     { name: 'database', component: Database },
   ]
 
-  const validateMcpConfig = (configStr: string): boolean => {
-    if (!configStr.trim()) {
-      setMcpConfigError('')
-      return true
-    }
-    try {
-      JSON.parse(configStr)
-      setMcpConfigError('')
-      return true
-    } catch {
-      setMcpConfigError('MCP配置必须是有效的JSON格式')
-      return false
-    }
-  }
-
-  // 处理MCP配置变化
-  const handleMcpConfigChange = (value: string) => {
-    setAgentForm(prev => ({
-      ...prev,
-      mcpServerConfig: value,
-    }))
-    validateMcpConfig(value)
-  }
-
   // 处理表单提交
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -174,29 +155,9 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
       return
     }
 
-    if (!validateMcpConfig(agentForm.mcpServerConfig)) {
-      return
-    }
-
-    const hasMcpName = agentForm.mcpServerName.trim() !== ''
-    const hasMcpConfig = agentForm.mcpServerConfig.trim() !== ''
-
-    if (hasMcpName !== hasMcpConfig) {
-      toast({
-        title: '错误',
-        description: 'MCP Server 名称和配置必须同时填写或同时不填',
-        variant: 'destructive',
-      })
-      return
-    }
-
     try {
       setLoading(true)
       console.log('Creating agent:', agentForm)
-
-      const mcpConfig = agentForm.mcpServerConfig.trim()
-        ? JSON.parse(agentForm.mcpServerConfig)
-        : undefined
 
       const newAgent = await agentService.createAgent({
         name: agentForm.name,
@@ -205,8 +166,6 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
         sandboxType: agentForm.sandboxType,
         idleTimeoutSeconds: agentForm.idleTimeout,
         modelId: agentForm.modelId || undefined,
-        mcpServerName: agentForm.mcpServerName || undefined,
-        mcpServerConfig: mcpConfig,
       })
 
       // 添加到全局store，同步到conversation-sidebar
@@ -360,55 +319,74 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
               <label htmlFor="modelId" className="text-sm font-medium">
                 模型配置 <span className="text-destructive">*</span>
               </label>
-              <Select
-                value={agentForm.modelId}
-                onValueChange={value => setAgentForm(prev => ({ ...prev, modelId: value }))}
-              >
-                <SelectTrigger id="modelId" className="w-full">
-                  <SelectValue placeholder="请选择模型配置" />
-                </SelectTrigger>
-                <SelectContent>
-                  {models.map(model => (
-                    <SelectItem key={model.id} value={model.id}>
-                      {model.name} ({model.provider})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="mcpServerName" className="text-sm font-medium">
-                MCP Server 名称
-              </label>
-              <Input
-                id="mcpServerName"
-                name="mcpServerName"
-                value={agentForm.mcpServerName}
-                onChange={handleFormChange}
-                placeholder="输入MCP Server名称（可选）"
-                className="w-full"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="mcpServerConfig" className="text-sm font-medium">
-                MCP Server 配置
-              </label>
-              <textarea
-                id="mcpServerConfig"
-                name="mcpServerConfig"
-                value={agentForm.mcpServerConfig}
-                onChange={e => handleMcpConfigChange(e.target.value)}
-                placeholder="输入MCP配置（JSON格式，可选）"
-                className={`w-full rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-                  mcpConfigError
-                    ? 'border-destructive focus-visible:ring-destructive'
-                    : 'border-input focus-visible:ring-ring'
-                }`}
-                rows={4}
-              />
-              {mcpConfigError && <p className="text-sm text-destructive">{mcpConfigError}</p>}
+              {!loadingModels && models.length === 0 ? (
+                <div className="flex items-center justify-between p-4 border border-input rounded-md bg-muted/50">
+                  <span className="text-sm text-muted-foreground">暂无模型配置，请先添加模型</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSettingsActiveSection('model')
+                      const existingTab = rightPanelTabs.find(tab => tab.id === 'settings')
+                      if (!existingTab) {
+                        addRightPanelTab({
+                          id: 'settings',
+                          name: '设置',
+                          icon: Settings,
+                          color: 'text-gray-500',
+                        })
+                      }
+                      setActiveRightPanelTab('settings')
+                    }}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    添加模型
+                  </Button>
+                </div>
+              ) : (
+                <Select
+                  value={agentForm.modelId}
+                  onValueChange={value => setAgentForm(prev => ({ ...prev, modelId: value }))}
+                  disabled={loadingModels}
+                >
+                  <SelectTrigger id="modelId" className="w-full">
+                    {loadingModels ? (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <svg
+                          className="animate-spin h-4 w-4"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        加载中...
+                      </div>
+                    ) : (
+                      <SelectValue placeholder="请选择模型配置" />
+                    )}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {models.map(model => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.name} ({model.provider})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <div className="flex justify-end gap-2">
