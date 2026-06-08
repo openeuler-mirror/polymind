@@ -75,6 +75,9 @@ export interface ChatState {
   // 停止生成锁
   _stoppingInProgress: boolean
   
+  // Agents加载状态
+  isAgentsLoading: boolean
+  
   // Actions
   createConversation: (agentId?: string, agentName?: string) => Promise<string>
   createLocalConversation: (agentId: string, agentName?: string) => string
@@ -152,6 +155,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   connectionError: null,
   _stoppingInProgress: false,
   agentCreateFlag: 0,
+  isAgentsLoading: false,
 
   createConversation: async (agentId?: string, agentName?: string) => {
      let sessionId: string | undefined
@@ -925,6 +929,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
     const doNetworkRefresh = async () => {
       try {
+        set({ isAgentsLoading: true })
         const enriched = await agentService.getAgentsWithConversations()
         const agents: Agent[] = enriched.map((item: any) => agentService.transformAgent(item))
 
@@ -978,11 +983,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
           return {
             agents,
             conversations: merged,
+            isAgentsLoading: false,
             ...(convStillExists ? {} : { currentConversationId: null }),
           }
         })
       } catch (error) {
         console.error('Failed to fetch agents with conversations:', error)
+        set({ isAgentsLoading: false })
       }
     }
 

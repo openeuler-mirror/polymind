@@ -47,11 +47,13 @@ temp/
 # TypeScript output
 *.tsbuildinfo
 next-env.d.ts
+next.config.js
 
 # Next.js cache
 .next/cache/
 
 # Environment variables
+.env
 .env.local
 
 # IDE files

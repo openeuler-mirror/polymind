@@ -189,7 +189,7 @@ NEXT_PUBLIC_AGENTD_API_URL=http://${backendHost}:${backendPort}
 # WebSocket地址
 NEXT_PUBLIC_WS_URL=ws://${backendHost}:${backendPort}/ws
 # API请求超时时间(毫秒)
-NEXT_PUBLIC_API_TIMEOUT=30000
+NEXT_PUBLIC_API_TIMEOUT=120000
 # 最大重连次数
 NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS=5
 # 重连间隔(毫秒)

@@ -1,23 +1,28 @@
 import { httpClient } from '@/lib/http-client'
-import {
-  Agent,
-  CreateAgentRequest,
-  UpdateAgentRequest,
-  ApiResponse
-} from '@/lib/types'
+import { Agent, CreateAgentRequest, UpdateAgentRequest, ApiResponse } from '@/lib/types'
 import { AgentStatus, AdapterType } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
 
 class AgentService {
   public async createAgent(request: CreateAgentRequest): Promise<Agent> {
-    const backendRequest = {
+    const backendRequest: Record<string, any> = {
       name: request.name,
       description: request.description || '',
       adapter_type: request.adapterType,
       sandbox_type: request.sandboxType,
       idle_timeout_seconds: request.idleTimeoutSeconds,
       sandbox_id: request.sandboxId,
-      has_scheduled_tasks: request.hasScheduledTasks
+      has_scheduled_tasks: request.hasScheduledTasks,
+    }
+
+    if (request.modelId) {
+      backendRequest.model_id = request.modelId
+    }
+    if (request.mcpServerName) {
+      backendRequest.mcp_server_name = request.mcpServerName
+    }
+    if (request.mcpServerConfig) {
+      backendRequest.mcp_server_config = request.mcpServerConfig
     }
 
     console.log('创建智能体请求:', backendRequest)
@@ -145,9 +150,28 @@ class AgentService {
       defaultSessionId: agent.default_session_id || agent.defaultSessionId,
       processPort: agent.process_port || agent.processPort,
       skills: agent.skills || [],
+      mcpServerList: agent.mcp_server_list || [],
       createdAt: agent.created_at || agent.createdAt,
-      updatedAt: agent.updated_at || agent.updatedAt
+      updatedAt: agent.updated_at || agent.updatedAt,
     }
+  }
+
+  public async enableMcpServer(agentId: string, serverId: string): Promise<any> {
+    const response = await httpClient.post<any>(`/agents/${agentId}/mcp-servers/${serverId}/enable`)
+    if (!response) {
+      throw new Error('Invalid API response: no response received')
+    }
+    return response
+  }
+
+  public async disableMcpServer(agentId: string, serverId: string): Promise<any> {
+    const response = await httpClient.post<any>(
+      `/agents/${agentId}/mcp-servers/${serverId}/disable`
+    )
+    if (!response) {
+      throw new Error('Invalid API response: no response received')
+    }
+    return response
   }
 }
 
@@ -168,7 +192,7 @@ class AgentFactory {
       processPort: undefined,
       skills: [],
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     }
   }
 }
