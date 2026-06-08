@@ -55,7 +55,6 @@ next.config.js
 # Environment variables
 .env
 .env.local
-pnpm-lock.yaml
 
 # IDE files
 .vscode/
@@ -102,6 +101,9 @@ debug.log
 *.tar*
 *.gz
 *.rar
+
+# Release artifacts
+/dist/
 
 # Sensitive files
 secrets.*
