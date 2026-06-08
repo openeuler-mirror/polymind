@@ -4,7 +4,12 @@ import { useState, useEffect } from 'react'
 import { Search, Filter, RefreshCw, Plus, Trash2, Play, Pause, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -55,7 +60,6 @@ export function AgentPage() {
         title: '错误',
         description: '获取智能体列表失败',
         variant: 'destructive',
-        duration: 1000
       })
       console.error('Failed to fetch agents:', err)
     } finally {
@@ -87,15 +91,14 @@ export function AgentPage() {
             title: '错误',
             description: result.error,
             variant: 'destructive',
-            duration: 1000
           })
           return
         }
         if (result.agent) {
           // 更新本地状态中的agent信息
-          setAgents(prevAgents => prevAgents.map(agent => 
-            agent.id === agentId ? result.agent! : agent
-          ))
+          setAgents(prevAgents =>
+            prevAgents.map(agent => (agent.id === agentId ? result.agent! : agent))
+          )
         }
       } else if (action === 'resume') {
         const result = await agentService.resumeAgent(agentId)
@@ -106,15 +109,14 @@ export function AgentPage() {
             title: '错误',
             description: result.error,
             variant: 'destructive',
-            duration: 1000
           })
           return
         }
         if (result.agent) {
           // 更新本地状态中的agent信息
-          setAgents(prevAgents => prevAgents.map(agent => 
-            agent.id === agentId ? result.agent! : agent
-          ))
+          setAgents(prevAgents =>
+            prevAgents.map(agent => (agent.id === agentId ? result.agent! : agent))
+          )
         }
       } else if (action === 'delete') {
         setIsDeleting(true)
@@ -126,7 +128,6 @@ export function AgentPage() {
         toast({
           title: '成功',
           description: 'Agent 已删除',
-          duration: 1000
         })
         setDeleteAgentId(null)
         setIsDeleting(false)
@@ -137,7 +138,6 @@ export function AgentPage() {
         title: '错误',
         description: '操作失败',
         variant: 'destructive',
-        duration: 1000
       })
       if (action === 'delete') {
         setIsDeleting(false)
@@ -149,8 +149,9 @@ export function AgentPage() {
   // 过滤和搜索智能体
   const filteredAgents = agents.filter(agent => {
     const searchLower = searchTerm.toLowerCase()
-    const matchesSearch = agent.name.toLowerCase().includes(searchLower) || 
-                        (agent.description && agent.description.toLowerCase().includes(searchLower))
+    const matchesSearch =
+      agent.name.toLowerCase().includes(searchLower) ||
+      (agent.description && agent.description.toLowerCase().includes(searchLower))
     const matchesFilter = filter === 'all' || agent.status.toLowerCase() === filter.toLowerCase()
     return matchesSearch && matchesFilter
   })
@@ -203,7 +204,7 @@ export function AgentPage() {
             {isCreating ? 'Agent 运行时/创建' : 'Agent 运行时'}
           </h2>
         </div>
-        
+
         {!isCreating && (
           <div className="flex items-center gap-2 max-w-2xl mx-auto w-full">
             <div className="relative">
@@ -211,7 +212,7 @@ export function AgentPage() {
               <Input
                 placeholder="搜索 Agent..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={e => setSearchTerm(e.target.value)}
                 className="pl-8 w-64"
               />
             </div>
@@ -224,9 +225,15 @@ export function AgentPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setFilter('all')}>全部状态</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilter(AgentStatus.RUNNING)}>运行中</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilter(AgentStatus.ERROR)}>创建/更新失败</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilter(AgentStatus.PAUSED)}>已暂停</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter(AgentStatus.RUNNING)}>
+                  运行中
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter(AgentStatus.ERROR)}>
+                  创建/更新失败
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter(AgentStatus.PAUSED)}>
+                  已暂停
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button variant="outline" size="sm" onClick={fetchAgents}>
@@ -245,82 +252,92 @@ export function AgentPage() {
       {/* 智能体列表或创建表单 */}
       <div className="flex-1 overflow-y-auto flex justify-center scrollbar-thin min-h-0">
         <div className="w-full max-w-2xl">
-        {isCreating ? (
-          /* 智能体创建表单 */
-          <AgentCreatePage 
-            onBack={handleBack} 
-            onCreated={handleAgentCreated} 
-          />
-        ) : loading ? (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-muted-foreground">加载中...</p>
-          </div>
-        ) : filteredAgents.length === 0 ? (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-muted-foreground">暂无智能体</p>
-          </div>
-        ) : (
-          <div className="space-y-3 flex flex-col items-center">
-            {filteredAgents.map((agent) => (
-              <Card key={agent.id} className="border border-border w-full max-w-2xl">
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-sm font-medium">{agent.name}</CardTitle>
-                    <Badge className={cn('text-xs pl-1.5 pr-2.5 py-1 bg-transparent border-0 shadow-none flex items-center gap-1.5', getStatusBadgeClass(agent.status))}>
-                      <span className={cn('w-1.5 h-1.5 rounded-full bg-current', agent.status.toLowerCase() === 'running' && 'animate-pulse')}></span>
-                      {getStatusText(agent.status)}
-                    </Badge>
-                  </div>
-                  <CardDescription className="text-xs">
-                    {agent.adapterType} • {new Date(agent.createdAt).toLocaleString()}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pb-3">
-                  <div className="text-xs text-muted-foreground mb-3">
-                    {agent.description || '无描述'}
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex gap-2">
-                      {agent.status.toLowerCase() === 'running' ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleAgentAction(agent.id, 'pause')}
-                        >
-                          <Pause className="h-3 w-3 mr-1" />
-                          暂停
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleAgentAction(agent.id, 'resume')}
-                        >
-                          <Play className="h-3 w-3 mr-1" />
-                          启动
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-500"
-                        onClick={() => setDeleteAgentId(agent.id)}
+          {isCreating ? (
+            /* 智能体创建表单 */
+            <AgentCreatePage onBack={handleBack} onCreated={handleAgentCreated} />
+          ) : loading ? (
+            <div className="flex items-center justify-center h-32">
+              <p className="text-muted-foreground">加载中...</p>
+            </div>
+          ) : filteredAgents.length === 0 ? (
+            <div className="flex items-center justify-center h-32">
+              <p className="text-muted-foreground">暂无智能体</p>
+            </div>
+          ) : (
+            <div className="space-y-3 flex flex-col items-center">
+              {filteredAgents.map(agent => (
+                <Card key={agent.id} className="border border-border w-full max-w-2xl">
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-sm font-medium">{agent.name}</CardTitle>
+                      <Badge
+                        className={cn(
+                          'text-xs pl-1.5 pr-2.5 py-1 bg-transparent border-0 shadow-none flex items-center gap-1.5',
+                          getStatusBadgeClass(agent.status)
+                        )}
                       >
-                        <Trash2 className="h-3 w-3 mr-1" />
-                        删除
-                      </Button>
+                        <span
+                          className={cn(
+                            'w-1.5 h-1.5 rounded-full bg-current',
+                            agent.status.toLowerCase() === 'running' && 'animate-pulse'
+                          )}
+                        ></span>
+                        {getStatusText(agent.status)}
+                      </Badge>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                    <CardDescription className="text-xs">
+                      {agent.adapterType} • {new Date(agent.createdAt).toLocaleString()}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pb-3">
+                    <div className="text-xs text-muted-foreground mb-3">
+                      {agent.description || '无描述'}
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div className="flex gap-2">
+                        {agent.status.toLowerCase() === 'running' ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAgentAction(agent.id, 'pause')}
+                          >
+                            <Pause className="h-3 w-3 mr-1" />
+                            暂停
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAgentAction(agent.id, 'resume')}
+                          >
+                            <Play className="h-3 w-3 mr-1" />
+                            启动
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500"
+                          onClick={() => setDeleteAgentId(agent.id)}
+                        >
+                          <Trash2 className="h-3 w-3 mr-1" />
+                          删除
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {/* 删除确认对话框 */}
-      <AlertDialog open={deleteAgentId !== null} onOpenChange={(open) => !open && !isDeleting && setDeleteAgentId(null)}>
+      <AlertDialog
+        open={deleteAgentId !== null}
+        onOpenChange={open => !open && !isDeleting && setDeleteAgentId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除 Agent</AlertDialogTitle>

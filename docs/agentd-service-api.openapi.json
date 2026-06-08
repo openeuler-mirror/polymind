@@ -23,6 +23,12 @@
     },
     {
       "name": "Events"
+    },
+    {
+      "name": "Conversations"
+    },
+    {
+      "name": "Skills"
     }
   ],
   "paths": {
@@ -98,6 +104,9 @@
                     "workspace_path": "/path/to/workspace",
                     "idle_timeout_seconds": 3600,
                     "has_scheduled_tasks": false,
+                    "model_id": null,
+                    "mcp_server_name": null,
+                    "mcp_server_config": null,
                     "created_at": "2026-04-10T12:00:00",
                     "updated_at": "2026-04-10T12:00:00",
                     "default_session_id": "session-uuid"
@@ -139,7 +148,10 @@
                 "adapter_type": "openclaw",
                 "idle_timeout_seconds": 3600,
                 "sandbox_id": null,
-                "has_scheduled_tasks": false
+                "has_scheduled_tasks": false,
+                "model_id": null,
+                "mcp_server_name": null,
+                "mcp_server_config": null
               }
             }
           },
@@ -164,6 +176,9 @@
                   "workspace_path": "/path/to/workspace",
                   "idle_timeout_seconds": 3600,
                   "has_scheduled_tasks": false,
+                  "model_id": null,
+                  "mcp_server_name": null,
+                  "mcp_server_config": null,
                   "created_at": "2026-04-10T12:00:00",
                   "updated_at": "2026-04-10T12:00:00",
                   "default_session_id": "session-uuid"
@@ -230,6 +245,9 @@
                   "workspace_path": "/path/to/workspace",
                   "idle_timeout_seconds": 3600,
                   "has_scheduled_tasks": false,
+                  "model_id": null,
+                  "mcp_server_name": null,
+                  "mcp_server_config": null,
                   "created_at": "2026-04-10T12:00:00",
                   "updated_at": "2026-04-10T12:00:00",
                   "default_session_id": "session-uuid"
@@ -338,6 +356,9 @@
                   "workspace_path": "/path/to/workspace",
                   "idle_timeout_seconds": 3600,
                   "has_scheduled_tasks": false,
+                  "model_id": null,
+                  "mcp_server_name": null,
+                  "mcp_server_config": null,
                   "created_at": "2026-04-10T12:00:00",
                   "updated_at": "2026-04-10T12:30:00",
                   "default_session_id": "session-uuid"
@@ -408,6 +429,9 @@
                   "workspace_path": "/path/to/workspace",
                   "idle_timeout_seconds": 3600,
                   "has_scheduled_tasks": false,
+                  "model_id": null,
+                  "mcp_server_name": null,
+                  "mcp_server_config": null,
                   "created_at": "2026-04-10T12:00:00",
                   "updated_at": "2026-04-10T12:35:00",
                   "default_session_id": "session-uuid"
@@ -734,6 +758,59 @@
         "security": []
       }
     },
+    "/agents/{agent_id}/sessions/{session_id}/abort": {
+      "post": {
+        "summary": "中止会话",
+        "deprecated": false,
+        "description": "中止正在运行的会话",
+        "tags": [
+          "Sessions"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "会话唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "成功中止会话",
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
     "/agents/{agent_id}/sessions/{session_id}/messages": {
       "post": {
         "summary": "发送消息（非流式）",
@@ -924,6 +1001,67 @@
         "security": []
       }
     },
+    "/agents/{agent_id}/sessions/{session_id}/messages/stream/reconnect": {
+      "post": {
+        "summary": "SSE 流重连",
+        "deprecated": false,
+        "description": "重新连接到已有消息流，通过 WebSocket 接收事件",
+        "tags": [
+          "Messages"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "会话唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功建立 WebSocket 连接",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
     "/agents/{agent_id}/sessions/{session_id}/events": {
       "get": {
         "summary": "查询会话事件回放",
@@ -1030,6 +1168,314 @@
         "security": []
       }
     },
+    "/agents/{agent_id}/conversations": {
+      "get": {
+        "summary": "列出会话摘要",
+        "deprecated": false,
+        "description": "查询本地数据库，返回会话列表及最新消息摘要",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取会话摘要列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationSummary"
+                  }
+                },
+                "example": [
+                  {
+                    "session_id": "session-uuid",
+                    "title": "会话标题",
+                    "latest_message": "最近的消息内容",
+                    "is_pinned": false,
+                    "created_at": "2026-04-10T12:00:00",
+                    "updated_at": "2026-04-10T12:30:00"
+                  }
+                ]
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}/conversations/{session_id}": {
+      "get": {
+        "summary": "获取会话详情",
+        "deprecated": false,
+        "description": "查询本地数据库，支持消息分页（limit/before）",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "会话唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "每页数量",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "分页游标，获取此时间戳之前的消息",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取会话详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDetail"
+                },
+                "example": {
+                  "session_id": "session-uuid",
+                  "title": "会话标题",
+                  "is_pinned": false,
+                  "created_at": "2026-04-10T12:00:00",
+                  "updated_at": "2026-04-10T12:30:00",
+                  "messages": [
+                    {
+                      "id": "message-uuid",
+                      "role": "user",
+                      "content": "用户消息内容",
+                      "created_at": "2026-04-10T12:00:00"
+                    },
+                    {
+                      "id": "message-uuid",
+                      "role": "assistant",
+                      "content": "助手回复内容",
+                      "created_at": "2026-04-10T12:01:00"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      },
+      "patch": {
+        "summary": "更新会话元数据",
+        "deprecated": false,
+        "description": "修改标题、置顶状态，仅更新本地数据库",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "会话唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationRequest"
+              },
+              "example": {
+                "title": "新的会话标题",
+                "is_pinned": true
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功更新会话元数据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationSummary"
+                },
+                "example": {
+                  "session_id": "session-uuid",
+                  "title": "新的会话标题",
+                  "latest_message": "最近的消息内容",
+                  "is_pinned": true,
+                  "created_at": "2026-04-10T12:00:00",
+                  "updated_at": "2026-04-10T13:00:00"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}/skills/installed": {
+      "get": {
+        "summary": "查询已安装技能",
+        "deprecated": false,
+        "description": "查询本地数据库，返回 agent 已安装的技能列表",
+        "tags": [
+          "Skills"
+        ],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取已安装技能列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SkillInfo"
+                  }
+                },
+                "example": [
+                  {
+                    "id": "skill-uuid",
+                    "name": "weather",
+                    "description": "天气查询技能",
+                    "enabled": true,
+                    "created_at": "2026-04-10T12:00:00"
+                  }
+                ]
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
     "/models": {
       "get": {
         "summary": "获取大模型列表",
@@ -1056,6 +1502,7 @@
                     "name": "gpt-4o",
                     "provider": "openai",
                     "api_base_url": "https://api.openai.com/v1",
+                    "description": "OpenAI GPT-4 Omni 模型",
                     "enabled": true,
                     "max_tokens": 4096,
                     "temperature": 0.7,
@@ -1068,6 +1515,7 @@
                     "name": "claude-3-opus-20240229",
                     "provider": "anthropic",
                     "api_base_url": "https://api.anthropic.com/v1",
+                    "description": "Anthropic Claude 3 Opus 模型",
                     "enabled": true,
                     "max_tokens": 4096,
                     "temperature": 0.7,
@@ -1110,6 +1558,7 @@
                 "provider": "openai",
                 "api_key": "sk-xxxxxxxxxx",
                 "api_base_url": "https://api.openai.com/v1",
+                "description": "OpenAI GPT-4 Omni 模型",
                 "enabled": true,
                 "max_tokens": 4096,
                 "temperature": 0.7,
@@ -1132,6 +1581,7 @@
                   "name": "gpt-4o",
                   "provider": "openai",
                   "api_base_url": "https://api.openai.com/v1",
+                  "description": "OpenAI GPT-4 Omni 模型",
                   "enabled": true,
                   "max_tokens": 4096,
                   "temperature": 0.7,
@@ -1346,6 +1796,22 @@
             "type": "boolean",
             "description": "是否有定时任务"
           },
+          "model_id": {
+            "type": "string",
+            "description": "模型 ID",
+            "nullable": true
+          },
+          "mcp_server_name": {
+            "type": "string",
+            "description": "MCP Server 名称",
+            "nullable": true
+          },
+          "mcp_server_config": {
+            "type": "object",
+            "description": "MCP 配置（JSON 格式）",
+            "nullable": true,
+            "properties": {}
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -1415,6 +1881,22 @@
             "type": "boolean",
             "default": false,
             "description": "是否有定时任务，默认 false"
+          },
+          "model_id": {
+            "type": "string",
+            "description": "模型 ID，关联 /models 中配置的模型",
+            "nullable": true
+          },
+          "mcp_server_name": {
+            "type": "string",
+            "description": "MCP Server 名称",
+            "nullable": true
+          },
+          "mcp_server_config": {
+            "type": "object",
+            "description": "MCP 配置（JSON 格式）",
+            "nullable": true,
+            "properties": {}
           }
         },
         "required": [
@@ -1648,15 +2130,13 @@
             "enum": [
               "openai",
               "anthropic",
-              "alibaba",
-              "deepseek",
-              "zhipuai",
-              "minimax",
-              "moonshotai",
               "google",
-              "xai",
-              "siliconflow",
+              "ollama",
               "azure",
+              "deepseek",
+              "glm",
+              "minimax",
+              "kimi",
               "custom"
             ],
             "description": "模型提供商"
@@ -1664,6 +2144,11 @@
           "api_base_url": {
             "type": "string",
             "description": "API 基础地址"
+          },
+          "description": {
+            "type": "string",
+            "description": "模型描述",
+            "nullable": true
           },
           "enabled": {
             "type": "boolean",
@@ -1717,15 +2202,13 @@
             "enum": [
               "openai",
               "anthropic",
-              "alibaba",
-              "deepseek",
-              "zhipuai",
-              "minimax",
-              "moonshotai",
               "google",
-              "xai",
-              "siliconflow",
+              "ollama",
               "azure",
+              "deepseek",
+              "glm",
+              "minimax",
+              "kimi",
               "custom"
             ],
             "description": "模型提供商"
@@ -1783,15 +2266,13 @@
             "enum": [
               "openai",
               "anthropic",
-              "alibaba",
-              "deepseek",
-              "zhipuai",
-              "minimax",
-              "moonshotai",
               "google",
-              "xai",
-              "siliconflow",
+              "ollama",
               "azure",
+              "deepseek",
+              "glm",
+              "minimax",
+              "kimi",
               "custom"
             ],
             "description": "模型提供商"
@@ -1825,6 +2306,165 @@
             "description": "是否设为默认模型"
           }
         }
+      },
+      "ConversationSummary": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "会话唯一标识"
+          },
+          "title": {
+            "type": "string",
+            "description": "会话标题"
+          },
+          "latest_message": {
+            "type": "string",
+            "description": "最新消息摘要"
+          },
+          "is_pinned": {
+            "type": "boolean",
+            "description": "是否置顶"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新时间"
+          }
+        },
+        "required": [
+          "session_id",
+          "title",
+          "latest_message",
+          "is_pinned",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "MessageItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "消息唯一标识"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "description": "消息角色"
+          },
+          "content": {
+            "type": "string",
+            "description": "消息内容"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "content",
+          "created_at"
+        ]
+      },
+      "ConversationDetail": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "会话唯一标识"
+          },
+          "title": {
+            "type": "string",
+            "description": "会话标题"
+          },
+          "is_pinned": {
+            "type": "boolean",
+            "description": "是否置顶"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新时间"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageItem"
+            },
+            "description": "消息列表"
+          }
+        },
+        "required": [
+          "session_id",
+          "title",
+          "is_pinned",
+          "created_at",
+          "updated_at",
+          "messages"
+        ]
+      },
+      "UpdateConversationRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "会话标题"
+          },
+          "is_pinned": {
+            "type": "boolean",
+            "description": "是否置顶"
+          }
+        }
+      },
+      "SkillInfo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "技能唯一标识"
+          },
+          "name": {
+            "type": "string",
+            "description": "技能名称"
+          },
+          "description": {
+            "type": "string",
+            "description": "技能描述",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "enabled",
+          "created_at"
+        ]
       },
       "ErrorResponse": {
         "type": "object",

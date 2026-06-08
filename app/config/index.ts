@@ -55,7 +55,7 @@ export const appConfig: AppConfig = {
       return getConfigValue('NEXT_PUBLIC_AGENTD_API_URL') || 'http://127.0.0.1:8000';
     },
     get timeout() {
-      return Number(getConfigValue('NEXT_PUBLIC_API_TIMEOUT')) || 30000;
+      return Number(getConfigValue('NEXT_PUBLIC_API_TIMEOUT')) || 120000;
     }
   },
   websocket: {

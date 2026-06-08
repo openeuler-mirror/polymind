@@ -99,9 +99,14 @@ class HttpClient {
     })
 
     // 发起请求（带超时处理）
-    const timeout = processedConfig.timeout || appConfig.api.timeout // 默认超时
+    const requestTimeout = processedConfig.timeout
+    const configTimeout = appConfig.api.timeout
+    const DEFAULT_TIMEOUT = 120000 // 120秒
+    const timeout = requestTimeout || configTimeout || DEFAULT_TIMEOUT
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    const timeoutId = setTimeout(() => {
+      controller.abort(new Error(`Request timed out after ${timeout}ms`))
+    }, timeout)
 
     try {
       const fetchPromise = fetch(url, {
