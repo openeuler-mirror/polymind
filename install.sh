@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # ============================================================
-# PolyMind 一键安装 & 启动脚本 (Linux / macOS)
+# PolyMind 一键安装脚本 (Linux / macOS)
+# 负责依赖检测、环境隔离和所有软件包的安装
+# 安装完成后请使用 start.sh 启动服务
 # ============================================================
 set -e
 
@@ -9,6 +11,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
+DIM='\033[2m'
 NC='\033[0m'
 
 # ---------- helper ----------
@@ -16,41 +19,8 @@ log_info()  { echo -e "${CYAN}[INFO]${NC}  $*"; }
 log_ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 log_err()   { echo -e "${RED}[ERR]${NC}   $*"; }
-
-# 检测端口是否被占用
-check_port() {
-  local port=$1
-  if command -v ss &> /dev/null; then
-    if ss -tuln | grep -q ":$port "; then
-      return 1
-    fi
-  elif command -v lsof &> /dev/null; then
-    if lsof -Pi ":$port" -sTCP:LISTEN -t &> /dev/null; then
-      return 1
-    fi
-  elif command -v netstat &> /dev/null; then
-    if netstat -tuln | grep -q ":$port "; then
-      return 1
-    fi
-  else
-    log_warn "无法检测端口状态 (lsof/ss/netstat 均未安装)"
-    return 0
-  fi
-  return 0
-}
-
-# 查找可用端口
-find_available_port() {
-  local start_port=$1
-  local end_port=$2
-  for port in $(seq "$start_port" "$end_port"); do
-    if check_port "$port"; then
-      echo "$port"
-      return 0
-    fi
-  done
-  return 1
-}
+log_step()  { echo -e "${DIM}[..]${NC}  $*"; }
+log_detail(){ echo -e "      $*"; }
 
 section() {
   echo ""
@@ -59,219 +29,621 @@ section() {
   echo -e "${BOLD}============================================${NC}"
 }
 
+banner() {
+  echo ""
+  echo -e "${BOLD}  PolyMind 一键安装${NC}"
+  echo ""
+}
+
 # ---------- config ----------
 POLYMIND_DIR="$HOME/.polymind"
 ENV_FILE="$POLYMIND_DIR/.env"
+PROFILE_FILE="$POLYMIND_DIR/.profile"
+INSTALL_LOG="$POLYMIND_DIR/install.log"
 
-DEFAULT_BACKEND_PORT="${BACKEND_PORT:-8000}"
-DEFAULT_FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+# 最低版本要求
+REQUIRED_NODE_MAJOR=22
+REQUIRED_PNPM_MAJOR=11
+REQUIRED_PYTHON_MINOR=11
 
-# ---------- check deps ----------
-section "1/5  环境检测"
+# 默认镜像源
+DEFAULT_PNPM_MIRROR="https://mirrors.huaweicloud.com/repository/npm/"
+DEFAULT_PIP_MIRROR="https://repo.huaweicloud.com/repository/pypi/simple"
 
-check_cmd() {
-  if command -v "$1" &> /dev/null; then
-    log_ok "$1 ($($1 --version 2>&1 | head -1))"
+# ---------- 命令行参数 ----------
+ARG_VERBOSE=false
+ARG_PNPM_MIRROR=""
+ARG_PIP_MIRROR=""
+
+usage() {
+  echo "用法: $0 [OPTIONS]"
+  echo ""
+  echo "选项:"
+  echo "  --pnpm-mirror URL  自定义 pnpm 镜像地址"
+  echo "  --pip-mirror URL   自定义 pip 镜像地址"
+  echo "  --verbose          显示详细输出"
+  echo "  -h, --help         显示此帮助信息"
+  echo ""
+  echo "示例:"
+  echo "  $0                                    # 默认安装（使用国内镜像）"
+  echo "  ALLOWED_ORIGINS=10.0.0.1 $0           # 指定IP后安装"
+  exit 0
+}
+
+parse_args() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --pnpm-mirror)      ARG_PNPM_MIRROR="$2"; shift ;;
+      --pip-mirror)       ARG_PIP_MIRROR="$2"; shift ;;
+      --verbose)          ARG_VERBOSE=true ;;
+      -h|--help)          usage ;;
+      *)
+        log_err "未知参数: $1"
+        usage
+        ;;
+    esac
+    shift
+  done
+}
+
+parse_args "$@"
+
+# ---------- 工具函数 ----------
+
+extract_version() {
+  local raw="$1"
+  echo "$raw" | grep -oP '\d+\.\d+\.\d+' 2>/dev/null | head -1 || echo "$raw" | grep -oP '\d+\.\d+' 2>/dev/null | head -1 || echo "0.0.0"
+}
+
+extract_major_version() {
+  extract_version "$1" | cut -d'.' -f1
+}
+
+extract_minor_version() {
+  extract_version "$1" | cut -d'.' -f2
+}
+
+version_gte() {
+  local v1 v2
+  v1=$(extract_version "$1")
+  v2="$2"
+  if [ "$v1" = "0.0.0" ]; then
+    return 1
+  fi
+  local oldest
+  oldest=$(printf '%s\n%s\n' "$v2" "$v1" | sort -V | head -1)
+  [ "$oldest" = "$v2" ]
+}
+
+get_os() {
+  case "$(uname -s)" in
+    Linux*)  echo "linux" ;;
+    Darwin*) echo "macos" ;;
+    *)       echo "unknown" ;;
+  esac
+}
+
+get_arch() {
+  uname -m
+}
+
+# 验证命令可执行
+verify_cmd() {
+  local cmd=$1
+  local name=$2
+  if command -v "$cmd" &> /dev/null; then
+    log_ok "$name: $(command -v "$cmd")"
     return 0
   else
-    log_err "$1 未安装"
+    log_err "$name 验证失败: 命令不可执行"
     return 1
   fi
 }
 
-MISSING=0
+# ---------- Phase 0: 系统环境探测 ----------
+run_phase_0() {
+  section "0/4  系统环境探测"
 
-check_cmd node     || MISSING=1
-check_cmd pnpm     || MISSING=1
-check_cmd python3  || check_cmd python || MISSING=1
-check_cmd pip3     || check_cmd pip    || MISSING=1
-check_cmd openclaw || MISSING=1
+  local os arch
+  os=$(get_os)
+  arch=$(get_arch)
 
-if [ "$MISSING" -eq 1 ]; then
-  echo ""
-  log_err "请先安装缺少的依赖后重新运行本脚本"
-  echo "  Node.js:   https://nodejs.org/"
-  echo "  Python:    https://www.python.org/downloads/"
-  echo "  pnpm:      npm install -g pnpm"
-  echo "  OpenClaw:  pnpm add -g openclaw"
-  exit 1
-fi
+  log_info "操作系统: $os"
+  log_info "架构: $arch"
 
-# ---------- mirror ----------
-section "2/5  镜像源"
-
-echo ""
-echo "  检测到国内网络环境, 推荐使用国内镜像加速"
-echo ""
-read -r -p "  是否使用国内镜像源? [Y/n] " MIRROR_CHOICE
-MIRROR_CHOICE=${MIRROR_CHOICE:-y}
-
-USE_MIRROR=false
-case "$MIRROR_CHOICE" in
-  [yY]|[yY][eE][sS]|是)
-    USE_MIRROR=true
-    PNPM_MIRROR="https://mirrors.huaweicloud.com/repository/npm/"
-    PIP_MIRROR="https://repo.huaweicloud.com/repository/pypi/simple"
-    log_info "pnpm 镜像: $PNPM_MIRROR"
-    log_info "pip 镜像:  $PIP_MIRROR"
-    ;;
-  *)
-    log_info "使用官方源"
-    ;;
-esac
-
-# ---------- host config ----------
-section "3/5  网络配置"
-
-# 按优先级确定 ALLOWED_ORIGINS: 环境变量 > 配置文件 > 交互输入
-if [ -n "${ALLOWED_ORIGINS:-}" ]; then
-  log_info "使用环境变量中的 ALLOWED_ORIGINS: $ALLOWED_ORIGINS"
-elif [ -f "$ENV_FILE" ] && grep -q '^ALLOWED_ORIGINS=' "$ENV_FILE" 2>/dev/null; then
-  ALLOWED_ORIGINS=$(grep '^ALLOWED_ORIGINS=' "$ENV_FILE" | head -1 | cut -d'=' -f2-)
-  if grep -q '^BACKEND_HOST=' "$ENV_FILE" 2>/dev/null; then
-    BACKEND_HOST=$(grep '^BACKEND_HOST=' "$ENV_FILE" | head -1 | cut -d'=' -f2-)
-  fi
-  log_info "使用配置文件中的 ALLOWED_ORIGINS: $ALLOWED_ORIGINS"
-elif [ -t 0 ]; then
-  echo ""
-  echo "  请配置允许访问服务的IP地址"
-  echo "  默认为本地访问 (127.0.0.1, localhost)"
-  echo "  如果需要从外部访问, 请添加虚拟机IP"
-  echo ""
-  read -r -p "  请输入虚拟机IP地址 (留空则仅本地访问): " VM_HOST
-  VM_HOST=$(echo "$VM_HOST" | tr -d ' ')
-
-  ALLOWED_ORIGINS="127.0.0.1,localhost"
-  if [ -n "$VM_HOST" ]; then
-    ALLOWED_ORIGINS="$ALLOWED_ORIGINS,$VM_HOST"
-    BACKEND_HOST="$VM_HOST"
+  if [ "$os" = "unknown" ]; then
+    log_err "不支持的操作系统: $(uname -s)"
+    exit 1
   fi
 
-  # 持久化到配置文件
+  log_info "安装目录: $POLYMIND_DIR"
+
   mkdir -p "$POLYMIND_DIR"
-  if [ -f "$ENV_FILE" ] && grep -q '^ALLOWED_ORIGINS=' "$ENV_FILE" 2>/dev/null; then
-    grep -v '^ALLOWED_ORIGINS=' "$ENV_FILE" > "${ENV_FILE}.tmp"
-    echo "ALLOWED_ORIGINS=$ALLOWED_ORIGINS" >> "${ENV_FILE}.tmp"
-    mv "${ENV_FILE}.tmp" "$ENV_FILE"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] PolyMind 安装开始" > "$INSTALL_LOG"
+}
+
+# ---------- 镜像源配置 ----------
+setup_mirror() {
+  PNPM_MIRROR="$DEFAULT_PNPM_MIRROR"
+  PIP_MIRROR="$DEFAULT_PIP_MIRROR"
+
+  if [ -n "$ARG_PNPM_MIRROR" ]; then
+    PNPM_MIRROR="$ARG_PNPM_MIRROR"
+  fi
+
+  if [ -n "$ARG_PIP_MIRROR" ]; then
+    PIP_MIRROR="$ARG_PIP_MIRROR"
+  fi
+
+  log_info "pnpm 镜像: $PNPM_MIRROR"
+  log_info "pip 镜像:  $PIP_MIRROR"
+}
+
+# ---------- Phase 1: 运行时依赖安装 ----------
+install_node() {
+  log_step "安装 Node.js $REQUIRED_NODE_MAJOR LTS (通过 nvm 隔离)..."
+
+  local nvm_dir="$POLYMIND_DIR/nvm"
+  export NVM_DIR="$nvm_dir"
+
+  if [ -s "$nvm_dir/nvm.sh" ]; then
+    log_info "nvm 已存在，跳过nvm安装"
   else
-    echo "ALLOWED_ORIGINS=$ALLOWED_ORIGINS" >> "$ENV_FILE"
-  fi
-  log_info "允许访问的IP: $ALLOWED_ORIGINS"
-  log_info "已保存到配置文件: $ENV_FILE"
-  # 同步持久化 BACKEND_HOST
-  if [ -n "${BACKEND_HOST:-}" ]; then
-    if grep -q '^BACKEND_HOST=' "$ENV_FILE" 2>/dev/null; then
-      grep -v '^BACKEND_HOST=' "$ENV_FILE" > "${ENV_FILE}.tmp"
-      echo "BACKEND_HOST=$BACKEND_HOST" >> "${ENV_FILE}.tmp"
-      mv "${ENV_FILE}.tmp" "$ENV_FILE"
-    else
-      echo "BACKEND_HOST=$BACKEND_HOST" >> "$ENV_FILE"
+    if ! command -v git &> /dev/null; then
+      log_err "未找到 git，请先安装: apt install git / yum install git"
+      return 1
     fi
-    log_info "后端主机: $BACKEND_HOST"
+
+    log_step "下载 nvm..."
+
+    mkdir -p "$nvm_dir"
+
+    local nvm_installed=false
+
+    log_detail "尝试: Gitee 镜像"
+    if git clone --depth 1 "https://gitee.com/mirrors/nvm" "$nvm_dir" 2>> "$INSTALL_LOG"; then
+      nvm_installed=true
+    fi
+
+    if ! $nvm_installed; then
+      log_detail "尝试: GitHub 官方"
+      if git clone --depth 1 "https://github.com/nvm-sh/nvm.git" "$nvm_dir" 2>> "$INSTALL_LOG"; then
+        nvm_installed=true
+      fi
+    fi
+
+    if ! $nvm_installed; then
+      log_err "nvm 下载失败，所有源均不可达"
+      log_info "请手动安装 Node.js >= ${REQUIRED_NODE_MAJOR}"
+      log_info "  nvm: https://github.com/nvm-sh/nvm"
+      log_info "  或设置代理后重试: export https_proxy=http://proxy:port && bash install.sh"
+      return 1
+    fi
   fi
-else
-  ALLOWED_ORIGINS="127.0.0.1,localhost"
-  log_info "非交互式环境，使用默认 ALLOWED_ORIGINS: $ALLOWED_ORIGINS"
-fi
 
-# ---------- install packages ----------
-section "4/5  安装依赖包"
+  [ -s "$nvm_dir/nvm.sh" ] && . "$nvm_dir/nvm.sh"
 
-# --- pnpm: polymind ---
-if $USE_MIRROR; then
-  PNPM_INSTALL_CMD="pnpm add -g polymind --registry=$PNPM_MIRROR"
-else
-  PNPM_INSTALL_CMD="pnpm add -g polymind"
-fi
+  unset npm_config_prefix
 
-log_info "安装前端包 polymind ..."
-$PNPM_INSTALL_CMD
-log_ok "polymind 安装完成"
+  export NVM_NODEJS_ORG_MIRROR="https://npmmirror.com/mirrors/node"
 
-# --- pip: witty-service ---
-if command -v pip3 &> /dev/null; then
-  PIP_CMD=pip3
-else
-  PIP_CMD=pip
-fi
+  log_step "安装 Node.js $REQUIRED_NODE_MAJOR LTS..."
+  nvm install "$REQUIRED_NODE_MAJOR" 2>> "$INSTALL_LOG" || {
+    log_err "Node.js 安装失败"
+    return 1
+  }
+  nvm use "$REQUIRED_NODE_MAJOR" 2>> "$INSTALL_LOG"
+  nvm alias default "$REQUIRED_NODE_MAJOR" 2>> "$INSTALL_LOG"
 
-if $USE_MIRROR; then
-  PIP_INSTALL_CMD="$PIP_CMD install witty-service -i $PIP_MIRROR --trusted-host repo.huaweicloud.com"
-else
-  PIP_INSTALL_CMD="$PIP_CMD install witty-service"
-fi
+  local installed_version
+  installed_version=$(node --version 2>&1)
+  local major
+  major=$(extract_major_version "$installed_version")
+  if [ "$major" -ge "$REQUIRED_NODE_MAJOR" ] 2>/dev/null; then
+    log_ok "Node.js ${installed_version} 安装成功"
+    NODE_CMD="node"
+    NPM_CMD="npm"
+    return 0
+  else
+    log_err "Node.js 安装后版本检查失败"
+    return 1
+  fi
+}
 
-log_info "安装后端包 witty-service ..."
-$PIP_INSTALL_CMD
-log_ok "witty-service 安装完成"
+install_pnpm() {
+  log_step "检查 pnpm (要求 >= ${REQUIRED_PNPM_MAJOR})..."
 
+  export PNPM_HOME="$POLYMIND_DIR/pnpm"
+  export npm_config_prefix="$POLYMIND_DIR/pnpm"
+  mkdir -p "$PNPM_HOME/bin"
 
-# ---------- start services ----------
-section "5/5  启动服务"
+  local system_pnpm_ok=false
 
-# 检测并选择可用端口
-BACKEND_PORT=$(find_available_port "$DEFAULT_BACKEND_PORT" 8099)
-FRONTEND_PORT=$(find_available_port "$DEFAULT_FRONTEND_PORT" 3099)
+  if command -v pnpm &> /dev/null; then
+    local existing_version major
+    existing_version=$(pnpm --version 2>&1)
+    major=$(extract_major_version "$existing_version")
+    if [ "$major" -ge "$REQUIRED_PNPM_MAJOR" ] 2>/dev/null; then
+      system_pnpm_ok=true
+      log_ok "pnpm $existing_version (系统已有, 满足要求)"
+    fi
+  fi
 
-if [ -z "$BACKEND_PORT" ]; then
-  log_err "后端端口 $DEFAULT_BACKEND_PORT-8099 全部被占用"
-  exit 1
-fi
+  if $system_pnpm_ok; then
+    if [ ! -x "$PNPM_HOME/bin/pnpm" ]; then
+      ln -sf "$(command -v pnpm)" "$PNPM_HOME/bin/pnpm"
+    fi
+  else
+    log_step "安装 pnpm 到隔离环境..."
+    npm install -g pnpm --registry="$PNPM_MIRROR" --prefix "$PNPM_HOME" 2>> "$INSTALL_LOG" || {
+      log_err "pnpm 安装失败"
+      return 1
+    }
+  fi
 
-if [ -z "$FRONTEND_PORT" ]; then
-  log_err "前端端口 $DEFAULT_FRONTEND_PORT-3099 全部被占用"
-  exit 1
-fi
+  export PATH="$PNPM_HOME/bin:$PATH"
 
-# 检查默认端口是否被占用
-if [ "$BACKEND_PORT" != "$DEFAULT_BACKEND_PORT" ]; then
-  log_warn "默认后端端口 $DEFAULT_BACKEND_PORT 被占用, 使用备用端口 $BACKEND_PORT"
-fi
+  if command -v pnpm &> /dev/null; then
+    local installed_version
+    installed_version=$(pnpm --version 2>&1)
+    log_ok "pnpm ${installed_version} 隔离环境就绪"
+    return 0
+  else
+    log_err "pnpm 安装后验证失败"
+    return 1
+  fi
+}
 
-if [ "$FRONTEND_PORT" != "$DEFAULT_FRONTEND_PORT" ]; then
-  log_warn "默认前端端口 $DEFAULT_FRONTEND_PORT 被占用, 使用备用端口 $FRONTEND_PORT"
-fi
+install_python_and_pip() {
+  log_step "检查 Python3 (要求 >= 3.${REQUIRED_PYTHON_MINOR})..."
 
-# 启动后端
-log_info "启动后端 witty-service (端口 $BACKEND_PORT) ..."
-witty-service --port "$BACKEND_PORT" &
-BACKEND_PID=$!
-sleep 2
+  local found_python=false
 
-if kill -0 "$BACKEND_PID" 2>/dev/null; then
-  log_ok "后端已启动  PID=$BACKEND_PID  http://127.0.0.1:$BACKEND_PORT"
-else
-  log_err "后端启动失败, 请检查日志"
-  exit 1
-fi
+  if command -v python3 &> /dev/null; then
+    local v
+    v=$(python3 --version 2>&1)
+    local minor
+    minor=$(extract_minor_version "$v")
+    if [ "$minor" -ge "$REQUIRED_PYTHON_MINOR" ] 2>/dev/null; then
+      PYTHON_CMD="python3"
+      found_python=true
+      log_ok "Python3 $v (将用于创建隔离 venv)"
+    fi
+  fi
 
-# 启动前端
-log_info "启动前端 polymind (端口 $FRONTEND_PORT) ..."
-echo ""
-ALLOWED_ORIGINS="$ALLOWED_ORIGINS" BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}" BACKEND_PORT="$BACKEND_PORT" FRONTEND_PORT="$FRONTEND_PORT" polymind --port "$FRONTEND_PORT" &
-FRONTEND_PID=$!
-sleep 2
+  if ! $found_python && command -v python &> /dev/null; then
+    local v
+    v=$(python --version 2>&1)
+    local minor
+    minor=$(extract_minor_version "$v")
+    if [ "$minor" -ge "$REQUIRED_PYTHON_MINOR" ] 2>/dev/null; then
+      PYTHON_CMD="python"
+      found_python=true
+      log_ok "Python3 $v (将用于创建隔离 venv)"
+    fi
+  fi
 
-if kill -0 "$FRONTEND_PID" 2>/dev/null; then
-  log_ok "前端已启动  PID=$FRONTEND_PID  http://localhost:$FRONTEND_PORT"
-else
-  log_err "前端启动失败, 请检查日志"
-  kill "$BACKEND_PID" 2>/dev/null
-  exit 1
-fi
+  if ! $found_python; then
+    local os
+    os=$(get_os)
+    log_err "未找到 Python >= 3.${REQUIRED_PYTHON_MINOR}"
+    log_info "请先手动安装 Python >= 3.${REQUIRED_PYTHON_MINOR}"
+    case "$os" in
+      linux)
+        log_detail "Ubuntu/Debian: sudo apt install python3 python3-pip python3-venv"
+        log_detail "CentOS/RHEL:  sudo dnf install python3 python3-pip"
+        ;;
+      macos)
+        log_detail "brew install python@3.${REQUIRED_PYTHON_MINOR}"
+        ;;
+    esac
+    return 1
+  fi
 
-# ---------- done ----------
-echo ""
-echo -e "${GREEN}============================================${NC}"
-echo -e "${GREEN}  PolyMind 启动成功!${NC}"
-echo -e "${GREEN}============================================${NC}"
-echo ""
-echo -e "  前端:  ${BOLD}http://localhost:$FRONTEND_PORT${NC}"
-echo -e "  后端:  ${BOLD}http://127.0.0.1:$BACKEND_PORT${NC}"
-echo ""
-echo -e "  后端 PID:  $BACKEND_PID"
-echo -e "  前端 PID:  $FRONTEND_PID"
-echo ""
-echo -e "  停止服务:  ${YELLOW}kill $BACKEND_PID $FRONTEND_PID${NC}"
-echo -e "  修改配置:  ${YELLOW}$ENV_FILE${NC}"
-echo ""
+  log_step "检查 pip3..."
+  if command -v pip3 &> /dev/null; then
+    log_ok "pip3 已存在: $(pip3 --version 2>&1 | head -1)"
+    PIP_CMD="pip3"
+  elif command -v pip &> /dev/null; then
+    log_ok "pip 已存在: $(pip --version 2>&1 | head -1)"
+    PIP_CMD="pip"
+  else
+    log_step "安装 pip..."
+    $PYTHON_CMD -m ensurepip --upgrade 2>> "$INSTALL_LOG" || {
+      log_err "pip 安装失败"
+      return 1
+    }
+    PIP_CMD="pip3"
+    log_ok "pip 安装成功"
+  fi
+
+  return 0
+}
+
+# ---------- Phase 2: 环境隔离初始化 ----------
+setup_isolation() {
+  section "2/4  环境隔离初始化"
+
+  mkdir -p "$POLYMIND_DIR/bin"
+
+  local venv_dir="$POLYMIND_DIR/python/venv"
+
+  log_step "创建 Python 虚拟环境: $venv_dir"
+  if [ ! -d "$venv_dir" ]; then
+    $PYTHON_CMD -m venv "$venv_dir" 2>> "$INSTALL_LOG" || {
+      log_err "Python 虚拟环境创建失败"
+      return 1
+    }
+  else
+    log_info "虚拟环境已存在，跳过创建"
+  fi
+
+  local site_packages
+  site_packages=$(find "$venv_dir" -type d -name "site-packages" 2>/dev/null | head -1)
+  if [ -n "$site_packages" ]; then
+    log_ok "Python 虚拟环境就绪"
+  else
+    log_err "Python 虚拟环境异常"
+    return 1
+  fi
+
+  PYTHON_BIN_DIR="$venv_dir/bin"
+  PIP_ACTIVE="$venv_dir/bin/pip"
+
+  log_step "生成环境配置文件..."
+
+  cat > "$PROFILE_FILE" << 'ENVEOF'
+export POLYMIND_DIR="$HOME/.polymind"
+export NVM_DIR="$POLYMIND_DIR/nvm"
+export PNPM_HOME="$POLYMIND_DIR/pnpm"
+
+_POLYMIND_SYSTEM_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+_polymind_activate() {
+  unset npm_config_prefix
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" 2>/dev/null
+  export npm_config_prefix="$POLYMIND_DIR/pnpm"
+  export PATH="$POLYMIND_DIR/bin:$PNPM_HOME/bin:$PATH"
+  export PATH="$PATH:$_POLYMIND_SYSTEM_PATH"
+ENVEOF
+
+  if [ -n "$PYTHON_BIN_DIR" ]; then
+    echo "  export PATH=\"$venv_dir/bin:\$PATH\"" >> "$PROFILE_FILE"
+  fi
+
+  cat >> "$PROFILE_FILE" << 'ENVEOF'
+}
+
+_polymind_deactivate() {
+  unset POLYMIND_DIR
+  unset NVM_DIR
+  unset PNPM_HOME
+  unset npm_config_prefix
+}
+
+_polymind_activate
+
+ENVEOF
+
+  log_ok "环境配置文件已生成: $PROFILE_FILE"
+}
+
+# ---------- Phase 3: 应用包安装 ----------
+run_with_log() {
+  local log_file="$1"
+  shift
+  tail -n 0 -f "$log_file" 2>/dev/null &
+  local tail_pid=$!
+  "$@" >> "$log_file" 2>&1
+  local ec=$?
+  sleep 0.5
+  kill $tail_pid 2>/dev/null || true
+  wait $tail_pid 2>/dev/null || true
+  return $ec
+}
+
+install_app_packages() {
+  section "3/4  应用包安装"
+
+  local _saved_path="$PATH"
+  source "$PROFILE_FILE"
+  export PATH="$PATH:$_saved_path"
+  export npm_config_prefix="$POLYMIND_DIR/pnpm"
+
+  log_step "安装 polymind (前端)..."
+
+  run_with_log "$INSTALL_LOG" pnpm add -g polymind --registry="$PNPM_MIRROR" || {
+    log_err "polymind 安装失败"
+    return 1
+  }
+
+  log_ok "polymind 安装完成"
+
+  log_step "安装 witty-service (后端)..."
+
+  run_with_log "$INSTALL_LOG" $PIP_ACTIVE install witty-service -i "$PIP_MIRROR" --trusted-host "$(echo "$PIP_MIRROR" | awk -F/ '{print $3}')" || {
+    log_err "witty-service 安装失败"
+    return 1
+  }
+
+  log_ok "witty-service 安装完成"
+
+  log_step "安装 openclaw ..."
+
+  run_with_log "$INSTALL_LOG" pnpm add -g "openclaw@latest" --registry="$PNPM_MIRROR" || {
+    log_err "openclaw 安装失败"
+    return 1
+  }
+
+  log_ok "openclaw 安装完成"
+}
+
+# ---------- Phase 4: 安装验证 ----------
+verify_installation() {
+  section "4/4  安装验证"
+
+  local _saved_path="$PATH"
+  source "$PROFILE_FILE" 2>/dev/null || true
+  export PATH="$PATH:$_saved_path"
+
+  local errors=0
+
+  echo ""
+
+  # Node.js
+  if command -v node &> /dev/null; then
+    local v
+    v=$(node --version 2>&1)
+    log_ok "Node.js    ${v}"
+  else
+    log_err "Node.js    未找到"
+    errors=$((errors + 1))
+  fi
+
+  # pnpm
+  if command -v pnpm &> /dev/null; then
+    local v
+    v=$(pnpm --version 2>&1)
+    log_ok "pnpm       ${v}"
+  else
+    log_err "pnpm       未找到"
+    errors=$((errors + 1))
+  fi
+
+  # Python3
+  if command -v python3 &> /dev/null; then
+    local v
+    v=$(python3 --version 2>&1)
+    log_ok "Python3    ${v#Python }"
+  elif command -v python &> /dev/null; then
+    local v
+    v=$(python --version 2>&1)
+    log_ok "Python3    ${v#Python }"
+  else
+    log_err "Python3    未找到"
+    errors=$((errors + 1))
+  fi
+
+  # pip
+  if command -v pip3 &> /dev/null; then
+    local v
+    v=$(pip3 --version 2>&1 | head -1)
+    log_ok "pip        ${v}"
+  elif command -v pip &> /dev/null; then
+    local v
+    v=$(pip --version 2>&1 | head -1)
+    log_ok "pip        ${v}"
+  else
+    log_err "pip        未找到"
+    errors=$((errors + 1))
+  fi
+
+  # polymind
+  if command -v polymind &> /dev/null; then
+    log_ok "polymind   $(command -v polymind)"
+  else
+    log_err "polymind   未找到"
+    errors=$((errors + 1))
+  fi
+
+  # witty-service
+  if command -v witty-service &> /dev/null; then
+    log_ok "witty-svc  $(command -v witty-service)"
+  else
+    log_err "witty-svc  未找到"
+    errors=$((errors + 1))
+  fi
+
+  # openclaw
+  if command -v openclaw &> /dev/null; then
+    log_ok "openclaw   $(command -v openclaw)"
+  else
+    log_err "openclaw   未找到"
+    errors=$((errors + 1))
+  fi
+
+  echo ""
+
+  if [ "$errors" -eq 0 ]; then
+    return 0
+  else
+    log_err "共 $errors 项验证失败，请检查日志: $INSTALL_LOG"
+    return 1
+  fi
+}
+
+# ---------- 输出安装摘要 ----------
+print_summary() {
+  echo ""
+  echo -e "${GREEN}${BOLD}============================================${NC}"
+  echo -e "${GREEN}${BOLD}  PolyMind 安装完成!${NC}"
+  echo -e "${GREEN}${BOLD}============================================${NC}"
+  echo ""
+  echo -e "  安装目录:  ${BOLD}$POLYMIND_DIR${NC}"
+  echo -e "  环境配置:  ${BOLD}$PROFILE_FILE${NC}"
+  echo -e "  应用配置:  ${BOLD}$ENV_FILE${NC}"
+  echo -e "  安装日志:  ${BOLD}$INSTALL_LOG${NC}"
+  echo ""
+  echo -e "  启动服务:  ${BOLD}bash start.sh${NC}"
+  echo ""
+  echo -e "  手动激活环境:"
+  echo -e "    ${DIM}source $PROFILE_FILE${NC}"
+  echo ""
+  echo -e "  ${YELLOW}${BOLD}⚠ 重要提醒:${NC}"
+  echo -e "    请配置 OpenClaw，推荐使用以下命令:"
+  echo -e "    ${BOLD}openclaw onboard --install-daemon${NC}"
+  echo ""
+}
+
+# ---------- main ----------
+main() {
+  banner
+
+  # Phase 0
+  run_phase_0
+
+  # 镜像策略
+  setup_mirror
+
+  # Phase 1
+  section "1/4  运行时依赖安装"
+
+  install_node || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Node.js 安装失败" >> "$INSTALL_LOG"
+    exit 1
+  }
+
+  install_pnpm || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: pnpm 安装失败" >> "$INSTALL_LOG"
+    exit 1
+  }
+
+  install_python_and_pip || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Python/pip 安装失败" >> "$INSTALL_LOG"
+    exit 1
+  }
+
+  # Phase 2
+  setup_isolation || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: 环境隔离初始化失败" >> "$INSTALL_LOG"
+    exit 1
+  }
+
+  # Phase 3
+  install_app_packages || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: 应用包安装失败" >> "$INSTALL_LOG"
+    exit 1
+  }
+
+  # Phase 4
+  verify_installation || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: 安装验证失败" >> "$INSTALL_LOG"
+    exit 1
+  }
+
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] PolyMind 安装成功" >> "$INSTALL_LOG"
+
+  print_summary
+}
+
+main

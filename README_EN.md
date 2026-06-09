@@ -52,7 +52,7 @@ PolyMind is a self-hosted AI Agent interaction platform with native agentd servi
 
 #### Method 1: One-Click Script Installation (Recommended for Non-Developers)
 
-The project provides an `install.sh` script that automatically completes environment detection, dependency installation, and service startup.
+The project provides an `install.sh` script that automatically completes environment detection, dependency installation, and environment isolation.
 
 **Prerequisites:**
 
@@ -62,7 +62,6 @@ The project provides an `install.sh` script that automatically completes environ
 | pnpm | Package manager | `npm install -g pnpm` |
 | Python 3 | Backend runtime | [python.org](https://www.python.org/downloads/) |
 | pip | Python package manager | Included with Python |
-| OpenClaw | Agent adapter | `pnpm add -g openclaw@2026.5.7` |
 
 **Installation Steps:**
 
@@ -80,24 +79,25 @@ bash install.sh
 ```
 
 The script will automatically:
-- **Environment Detection** — Check if Node.js, pnpm, Python, pip, and OpenClaw are installed
-- **Mirror Configuration** — Detect Chinese network environment and suggest Huawei Cloud mirrors
-- **Network Configuration** — Interactive configuration for allowed IP addresses
-- **Dependency Installation** — Install `polymind` frontend package via pnpm, `witty-service` backend via pip
-- **Service Startup** — Detect available ports and start frontend/backend services
+- **Environment Detection** — Check OS, architecture, and if Node.js, pnpm, Python, pip are installed
+- **Mirror Configuration** — Automatically configure Huawei Cloud mirrors for faster downloads
+- **Environment Isolation** — Create Python virtual environment and generate isolated environment profile
+- **Dependency Installation** — Install `polymind` frontend and `openclaw` via pnpm, `witty-service` backend via pip
+- **Installation Verification** — Verify all components are correctly installed
 
-3. After installation, the script will output access addresses and process PIDs:
+3. After installation, the script will output an installation summary:
 
 ```
 ============================================
-  PolyMind 启动成功!
+  PolyMind 安装完成!
 ============================================
 
-  前端:  http://localhost:3000
-  后端:  http://127.0.0.1:8000
+  安装目录:  ~/.polymind
+  环境配置:  ~/.polymind/.profile
+  应用配置:  ~/.polymind/.env
+  安装日志:  ~/.polymind/install.log
 
-  停止服务:  kill <BACKEND_PID> <FRONTEND_PID>
-  修改配置:  ~/.polymind/.env
+  启动服务:  bash start.sh
 ```
 
 #### Method 2: npm Package Installation
@@ -125,7 +125,15 @@ bash start.sh
 The script will automatically:
 - Check if `polymind` and `witty-service` are installed
 - Load persisted configuration from `~/.polymind/.env`
+- Interactively configure allowed IP addresses (supports local and remote access)
 - Detect available ports and start frontend/backend services
+
+`start.sh` also supports the following management commands:
+
+```bash
+bash start.sh --status    # View service running status
+bash start.sh --stop      # Stop all running services
+```
 
 #### Start via CLI
 

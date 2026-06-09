@@ -44,7 +44,7 @@
 
 #### 方式一：一键脚本安装（推荐非开发人员使用）
 
-项目提供了 `install.sh` 脚本，自动完成环境检测、依赖安装和服务启动，适合非开发人员快速部署。
+项目提供了 `install.sh` 脚本，自动完成环境检测、依赖安装和环境隔离，适合非开发人员快速部署。
 
 **前置条件：**
 
@@ -54,7 +54,6 @@
 | pnpm | 包管理器 | `npm install -g pnpm` |
 | Python 3 | 后端运行时 | [python.org](https://www.python.org/downloads/) |
 | pip | Python 包管理器 | 随 Python 一同安装 |
-| OpenClaw | Agent 适配器 | `pnpm add -g openclaw@2026.5.7` |
 
 **安装步骤：**
 
@@ -72,24 +71,25 @@ bash install.sh
 ```
 
 脚本将自动执行以下操作：
-- **环境检测** — 检查 Node.js、pnpm、Python、pip、OpenClaw 是否已安装
-- **镜像源配置** — 检测国内网络环境，提示使用华为云镜像加速
-- **网络配置** — 交互式配置允许访问的 IP 地址（支持本地和远程访问）
-- **依赖安装** — 通过 pnpm 安装 `polymind` 前端包，通过 pip 安装 `witty-service` 后端包
-- **服务启动** — 自动检测可用端口，启动前后端服务
+- **环境检测** — 检查操作系统、架构，以及 Node.js、pnpm、Python、pip 是否已安装
+- **镜像源配置** — 自动配置华为云镜像加速下载
+- **环境隔离初始化** — 创建 Python 虚拟环境，生成独立的环境配置文件
+- **依赖安装** — 通过 pnpm 安装 `polymind` 前端包和 `openclaw`，通过 pip 安装 `witty-service` 后端包
+- **安装验证** — 验证所有组件是否正确安装
 
-3. 安装完成后，脚本会输出访问地址和进程 PID：
+3. 安装完成后，脚本会输出安装摘要：
 
 ```
 ============================================
-  PolyMind 启动成功!
+  PolyMind 安装完成!
 ============================================
 
-  前端:  http://localhost:3000
-  后端:  http://127.0.0.1:8000
+  安装目录:  ~/.polymind
+  环境配置:  ~/.polymind/.profile
+  应用配置:  ~/.polymind/.env
+  安装日志:  ~/.polymind/install.log
 
-  停止服务:  kill <BACKEND_PID> <FRONTEND_PID>
-  修改配置:  ~/.polymind/.env
+  启动服务:  bash start.sh
 ```
 
 #### 方式二：npm 包安装
@@ -117,7 +117,15 @@ bash start.sh
 脚本会自动：
 - 检查 `polymind` 和 `witty-service` 是否已安装
 - 加载 `~/.polymind/.env` 中的持久化配置
+- 交互式配置允许访问的 IP 地址（支持本地和远程访问）
 - 检测可用端口并启动前后端服务
+
+`start.sh` 还支持以下管理命令：
+
+```bash
+bash start.sh --status    # 查看服务运行状态
+bash start.sh --stop      # 停止所有运行中的服务
+```
 
 #### 通过 CLI 启动
 
