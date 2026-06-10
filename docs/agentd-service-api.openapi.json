@@ -29,6 +29,12 @@
     },
     {
       "name": "Skills"
+    },
+    {
+      "name": "SkillRepos"
+    },
+    {
+      "name": "McpServers"
     }
   ],
   "paths": {
@@ -37,9 +43,7 @@
         "summary": "健康检查",
         "deprecated": false,
         "description": "服务存活检查",
-        "tags": [
-          "Health"
-        ],
+        "tags": ["Health"],
         "parameters": [],
         "responses": {
           "200": {
@@ -51,15 +55,11 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "ok"
-                      ],
+                      "enum": ["ok"],
                       "description": "服务状态"
                     }
                   },
-                  "required": [
-                    "status"
-                  ]
+                  "required": ["status"]
                 },
                 "example": {
                   "status": "ok"
@@ -77,9 +77,7 @@
         "summary": "列出所有 Agent",
         "deprecated": false,
         "description": "列出所有 Agent",
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "parameters": [],
         "responses": {
           "200": {
@@ -97,7 +95,7 @@
                     "id": "agent-uuid-1",
                     "name": "my-agent",
                     "description": "这是一个测试智能体",
-                    "sandbox_type": "docker",
+                    "sandbox_type": "local_process",
                     "adapter_type": "openclaw",
                     "status": "running",
                     "sandbox_id": null,
@@ -105,11 +103,11 @@
                     "idle_timeout_seconds": 3600,
                     "has_scheduled_tasks": false,
                     "model_id": null,
-                    "mcp_server_name": null,
-                    "mcp_server_config": null,
+                    "mcp_server_list": [],
                     "created_at": "2026-04-10T12:00:00",
                     "updated_at": "2026-04-10T12:00:00",
-                    "default_session_id": "session-uuid"
+                    "default_session_id": "session-uuid",
+                    "process_port": 8000
                   }
                 ]
               }
@@ -131,9 +129,7 @@
         "summary": "创建 Agent",
         "deprecated": false,
         "description": "创建新 Agent，启动沙箱和 Adapter",
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "parameters": [],
         "requestBody": {
           "content": {
@@ -144,14 +140,13 @@
               "example": {
                 "name": "my-agent",
                 "description": "这是一个测试智能体",
-                "sandbox_type": "docker",
+                "sandbox_type": "local_process",
                 "adapter_type": "openclaw",
                 "idle_timeout_seconds": 3600,
                 "sandbox_id": null,
                 "has_scheduled_tasks": false,
                 "model_id": null,
-                "mcp_server_name": null,
-                "mcp_server_config": null
+                "mcp_server_list": []
               }
             }
           },
@@ -169,7 +164,7 @@
                   "id": "agent-uuid",
                   "name": "my-agent",
                   "description": "这是一个测试智能体",
-                  "sandbox_type": "docker",
+                  "sandbox_type": "local_process",
                   "adapter_type": "openclaw",
                   "status": "running",
                   "sandbox_id": null,
@@ -177,11 +172,11 @@
                   "idle_timeout_seconds": 3600,
                   "has_scheduled_tasks": false,
                   "model_id": null,
-                  "mcp_server_name": null,
-                  "mcp_server_config": null,
+                  "mcp_server_list": [],
                   "created_at": "2026-04-10T12:00:00",
                   "updated_at": "2026-04-10T12:00:00",
-                  "default_session_id": "session-uuid"
+                  "default_session_id": "session-uuid",
+                  "process_port": 8000
                 }
               }
             },
@@ -212,9 +207,7 @@
         "summary": "获取 Agent 详情",
         "deprecated": false,
         "description": "根据ID获取特定AI代理的详细信息",
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "parameters": [
           {
             "name": "agent_id",
@@ -238,7 +231,7 @@
                   "id": "agent-uuid",
                   "name": "my-agent",
                   "description": "这是一个测试智能体",
-                  "sandbox_type": "docker",
+                  "sandbox_type": "local_process",
                   "adapter_type": "openclaw",
                   "status": "running",
                   "sandbox_id": null,
@@ -246,11 +239,11 @@
                   "idle_timeout_seconds": 3600,
                   "has_scheduled_tasks": false,
                   "model_id": null,
-                  "mcp_server_name": null,
-                  "mcp_server_config": null,
+                  "mcp_server_list": [],
                   "created_at": "2026-04-10T12:00:00",
                   "updated_at": "2026-04-10T12:00:00",
-                  "default_session_id": "session-uuid"
+                  "default_session_id": "session-uuid",
+                  "process_port": 8000
                 }
               }
             },
@@ -279,9 +272,7 @@
         "summary": "删除 Agent",
         "deprecated": false,
         "description": "删除 Agent - 备份运行时 → 停止运行时 → 清理沙箱 → 删除本地记录",
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "parameters": [
           {
             "name": "agent_id",
@@ -323,9 +314,7 @@
         "summary": "暂停 Agent",
         "deprecated": false,
         "description": "暂停 Agent，保留沙箱状态和所有资源",
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "parameters": [
           {
             "name": "agent_id",
@@ -349,7 +338,7 @@
                   "id": "agent-uuid",
                   "name": "my-agent",
                   "description": "这是一个测试智能体",
-                  "sandbox_type": "docker",
+                  "sandbox_type": "local_process",
                   "adapter_type": "openclaw",
                   "status": "paused",
                   "sandbox_id": "container-id",
@@ -357,11 +346,11 @@
                   "idle_timeout_seconds": 3600,
                   "has_scheduled_tasks": false,
                   "model_id": null,
-                  "mcp_server_name": null,
-                  "mcp_server_config": null,
+                  "mcp_server_list": [],
                   "created_at": "2026-04-10T12:00:00",
                   "updated_at": "2026-04-10T12:30:00",
-                  "default_session_id": "session-uuid"
+                  "default_session_id": "session-uuid",
+                  "process_port": 8000
                 }
               }
             },
@@ -396,9 +385,7 @@
         "summary": "恢复 Agent",
         "deprecated": false,
         "description": "恢复已暂停的 Agent，根据状态分支处理",
-        "tags": [
-          "Agents"
-        ],
+        "tags": ["Agents"],
         "parameters": [
           {
             "name": "agent_id",
@@ -422,7 +409,7 @@
                   "id": "agent-uuid",
                   "name": "my-agent",
                   "description": "这是一个测试智能体",
-                  "sandbox_type": "docker",
+                  "sandbox_type": "local_process",
                   "adapter_type": "openclaw",
                   "status": "running",
                   "sandbox_id": "container-id",
@@ -430,11 +417,11 @@
                   "idle_timeout_seconds": 3600,
                   "has_scheduled_tasks": false,
                   "model_id": null,
-                  "mcp_server_name": null,
-                  "mcp_server_config": null,
+                  "mcp_server_list": [],
                   "created_at": "2026-04-10T12:00:00",
                   "updated_at": "2026-04-10T12:35:00",
-                  "default_session_id": "session-uuid"
+                  "default_session_id": "session-uuid",
+                  "process_port": 8000
                 }
               }
             },
@@ -464,14 +451,152 @@
         "security": []
       }
     },
+    "/agents/{agent_id}/mcp-servers/{server_id}/enable": {
+      "post": {
+        "summary": "启用 MCP Server",
+        "deprecated": false,
+        "description": "为指定 Agent 启用 MCP Server，执行 _setup_mcp 将配置应用到 runtime",
+        "tags": ["Agents"],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "server_id",
+            "in": "path",
+            "description": "MCP Server 配置唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功启用 MCP Server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerResponse"
+                },
+                "example": {
+                  "id": "server-uuid",
+                  "mcp_server_name": "example-server",
+                  "mcp_server_config": {
+                    "example-server": {
+                      "command": "npx",
+                      "args": ["-y", "mcp-server-example"]
+                    }
+                  },
+                  "created_at": "2026-04-13T10:00:00",
+                  "updated_at": "2026-04-13T10:00:00"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}/mcp-servers/{server_id}/disable": {
+      "post": {
+        "summary": "禁用 MCP Server",
+        "deprecated": false,
+        "description": "为指定 Agent 卸载 MCP Server，执行 openclaw mcp unset 从 runtime 移除配置",
+        "tags": ["Agents"],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "server_id",
+            "in": "path",
+            "description": "MCP Server 配置唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功禁用 MCP Server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerResponse"
+                },
+                "example": {
+                  "id": "server-uuid",
+                  "mcp_server_name": "example-server",
+                  "mcp_server_config": {
+                    "example-server": {
+                      "command": "npx",
+                      "args": ["-y", "mcp-server-example"]
+                    }
+                  },
+                  "created_at": "2026-04-13T10:00:00",
+                  "updated_at": "2026-04-13T10:00:00"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
     "/agents/{agent_id}/sessions": {
       "get": {
         "summary": "列出 Agent 的所有会话",
         "deprecated": false,
         "description": "列出 Agent 的所有会话（以 witty-agent-server 为主，刷新本地缓存）",
-        "tags": [
-          "Sessions"
-        ],
+        "tags": ["Sessions"],
         "parameters": [
           {
             "name": "agent_id",
@@ -541,9 +666,7 @@
         "summary": "创建会话",
         "deprecated": false,
         "description": "创建新会话（透传到 witty-agent-server）",
-        "tags": [
-          "Sessions"
-        ],
+        "tags": ["Sessions"],
         "parameters": [
           {
             "name": "agent_id",
@@ -625,9 +748,7 @@
         "summary": "获取会话详情",
         "deprecated": false,
         "description": "获取会话详情（优先本地，透传 witty-agent-server）",
-        "tags": [
-          "Sessions"
-        ],
+        "tags": ["Sessions"],
         "parameters": [
           {
             "name": "agent_id",
@@ -701,9 +822,7 @@
         "summary": "删除会话",
         "deprecated": false,
         "description": "删除会话（透传到 witty-agent-server，删除本地记录）",
-        "tags": [
-          "Sessions"
-        ],
+        "tags": ["Sessions"],
         "parameters": [
           {
             "name": "agent_id",
@@ -763,9 +882,7 @@
         "summary": "中止会话",
         "deprecated": false,
         "description": "中止正在运行的会话",
-        "tags": [
-          "Sessions"
-        ],
+        "tags": ["Sessions"],
         "parameters": [
           {
             "name": "agent_id",
@@ -816,9 +933,7 @@
         "summary": "发送消息（非流式）",
         "deprecated": false,
         "description": "witty-service 对外通过 REST 发送消息并返回非流式聚合结果；内部到 witty-agent-server 的消息通道仍是 WebSocket",
-        "tags": [
-          "Messages"
-        ],
+        "tags": ["Messages"],
         "parameters": [
           {
             "name": "agent_id",
@@ -874,16 +989,6 @@
                       }
                     },
                     {
-                      "type": "message.delta",
-                      "session_id": "session-id",
-                      "event_id": "uuid",
-                      "ts_ms": 1775650000123,
-                      "runtime_type": "openclaw",
-                      "payload": {
-                        "delta": "前环境"
-                      }
-                    },
-                    {
                       "type": "message.completed",
                       "session_id": "session-id",
                       "event_id": "uuid",
@@ -928,9 +1033,7 @@
         "summary": "发送消息（流式）",
         "deprecated": false,
         "description": "witty-service 对外通过 REST 提供 SSE 流式返回；内部到 witty-agent-server 的消息通道仍是 WebSocket",
-        "tags": [
-          "Messages"
-        ],
+        "tags": ["Messages"],
         "parameters": [
           {
             "name": "agent_id",
@@ -1006,9 +1109,7 @@
         "summary": "SSE 流重连",
         "deprecated": false,
         "description": "重新连接到已有消息流，通过 WebSocket 接收事件",
-        "tags": [
-          "Messages"
-        ],
+        "tags": ["Messages"],
         "parameters": [
           {
             "name": "agent_id",
@@ -1067,9 +1168,7 @@
         "summary": "查询会话事件回放",
         "deprecated": false,
         "description": "查询会话事件回放（透传到 witty-agent-server）",
-        "tags": [
-          "Events"
-        ],
+        "tags": ["Events"],
         "parameters": [
           {
             "name": "agent_id",
@@ -1173,9 +1272,7 @@
         "summary": "列出会话摘要",
         "deprecated": false,
         "description": "查询本地数据库，返回会话列表及最新消息摘要",
-        "tags": [
-          "Conversations"
-        ],
+        "tags": ["Conversations"],
         "parameters": [
           {
             "name": "agent_id",
@@ -1237,9 +1334,7 @@
         "summary": "获取会话详情",
         "deprecated": false,
         "description": "查询本地数据库，支持消息分页（limit/before）",
-        "tags": [
-          "Conversations"
-        ],
+        "tags": ["Conversations"],
         "parameters": [
           {
             "name": "agent_id",
@@ -1336,9 +1431,7 @@
         "summary": "更新会话元数据",
         "deprecated": false,
         "description": "修改标题、置顶状态，仅更新本地数据库",
-        "tags": [
-          "Conversations"
-        ],
+        "tags": ["Conversations"],
         "parameters": [
           {
             "name": "agent_id",
@@ -1413,14 +1506,89 @@
         "security": []
       }
     },
+    "/agents/{agent_id}/skills": {
+      "post": {
+        "summary": "安装技能",
+        "deprecated": false,
+        "description": "为指定 agent 安装一个已发现技能",
+        "tags": ["Skills"],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallAgentSkillRequest"
+              },
+              "example": {
+                "skill_id": "skill-uuid",
+                "skill_name": "terminal-helper"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "成功提交安装请求",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSkillResponse"
+                },
+                "example": {
+                  "agent_id": "agent-uuid",
+                  "skill_id": "skill-uuid",
+                  "source_type": "git",
+                  "repo_id": "repo-uuid",
+                  "skill_name": "terminal-helper",
+                  "installed_at": "2026-06-03T10:00:00Z",
+                  "relative_path": "skills/terminal-helper/SKILL.md",
+                  "metadata": {
+                    "title": "Terminal Helper"
+                  },
+                  "skill_source": "git",
+                  "skill_md_url": "https://github.com/example/skills/blob/main/skills/terminal-helper/SKILL.md"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
     "/agents/{agent_id}/skills/installed": {
       "get": {
         "summary": "查询已安装技能",
         "deprecated": false,
-        "description": "查询本地数据库，返回 agent 已安装的技能列表",
-        "tags": [
-          "Skills"
-        ],
+        "description": "读取本地数据库中该 agent 的已安装技能记录",
+        "tags": ["Skills"],
         "parameters": [
           {
             "name": "agent_id",
@@ -1440,20 +1608,892 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/SkillInfo"
+                    "$ref": "#/components/schemas/AgentSkillResponse"
                   }
                 },
                 "example": [
                   {
-                    "id": "skill-uuid",
-                    "name": "weather",
-                    "description": "天气查询技能",
-                    "enabled": true,
-                    "created_at": "2026-04-10T12:00:00"
+                    "agent_id": "agent-uuid",
+                    "skill_id": "skill-uuid",
+                    "source_type": "git",
+                    "repo_id": "repo-uuid",
+                    "skill_name": "terminal-helper",
+                    "installed_at": "2026-06-03T10:00:00Z",
+                    "relative_path": "skills/terminal-helper/SKILL.md",
+                    "metadata": {
+                      "title": "Terminal Helper"
+                    },
+                    "skill_source": "git",
+                    "skill_md_url": "https://github.com/example/skills/blob/main/skills/terminal-helper/SKILL.md"
                   }
                 ]
               }
             },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}/skills/installed/sync": {
+      "post": {
+        "summary": "同步已安装技能",
+        "deprecated": false,
+        "description": "主动从 runtime 拉取已安装技能并同步到本地，再返回最新结果",
+        "tags": ["Skills"],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功同步并获取已安装技能列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentSkillResponse"
+                  }
+                },
+                "example": [
+                  {
+                    "agent_id": "agent-uuid",
+                    "skill_id": "skill-uuid",
+                    "source_type": "git",
+                    "repo_id": "repo-uuid",
+                    "skill_name": "terminal-helper",
+                    "installed_at": "2026-06-03T10:00:00Z",
+                    "relative_path": "skills/terminal-helper/SKILL.md",
+                    "metadata": {
+                      "title": "Terminal Helper"
+                    },
+                    "skill_source": "git",
+                    "skill_md_url": "https://github.com/example/skills/blob/main/skills/terminal-helper/SKILL.md"
+                  }
+                ]
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agents/{agent_id}/skills/uninstall": {
+      "post": {
+        "summary": "卸载技能",
+        "deprecated": false,
+        "description": "卸载 agent 上的某个已安装技能",
+        "tags": ["Skills"],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UninstallAgentSkillRequest"
+              },
+              "example": {
+                "skill_id": "skill-uuid"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功卸载技能",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSkillResponse"
+                },
+                "example": {
+                  "agent_id": "agent-uuid",
+                  "skill_id": "skill-uuid",
+                  "source_type": "git",
+                  "repo_id": "repo-uuid",
+                  "skill_name": "terminal-helper",
+                  "installed_at": "2026-06-03T10:00:00Z",
+                  "relative_path": "skills/terminal-helper/SKILL.md",
+                  "metadata": {
+                    "title": "Terminal Helper"
+                  },
+                  "skill_source": "git",
+                  "skill_md_url": "https://github.com/example/skills/blob/main/skills/terminal-helper/SKILL.md"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/skills/repos": {
+      "get": {
+        "summary": "查询技能仓库列表",
+        "deprecated": false,
+        "description": "列出所有已注册技能仓库",
+        "tags": ["SkillRepos"],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功获取技能仓库列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SkillRepositoryResponse"
+                  }
+                },
+                "example": [
+                  {
+                    "repo_id": "repo-uuid",
+                    "repo_name": "https://github.com/example/skills@main",
+                    "source_type": "git",
+                    "branch": "main",
+                    "url": "https://github.com/example/skills",
+                    "local_path": "/home/user/witty-service/skill-repositories/skills-repo-uuid",
+                    "skill_discover_status": "done",
+                    "skill_num": 12
+                  }
+                ]
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "注册技能仓库",
+        "deprecated": false,
+        "description": "注册一个 Git 技能仓库，并异步开始扫描",
+        "tags": ["SkillRepos"],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillRepositoryRequest"
+              },
+              "example": {
+                "source_type": "git",
+                "url": "https://github.com/example/skills.git",
+                "branch": "main"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "成功创建技能仓库",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRepositoryResponse"
+                },
+                "example": {
+                  "repo_id": "repo-uuid",
+                  "repo_name": "https://github.com/example/skills@main",
+                  "source_type": "git",
+                  "branch": "main",
+                  "url": "https://github.com/example/skills",
+                  "local_path": "/home/user/witty-service/skill-repositories/skills-repo-uuid",
+                  "skill_discover_status": "init",
+                  "skill_num": 0
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict",
+            "description": "资源状态冲突"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/skills/repos/upload": {
+      "post": {
+        "summary": "上传技能仓库",
+        "deprecated": false,
+        "description": "上传 ZIP 归档注册本地技能仓库，并异步开始扫描",
+        "tags": ["SkillRepos"],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "ZIP 文件"
+                  }
+                },
+                "required": ["file"]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "成功上传技能仓库",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRepositoryResponse"
+                },
+                "example": {
+                  "repo_id": "repo-uuid",
+                  "repo_name": "uploaded-skill-repo",
+                  "source_type": "local",
+                  "branch": null,
+                  "url": null,
+                  "local_path": "/home/user/witty-service/skill-repositories/uploaded/repo-uuid.zip",
+                  "skill_discover_status": "init",
+                  "skill_num": 0
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/skills/repos/{repo_id}": {
+      "get": {
+        "summary": "查询技能仓库详情",
+        "deprecated": false,
+        "description": "获取单个技能仓库详情",
+        "tags": ["SkillRepos"],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "description": "技能仓库唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取技能仓库详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRepositoryResponse"
+                },
+                "example": {
+                  "repo_id": "repo-uuid",
+                  "repo_name": "https://github.com/example/skills@main",
+                  "source_type": "git",
+                  "branch": "main",
+                  "url": "https://github.com/example/skills",
+                  "local_path": "/home/user/witty-service/skill-repositories/skills-repo-uuid",
+                  "skill_discover_status": "done",
+                  "skill_num": 12
+                }
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      },
+      "patch": {
+        "summary": "更新技能仓库",
+        "deprecated": false,
+        "description": "更新技能仓库配置",
+        "tags": ["SkillRepos"],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "description": "技能仓库唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillRepositoryRequest"
+              },
+              "example": {
+                "source_type": "git",
+                "url": "https://github.com/example/skills.git",
+                "branch": "develop"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功更新技能仓库",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRepositoryResponse"
+                },
+                "example": {
+                  "repo_id": "repo-uuid",
+                  "repo_name": "https://github.com/example/skills@develop",
+                  "source_type": "git",
+                  "branch": "develop",
+                  "url": "https://github.com/example/skills",
+                  "local_path": "/home/user/witty-service/skill-repositories/skills-repo-uuid",
+                  "skill_discover_status": "done",
+                  "skill_num": 12
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "summary": "删除技能仓库",
+        "deprecated": false,
+        "description": "删除技能仓库记录，并尽量清理本地归档或 clone 目录",
+        "tags": ["SkillRepos"],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "description": "技能仓库唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "成功删除技能仓库",
+            "headers": {}
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/skills/discover": {
+      "post": {
+        "summary": "扫描全部技能仓库",
+        "deprecated": false,
+        "description": "同步扫描全部技能仓库，刷新 skills 索引",
+        "tags": ["SkillRepos"],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功扫描技能仓库",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SkillRepositoryResponse"
+                  }
+                },
+                "example": [
+                  {
+                    "repo_id": "repo-uuid",
+                    "repo_name": "https://github.com/example/skills@main",
+                    "source_type": "git",
+                    "branch": "main",
+                    "url": "https://github.com/example/skills",
+                    "local_path": "/home/user/witty-service/skill-repositories/skills-repo-uuid",
+                    "skill_discover_status": "done",
+                    "skill_num": 12
+                  }
+                ]
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/skills/discover/{repo_id}": {
+      "post": {
+        "summary": "扫描指定技能仓库",
+        "deprecated": false,
+        "description": "同步扫描指定仓库",
+        "tags": ["SkillRepos"],
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "description": "技能仓库唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功扫描技能仓库",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRepositoryResponse"
+                },
+                "example": {
+                  "repo_id": "repo-uuid",
+                  "repo_name": "https://github.com/example/skills@main",
+                  "source_type": "git",
+                  "branch": "main",
+                  "url": "https://github.com/example/skills",
+                  "local_path": "/home/user/witty-service/skill-repositories/skills-repo-uuid",
+                  "skill_discover_status": "done",
+                  "skill_num": 12
+                }
+              }
+            },
+            "headers": {}
+          },
+          "202": {
+            "description": "仓库正在扫描中",
+            "headers": {}
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/skills/skills": {
+      "get": {
+        "summary": "查询技能清单",
+        "deprecated": false,
+        "description": "列出当前已发现的技能清单",
+        "tags": ["SkillRepos"],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功获取技能清单",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SkillResponse"
+                  }
+                },
+                "example": [
+                  {
+                    "skill_id": "skill-uuid",
+                    "repo_id": "repo-uuid",
+                    "skill_name": "terminal-helper",
+                    "relative_path": "skills/terminal-helper/SKILL.md",
+                    "metadata": {
+                      "title": "Terminal Helper"
+                    },
+                    "skill_source": "git",
+                    "skill_md_url": "https://github.com/example/skills/blob/main/skills/terminal-helper/SKILL.md"
+                  }
+                ]
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/mcp-servers": {
+      "get": {
+        "summary": "获取 MCP Server 列表",
+        "deprecated": false,
+        "description": "获取所有 MCP Server 配置列表",
+        "tags": ["McpServers"],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功获取 MCP Server 列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpServerResponse"
+                  }
+                },
+                "example": [
+                  {
+                    "id": "server-uuid-1",
+                    "mcp_server_name": "example-server",
+                    "mcp_server_config": {
+                      "example-server": {
+                        "command": "npx",
+                        "args": ["-y", "mcp-server-example"]
+                      }
+                    },
+                    "created_at": "2026-04-13T10:00:00",
+                    "updated_at": "2026-04-13T10:00:00"
+                  }
+                ]
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "添加 MCP Server 配置",
+        "deprecated": false,
+        "description": "添加新的 MCP Server 配置",
+        "tags": ["McpServers"],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMcpServerRequest"
+              },
+              "example": {
+                "mcp_server_config": {
+                  "example-server": {
+                    "command": "npx",
+                    "args": ["-y", "mcp-server-example"]
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "成功创建 MCP Server 配置",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerResponse"
+                },
+                "example": {
+                  "id": "server-uuid",
+                  "mcp_server_name": "example-server",
+                  "mcp_server_config": {
+                    "example-server": {
+                      "command": "npx",
+                      "args": ["-y", "mcp-server-example"]
+                    }
+                  },
+                  "created_at": "2026-04-13T10:00:00",
+                  "updated_at": "2026-04-13T10:00:00"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict",
+            "description": "资源状态冲突"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/mcp-servers/{server_id}": {
+      "put": {
+        "summary": "更新 MCP Server 配置",
+        "deprecated": false,
+        "description": "更新指定的 MCP Server 配置",
+        "tags": ["McpServers"],
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "description": "MCP Server 配置唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMcpServerRequest"
+              },
+              "example": {
+                "mcp_server_name": "updated-server",
+                "mcp_server_config": {
+                  "updated-server": {
+                    "command": "npx",
+                    "args": ["-y", "mcp-server-example"]
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功更新 MCP Server 配置",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerResponse"
+                },
+                "example": {
+                  "id": "server-uuid",
+                  "mcp_server_name": "updated-server",
+                  "mcp_server_config": {
+                    "updated-server": {
+                      "command": "npx",
+                      "args": ["-y", "mcp-server-example"]
+                    }
+                  },
+                  "created_at": "2026-04-13T10:00:00",
+                  "updated_at": "2026-04-14T12:00:00"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "资源不存在"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      },
+      "delete": {
+        "summary": "删除 MCP Server 配置",
+        "deprecated": false,
+        "description": "删除指定的 MCP Server 配置",
+        "tags": ["McpServers"],
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "path",
+            "description": "MCP Server 配置唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "成功删除 MCP Server 配置",
             "headers": {}
           },
           "400": {
@@ -1481,9 +2521,7 @@
         "summary": "获取大模型列表",
         "deprecated": false,
         "description": "获取所有大模型配置列表",
-        "tags": [
-          "Models"
-        ],
+        "tags": ["Models"],
         "parameters": [],
         "responses": {
           "200": {
@@ -1509,19 +2547,6 @@
                     "is_default": true,
                     "created_at": "2026-04-13T10:00:00",
                     "updated_at": "2026-04-13T10:00:00"
-                  },
-                  {
-                    "id": "model-uuid-2",
-                    "name": "claude-3-opus-20240229",
-                    "provider": "anthropic",
-                    "api_base_url": "https://api.anthropic.com/v1",
-                    "description": "Anthropic Claude 3 Opus 模型",
-                    "enabled": true,
-                    "max_tokens": 4096,
-                    "temperature": 0.7,
-                    "is_default": false,
-                    "created_at": "2026-04-13T11:00:00",
-                    "updated_at": "2026-04-13T11:00:00"
                   }
                 ]
               }
@@ -1543,9 +2568,7 @@
         "summary": "添加大模型配置",
         "deprecated": false,
         "description": "添加新的大模型配置",
-        "tags": [
-          "Models"
-        ],
+        "tags": ["Models"],
         "parameters": [],
         "requestBody": {
           "content": {
@@ -1618,9 +2641,7 @@
         "summary": "更新大模型配置",
         "deprecated": false,
         "description": "更新指定的大模型配置",
-        "tags": [
-          "Models"
-        ],
+        "tags": ["Models"],
         "parameters": [
           {
             "name": "model_id",
@@ -1698,9 +2719,7 @@
         "summary": "删除大模型配置",
         "deprecated": false,
         "description": "删除指定的大模型配置",
-        "tags": [
-          "Models"
-        ],
+        "tags": ["Models"],
         "parameters": [
           {
             "name": "model_id",
@@ -1758,11 +2777,7 @@
           },
           "sandbox_type": {
             "type": "string",
-            "enum": [
-              "docker",
-              "local_process",
-              "e2b"
-            ],
+            "enum": ["docker", "local_process", "e2b"],
             "description": "沙箱类型"
           },
           "adapter_type": {
@@ -1771,12 +2786,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "running",
-              "paused",
-              "stopped",
-              "error"
-            ],
+            "enum": ["running", "paused", "stopped", "error"],
             "description": "Agent 状态"
           },
           "sandbox_id": {
@@ -1801,16 +2811,12 @@
             "description": "模型 ID",
             "nullable": true
           },
-          "mcp_server_name": {
-            "type": "string",
-            "description": "MCP Server 名称",
-            "nullable": true
-          },
-          "mcp_server_config": {
-            "type": "object",
-            "description": "MCP 配置（JSON 格式）",
-            "nullable": true,
-            "properties": {}
+          "mcp_server_list": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MCP Server ID 列表"
           },
           "created_at": {
             "type": "string",
@@ -1825,6 +2831,11 @@
           "default_session_id": {
             "type": "string",
             "description": "默认会话 ID",
+            "nullable": true
+          },
+          "process_port": {
+            "type": "integer",
+            "description": "本地进程沙箱的端口号（仅 sandbox_type=local_process 时有值）",
             "nullable": true
           }
         },
@@ -1856,11 +2867,7 @@
           },
           "sandbox_type": {
             "type": "string",
-            "enum": [
-              "docker",
-              "local_process",
-              "e2b"
-            ],
+            "enum": ["docker", "local_process", "e2b"],
             "description": "沙箱类型：docker、local_process、e2b"
           },
           "adapter_type": {
@@ -1887,24 +2894,16 @@
             "description": "模型 ID，关联 /models 中配置的模型",
             "nullable": true
           },
-          "mcp_server_name": {
-            "type": "string",
-            "description": "MCP Server 名称",
+          "mcp_server_list": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MCP Server ID 列表，关联 /mcp-servers 中配置的 MCP Server",
             "nullable": true
-          },
-          "mcp_server_config": {
-            "type": "object",
-            "description": "MCP 配置（JSON 格式）",
-            "nullable": true,
-            "properties": {}
           }
         },
-        "required": [
-          "name",
-          "sandbox_type",
-          "adapter_type",
-          "idle_timeout_seconds"
-        ]
+        "required": ["name", "sandbox_type", "adapter_type", "idle_timeout_seconds"]
       },
       "SessionResponse": {
         "type": "object",
@@ -1919,11 +2918,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "running",
-              "idle",
-              "error"
-            ],
+            "enum": ["running", "idle", "error"],
             "description": "会话运行态"
           },
           "context_initialized": {
@@ -1964,9 +2959,7 @@
             "description": "消息内容，最小长度 1"
           }
         },
-        "required": [
-          "content"
-        ]
+        "required": ["content"]
       },
       "MessageEvent": {
         "type": "object",
@@ -2007,14 +3000,7 @@
             "properties": {}
           }
         },
-        "required": [
-          "type",
-          "session_id",
-          "event_id",
-          "ts_ms",
-          "runtime_type",
-          "payload"
-        ]
+        "required": ["type", "session_id", "event_id", "ts_ms", "runtime_type", "payload"]
       },
       "MessageEventsResponse": {
         "type": "object",
@@ -2031,10 +3017,7 @@
             "description": "事件数组，每个事件包含 type、session_id、event_id、ts_ms、runtime_type、payload"
           }
         },
-        "required": [
-          "sandbox_type",
-          "events"
-        ]
+        "required": ["sandbox_type", "events"]
       },
       "SessionEvent": {
         "type": "object",
@@ -2047,597 +3030,725 @@
             "type": "string",
             "description": "会话 ID"
           },
-          "type": {
-            "type": "string",
-            "description": "事件类型"
-          },
-          "source": {
-            "type": "string",
-            "description": "事件来源"
-          },
-          "payload": {
-            "type": "object",
-            "description": "事件负载",
-            "properties": {}
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "时间戳"
-          }
+          "type": "string",
+          "description": "事件类型"
         },
-        "required": [
-          "id",
-          "session_id",
-          "type",
-          "source",
-          "payload",
-          "timestamp"
-        ]
+        "source": {
+          "type": "string",
+          "description": "事件来源"
+        },
+        "payload": {
+          "type": "object",
+          "description": "事件负载",
+          "properties": {}
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "时间戳"
+        }
       },
-      "SessionEventPage": {
-        "type": "object",
-        "properties": {
+      "required": ["id", "session_id", "type", "source", "payload", "timestamp"]
+    },
+    "SessionEventPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
           "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SessionEvent"
+            "$ref": "#/components/schemas/SessionEvent"
+          },
+          "description": "事件列表"
+        },
+        "pagination": {
+          "type": "object",
+          "properties": {
+            "offset": {
+              "type": "integer",
+              "description": "分页偏移"
             },
-            "description": "事件列表"
-          },
-          "pagination": {
-            "type": "object",
-            "properties": {
-              "offset": {
-                "type": "integer",
-                "description": "分页偏移"
-              },
-              "limit": {
-                "type": "integer",
-                "description": "每页数量"
-              },
-              "total": {
-                "type": "integer",
-                "description": "总数量"
-              }
+            "limit": {
+              "type": "integer",
+              "description": "每页数量"
             },
-            "required": [
-              "offset",
-              "limit",
-              "total"
-            ],
-            "description": "分页信息"
-          }
-        },
-        "required": [
-          "items",
-          "pagination"
-        ]
-      },
-      "ModelResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "模型配置唯一标识"
+            "total": {
+              "type": "integer",
+              "description": "总数量"
+            }
           },
-          "name": {
-            "type": "string",
-            "description": "模型名称"
-          },
-          "provider": {
-            "type": "string",
-            "enum": [
-              "openai",
-              "anthropic",
-              "google",
-              "ollama",
-              "azure",
-              "deepseek",
-              "glm",
-              "minimax",
-              "kimi",
-              "custom"
-            ],
-            "description": "模型提供商"
-          },
-          "api_base_url": {
-            "type": "string",
-            "description": "API 基础地址"
-          },
-          "description": {
-            "type": "string",
-            "description": "模型描述",
-            "nullable": true
-          },
-          "enabled": {
-            "type": "boolean",
-            "description": "是否启用"
-          },
-          "max_tokens": {
-            "type": "integer",
-            "description": "最大输出 tokens 数"
-          },
-          "temperature": {
-            "type": "number",
-            "description": "生成温度"
-          },
-          "is_default": {
-            "type": "boolean",
-            "description": "是否为默认模型"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "创建时间"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "更新时间"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "provider",
-          "api_base_url",
-          "enabled",
-          "max_tokens",
-          "temperature",
-          "is_default",
-          "created_at",
-          "updated_at"
-        ]
-      },
-      "CreateModelRequest": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "模型名称，如 gpt-4o、claude-3-opus-20240229"
-          },
-          "provider": {
-            "type": "string",
-            "enum": [
-              "openai",
-              "anthropic",
-              "google",
-              "ollama",
-              "azure",
-              "deepseek",
-              "glm",
-              "minimax",
-              "kimi",
-              "custom"
-            ],
-            "description": "模型提供商"
-          },
-          "api_key": {
-            "type": "string",
-            "description": "API 密钥"
-          },
-          "api_base_url": {
-            "type": "string",
-            "description": "API 基础地址，默认根据 provider 自动设置",
-            "nullable": true
-          },
-          "description": {
-            "type": "string",
-            "description": "模型描述，默认空字符串",
-            "nullable": true
-          },
-          "enabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "是否启用，默认 true"
-          },
-          "max_tokens": {
-            "type": "integer",
-            "default": 4096,
-            "description": "最大输出 tokens 数，默认 4096"
-          },
-          "temperature": {
-            "type": "number",
-            "default": 0.7,
-            "description": "生成温度，范围 0-2，默认 0.7"
-          },
-          "is_default": {
-            "type": "boolean",
-            "default": false,
-            "description": "是否设为默认模型，默认 false"
-          }
-        },
-        "required": [
-          "name",
-          "provider",
-          "api_key"
-        ]
-      },
-      "UpdateModelRequest": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "模型名称"
-          },
-          "provider": {
-            "type": "string",
-            "enum": [
-              "openai",
-              "anthropic",
-              "google",
-              "ollama",
-              "azure",
-              "deepseek",
-              "glm",
-              "minimax",
-              "kimi",
-              "custom"
-            ],
-            "description": "模型提供商"
-          },
-          "api_key": {
-            "type": "string",
-            "description": "API 密钥"
-          },
-          "api_base_url": {
-            "type": "string",
-            "description": "API 基础地址"
-          },
-          "description": {
-            "type": "string",
-            "description": "模型描述"
-          },
-          "enabled": {
-            "type": "boolean",
-            "description": "是否启用"
-          },
-          "max_tokens": {
-            "type": "integer",
-            "description": "最大输出 tokens 数"
-          },
-          "temperature": {
-            "type": "number",
-            "description": "生成温度，范围 0-2"
-          },
-          "is_default": {
-            "type": "boolean",
-            "description": "是否设为默认模型"
-          }
+          "required": ["offset", "limit", "total"],
+          "description": "分页信息"
         }
       },
-      "ConversationSummary": {
-        "type": "object",
-        "properties": {
-          "session_id": {
-            "type": "string",
-            "description": "会话唯一标识"
-          },
-          "title": {
-            "type": "string",
-            "description": "会话标题"
-          },
-          "latest_message": {
-            "type": "string",
-            "description": "最新消息摘要"
-          },
-          "is_pinned": {
-            "type": "boolean",
-            "description": "是否置顶"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "创建时间"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "更新时间"
-          }
-        },
-        "required": [
-          "session_id",
-          "title",
-          "latest_message",
-          "is_pinned",
-          "created_at",
-          "updated_at"
-        ]
-      },
-      "MessageItem": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "消息唯一标识"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "user",
-              "assistant"
-            ],
-            "description": "消息角色"
-          },
-          "content": {
-            "type": "string",
-            "description": "消息内容"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "创建时间"
-          }
-        },
-        "required": [
-          "id",
-          "role",
-          "content",
-          "created_at"
-        ]
-      },
-      "ConversationDetail": {
-        "type": "object",
-        "properties": {
-          "session_id": {
-            "type": "string",
-            "description": "会话唯一标识"
-          },
-          "title": {
-            "type": "string",
-            "description": "会话标题"
-          },
-          "is_pinned": {
-            "type": "boolean",
-            "description": "是否置顶"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "创建时间"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "更新时间"
-          },
-          "messages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MessageItem"
-            },
-            "description": "消息列表"
-          }
-        },
-        "required": [
-          "session_id",
-          "title",
-          "is_pinned",
-          "created_at",
-          "updated_at",
-          "messages"
-        ]
-      },
-      "UpdateConversationRequest": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "description": "会话标题"
-          },
-          "is_pinned": {
-            "type": "boolean",
-            "description": "是否置顶"
-          }
-        }
-      },
-      "SkillInfo": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "技能唯一标识"
-          },
-          "name": {
-            "type": "string",
-            "description": "技能名称"
-          },
-          "description": {
-            "type": "string",
-            "description": "技能描述",
-            "nullable": true
-          },
-          "enabled": {
-            "type": "boolean",
-            "description": "是否启用"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "创建时间"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "enabled",
-          "created_at"
-        ]
-      },
-      "ErrorResponse": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "object",
-            "properties": {
-              "code": {
-                "type": "string",
-                "description": "稳定错误码"
-              },
-              "message": {
-                "type": "string",
-                "description": "人类可读错误信息"
-              },
-              "details": {
-                "type": "object",
-                "description": "可选，结构化错误细节",
-                "properties": {}
-              }
-            },
-            "required": [
-              "code",
-              "message"
-            ]
-          }
-        },
-        "required": [
-          "error"
-        ]
-      },
-      "ErrorCode": {
-        "type": "string",
-        "enum": [
-          "INVALID_AGENT_TRANSITION",
-          "AGENT_NOT_FOUND",
-          "SESSION_NOT_FOUND",
-          "SESSION_CREATE_FAILED",
-          "SESSION_DELETE_FAILED",
-          "SESSION_LIST_FAILED",
-          "SESSION_AGENT_MISMATCH",
-          "AGENT_NOT_RUNNING",
-          "SANDBOX_STATE_NOT_FOUND",
-          "AGENT_CREATE_FAILED",
-          "AGENT_PAUSE_FAILED",
-          "AGENT_RESUME_FAILED",
-          "AGENT_DELETE_FAILED",
-          "RUNTIME_BACKUP_NOT_FOUND",
-          "RUNTIME_BACKUP_RESTORE_FAILED",
-          "RUNTIME_START_FAILED",
-          "MODEL_NOT_FOUND",
-          "MODEL_DUPLICATE",
-          "MODEL_CREATE_FAILED",
-          "MODEL_UPDATE_FAILED",
-          "MODEL_DELETE_FAILED"
-        ],
-        "description": "错误码"
-      }
+      "required": ["items", "pagination"]
     },
-    "responses": {
-      "BadRequest": {
-        "description": "请求参数错误",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorResponse"
-            },
-            "examples": {
-              "SessionAgentMismatch": {
-                "summary": "Session 与 Agent 不匹配",
-                "value": {
-                  "error": {
-                    "code": "SESSION_AGENT_MISMATCH",
-                    "message": "Session 与 Agent 不匹配",
-                    "details": {}
-                  }
-                }
-              }
-            }
-          }
+    "ModelResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "模型配置唯一标识"
+        },
+        "name": {
+          "type": "string",
+          "description": "模型名称"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "openai",
+            "anthropic",
+            "google",
+            "ollama",
+            "azure",
+            "deepseek",
+            "glm",
+            "minimax",
+            "kimi",
+            "custom"
+          ],
+          "description": "模型提供商"
+        },
+        "api_base_url": {
+          "type": "string",
+          "description": "API 基础地址"
+        },
+        "description": {
+          "type": "string",
+          "description": "模型描述",
+          "nullable": true
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "是否启用"
+        },
+        "max_tokens": {
+          "type": "integer",
+          "description": "最大输出 tokens 数"
+        },
+        "temperature": {
+          "type": "number",
+          "description": "生成温度"
+        },
+        "is_default": {
+          "type": "boolean",
+          "description": "是否为默认模型"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "创建时间"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "更新时间"
         }
       },
-      "Unauthorized": {
-        "description": "未授权",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorResponse"
-            },
-            "examples": {
-              "InvalidToken": {
-                "summary": "无效或缺失认证令牌",
-                "value": {
-                  "error": {
-                    "code": "UNAUTHORIZED",
-                    "message": "Invalid or missing authentication token",
-                    "details": {}
-                  }
-                }
-              }
-            }
-          }
+      "required": [
+        "id",
+        "name",
+        "provider",
+        "api_base_url",
+        "enabled",
+        "max_tokens",
+        "temperature",
+        "is_default",
+        "created_at",
+        "updated_at"
+      ]
+    },
+    "CreateModelRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "模型名称，如 gpt-4o、claude-3-opus-20240229"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "openai",
+            "anthropic",
+            "google",
+            "ollama",
+            "azure",
+            "deepseek",
+            "glm",
+            "minimax",
+            "kimi",
+            "custom"
+          ],
+          "description": "模型提供商"
+        },
+        "api_key": {
+          "type": "string",
+          "description": "API 密钥"
+        },
+        "api_base_url": {
+          "type": "string",
+          "description": "API 基础地址，默认根据 provider 自动设置",
+          "nullable": true
+        },
+        "description": {
+          "type": "string",
+          "description": "模型描述，默认空字符串",
+          "nullable": true
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否启用，默认 true"
+        },
+        "max_tokens": {
+          "type": "integer",
+          "default": 4096,
+          "description": "最大输出 tokens 数，默认 4096"
+        },
+        "temperature": {
+          "type": "number",
+          "default": 0.7,
+          "description": "生成温度，范围 0-2，默认 0.7"
+        },
+        "is_default": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否设为默认模型，默认 false"
         }
       },
-      "NotFound": {
-        "description": "资源不存在",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorResponse"
-            },
-            "examples": {
-              "AgentNotFound": {
-                "summary": "Agent 不存在",
-                "value": {
-                  "error": {
-                    "code": "AGENT_NOT_FOUND",
-                    "message": "Agent 不存在",
-                    "details": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "Conflict": {
-        "description": "资源状态冲突",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorResponse"
-            },
-            "examples": {
-              "InvalidAgentTransition": {
-                "summary": "Agent 状态转换不合法",
-                "value": {
-                  "error": {
-                    "code": "INVALID_AGENT_TRANSITION",
-                    "message": "Agent 状态转换不合法",
-                    "details": {}
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "InternalServerError": {
-        "description": "服务器内部错误",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorResponse"
-            },
-            "examples": {
-              "AgentCreateFailed": {
-                "summary": "Agent 创建失败",
-                "value": {
-                  "error": {
-                    "code": "AGENT_CREATE_FAILED",
-                    "message": "Agent 创建失败",
-                    "details": {}
-                  }
-                }
-              }
-            }
-          }
+      "required": ["name", "provider", "api_key"]
+    },
+    "UpdateModelRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "模型名称"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "openai",
+            "anthropic",
+            "google",
+            "ollama",
+            "azure",
+            "deepseek",
+            "glm",
+            "minimax",
+            "kimi",
+            "custom"
+          ],
+          "description": "模型提供商"
+        },
+        "api_key": {
+          "type": "string",
+          "description": "API 密钥"
+        },
+        "api_base_url": {
+          "type": "string",
+          "description": "API 基础地址"
+        },
+        "description": {
+          "type": "string",
+          "description": "模型描述"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "是否启用"
+        },
+        "max_tokens": {
+          "type": "integer",
+          "description": "最大输出 tokens 数"
+        },
+        "temperature": {
+          "type": "number",
+          "description": "生成温度，范围 0-2"
+        },
+        "is_default": {
+          "type": "boolean",
+          "description": "是否设为默认模型"
         }
       }
     },
-    "securitySchemes": {}
+    "ConversationSummary": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "description": "会话唯一标识"
+        },
+        "title": {
+          "type": "string",
+          "description": "会话标题"
+        },
+        "latest_message": {
+          "type": "string",
+          "description": "最新消息摘要"
+        },
+        "is_pinned": {
+          "type": "boolean",
+          "description": "是否置顶"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "创建时间"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "更新时间"
+        }
+      },
+      "required": ["session_id", "title", "latest_message", "is_pinned", "created_at", "updated_at"]
+    },
+    "MessageItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "消息唯一标识"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "assistant"],
+          "description": "消息角色"
+        },
+        "content": {
+          "type": "string",
+          "description": "消息内容"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "创建时间"
+        }
+      },
+      "required": ["id", "role", "content", "created_at"]
+    },
+    "ConversationDetail": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "description": "会话唯一标识"
+        },
+        "title": {
+          "type": "string",
+          "description": "会话标题"
+        },
+        "is_pinned": {
+          "type": "boolean",
+          "description": "是否置顶"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "创建时间"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "更新时间"
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/MessageItem"
+          },
+          "description": "消息列表"
+        }
+      },
+      "required": ["session_id", "title", "is_pinned", "created_at", "updated_at", "messages"]
+    },
+    "UpdateConversationRequest": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "会话标题"
+        },
+        "is_pinned": {
+          "type": "boolean",
+          "description": "是否置顶"
+        }
+      }
+    },
+    "SkillInfo": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "技能唯一标识"
+        },
+        "name": {
+          "type": "string",
+          "description": "技能名称"
+        },
+        "description": {
+          "type": "string",
+          "description": "技能描述",
+          "nullable": true
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "是否启用"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "创建时间"
+        }
+      },
+      "required": ["id", "name", "enabled", "created_at"]
+    },
+    "InstallAgentSkillRequest": {
+      "type": "object",
+      "properties": {
+        "skill_id": {
+          "type": "string",
+          "description": "技能唯一标识"
+        },
+        "skill_name": {
+          "type": "string",
+          "description": "技能名；主要用于错误详情和日志"
+        }
+      },
+      "required": ["skill_id", "skill_name"]
+    },
+    "UninstallAgentSkillRequest": {
+      "type": "object",
+      "properties": {
+        "skill_id": {
+          "type": "string",
+          "description": "已安装技能 ID"
+        }
+      },
+      "required": ["skill_id"]
+    },
+    "AgentSkillResponse": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "description": "所属 agent"
+        },
+        "skill_id": {
+          "type": "string",
+          "description": "技能 ID"
+        },
+        "source_type": {
+          "type": "string",
+          "description": "安装来源类型"
+        },
+        "repo_id": {
+          "type": "string",
+          "description": "来源仓库 ID",
+          "nullable": true
+        },
+        "skill_name": {
+          "type": "string",
+          "description": "技能名"
+        },
+        "installed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "安装时间，统一序列化为 UTC ISO8601"
+        },
+        "relative_path": {
+          "type": "string",
+          "description": "技能文档相对路径",
+          "nullable": true
+        },
+        "metadata": {
+          "type": "object",
+          "description": "技能元数据",
+          "nullable": true,
+          "properties": {}
+        },
+        "skill_source": {
+          "type": "string",
+          "description": "技能来源",
+          "nullable": true
+        },
+        "skill_md_url": {
+          "type": "string",
+          "description": "技能说明地址",
+          "nullable": true
+        }
+      },
+      "required": ["agent_id", "skill_id", "source_type", "skill_name", "installed_at"]
+    },
+    "SkillRepositoryRequest": {
+      "type": "object",
+      "properties": {
+        "source_type": {
+          "type": "string",
+          "enum": ["git", "local"],
+          "description": "来源类型：git 或 local"
+        },
+        "url": {
+          "type": "string",
+          "description": "Git clone 地址，支持 HTTPS / SSH，服务端会做归一化",
+          "nullable": true
+        },
+        "branch": {
+          "type": "string",
+          "description": "指定分支；为空时 discover 后会自动回填实际分支",
+          "nullable": true
+        },
+        "local_path": {
+          "type": "string",
+          "description": "本地路径（通常由上传接口生成）",
+          "nullable": true
+        }
+      },
+      "required": ["source_type"]
+    },
+    "SkillRepositoryResponse": {
+      "type": "object",
+      "properties": {
+        "repo_id": {
+          "type": "string",
+          "description": "仓库唯一标识"
+        },
+        "repo_name": {
+          "type": "string",
+          "description": "仓库名称"
+        },
+        "source_type": {
+          "type": "string",
+          "enum": ["git", "local", "builtin", "clawhub"],
+          "description": "来源类型"
+        },
+        "branch": {
+          "type": "string",
+          "description": "分支名称",
+          "nullable": true
+        },
+        "url": {
+          "type": "string",
+          "description": "Git URL",
+          "nullable": true
+        },
+        "local_path": {
+          "type": "string",
+          "description": "本地路径",
+          "nullable": true
+        },
+        "skill_discover_status": {
+          "type": "string",
+          "enum": ["init", "discovering", "done", "failed"],
+          "description": "技能发现状态"
+        },
+        "skill_num": {
+          "type": "integer",
+          "description": "技能数量"
+        }
+      },
+      "required": ["repo_id", "repo_name", "source_type", "skill_discover_status", "skill_num"]
+    },
+    "SkillResponse": {
+      "type": "object",
+      "properties": {
+        "skill_id": {
+          "type": "string",
+          "description": "技能唯一标识"
+        },
+        "repo_id": {
+          "type": "string",
+          "description": "所属仓库 ID；第三方聚合来源可能为空",
+          "nullable": true
+        },
+        "skill_name": {
+          "type": "string",
+          "description": "技能名"
+        },
+        "relative_path": {
+          "type": "string",
+          "description": "SKILL.md 相对路径或绝对路径",
+          "nullable": true
+        },
+        "metadata": {
+          "type": "object",
+          "description": "技能元数据",
+          "properties": {}
+        },
+        "skill_source": {
+          "type": "string",
+          "description": "技能来源，如 git、local、builtin、clawhub",
+          "nullable": true
+        },
+        "skill_md_url": {
+          "type": "string",
+          "description": "技能说明文档地址",
+          "nullable": true
+        }
+      },
+      "required": ["skill_id", "skill_name"]
+    },
+    "McpServerResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "MCP Server 配置唯一标识"
+        },
+        "mcp_server_name": {
+          "type": "string",
+          "description": "MCP Server 名称"
+        },
+        "mcp_server_config": {
+          "type": "object",
+          "description": "MCP 配置（JSON 格式）",
+          "properties": {}
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "创建时间"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "更新时间"
+        }
+      },
+      "required": ["id", "mcp_server_name", "mcp_server_config", "created_at", "updated_at"]
+    },
+    "CreateMcpServerRequest": {
+      "type": "object",
+      "properties": {
+        "mcp_server_config": {
+          "type": "object",
+          "description": "MCP 配置（JSON 格式），系统自动从配置的 key 中提取 mcp_server_name",
+          "properties": {}
+        }
+      },
+      "required": ["mcp_server_config"]
+    },
+    "UpdateMcpServerRequest": {
+      "type": "object",
+      "properties": {
+        "mcp_server_name": {
+          "type": "string",
+          "description": "MCP Server 名称"
+        },
+        "mcp_server_config": {
+          "type": "object",
+          "description": "MCP 配置（JSON 格式）",
+          "properties": {}
+        }
+      }
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "错误码"
+            },
+            "message": {
+              "type": "string",
+              "description": "错误消息"
+            },
+            "details": {
+              "type": "object",
+              "description": "错误详情",
+              "properties": {},
+              "nullable": true
+            }
+          },
+          "required": ["code", "message"]
+        }
+      },
+      "required": ["error"]
+    }
   },
-  "servers": [],
-  "security": []
+  "responses": {
+    "Unauthorized": {
+      "description": "未授权",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "example": {
+            "error": {
+              "code": "UNAUTHORIZED",
+              "message": "未授权访问"
+            }
+          }
+        }
+      }
+    },
+    "BadRequest": {
+      "description": "请求参数错误",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "example": {
+            "error": {
+              "code": "BAD_REQUEST",
+              "message": "请求参数错误"
+            }
+          }
+        }
+      }
+    },
+    "NotFound": {
+      "description": "资源不存在",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "example": {
+            "error": {
+              "code": "NOT_FOUND",
+              "message": "资源不存在"
+            }
+          }
+        }
+      }
+    },
+    "Conflict": {
+      "description": "资源状态冲突",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "example": {
+            "error": {
+              "code": "CONFLICT",
+              "message": "资源状态冲突"
+            }
+          }
+        }
+      }
+    },
+    "InternalServerError": {
+      "description": "服务器内部错误",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          },
+          "example": {
+            "error": {
+              "code": "INTERNAL_ERROR",
+              "message": "服务器内部错误"
+            }
+          }
+        }
+      }
+    }
+  }
 }
