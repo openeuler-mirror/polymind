@@ -304,6 +304,14 @@ export function resolveStatusMeta(item: BackportCommitItem): {
     }
   }
 
+  if (item.has_conflict === null || item.has_conflict === undefined) {
+    return {
+      kind: 'pending',
+      label: '结果未知',
+      className: 'border-slate-200 bg-slate-50 text-slate-600',
+    }
+  }
+
   if (Boolean(item.has_conflict)) {
     return {
       kind: 'conflict',
@@ -349,6 +357,14 @@ export function resolveConflictMeta(item: BackportCommitItem): {
       label: '待检查',
       className: 'border-slate-200 bg-slate-50 text-slate-600',
       detail: '尚未执行冲突检测',
+    }
+  }
+
+  if (item.has_conflict === null || item.has_conflict === undefined) {
+    return {
+      label: '结果未知',
+      className: 'border-slate-200 bg-slate-50 text-slate-600',
+      detail: '尚未得到明确的冲突检测结果',
     }
   }
 
