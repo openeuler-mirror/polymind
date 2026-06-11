@@ -360,6 +360,144 @@ install_python_and_pip() {
   return 0
 }
 
+# ---------- nginx 安装 ----------
+install_nginx() {
+  log_step "检查 nginx..."
+
+  if command -v nginx &> /dev/null; then
+    local nginx_ver
+    nginx_ver=$(nginx -v 2>&1 | cut -d'/' -f2)
+    log_ok "nginx ${nginx_ver} 已安装: $(command -v nginx)"
+    NGINX_CMD="nginx"
+    return 0
+  fi
+
+  log_warn "nginx 未安装，尝试自动安装..."
+
+  local os
+  os=$(get_os)
+
+  if [ "$os" = "linux" ]; then
+    if command -v apt-get &> /dev/null; then
+      log_step "apt-get install nginx..."
+      sudo apt-get update -qq && sudo apt-get install -y -qq nginx 2>> "$INSTALL_LOG" || {
+        log_warn "apt-get 安装失败"
+        return 2
+      }
+    elif command -v yum &> /dev/null; then
+      log_step "yum install nginx..."
+      sudo yum install -y nginx 2>> "$INSTALL_LOG" || {
+        log_warn "yum 安装失败"
+        return 2
+      }
+    elif command -v dnf &> /dev/null; then
+      log_step "dnf install nginx..."
+      sudo dnf install -y nginx 2>> "$INSTALL_LOG" || {
+        log_warn "dnf 安装失败"
+        return 2
+      }
+    else
+      log_warn "未找到包管理器，无法自动安装 nginx"
+      return 2
+    fi
+  elif [ "$os" = "macos" ]; then
+    if command -v brew &> /dev/null; then
+      log_step "brew install nginx..."
+      brew install nginx 2>> "$INSTALL_LOG" || {
+        log_warn "brew 安装失败"
+        return 2
+      }
+    else
+      log_warn "未找到 Homebrew，无法自动安装 nginx"
+      return 2
+    fi
+  fi
+
+  if command -v nginx &> /dev/null; then
+    log_ok "nginx 安装成功: $(nginx -v 2>&1 | cut -d'/' -f2)"
+    NGINX_CMD="nginx"
+    return 0
+  else
+    log_warn "nginx 安装后验证失败"
+    return 2
+  fi
+}
+
+setup_nginx() {
+  local nginx_dir="$POLYMIND_DIR/nginx"
+  mkdir -p "$nginx_dir"
+
+  log_step "生成 nginx 配置模板..."
+
+  cat > "$nginx_dir/nginx.conf.template" << 'NGINXEOF'
+worker_processes auto;
+error_log {{POLYMIND_DIR}}/nginx/error.log;
+pid {{POLYMIND_DIR}}/nginx/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    default_type application/octet-stream;
+
+    access_log {{POLYMIND_DIR}}/nginx/access.log;
+
+    server {
+        listen {{FRONTEND_PORT}};
+        server_name _;
+
+        # 健康检查端点
+        location /health {
+            return 200 "OK";
+            add_header Content-Type text/plain;
+        }
+
+        # API 代理到后端（去掉 /api 前缀）
+        # 处理 REST、SSE 流、WebSocket 升级
+        location /api/ {
+            proxy_pass http://127.0.0.1:{{BACKEND_PORT}}/;
+            proxy_http_version 1.1;
+
+            # WebSocket 支持
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+
+            # 标准代理头
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            # SSE 流支持（关键）
+            proxy_buffering off;
+            proxy_cache off;
+            chunked_transfer_encoding on;
+
+            # 长超时支持 SSE/WS
+            proxy_read_timeout 86400s;
+            proxy_send_timeout 86400s;
+        }
+
+        # 前端代理到 Next.js
+        location / {
+            proxy_pass http://127.0.0.1:{{NEXTJS_UPSTREAM_PORT}};
+            proxy_http_version 1.1;
+
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+}
+NGINXEOF
+
+  log_ok "nginx 配置模板已生成: $nginx_dir/nginx.conf.template"
+}
+
 # ---------- Phase 2: 环境隔离初始化 ----------
 setup_isolation() {
   section "2/4  环境隔离初始化"
@@ -562,6 +700,16 @@ verify_installation() {
     errors=$((errors + 1))
   fi
 
+  # nginx
+  if command -v nginx &> /dev/null; then
+    local nginx_ver
+    nginx_ver=$(nginx -v 2>&1 | cut -d'/' -f2)
+    log_ok "nginx      ${nginx_ver}（反向代理）"
+  else
+    log_err "nginx      未找到"
+    errors=$((errors + 1))
+  fi
+
   echo ""
 
   if [ "$errors" -eq 0 ]; then
@@ -622,6 +770,17 @@ main() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Python/pip 安装失败" >> "$INSTALL_LOG"
     exit 1
   }
+
+  # nginx 安装（必须）
+  install_nginx || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: nginx 安装失败" >> "$INSTALL_LOG"
+    log_err "nginx 安装失败，PolyMind 需要 nginx 作为反向代理"
+    log_info "请手动安装 nginx 后重新运行 install.sh"
+    exit 1
+  }
+
+  # 生成 nginx 配置模板
+  setup_nginx
 
   # Phase 2
   setup_isolation || {

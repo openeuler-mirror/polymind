@@ -7,9 +7,7 @@ import { agentService } from '@/services/agent-service'
 import { sessionService } from '@/services/session-service'
 import { generateUUID } from './utils'
 import { cacheDelete, cacheSetAll, cacheGetAll, CACHE_KEYS } from './cache'
-
-// 环境变量控制是否使用模拟数据
-const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
+import { appConfig } from '@/app/config'
 
 function syncUrlParams(agentId?: string, sessionId?: string) {
   if (typeof window === 'undefined') return
@@ -61,12 +59,12 @@ export interface ChatState {
   rightPanelTabs: Tab[]
   activeRightPanelTab: string | null
   settingsActiveSection: string | null
-  
+
   // Agent相关状态
   agents: Agent[]
   currentAgentId: string | null
   agentStatus: Record<string, Agent['status']>
-  
+
   // 连接状态
   wsConnections: Record<string, WebSocketClient> // agentId -> websocket
   isConnecting: boolean
@@ -74,10 +72,10 @@ export interface ChatState {
 
   // 停止生成锁
   _stoppingInProgress: boolean
-  
+
   // Agents加载状态
   isAgentsLoading: boolean
-  
+
   // Actions
   createConversation: (agentId?: string, agentName?: string) => Promise<string>
   createLocalConversation: (agentId: string, agentName?: string) => string
@@ -86,7 +84,11 @@ export interface ChatState {
   deleteConversation: (id: string) => Promise<void>
   setCurrentConversation: (id: string) => void
   addMessage: (conversationId: string, message: Message) => void
-  updateMessage: (conversationId: string, messageId: string, updates: Partial<Message> | ((message: Message) => Partial<Message>)) => void
+  updateMessage: (
+    conversationId: string,
+    messageId: string,
+    updates: Partial<Message> | ((message: Message) => Partial<Message>)
+  ) => void
   deleteMessage: (conversationId: string, messageId: string) => void
   toggleSidebar: () => void
   toggleRightPanel: () => void
@@ -100,7 +102,7 @@ export interface ChatState {
   removeRightPanelTab: (tabId: string) => void
   setActiveRightPanelTab: (tabId: string | null) => void
   setSettingsActiveSection: (section: string | null) => void
-  
+
   // Agent相关操作
   setCurrentAgent: (agentId: string | null) => void
   agentCreateFlag: number
@@ -112,7 +114,12 @@ export interface ChatState {
   initializeAgent: (config: any) => Promise<Agent>
   connectToAgent: (agentId: string) => Promise<void>
   disconnectFromAgent: (agentId: string) => void
-  sendMessageToAgent: (agentId: string, sessionId: string, content: string, onEvent?: (event: any) => void) => Promise<any[]>
+  sendMessageToAgent: (
+    agentId: string,
+    sessionId: string,
+    content: string,
+    onEvent?: (event: any) => void
+  ) => Promise<any[]>
   createNewSession: (agentId: string) => Promise<Session>
 
   // 会话持久化操作
@@ -123,12 +130,48 @@ export interface ChatState {
 }
 
 const defaultTools: MCPTool[] = [
-  { id: 'web-search', name: '网络搜索', description: '搜索互联网获取最新信息', category: 'search', enabled: true },
-  { id: 'code-exec', name: '代码执行', description: '在安全沙箱中执行代码', category: 'code', enabled: true },
-  { id: 'file-read', name: '文件读取', description: '读取和分析上传的文件', category: 'file', enabled: true },
-  { id: 'data-analysis', name: '数据分析', description: '分析和可视化数据', category: 'data', enabled: true },
-  { id: 'web-browse', name: '网页浏览', description: '访问和提取网页内容', category: 'web', enabled: false },
-  { id: 'image-gen', name: '图像生成', description: '根据描述生成图像', category: 'system', enabled: false },
+  {
+    id: 'web-search',
+    name: '网络搜索',
+    description: '搜索互联网获取最新信息',
+    category: 'search',
+    enabled: true,
+  },
+  {
+    id: 'code-exec',
+    name: '代码执行',
+    description: '在安全沙箱中执行代码',
+    category: 'code',
+    enabled: true,
+  },
+  {
+    id: 'file-read',
+    name: '文件读取',
+    description: '读取和分析上传的文件',
+    category: 'file',
+    enabled: true,
+  },
+  {
+    id: 'data-analysis',
+    name: '数据分析',
+    description: '分析和可视化数据',
+    category: 'data',
+    enabled: true,
+  },
+  {
+    id: 'web-browse',
+    name: '网页浏览',
+    description: '访问和提取网页内容',
+    category: 'web',
+    enabled: false,
+  },
+  {
+    id: 'image-gen',
+    name: '图像生成',
+    description: '根据描述生成图像',
+    category: 'system',
+    enabled: false,
+  },
 ]
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -145,7 +188,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   rightPanelTabs: [],
   activeRightPanelTab: null,
   settingsActiveSection: null,
-  
+
   // Agent相关状态
   agents: initialState.agents,
   currentAgentId: initialState.currentAgentId,
@@ -158,50 +201,50 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isAgentsLoading: false,
 
   createConversation: async (agentId?: string, agentName?: string) => {
-     let sessionId: string | undefined
-     // If agentId is provided, set it as current agent and create a new session
-     if (agentId) {
-       try {
-         const session = await get().createNewSession(agentId)
-         sessionId = session.id
-       } catch (error) {
-         console.error('Failed to create session:', error)
-       }
-     }
+    let sessionId: string | undefined
+    // If agentId is provided, set it as current agent and create a new session
+    if (agentId) {
+      try {
+        const session = await get().createNewSession(agentId)
+        sessionId = session.id
+      } catch (error) {
+        console.error('Failed to create session:', error)
+      }
+    }
 
-     const id = generateUUID()
-     const newConversation: Conversation = {
-       id,
-       title: '新对话',
-       messages: [],
-       createdAt: new Date(),
-       updatedAt: new Date(),
-       agentId,
-       agentName,
-       sessionId,
-       isStreaming: false
-     }
+    const id = generateUUID()
+    const newConversation: Conversation = {
+      id,
+      title: '新对话',
+      messages: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      agentId,
+      agentName,
+      sessionId,
+      isStreaming: false,
+    }
     cacheDelete(CACHE_KEYS.CONVERSATIONS_WITH_NAMES)
-    set((state) => {
+    set(state => {
       syncUrlParams(agentId, sessionId)
       return {
         conversations: [newConversation, ...state.conversations],
         currentConversationId: id,
-        ...(agentId ? { currentAgentId: agentId } : {})
+        ...(agentId ? { currentAgentId: agentId } : {}),
       }
     })
 
     return id
   },
 
-  deleteConversation: async (id) => {
+  deleteConversation: async id => {
     const state = get()
     const conversation = state.conversations.find(c => c.id === id)
 
     // If the conversation has its own sessionId, delete the backend session directly
     if (conversation?.sessionId && conversation?.agentId) {
       try {
-        if (!USE_MOCK_DATA) {
+        if (!appConfig.app.useMockData) {
           await sessionService.deleteSession(conversation.agentId, conversation.sessionId)
         }
       } catch (error) {
@@ -210,11 +253,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     cacheDelete(CACHE_KEYS.CONVERSATIONS_WITH_NAMES)
-    set((state) => {
-      const filtered = state.conversations.filter((c) => c.id !== id)
-      const newCurrentId = state.currentConversationId === id
-        ? filtered[0]?.id || null
-        : state.currentConversationId
+    set(state => {
+      const filtered = state.conversations.filter(c => c.id !== id)
+      const newCurrentId =
+        state.currentConversationId === id ? filtered[0]?.id || null : state.currentConversationId
 
       // Sync URL: if current conversation was deleted, update URL to fallback or clear session
       if (state.currentConversationId === id) {
@@ -236,34 +278,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   deleteMessage: (conversationId, messageId) => {
-    set((state) => ({
-      conversations: state.conversations.map((c) =>
+    set(state => ({
+      conversations: state.conversations.map(c =>
         c.id === conversationId
           ? {
               ...c,
-              messages: c.messages.filter((m) => m.id !== messageId),
+              messages: c.messages.filter(m => m.id !== messageId),
             }
           : c
       ),
     }))
   },
 
-  setCurrentConversation: (id) => {
-    set((state) => {
+  setCurrentConversation: id => {
+    set(state => {
       const conversation = state.conversations.find(c => c.id === id)
       if (conversation) {
         syncUrlParams(conversation.agentId, conversation.sessionId)
       }
       return {
         currentConversationId: id,
-        ...(conversation?.agentId ? { currentAgentId: conversation.agentId } : {})
+        ...(conversation?.agentId ? { currentAgentId: conversation.agentId } : {}),
       }
     })
   },
 
   addMessage: (conversationId, message) => {
     const state = get()
-    const conv = state.conversations.find((c) => c.id === conversationId)
+    const conv = state.conversations.find(c => c.id === conversationId)
     if (!conv) return
 
     const isFirstMessage = conv.messages.length === 0 && message.role === 'user'
@@ -271,8 +313,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       ? message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '')
       : conv.title
 
-    set((state) => {
-      const idx = state.conversations.findIndex((c) => c.id === conversationId)
+    set(state => {
+      const idx = state.conversations.findIndex(c => c.id === conversationId)
       if (idx === -1) return state
       const conv = state.conversations[idx]
       const updated = {
@@ -289,13 +331,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   updateMessage: (conversationId, messageId, updates) => {
-    set((state) => ({
-      conversations: state.conversations.map((c) =>
+    set(state => ({
+      conversations: state.conversations.map(c =>
         c.id === conversationId
           ? {
               ...c,
-              messages: c.messages.map((m) =>
-                m.id === messageId ? { ...m, ...(typeof updates === 'function' ? updates(m) : updates) } : m
+              messages: c.messages.map(m =>
+                m.id === messageId
+                  ? { ...m, ...(typeof updates === 'function' ? updates(m) : updates) }
+                  : m
               ),
             }
           : c
@@ -304,19 +348,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   toggleSidebar: () => {
-    set((state) => ({ isSidebarOpen: !state.isSidebarOpen }))
+    set(state => ({ isSidebarOpen: !state.isSidebarOpen }))
   },
 
   toggleRightPanel: () => {
-    set((state) => ({ isRightPanelOpen: !state.isRightPanelOpen }))
+    set(state => ({ isRightPanelOpen: !state.isRightPanelOpen }))
   },
 
   setStreaming: (conversationId: string | null, streaming: boolean) => {
     if (!conversationId) return
-    set((state) => ({
-      conversations: state.conversations.map((conv) =>
+    set(state => ({
+      conversations: state.conversations.map(conv =>
         conv.id === conversationId ? { ...conv, isStreaming: streaming } : conv
-      )
+      ),
     }))
   },
 
@@ -334,25 +378,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messageService.abortMessage(agentId, conversation?.sessionId)
     }
 
-    set((state) => ({
+    set(state => ({
       _stoppingInProgress: false,
-      conversations: state.conversations.map((conv) =>
+      conversations: state.conversations.map(conv =>
         conv.id === conversationId
           ? {
               ...conv,
               isStreaming: false,
-              messages: conv.messages.map((message) =>
-                message.role === 'assistant' && (message.isStreaming || message.toolCalls?.some((toolCall) => toolCall.status === 'running'))
+              messages: conv.messages.map(message =>
+                message.role === 'assistant' &&
+                (message.isStreaming ||
+                  message.toolCalls?.some(toolCall => toolCall.status === 'running'))
                   ? {
                       ...message,
                       isStreaming: false,
                       status: MessageStatus.INTERRUPTED,
-                      toolCalls: message.toolCalls?.map((toolCall) =>
+                      toolCalls: message.toolCalls?.map(toolCall =>
                         toolCall.status === 'running'
-                          ? { ...toolCall, status: 'error' as const, error: toolCall.error || '已停止生成' }
+                          ? {
+                              ...toolCall,
+                              status: 'error' as const,
+                              error: toolCall.error || '已停止生成',
+                            }
                           : toolCall
                       ),
-                      events: message.events?.map((event) =>
+                      events: message.events?.map(event =>
                         event.toolCall?.status === 'running'
                           ? {
                               ...event,
@@ -369,22 +419,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
               ),
             }
           : conv
-      )
+      ),
     }))
   },
 
-  toggleTool: (toolId) => {
-    set((state) => ({
-      mcpTools: state.mcpTools.map((t) =>
-        t.id === toolId ? { ...t, enabled: !t.enabled } : t
-      ),
+  toggleTool: toolId => {
+    set(state => ({
+      mcpTools: state.mcpTools.map(t => (t.id === toolId ? { ...t, enabled: !t.enabled } : t)),
     }))
   },
 
   updateConversationTitle: (id, title) => {
     cacheDelete(CACHE_KEYS.CONVERSATIONS_WITH_NAMES)
-    set((state) => {
-      const idx = state.conversations.findIndex((c) => c.id === id)
+    set(state => {
+      const idx = state.conversations.findIndex(c => c.id === id)
       if (idx === -1) return state
       const updated = { ...state.conversations[idx], title, updatedAt: new Date() }
       const next = [...state.conversations]
@@ -394,50 +442,50 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })
     const conv = get().conversations.find(c => c.id === id)
     if (conv?.agentId && conv?.sessionId) {
-      sessionService.updateConversation(conv.agentId, conv.sessionId, { title }).catch(err =>
-        console.error('Failed to persist title:', err)
-      )
+      sessionService
+        .updateConversation(conv.agentId, conv.sessionId, { title })
+        .catch(err => console.error('Failed to persist title:', err))
     }
   },
 
-  togglePinConversation: (id) => {
+  togglePinConversation: id => {
     cacheDelete(CACHE_KEYS.CONVERSATIONS_WITH_NAMES)
-    set((state) => {
+    set(state => {
       const conv = state.conversations.find(c => c.id === id)
       const newPinned = !conv?.pinned
       if (conv?.agentId && conv?.sessionId) {
-        sessionService.updateConversation(conv.agentId, conv.sessionId, { pinned: newPinned }).catch(err =>
-          console.error('Failed to persist pin:', err)
-        )
+        sessionService
+          .updateConversation(conv.agentId, conv.sessionId, { pinned: newPinned })
+          .catch(err => console.error('Failed to persist pin:', err))
       }
       return {
-        conversations: state.conversations.map((c) =>
+        conversations: state.conversations.map(c =>
           c.id === id ? { ...c, pinned: newPinned } : c
         ),
       }
     })
   },
 
-  updateSettings: (settings) => {
-    set((state) => ({
+  updateSettings: settings => {
+    set(state => ({
       settings: { ...state.settings, ...settings },
     }))
   },
-  
-  addRightPanelTab: (tab) => {
-    set((state) => {
+
+  addRightPanelTab: tab => {
+    set(state => {
       const existingTab = state.rightPanelTabs.find(t => t.id === tab.id)
       if (existingTab) {
         return state
       }
       return {
-        rightPanelTabs: [...state.rightPanelTabs, tab]
+        rightPanelTabs: [...state.rightPanelTabs, tab],
       }
     })
   },
-  
-  removeRightPanelTab: (tabId) => {
-    set((state) => {
+
+  removeRightPanelTab: tabId => {
+    set(state => {
       const updatedTabs = state.rightPanelTabs.filter(tab => tab.id !== tabId)
       let newActiveTab = state.activeRightPanelTab
       if (newActiveTab === tabId) {
@@ -445,25 +493,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       return {
         rightPanelTabs: updatedTabs,
-        activeRightPanelTab: newActiveTab
+        activeRightPanelTab: newActiveTab,
       }
     })
   },
-  
-  setActiveRightPanelTab: (tabId) => {
+
+  setActiveRightPanelTab: tabId => {
     set({
-      activeRightPanelTab: tabId
+      activeRightPanelTab: tabId,
     })
   },
-  
-  setSettingsActiveSection: (section) => {
+
+  setSettingsActiveSection: section => {
     set({
-      settingsActiveSection: section
+      settingsActiveSection: section,
     })
   },
-  
+
   // Agent相关操作
-  setCurrentAgent: (agentId) => {
+  setCurrentAgent: agentId => {
     const currentSessionId = new URLSearchParams(window.location.search).get('session')
     set({ currentAgentId: agentId })
     if (!get().currentConversationId) {
@@ -471,18 +519,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  triggerAgentCreate: () => set((state) => ({
-    agentCreateFlag: state.agentCreateFlag + 1
-  })),
+  triggerAgentCreate: () =>
+    set(state => ({
+      agentCreateFlag: state.agentCreateFlag + 1,
+    })),
 
-  startNewTask: (agentId) => {
+  startNewTask: agentId => {
     set({ currentConversationId: null, currentAgentId: agentId })
     syncUrlParams(agentId)
   },
 
   createLocalConversation: (agentId, agentName) => {
     const id = generateUUID()
-    set((state) => {
+    set(state => {
       syncUrlParams(agentId)
       return {
         conversations: [
@@ -505,40 +554,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   assignSessionToConversation: (convId, sessionId) => {
-    set((state) => {
+    set(state => {
       const conv = state.conversations.find(c => c.id === convId)
       if (!conv) return {}
       syncUrlParams(conv.agentId, sessionId)
       return {
-        conversations: state.conversations.map(c =>
-          c.id === convId ? { ...c, sessionId } : c
-        )
+        conversations: state.conversations.map(c => (c.id === convId ? { ...c, sessionId } : c)),
       }
     })
   },
 
-  addAgent: (agent) => {
-    set((state) => ({
-      agents: [...state.agents, agent]
+  addAgent: agent => {
+    set(state => ({
+      agents: [...state.agents, agent],
     }))
   },
-  
-  updateAgent: (agent) => {
-    set((state) => ({
-      agents: state.agents.map(a => a.id === agent.id ? agent : a)
+
+  updateAgent: agent => {
+    set(state => ({
+      agents: state.agents.map(a => (a.id === agent.id ? agent : a)),
     }))
   },
-  
-  removeAgent: (agentId) => {
+
+  removeAgent: agentId => {
     cacheDelete(CACHE_KEYS.AGENTS)
     cacheDelete(CACHE_KEYS.CONVERSATIONS_WITH_NAMES)
-    set((state) => {
+    set(state => {
       const agents = state.agents.filter(a => a.id !== agentId)
       const agentStatus = { ...state.agentStatus }
       delete agentStatus[agentId]
       const conversations = state.conversations.filter(c => c.agentId !== agentId)
-      const currentConversationId = state.currentConversationId &&
-        conversations.some(c => c.id === state.currentConversationId)
+      const currentConversationId =
+        state.currentConversationId && conversations.some(c => c.id === state.currentConversationId)
           ? state.currentConversationId
           : null
 
@@ -563,17 +610,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     })
   },
-  
-  setAgents: (agents) => {
+
+  setAgents: agents => {
     set(() => ({
-      agents
+      agents,
     }))
   },
-  
+
   initializeAgent: async (config: any) => {
     let newAgent: Agent
-    
-    if (USE_MOCK_DATA) {
+
+    if (appConfig.app.useMockData) {
       // 使用模拟数据
       const now = new Date().toISOString()
       newAgent = {
@@ -588,9 +635,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         hasScheduledTasks: false,
         idleTimeoutSeconds: config.idleTimeoutSeconds || 300,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       }
-      
+
       get().addAgent(newAgent)
       get().setCurrentAgent(newAgent.id)
     } else {
@@ -599,17 +646,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       get().addAgent(newAgent)
       get().setCurrentAgent(newAgent.id)
     }
-    
+
     return newAgent
   },
-  
+
   connectToAgent: async (agentId: string) => {
     set({ isConnecting: true, connectionError: null })
 
     try {
       // 确保有活动会话
       const currentConvId = get().currentConversationId
-      const currentConv = currentConvId ? get().conversations.find(c => c.id === currentConvId) : null
+      const currentConv = currentConvId
+        ? get().conversations.find(c => c.id === currentConvId)
+        : null
       let session: Session | undefined
 
       if (currentConv?.sessionId) {
@@ -617,14 +666,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       } else {
         session = await get().createNewSession(agentId)
       }
-      
+
       // 实际调用API建立WebSocket连接
       const wsClient = messageService.connectForMessages(
         agentId,
         session.id,
         (event: any) => {
           console.log(`[WS] type: ${event.type}`)
-          
+
           // 处理不同类型的事件
           switch (event.type) {
             case 'message.delta':
@@ -639,13 +688,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
                       m => m.role === 'assistant' && m.isStreaming
                     )
                     if (assistantMessage) {
-                      get().updateMessage(
-                        currentConversationId,
-                        assistantMessage.id,
-                        {
-                          content: (assistantMessage.content || '') + event.payload.delta
-                        }
-                      )
+                      get().updateMessage(currentConversationId, assistantMessage.id, {
+                        content: (assistantMessage.content || '') + event.payload.delta,
+                      })
                     }
                   }
                 }
@@ -662,14 +707,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
                       m => m.role === 'assistant' && m.isStreaming
                     )
                     if (assistantMessage) {
-                      get().updateMessage(
-                        currentConversationId,
-                        assistantMessage.id,
-                        {
-                          content: event.payload.text,
-                          isStreaming: false
-                        }
-                      )
+                      get().updateMessage(currentConversationId, assistantMessage.id, {
+                        content: event.payload.text,
+                        isStreaming: false,
+                      })
                       get().setStreaming(currentConversationId, false)
                     }
                   }
@@ -691,15 +732,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         id: event.payload.tool_call_id || generateUUID(),
                         name: event.payload.tool_name,
                         status: 'running' as const,
-                        input: event.payload.arguments
+                        input: event.payload.arguments,
                       }
-                      get().updateMessage(
-                        currentConversationId,
-                        assistantMessage.id,
-                        {
-                          toolCalls: [...(assistantMessage.toolCalls || []), toolCall]
-                        }
-                      )
+                      get().updateMessage(currentConversationId, assistantMessage.id, {
+                        toolCalls: [...(assistantMessage.toolCalls || []), toolCall],
+                      })
                     }
                   }
                 }
@@ -712,9 +749,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 if (currentConversationId) {
                   const conversation = get().conversations.find(c => c.id === currentConversationId)
                   if (conversation) {
-                    const assistantMessage = conversation.messages.find(
-                      m => m.role === 'assistant'
-                    )
+                    const assistantMessage = conversation.messages.find(m => m.role === 'assistant')
                     if (assistantMessage && assistantMessage.toolCalls) {
                       const updatedToolCalls = assistantMessage.toolCalls.map(toolCall => {
                         if (toolCall.id === event.payload.tool_call_id) {
@@ -723,18 +758,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
                             status: 'completed' as const,
                             output: event.payload.content,
                             error: event.payload.is_error ? event.payload.content : undefined,
-                            duration: event.payload.duration
+                            duration: event.payload.duration,
                           }
                         }
                         return toolCall
                       })
-                      get().updateMessage(
-                        currentConversationId,
-                        assistantMessage.id,
-                        {
-                          toolCalls: updatedToolCalls
-                        }
-                      )
+                      get().updateMessage(currentConversationId, assistantMessage.id, {
+                        toolCalls: updatedToolCalls,
+                      })
                     }
                   }
                 }
@@ -755,14 +786,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
               console.log('Unknown event type:', event.type)
           }
         },
-        (error) => {
+        error => {
           set({ connectionError: error.message, isConnecting: false })
           const currentConversationId = get().currentConversationId
           get().setStreaming(currentConversationId, false)
         }
       )
 
-      set((state) => {
+      set(state => {
         const wsConnections = { ...state.wsConnections }
         wsConnections[agentId] = wsClient
         return { wsConnections, isConnecting: false }
@@ -771,10 +802,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ isConnecting: false, connectionError: error.message })
     }
   },
-  
+
   disconnectFromAgent: (agentId: string) => {
     messageService.disconnect(agentId)
-    set((state) => {
+    set(state => {
       const wsConnections = { ...state.wsConnections }
       if (wsConnections[agentId]) {
         const wsClient = wsConnections[agentId]
@@ -784,23 +815,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return { wsConnections }
     })
   },
-  
-  sendMessageToAgent: async (agentId: string, sessionId: string, content: string, onEvent?: (event: any) => void) => {
+
+  sendMessageToAgent: async (
+    agentId: string,
+    sessionId: string,
+    content: string,
+    onEvent?: (event: any) => void
+  ) => {
     if (!sessionId) {
       throw new Error('No active session for agent')
     }
-    
+
     try {
       // 调用流式API发送消息
       const events = await messageService.sendMessage(agentId, sessionId, content, onEvent)
-      
+
       return events
     } catch (error) {
       console.error('Error sending message:', error)
       throw error
     }
   },
-  
+
   fetchConversations: async (agentId: string) => {
     try {
       const summaries = await sessionService.getConversations(agentId)
@@ -808,9 +844,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const conversations = summaries.map((s: any) =>
         sessionService.transformConversationSummary(s, agent?.name)
       )
-      set((state) => {
+      set(state => {
         const existingIds = new Set(state.conversations.map(c => c.id))
-        const existingSessionIds = new Set(state.conversations.map(c => c.sessionId).filter(Boolean))
+        const existingSessionIds = new Set(
+          state.conversations.map(c => c.sessionId).filter(Boolean)
+        )
         const newConversations = conversations.filter(
           (c: Conversation) => !existingIds.has(c.id) && !existingSessionIds.has(c.sessionId)
         )
@@ -829,15 +867,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const messages = (detail.messages || []).map((msg: any) =>
         sessionService.transformMessage(msg)
       )
-      set((state) => {
-        const existing = state.conversations.find(
-          c => c.sessionId === sessionId
-        )
+      set(state => {
+        const existing = state.conversations.find(c => c.sessionId === sessionId)
         if (existing) {
           return {
-            conversations: state.conversations.map((c) =>
+            conversations: state.conversations.map(c =>
               c.sessionId === sessionId
-                ? { ...c, messages, hasMore: detail.has_more ?? false, updatedAt: new Date(detail.updated_at) }
+                ? {
+                    ...c,
+                    messages,
+                    hasMore: detail.has_more ?? false,
+                    updatedAt: new Date(detail.updated_at),
+                  }
                 : c
             ),
             currentConversationId: existing.id,
@@ -874,15 +915,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const olderMessages = (detail.messages || []).map((msg: any) =>
         sessionService.transformMessage(msg)
       )
-      set((state) => {
-        const existing = state.conversations.find(
-          c => c.sessionId === sessionId
-        )
+      set(state => {
+        const existing = state.conversations.find(c => c.sessionId === sessionId)
         if (!existing) return state
         const existingIds = new Set(existing.messages.map((m: Message) => m.id))
         const newMessages = olderMessages.filter((m: Message) => !existingIds.has(m.id))
         return {
-          conversations: state.conversations.map((c) =>
+          conversations: state.conversations.map(c =>
             c.sessionId === sessionId
               ? {
                   ...c,
@@ -906,7 +945,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       fromCache = true
       set(state => {
         const existingIds = new Set(state.conversations.map(c => c.id))
-        const existingSessionIds = new Set(state.conversations.map(c => c.sessionId).filter(Boolean))
+        const existingSessionIds = new Set(
+          state.conversations.map(c => c.sessionId).filter(Boolean)
+        )
         const patched: Conversation[] = state.conversations.map(c => {
           if (!c.agentName && c.sessionId) {
             for (const [sid, name] of cached.sessionAgentNames) {
@@ -935,7 +976,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         const agentIds = new Set(agents.map(a => a.id))
         const existingIds = new Set(get().conversations.map(c => c.id))
-        const existingSessionIds = new Set(get().conversations.map(c => c.sessionId).filter(Boolean))
+        const existingSessionIds = new Set(
+          get()
+            .conversations.map(c => c.sessionId)
+            .filter(Boolean)
+        )
         const allConversations: Conversation[] = []
         const sessionAgentNames: [string, string][] = []
 
@@ -944,9 +989,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           for (const summary of item.conversations || []) {
             const sessId: string = summary.id
             sessionAgentNames.push([sessId, agentName])
-            allConversations.push(
-              sessionService.transformConversationSummary(summary, agentName)
-            )
+            allConversations.push(sessionService.transformConversationSummary(summary, agentName))
           }
         }
 
@@ -954,11 +997,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
           c => !existingIds.has(c.id) && !existingSessionIds.has(c.sessionId)
         )
 
-        cacheSetAll({
-          agents,
-          conversations: allConversations,
-          sessionAgentNames,
-        }, 2 * 60 * 1000)
+        cacheSetAll(
+          {
+            agents,
+            conversations: allConversations,
+            sessionAgentNames,
+          },
+          2 * 60 * 1000
+        )
 
         set(state => {
           const patched = state.conversations
@@ -1004,8 +1050,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   createNewSession: async (agentId: string) => {
     let session: Session
-    
-    if (USE_MOCK_DATA) {
+
+    if (appConfig.app.useMockData) {
       // 模拟创建会话
       const now = new Date().toISOString()
       session = {
@@ -1015,7 +1061,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         contextInitialized: true,
         runtimeType: 'openclaw',
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       }
     } else {
       // 实际调用API创建会话
@@ -1023,6 +1069,5 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     return session
-  }
+  },
 }))
-

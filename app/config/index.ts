@@ -1,4 +1,9 @@
 // 统一配置管理
+// 这是项目唯一的运行时配置定义点。
+// 新增 NEXT_PUBLIC_* 环境变量时只需修改：
+//   1. PUBLIC_ENV_KEYS 数组（添加 key）
+//   2. appConfig 中对应的 getter（添加读取逻辑）
+// layout.tsx 和 bin/start.js 均从此模块导入，无需手动同步。
 
 // 声明全局配置类型
 declare global {
@@ -21,6 +26,22 @@ function getConfigValue(key: string): string | undefined {
 }
 
 /**
+ * 所有需要注入到客户端运行时的 NEXT_PUBLIC_* 环境变量 key 列表。
+ */
+export const PUBLIC_ENV_KEYS = [
+  'NEXT_PUBLIC_AGENTD_API_URL',
+  'NEXT_PUBLIC_WS_URL',
+  'NEXT_PUBLIC_API_TIMEOUT',
+  'NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS',
+  'NEXT_PUBLIC_RECONNECT_INTERVAL',
+  'NEXT_PUBLIC_APP_NAME',
+  'NEXT_PUBLIC_APP_VERSION',
+  'NEXT_PUBLIC_DEBUG',
+  'NEXT_PUBLIC_AUTH_TOKEN',
+  'NEXT_PUBLIC_USE_MOCK_DATA',
+] as const
+
+/**
  * 应用配置接口
  */
 export interface AppConfig {
@@ -28,6 +49,10 @@ export interface AppConfig {
   api: {
     baseUrl: string
     timeout: number
+  }
+  // 认证配置
+  auth: {
+    token: string | undefined
   }
   // WebSocket配置
   websocket: {
@@ -43,50 +68,59 @@ export interface AppConfig {
     name: string
     version: string
     debug: boolean
+    useMockData: boolean
   }
 }
 
 /**
- * 应用配置（getter 写法 → 客户端/TS文件永远能拿到环境变量）
+ * 应用配置（getter 写法 → 客户端/TS 文件永远能拿到运行时的环境变量）
  */
 export const appConfig: AppConfig = {
   api: {
     get baseUrl() {
-      return getConfigValue('NEXT_PUBLIC_AGENTD_API_URL') || 'http://127.0.0.1:8000';
+      return getConfigValue('NEXT_PUBLIC_AGENTD_API_URL') || '/api'
     },
     get timeout() {
-      return Number(getConfigValue('NEXT_PUBLIC_API_TIMEOUT')) || 120000;
-    }
+      return Number(getConfigValue('NEXT_PUBLIC_API_TIMEOUT')) || 120000
+    },
+  },
+  auth: {
+    get token() {
+      return getConfigValue('NEXT_PUBLIC_AUTH_TOKEN')
+    },
   },
   websocket: {
     get url() {
-      return getConfigValue('NEXT_PUBLIC_WS_URL') || 'ws://localhost:18080/ws';
+      return getConfigValue('NEXT_PUBLIC_WS_URL') || '/api/ws'
     },
     get maxReconnectAttempts() {
-      return Number(getConfigValue('NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS')) || 5;
+      return Number(getConfigValue('NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS')) || 5
     },
     get baseReconnectInterval() {
-      return Number(getConfigValue('NEXT_PUBLIC_RECONNECT_INTERVAL')) || 3000;
+      return Number(getConfigValue('NEXT_PUBLIC_RECONNECT_INTERVAL')) || 3000
     },
     get maxReconnectInterval() {
-      return Number(getConfigValue('NEXT_PUBLIC_RECONNECT_INTERVAL')) || 30000;
+      return Number(getConfigValue('NEXT_PUBLIC_RECONNECT_INTERVAL')) || 30000
     },
     get heartbeatInterval() {
-      return Number(getConfigValue('NEXT_PUBLIC_RECONNECT_INTERVAL')) || 30000;
+      return Number(getConfigValue('NEXT_PUBLIC_RECONNECT_INTERVAL')) || 30000
     },
     get heartbeatTimeout() {
-      return Number(getConfigValue('NEXT_PUBLIC_RECONNECT_INTERVAL')) || 5000;
-    }
+      return Number(getConfigValue('NEXT_PUBLIC_RECONNECT_INTERVAL')) || 5000
+    },
   },
   app: {
     get name() {
-      return getConfigValue('NEXT_PUBLIC_APP_NAME') || 'PolyMind';
+      return getConfigValue('NEXT_PUBLIC_APP_NAME') || 'PolyMind'
     },
     get version() {
-      return getConfigValue('NEXT_PUBLIC_APP_VERSION') || '1.0.0';
+      return getConfigValue('NEXT_PUBLIC_APP_VERSION') || '1.0.0'
     },
     get debug() {
-      return getConfigValue('NEXT_PUBLIC_DEBUG')?.toLowerCase() === 'true' || false;
-    }
-  }
-};
+      return getConfigValue('NEXT_PUBLIC_DEBUG')?.toLowerCase() === 'true' || false
+    },
+    get useMockData() {
+      return getConfigValue('NEXT_PUBLIC_USE_MOCK_DATA') === 'true'
+    },
+  },
+}

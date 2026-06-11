@@ -3,11 +3,13 @@ import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { LanguageProvider } from '@/components/language-provider'
 import { Toaster } from '@/components/ui/toaster'
+import { PUBLIC_ENV_KEYS } from '@/app/config'
 import './globals.css'
 
 export const metadata: Metadata = {
   title: 'PolyMind - AI Assistant',
-  description: 'PolyMind is an intelligent AI assistant with multi-modal capabilities, MCP tool integration, and file processing support.',
+  description:
+    'PolyMind is an intelligent AI assistant with multi-modal capabilities, MCP tool integration, and file processing support.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -34,16 +36,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // 服务端注入客户端配置
-  const appConfig = {
-    NEXT_PUBLIC_AGENTD_API_URL: process.env.NEXT_PUBLIC_AGENTD_API_URL,
-    NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
-    NEXT_PUBLIC_API_TIMEOUT: process.env.NEXT_PUBLIC_API_TIMEOUT,
-    NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS: process.env.NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS,
-    NEXT_PUBLIC_RECONNECT_INTERVAL: process.env.NEXT_PUBLIC_RECONNECT_INTERVAL,
-    NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
-    NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION,
-    NEXT_PUBLIC_DEBUG: process.env.NEXT_PUBLIC_DEBUG,
+  // 服务端注入客户端配置 —— 从 PUBLIC_ENV_KEYS 动态构建，
+  // 新增 NEXT_PUBLIC_* 变量时只需修改 app/config/index.ts，此处无需再手动同步。
+  const appConfig: Record<string, string | undefined> = {}
+  for (const key of PUBLIC_ENV_KEYS) {
+    appConfig[key] = process.env[key]
   }
 
   return (

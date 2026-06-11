@@ -5,24 +5,26 @@ import { AgentEventType } from '@/lib/types'
 import { appConfig } from '@/app/config'
 import { sessionService } from './session-service'
 
-
-function buildSSERequestOptions(overrides: RequestInit = {}, body?: Record<string, unknown>): RequestInit {
+function buildSSERequestOptions(
+  overrides: RequestInit = {},
+  body?: Record<string, unknown>
+): RequestInit {
   const options: RequestInit = {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'text/event-stream',
+      Accept: 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
     } as Record<string, string>,
     ...overrides,
   } as RequestInit & { duplex?: string }
 
   ;(options as any).duplex = 'half'
 
-  const authToken = process.env.NEXT_PUBLIC_AUTH_TOKEN
+  const authToken = appConfig.auth.token
   if (authToken) {
-    (options.headers as Record<string, string>)['Authorization'] = `Bearer ${authToken}`
+    ;(options.headers as Record<string, string>)['Authorization'] = `Bearer ${authToken}`
   }
 
   if (body) {
@@ -35,7 +37,7 @@ function buildSSERequestOptions(overrides: RequestInit = {}, body?: Record<strin
 function parseSSEStream(
   response: Response,
   onEvent?: (event: any) => void,
-  logPrefix: string = '[SSE]',
+  logPrefix: string = '[SSE]'
 ): Promise<any[]> {
   return new Promise((resolve, reject) => {
     if (!response.body) {
@@ -94,7 +96,13 @@ class SendMessageCommand implements Command {
   private onEvent?: (event: any) => void
   private signal?: AbortSignal
 
-  constructor(agentId: string, sessionId: string, content: string, onEvent?: (event: any) => void, signal?: AbortSignal) {
+  constructor(
+    agentId: string,
+    sessionId: string,
+    content: string,
+    onEvent?: (event: any) => void,
+    signal?: AbortSignal
+  ) {
     this.agentId = agentId
     this.sessionId = sessionId
     this.content = content
@@ -140,7 +148,12 @@ class MessageService {
   /**
    * 发送消息到Agent
    */
-  public sendMessage(agentId: string, sessionId: string, content: string, onEvent?: (event: any) => void): Promise<any[]> {
+  public sendMessage(
+    agentId: string,
+    sessionId: string,
+    content: string,
+    onEvent?: (event: any) => void
+  ): Promise<any[]> {
     const controller = new AbortController()
     this.streamingControllers[agentId] = controller
     const command = new SendMessageCommand(agentId, sessionId, content, onEvent, controller.signal)
@@ -166,7 +179,11 @@ class MessageService {
   /**
    * 重连到正在进行的消息流（页面刷新后恢复流式响应）
    */
-  public async reconnectStream(agentId: string, sessionId: string, onEvent?: (event: any) => void): Promise<any[]> {
+  public async reconnectStream(
+    agentId: string,
+    sessionId: string,
+    onEvent?: (event: any) => void
+  ): Promise<any[]> {
     const url = `/agents/${agentId}/sessions/${sessionId}/messages/stream/reconnect`
     const fullUrl = `${appConfig.api.baseUrl}${url}`
     const options = buildSSERequestOptions()
