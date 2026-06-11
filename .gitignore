@@ -47,7 +47,6 @@ temp/
 # TypeScript output
 *.tsbuildinfo
 next-env.d.ts
-next.config.js
 
 # Next.js cache
 .next/cache/
