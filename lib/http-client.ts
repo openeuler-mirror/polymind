@@ -2,7 +2,6 @@ import { RequestConfig } from './types'
 import { ApiErrorCode, ApiError, ErrorHandler } from './error-handler'
 import { appConfig } from '@/app/config/index'
 
-
 /**
  * HTTP客户端类 - 负责处理所有HTTP请求
  * 使用单例模式确保全局只有一个实例
@@ -18,27 +17,28 @@ class HttpClient {
   private constructor() {
     this.defaultHeaders = {
       'Content-Type': 'application/json',
-      'Accept': 'application/json'
+      Accept: 'application/json',
     }
     this.interceptors = {
       request: [
         // 添加 bearer 认证拦截器
-        (req) => {
-          const authToken = process.env.NEXT_PUBLIC_AUTH_TOKEN
+        req => {
+          // 通过统一配置模块读取 auth token，确保运行时动态配置生效
+          const authToken = appConfig.auth.token
           console.log('Auth Token:', authToken ? '存在' : '不存在', authToken)
           if (authToken) {
             return {
               ...req,
               headers: {
                 ...req.headers,
-                'Authorization': `Bearer ${authToken}`
-              }
+                Authorization: `Bearer ${authToken}`,
+              },
             }
           }
           return req
-        }
+        },
       ],
-      response: []
+      response: [],
     }
   }
 
@@ -75,7 +75,7 @@ class HttpClient {
 
     // 构建URL
     const url = `${appConfig.api.baseUrl}${processedConfig.url}`
-    
+
     // 构建请求选项
     const isFormData = processedConfig.data instanceof FormData
     const baseHeaders: Record<string, string> = { ...this.defaultHeaders } as Record<string, string>
@@ -86,16 +86,20 @@ class HttpClient {
       method: processedConfig.method || 'GET',
       headers: {
         ...baseHeaders,
-        ...processedConfig.headers
+        ...processedConfig.headers,
       },
-      body: isFormData ? processedConfig.data : processedConfig.data ? JSON.stringify(processedConfig.data) : undefined
+      body: isFormData
+        ? processedConfig.data
+        : processedConfig.data
+          ? JSON.stringify(processedConfig.data)
+          : undefined,
     }
-    
+
     console.log('Final Request Options:', {
       method: options.method,
       url: url,
       headers: options.headers,
-      body: options.body
+      body: options.body,
     })
 
     // 发起请求（带超时处理）
@@ -111,7 +115,7 @@ class HttpClient {
     try {
       const fetchPromise = fetch(url, {
         ...options,
-        signal: controller.signal
+        signal: controller.signal,
       })
 
       // 等待请求完成或超时
@@ -129,9 +133,9 @@ class HttpClient {
       console.log('HTTP Response:', {
         status: response.status,
         statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
+        headers: Object.fromEntries(response.headers.entries()),
       })
-      
+
       if (!response.ok) {
         // 即使请求失败，也尝试解析响应数据并记录
         const contentType = response.headers.get('content-type')
@@ -149,7 +153,7 @@ class HttpClient {
           errorData
         )
       }
-      
+
       // 解析并记录响应数据
       const contentType = response.headers.get('content-type')
       let responseData: any
@@ -165,14 +169,17 @@ class HttpClient {
     } catch (error: unknown) {
       // 清除超时定时器
       clearTimeout(timeoutId)
-      
+
       // 打印原始错误信息
       console.error('原始错误:', error)
       console.error('错误类型:', error instanceof Error ? error.constructor.name : 'unknown')
       console.error('错误消息:', error instanceof Error ? error.message : 'unknown')
 
       // 使用 ErrorHandler 处理错误
-      const handledError = ErrorHandler.handle(error as Error, `HTTP request to ${processedConfig.url}`)
+      const handledError = ErrorHandler.handle(
+        error as Error,
+        `HTTP request to ${processedConfig.url}`
+      )
       throw handledError
     }
   }
@@ -180,35 +187,53 @@ class HttpClient {
   /**
    * GET请求
    */
-  public async get<T>(url: string, requestConfig?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
+  public async get<T>(
+    url: string,
+    requestConfig?: Omit<RequestConfig, 'url' | 'method'>
+  ): Promise<T> {
     return this.request<T>({ ...requestConfig, url, method: 'GET' })
   }
 
   /**
    * POST请求
    */
-  public async post<T>(url: string, data?: any, requestConfig?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
+  public async post<T>(
+    url: string,
+    data?: any,
+    requestConfig?: Omit<RequestConfig, 'url' | 'method'>
+  ): Promise<T> {
     return this.request<T>({ ...requestConfig, url, method: 'POST', data })
   }
 
   /**
    * PUT请求
    */
-  public async put<T>(url: string, data?: any, requestConfig?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
+  public async put<T>(
+    url: string,
+    data?: any,
+    requestConfig?: Omit<RequestConfig, 'url' | 'method'>
+  ): Promise<T> {
     return this.request<T>({ ...requestConfig, url, method: 'PUT', data })
   }
 
   /**
    * DELETE请求
    */
-  public async delete<T>(url: string, requestConfig?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
+  public async delete<T>(
+    url: string,
+    requestConfig?: Omit<RequestConfig, 'url' | 'method'>
+  ): Promise<T> {
     return this.request<T>({ ...requestConfig, url, method: 'DELETE' })
   }
 
   /**
    * PATCH请求
    */
-  public async patch<T>(url: string, data?: any, requestConfig?: Omit<RequestConfig, 'url' | 'method'>): Promise<T> {
+  public async patch<T>(
+    url: string,
+    data?: any,
+    requestConfig?: Omit<RequestConfig, 'url' | 'method'>
+  ): Promise<T> {
     return this.request<T>({ ...requestConfig, url, method: 'PATCH', data })
   }
 }

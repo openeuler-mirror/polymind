@@ -29,22 +29,19 @@ function findStandaloneDir() {
         }
       }
     }
-  } catch (e) {
-    // 目录不存在等情况，回退到默认路径
-  }
+  } catch (e) {}
 
-  // 回退：返回默认路径，让后续报错给出清晰的错误信息
   return base
 }
 
 const standaloneDir = findStandaloneDir()
 
-// 处理命令行参数
+// 处理命令行参数（nginx 反向代理模式，Next.js 仅监听内部端口）
 const args = process.argv.slice(2)
 const portIndex = args.indexOf('--port')
-const port = portIndex !== -1 ? args[portIndex + 1] : '3000'
+const port = portIndex !== -1 ? args[portIndex + 1] : '3001'
 const hostIndex = args.indexOf('--host')
-const host = hostIndex !== -1 ? args[hostIndex + 1] : '0.0.0.0'
+const host = hostIndex !== -1 ? args[hostIndex + 1] : '127.0.0.1'
 
 // ==================== 运行时配置加载 ====================
 const homedir = os.homedir()
@@ -52,146 +49,16 @@ const polymindDir = path.join(homedir, '.polymind')
 const envPath = path.join(polymindDir, '.env')
 const publicEnv = {}
 
-// 确保配置目录存在
 fs.mkdirSync(polymindDir, { recursive: true })
 
-// 获取后端端口（从环境变量或默认值）
 const backendPort = process.env.BACKEND_PORT || '8000'
-const backendHost = process.env.BACKEND_HOST || '127.0.0.1'
-
-// 动态替换构建后代码中的硬编码后端地址
-function replaceBackendUrlInBuild() {
-  const targetDir = path.join(standaloneDir, '.next')
-  if (!fs.existsSync(targetDir)) {
-    return
-  }
-
-  const newApiUrl = `http://${backendHost}:${backendPort}`
-  const newWsUrl = `ws://${backendHost}:${backendPort}`
-
-  console.log(`🔄 动态替换构建代码中的后端地址 -> ${newApiUrl}`)
-
-  // 匹配任意 IPv4 地址，解决被替换后无法再次匹配的问题
-  const apiRegex = /http:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+/g
-  const wsRegex = /ws:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+/g
-
-  // 递归查找所有 .js 文件
-  const files = []
-  function walk(dir) {
-    const entries = fs.readdirSync(dir, { withFileTypes: true })
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        walk(path.join(dir, entry.name))
-      } else if (entry.name.endsWith('.js')) {
-        files.push(path.join(dir, entry.name))
-      }
-    }
-  }
-
-  try {
-    walk(targetDir)
-  } catch (e) {
-    return
-  }
-
-  for (const file of files) {
-    try {
-      let content = fs.readFileSync(file, 'utf-8')
-      const oldContent = content
-      content = content.replace(apiRegex, newApiUrl)
-      content = content.replace(wsRegex, newWsUrl)
-      if (content !== oldContent) {
-        fs.writeFileSync(file, content)
-        console.log(`   ✓ ${path.relative(rootDir, file)}`)
-      }
-    } catch (e) {
-      // 忽略无法读取/写入的文件
-    }
-  }
-}
-
-// 动态替换 server.js 中的 allowedDevOrigins
-function replaceAllowedOrigins() {
-  // 1. 优先从环境变量获取
-  let allowedOriginsEnv = process.env.ALLOWED_ORIGINS
-
-  if (!allowedOriginsEnv || allowedOriginsEnv.trim() === '') {
-    // 环境变量未设置，根据 BACKEND_HOST 自动计算
-    let backendHostForOrigins = process.env.BACKEND_HOST || backendHost
-
-    // 尝试从 .env 文件读取 BACKEND_HOST
-    if (fs.existsSync(envPath)) {
-      try {
-        const envContent = fs.readFileSync(envPath, 'utf-8')
-        const match = envContent.match(/^BACKEND_HOST=(.+)$/m)
-        if (match && match[1].trim() !== '') {
-          backendHostForOrigins = match[1].trim()
-        }
-      } catch (e) {
-        // 读取失败，忽略
-      }
-    }
-
-    if (backendHostForOrigins === '127.0.0.1' || backendHostForOrigins === 'localhost') {
-      allowedOriginsEnv = '127.0.0.1,localhost'
-    } else {
-      allowedOriginsEnv = `127.0.0.1,localhost,${backendHostForOrigins}`
-    }
-  }
-
-  if (!allowedOriginsEnv || allowedOriginsEnv.trim() === '') {
-    allowedOriginsEnv = '127.0.0.1,localhost'
-  }
-
-  const serverPath = path.join(standaloneDir, 'server.js')
-  if (!fs.existsSync(serverPath)) {
-    return
-  }
-
-  // 将逗号分隔的字符串转换为 JSON 数组格式
-  const originsArray = allowedOriginsEnv
-    .split(',')
-    .map(o => o.trim())
-    .filter(o => o !== '')
-
-  if (originsArray.length === 0) {
-    console.warn('⚠️  ALLOWED_ORIGINS 格式无效，使用默认值')
-    return
-  }
-
-  const newAllowedOrigins = JSON.stringify(originsArray)
-
-  try {
-    let content = fs.readFileSync(serverPath, 'utf-8')
-    const oldContent = content
-    // 匹配 "allowedDevOrigins":[...] 格式并替换（支持 IPv6、端口号等）
-    content = content.replace(
-      /"allowedDevOrigins"\s*:\s*\[[^\]]*\]/g,
-      `"allowedDevOrigins":${newAllowedOrigins}`
-    )
-
-    if (content !== oldContent) {
-      fs.writeFileSync(serverPath, content)
-      console.log(`🔄 动态配置允许的访问来源: ${newAllowedOrigins}`)
-    }
-  } catch (e) {
-    console.warn(`⚠️  无法修改 allowedDevOrigins: ${e.message}`)
-  }
-}
-
-// 执行替换
-replaceBackendUrlInBuild()
-replaceAllowedOrigins()
-
-// 默认配置内容（动态插入后端端口）
-const defaultBackendHost = process.env.BACKEND_HOST || backendHost
 const defaultEnvContent = `# PolyMind 全局配置文件
 # 修改后重启服务即可生效
 # ==============================================
-# 后端API地址
-NEXT_PUBLIC_AGENTD_API_URL=http://${defaultBackendHost}:${backendPort}
+# 后端API地址（nginx 反向代理，使用相对路径，同源无 CORS）
+NEXT_PUBLIC_AGENTD_API_URL=/api
 # WebSocket地址
-NEXT_PUBLIC_WS_URL=ws://${defaultBackendHost}:${backendPort}/ws
+NEXT_PUBLIC_WS_URL=/api/ws
 # API请求超时时间(毫秒)
 NEXT_PUBLIC_API_TIMEOUT=120000
 # 最大重连次数
@@ -202,33 +69,42 @@ NEXT_PUBLIC_RECONNECT_INTERVAL=3000
 NEXT_PUBLIC_APP_NAME=PolyMind
 # 应用版本
 NEXT_PUBLIC_APP_VERSION=1.0.0
-# 后端服务地址（默认 127.0.0.1，远程访问时设为服务器或远程主机IP）
-BACKEND_HOST=${defaultBackendHost}
 # 调试模式
 NEXT_PUBLIC_DEBUG=false
+# 认证令牌（可选，用于 API 请求的 Bearer 认证）
+NEXT_PUBLIC_AUTH_TOKEN=dev-token
+# 模拟数据模式（仅开发用，生产环境请设为 false 或不设置）
+#NEXT_PUBLIC_USE_MOCK_DATA=false
 `
 
-// 检查是否需要动态更新后端端口配置
+// 检查并迁移已有 .env（旧的绝对 URL → 相对 URL）
 let envContent = ''
+let envNeedsRewrite = false
+
 if (fs.existsSync(envPath)) {
   envContent = fs.readFileSync(envPath, 'utf-8')
 
-  // 如果环境变量指定了后端端口，强制更新配置文件
-  if (process.env.BACKEND_PORT) {
-    const newApiUrl = `NEXT_PUBLIC_AGENTD_API_URL=http://${backendHost}:${backendPort}`
-    const newWsUrl = `NEXT_PUBLIC_WS_URL=ws://${backendHost}:${backendPort}/ws`
+  const currentApiUrl = envContent.match(/^NEXT_PUBLIC_AGENTD_API_URL=(.+)$/m)
+  const currentWsUrl = envContent.match(/^NEXT_PUBLIC_WS_URL=(.+)$/m)
 
-    // 使用正则替换现有的配置
-    envContent = envContent.replace(/NEXT_PUBLIC_AGENTD_API_URL=.*/, newApiUrl)
-    envContent = envContent.replace(/NEXT_PUBLIC_WS_URL=.*/, newWsUrl)
+  if (currentApiUrl && currentApiUrl[1].startsWith('http')) {
+    console.warn('⚠️  检测到绝对 API URL，已迁移为 /api')
+    envContent = envContent.replace(
+      /^NEXT_PUBLIC_AGENTD_API_URL=.*/m,
+      'NEXT_PUBLIC_AGENTD_API_URL=/api'
+    )
+    envNeedsRewrite = true
+  }
+  if (currentWsUrl && currentWsUrl[1].startsWith('ws://')) {
+    console.warn('⚠️  检测到绝对 WS URL，已迁移为 /api/ws')
+    envContent = envContent.replace(/^NEXT_PUBLIC_WS_URL=.*/m, 'NEXT_PUBLIC_WS_URL=/api/ws')
+    envNeedsRewrite = true
+  }
 
-    // 写入更新后的配置文件
+  if (envNeedsRewrite) {
     fs.writeFileSync(envPath, envContent)
-    console.log(`🔄 动态更新后端地址: ${newApiUrl}`)
-    console.log(`🔄 动态更新WebSocket地址: ${newWsUrl}`)
   }
 } else {
-  // 配置文件不存在，使用默认配置（已包含动态端口）
   envContent = defaultEnvContent
   fs.writeFileSync(envPath, envContent)
   console.log(`📝 已生成默认配置文件: ${envPath}`)
@@ -236,7 +112,6 @@ if (fs.existsSync(envPath)) {
 
 // 读取全局配置文件
 console.log(`📝 加载全局配置: ${envPath}`)
-console.log(`💡 修改配置后重启服务即可生效`)
 
 // 解析.env文件内容
 envContent.split('\n').forEach(line => {
@@ -249,7 +124,6 @@ envContent.split('\n').forEach(line => {
     .trim()
     .replace(/^["']|["']$/g, '')
 
-  // 注入到环境变量
   process.env[configKey] = configValue
 
   // 收集NEXT_PUBLIC_开头的配置，需要暴露给前端
@@ -262,7 +136,6 @@ envContent.split('\n').forEach(line => {
 const publicDir = path.join(standaloneDir, 'public')
 const envJsPath = path.join(publicDir, 'env.js')
 
-// 兼容原有代码，直接挂载到window.process.env
 const envJsContent = `
 // PolyMind 运行时动态配置，自动生成请勿修改
 window.process = window.process || {};
@@ -273,32 +146,17 @@ window.process.env = Object.assign(window.process.env || {}, ${JSON.stringify(pu
 fs.mkdirSync(publicDir, { recursive: true })
 fs.writeFileSync(envJsPath, envJsContent)
 console.log(`✅ 共加载 ${Object.keys(publicEnv).length} 项自定义配置`)
-// ==================== 配置加载完成 ====================
 
-// 生成访问地址显示
-let displayHost = host
-if (host === '0.0.0.0' || host === '::') {
-  displayHost = 'localhost'
-  // 提示可以通过服务器IP访问
-  console.log(`🚀 启动 PolyMind Web 服务`)
-  console.log(`📌 绑定地址: ${host}`)
-  console.log(`📌 服务端口: ${port}`)
-  console.log(`📂 服务根目录: ${rootDir}`)
-  console.log(`🌐 本地访问: http://${displayHost}:${port}`)
-  console.log(`🌐 远程访问: http://${backendHost}:${port}`)
-} else {
-  console.log(`🚀 启动 PolyMind Web 服务`)
-  console.log(`📌 绑定地址: ${host}`)
-  console.log(`📌 服务端口: ${port}`)
-  console.log(`📂 服务根目录: ${rootDir}`)
-  console.log(`🌐 访问地址: http://${host}:${port}`)
-}
+// 启动信息
+const frontendPort = process.env.FRONTEND_PORT || '3000'
+console.log(`🚀 启动 PolyMind Web 服务（nginx 反向代理）`)
+console.log(`📌 nginx 监听端口: ${frontendPort}`)
+console.log(`📌 Next.js 内部端口: ${port} (127.0.0.1)`)
+console.log(`📌 后端代理: /api/* -> 127.0.0.1:${backendPort}`)
 
 // 启动Next.js独立服务，直接传递参数确保生效
 const serverPath = path.join(standaloneDir, 'server.js')
 const serverArgs = [serverPath, '--host', host, '--port', port]
-
-// 打印执行命令方便排查
 console.log(`🔧 启动命令: node ${serverArgs.join(' ')}`)
 
 const server = spawn('node', serverArgs, {
