@@ -202,6 +202,81 @@
         "security": []
       }
     },
+    "/agents/agenthub": {
+      "post": {
+        "summary": "从 AgentHub 创建 Agent",
+        "deprecated": false,
+        "description": "从远程 git 仓库拉取 agent 模板（UAS v1.0 规范的 agent.yaml），解析后自动创建 Agent 并安装模板中定义的 skills 和 system prompt",
+        "tags": ["Agents"],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentHubRequest"
+              },
+              "example": {
+                "git_url": "https://gitcode.com/duan_pengjie/agent_template.git",
+                "branch": "main",
+                "sandbox_type": "local_process",
+                "adapter_type": "openclaw",
+                "idle_timeout_seconds": 300,
+                "model_id": "your-model-id"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "成功从 AgentHub 创建代理",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "example": {
+                  "id": "agent-uuid",
+                  "name": "Template Agent",
+                  "description": "From agent template",
+                  "sandbox_type": "local_process",
+                  "adapter_type": "openclaw",
+                  "status": "running",
+                  "sandbox_id": null,
+                  "workspace_path": "/path/to/workspace",
+                  "idle_timeout_seconds": 300,
+                  "has_scheduled_tasks": false,
+                  "model_id": "your-model-id",
+                  "mcp_server_list": [],
+                  "created_at": "2026-04-10T12:00:00",
+                  "updated_at": "2026-04-10T12:00:00",
+                  "default_session_id": "session-uuid",
+                  "process_port": 8000
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict",
+            "description": "资源状态冲突"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
     "/agents/{agent_id}": {
       "get": {
         "summary": "获取 Agent 详情",
@@ -2904,6 +2979,50 @@
           }
         },
         "required": ["name", "sandbox_type", "adapter_type", "idle_timeout_seconds"]
+      },
+      "CreateAgentHubRequest": {
+        "type": "object",
+        "properties": {
+          "git_url": {
+            "type": "string",
+            "description": "远程 git 仓库地址"
+          },
+          "branch": {
+            "type": "string",
+            "description": "git 分支，默认 main",
+            "nullable": true
+          },
+          "sandbox_type": {
+            "type": "string",
+            "enum": ["docker", "local_process", "e2b"],
+            "description": "沙箱类型：docker、local_process、e2b"
+          },
+          "adapter_type": {
+            "type": "string",
+            "description": "适配器类型：如 openclaw"
+          },
+          "idle_timeout_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "空闲超时时间（秒），必须大于 0"
+          },
+          "sandbox_id": {
+            "type": "string",
+            "description": "沙箱 ID",
+            "nullable": true
+          },
+          "has_scheduled_tasks": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否有定时任务，默认 false"
+          },
+          "model_id": {
+            "type": "string",
+            "description": "模型 ID，关联 /models 中配置的模型",
+            "nullable": true
+          }
+        },
+        "required": ["git_url", "sandbox_type", "adapter_type", "idle_timeout_seconds"]
       },
       "SessionResponse": {
         "type": "object",

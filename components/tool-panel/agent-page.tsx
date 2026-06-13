@@ -1,7 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Filter, RefreshCw, Plus, Trash2, Play, Pause, Loader2 } from 'lucide-react'
+import {
+  Search,
+  Filter,
+  RefreshCw,
+  Plus,
+  Trash2,
+  Play,
+  Pause,
+  Loader2,
+  Download,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,6 +23,13 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   AlertDialog,
   AlertDialogCancel,
   AlertDialogContent,
@@ -23,7 +40,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { agentService } from '@/services/agent-service'
-import { Agent, AgentStatus } from '@/lib/types'
+import { modelService } from '@/services/model-service'
+import { Agent, AgentStatus, ModelConfig } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { AgentCreatePage } from './agent-create-page'
 import { useChatStore } from '@/lib/store'
@@ -40,9 +58,20 @@ export function AgentPage() {
   })
   const [deleteAgentId, setDeleteAgentId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importForm, setImportForm] = useState({
+    gitUrl: '',
+    branch: 'main',
+    modelId: '',
+  })
+  const [models, setModels] = useState<ModelConfig[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
   const { toast } = useToast()
   const removeAgent = useChatStore(state => state.removeAgent)
   const agentCreateFlag = useChatStore(state => state.agentCreateFlag)
+  const addAgent = useChatStore(state => state.addAgent)
+  const setCurrentAgent = useChatStore(state => state.setCurrentAgent)
 
   // 监听isCreating状态变化，保存到localStorage
   useEffect(() => {
@@ -78,6 +107,24 @@ export function AgentPage() {
       setIsCreating(true)
     }
   }, [agentCreateFlag])
+
+  // 加载模型列表（当打开导入对话框时）
+  useEffect(() => {
+    if (importOpen) {
+      const fetchModels = async () => {
+        try {
+          setLoadingModels(true)
+          const data = await modelService.getModels()
+          setModels(data)
+        } catch (err) {
+          console.error('Failed to fetch models:', err)
+        } finally {
+          setLoadingModels(false)
+        }
+      }
+      fetchModels()
+    }
+  }, [importOpen])
 
   // 处理智能体状态变更
   const handleAgentAction = async (agentId: string, action: 'pause' | 'resume' | 'delete') => {
@@ -143,6 +190,58 @@ export function AgentPage() {
         setIsDeleting(false)
         setDeleteAgentId(null)
       }
+    }
+  }
+
+  // 处理从AgentHub导入
+  const handleImportFromHub = async () => {
+    if (!importForm.gitUrl.trim()) {
+      toast({
+        title: '错误',
+        description: '请输入Git仓库地址',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!importForm.modelId) {
+      toast({
+        title: '错误',
+        description: '请选择模型配置',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setIsImporting(true)
+      const newAgent = await agentService.importAgentFromHub({
+        git_url: importForm.gitUrl,
+        branch: importForm.branch || 'main',
+        sandbox_type: 'local_process',
+        adapter_type: 'openclaw',
+        idle_timeout_seconds: 300,
+        model_id: importForm.modelId,
+      })
+      // 添加到全局store
+      addAgent(newAgent)
+      setCurrentAgent(newAgent.id)
+      toast({
+        title: '成功',
+        description: '从AgentHub导入智能体成功',
+      })
+      setImportForm({ gitUrl: '', branch: 'main', modelId: '' })
+      setImportOpen(false)
+      fetchAgents()
+    } catch (err) {
+      console.error('Failed to import agent from hub:', err)
+      toast({
+        title: '错误',
+        description: '从AgentHub导入智能体失败',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsImporting(false)
     }
   }
 
@@ -240,6 +339,10 @@ export function AgentPage() {
               <RefreshCw className="h-4 w-4" />
             </Button>
             <div className="flex items-center gap-2 ml-auto">
+              <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+                <Download className="h-4 w-4 mr-1" />
+                导入 Agent
+              </Button>
               <Button size="sm" onClick={() => setIsCreating(true)}>
                 <Plus className="h-4 w-4 mr-1" />
                 创建 Agent
@@ -359,6 +462,111 @@ export function AgentPage() {
                 </>
               ) : (
                 '确认删除'
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 从AgentHub导入对话框 */}
+      <AlertDialog open={importOpen} onOpenChange={setImportOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>从 AgentHub 导入</AlertDialogTitle>
+            <AlertDialogDescription>
+              从远程 Git 仓库导入 Agent 模板，解析 agent.yaml 后自动创建 Agent。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="gitUrl" className="text-sm font-medium">
+                Git 仓库地址 <span className="text-destructive">*</span>
+              </label>
+              <Input
+                id="gitUrl"
+                placeholder="https://gitcode.com/username/agent_template.git"
+                value={importForm.gitUrl}
+                onChange={e => setImportForm(prev => ({ ...prev, gitUrl: e.target.value }))}
+                disabled={isImporting}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="branch" className="text-sm font-medium">
+                分支
+              </label>
+              <Input
+                id="branch"
+                placeholder="main"
+                value={importForm.branch}
+                onChange={e => setImportForm(prev => ({ ...prev, branch: e.target.value }))}
+                disabled={isImporting}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="modelId" className="text-sm font-medium">
+                模型配置 <span className="text-destructive">*</span>
+              </label>
+              {!loadingModels && models.length === 0 ? (
+                <div className="p-4 border border-input rounded-md bg-muted/50">
+                  <span className="text-sm text-muted-foreground">暂无模型配置，请先添加模型</span>
+                </div>
+              ) : (
+                <Select
+                  value={importForm.modelId}
+                  onValueChange={value => setImportForm(prev => ({ ...prev, modelId: value }))}
+                  disabled={isImporting || loadingModels}
+                >
+                  <SelectTrigger id="modelId" className="w-full">
+                    {loadingModels ? (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        加载中...
+                      </div>
+                    ) : (
+                      <SelectValue placeholder="请选择模型配置" />
+                    )}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {models.map(model => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.name} ({model.provider})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+
+          {isImporting && (
+            <div className="mb-4 p-3 bg-muted/50 rounded-md">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex gap-1">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                  <span
+                    className="w-2 h-2 rounded-full bg-primary/60 animate-pulse"
+                    style={{ animationDelay: '0.2s' }}
+                  ></span>
+                  <span
+                    className="w-2 h-2 rounded-full bg-primary/30 animate-pulse"
+                    style={{ animationDelay: '0.4s' }}
+                  ></span>
+                </div>
+                <span>正在从 AgentHub 导入智能体，此过程可能需要1-2分钟，请耐心等待...</span>
+              </div>
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isImporting}>取消</AlertDialogCancel>
+            <Button disabled={isImporting} onClick={handleImportFromHub}>
+              {isImporting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  导入中...
+                </>
+              ) : (
+                '导入'
               )}
             </Button>
           </AlertDialogFooter>
