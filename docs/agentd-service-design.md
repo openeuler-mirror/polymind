@@ -1464,7 +1464,7 @@ class SandboxType(str, Enum):
 {
     "name": "my-agent",
     "description": "这是一个测试智能体",
-    "sandbox_type": "docker",
+    "sandbox_type": "local_process",
     "adapter_type": "openclaw",
     "idle_timeout_seconds": 3600,
     "sandbox_id": null,
@@ -1491,13 +1491,14 @@ class SandboxType(str, Enum):
 | `created_at`           | datetime       | 创建时间                                  |
 | `updated_at`           | datetime       | 更新时间                                  |
 | `default_session_id`   | string \| null | 默认会话 ID                               |
+| `process_port`         | integer \| null | 本地进程沙箱的端口号（仅 `sandbox_type=local_process` 时有值） |
 
 ```json
 {
     "id": "agent-uuid",
     "name": "my-agent",
     "description": "这是一个测试智能体",
-    "sandbox_type": "docker",
+    "sandbox_type": "local_process",
     "adapter_type": "openclaw",
     "status": "running",
     "sandbox_id": null,
@@ -1506,7 +1507,8 @@ class SandboxType(str, Enum):
     "has_scheduled_tasks": false,
     "created_at": "2026-04-10T12:00:00",
     "updated_at": "2026-04-10T12:00:00",
-    "default_session_id": "session-uuid"
+    "default_session_id": "session-uuid",
+    "process_port": 8000
 }
 ```
 
@@ -2233,8 +2235,12 @@ curl -X GET http://localhost:18080/api/v1/agents/agent-uuid-xxx/ws \
 | **Agent 配置管理** | GET /agents, GET /agents/{id}, PATCH /agents/{id}                        | 查看和更新配置      |
 | **Agent 状态控制** | POST /agents/{id}/pause, POST /agents/{id}/resume                        | 暂停和恢复        |
 | **Session 管理** | POST /sessions, GET /sessions, GET /sessions/{id}, DELETE /sessions/{id} | Session CRUD |
-| **消息通信**       | POST /messages                                                           | 发送消息         |
+| **消息通信**       | POST /messages, POST /messages/stream                                    | 发送消息         |
 | **实时通信**       | GET /ws                                                                  | WebSocket 订阅 |
+| **技能仓库管理**   | GET /skills/repos, POST /skills/repos, POST /skills/repos/upload, GET/PATCH/DELETE /skills/repos/{repo_id}, POST /skills/discover, GET /skills/skills | 技能仓库 CRUD 和技能发现 |
+| **Agent 技能管理** | POST /agents/{agent_id}/skills, GET /agents/{agent_id}/skills/installed, POST /agents/{agent_id}/skills/installed/sync, POST /agents/{agent_id}/skills/uninstall | Agent 技能安装/卸载 |
+| **MCP Server 管理** | GET /mcp-servers, POST /mcp-servers, PUT/DELETE /mcp-servers/{server_id} | MCP Server 配置 CRUD |
+| **模型管理**       | GET /models, POST /models, PUT/DELETE /models/{model_id}                 | 大模型配置 CRUD |
 
 #### 8.6.2 接口依赖关系
 
