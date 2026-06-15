@@ -47,30 +47,18 @@ export function ConversationSidebar() {
 
   useLayoutEffect(() => {
     setIsHydrated(true)
-
-    useChatStore.getState().fetchAgentsWithConversations().then(() => {
-      const state = useChatStore.getState()
-      if (!state.currentAgentId) {
-        const firstAgent = state.agents.find(a => a.status !== 'deleted')
-        if (firstAgent) {
-          state.setCurrentAgent(firstAgent.id)
-        }
-      }
-    }).catch(err => {
-      console.error('Failed to fetch agents:', err)
-    })
   }, [])
 
   const handleSelectConversation = (convId: string, agentId?: string, sessionId?: string) => {
     setCurrentConversation(convId)
   }
 
-  const filteredConversations = conversations.filter((c) =>
+  const filteredConversations = conversations.filter(c =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const pinnedConversations = filteredConversations.filter((c) => c.pinned)
-  const regularConversations = filteredConversations.filter((c) => !c.pinned)
+  const pinnedConversations = filteredConversations.filter(c => c.pinned)
+  const regularConversations = filteredConversations.filter(c => !c.pinned)
 
   if (!isSidebarOpen) {
     return null
@@ -97,8 +85,10 @@ export function ConversationSidebar() {
           onClick={() => {
             const state = useChatStore.getState()
             const currentConv = state.conversations.find(c => c.id === state.currentConversationId)
-            const agentId = currentConv?.agentId || state.currentAgentId
-              || state.agents.find(a => a.status !== 'deleted')?.id
+            const agentId =
+              currentConv?.agentId ||
+              state.currentAgentId ||
+              state.agents.find(a => a.status !== 'deleted')?.id
             if (agentId) {
               state.startNewTask(agentId)
             }
@@ -132,7 +122,7 @@ export function ConversationSidebar() {
               已固定
             </div>
             <div className="space-y-1">
-              {pinnedConversations.map((conv) => (
+              {pinnedConversations.map(conv => (
                 <ConversationItem
                   key={conv.id}
                   conversation={conv}
@@ -140,7 +130,7 @@ export function ConversationSidebar() {
                   onSelect={() => handleSelectConversation(conv.id, conv.agentId, conv.sessionId)}
                   onDelete={() => deleteConversation(conv.id)}
                   onTogglePin={() => togglePinConversation(conv.id)}
-                  onRename={(title) => updateConversationTitle(conv.id, title)}
+                  onRename={title => updateConversationTitle(conv.id, title)}
                 />
               ))}
             </div>
@@ -150,22 +140,21 @@ export function ConversationSidebar() {
         {/* Regular */}
         <div>
           {isHydrated && pinnedConversations.length > 0 && regularConversations.length > 0 && (
-            <div className="mb-2 px-2 text-xs font-medium text-muted-foreground">
-              最近对话
-            </div>
+            <div className="mb-2 px-2 text-xs font-medium text-muted-foreground">最近对话</div>
           )}
           <div className="space-y-1">
-            {isHydrated && regularConversations.map((conv) => (
-              <ConversationItem
-                key={conv.id}
-                conversation={conv}
-                isActive={conv.id === currentConversationId}
-                onSelect={() => handleSelectConversation(conv.id, conv.agentId, conv.sessionId)}
-                onDelete={() => deleteConversation(conv.id)}
-                onTogglePin={() => togglePinConversation(conv.id)}
-                onRename={(title) => updateConversationTitle(conv.id, title)}
-              />
-            ))}
+            {isHydrated &&
+              regularConversations.map(conv => (
+                <ConversationItem
+                  key={conv.id}
+                  conversation={conv}
+                  isActive={conv.id === currentConversationId}
+                  onSelect={() => handleSelectConversation(conv.id, conv.agentId, conv.sessionId)}
+                  onDelete={() => deleteConversation(conv.id)}
+                  onTogglePin={() => togglePinConversation(conv.id)}
+                  onRename={title => updateConversationTitle(conv.id, title)}
+                />
+              ))}
           </div>
         </div>
 
@@ -176,7 +165,6 @@ export function ConversationSidebar() {
           </div>
         ) : null}
       </ScrollArea>
-
     </div>
   )
 }
@@ -200,10 +188,12 @@ interface ConversationItemProps {
   onRename: (title: string) => void
 }
 
-function getConversationStatus(conversation: ConversationItemProps['conversation']): MessageStatus | null {
+function getConversationStatus(
+  conversation: ConversationItemProps['conversation']
+): MessageStatus | null {
   if (conversation.isStreaming) return MessageStatus.GENERATING
   const messages = conversation.messages ?? []
-  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+  const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant')
   if (lastAssistant?.status) return lastAssistant.status
   return conversation.lastMessageStatus ?? null
 }
@@ -284,31 +274,26 @@ function ConversationItem({
       onClick={isEditing ? undefined : onSelect}
       className={cn(
         'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 transition-colors',
-        isEditing && 'inset-ring-2 inset-ring-primary bg-sidebar', 
-        isActive
-          ? 'bg-accent text-accent-foreground' 
-          : 'bg-muted/60 hover:bg-muted'
+        isEditing && 'inset-ring-2 inset-ring-primary bg-sidebar',
+        isActive ? 'bg-accent text-accent-foreground' : 'bg-muted/60 hover:bg-muted'
       )}
     >
-      {convStatus && (() => {
-        const IconComponent = statusIconMap[convStatus]
-        return (
-          <IconComponent
-            className={cn('h-5 w-5 shrink-0', statusIconClass[convStatus])}
-          />
-        )
-      })()}
+      {convStatus &&
+        (() => {
+          const IconComponent = statusIconMap[convStatus]
+          return <IconComponent className={cn('h-5 w-5 shrink-0', statusIconClass[convStatus])} />
+        })()}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 min-w-0">
           {isEditing ? (
             <input
               ref={inputRef}
               value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
+              onChange={e => setEditTitle(e.target.value)}
               onBlur={commitRename}
               onKeyDown={handleKeyDown}
               className="h-6 w-full bg-sidebar-accent px-1.5 text-sm font-medium outline-none"
-              onClick={(e) => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
             />
           ) : (
             <p className="truncate text-sm font-medium">{conversation.title}</p>
@@ -340,7 +325,7 @@ function ConversationItem({
               'group-hover:w-auto group-hover:!p-1 group-hover:opacity-100',
               'transition-all duration-200'
             )}
-            onClick={(e) => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
           >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
@@ -354,10 +339,7 @@ function ConversationItem({
             <Pin className="mr-2 h-4 w-4" />
             {conversation.pinned ? '取消固定' : '固定对话'}
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={onDelete}
-            className="text-destructive focus:text-destructive"
-          >
+          <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
             <Trash2 className="mr-2 h-4 w-4" />
             删除
           </DropdownMenuItem>
