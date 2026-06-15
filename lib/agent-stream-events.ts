@@ -1,5 +1,6 @@
 import type { ChatState } from '@/lib/store'
 import type { Message } from '@/lib/types'
+import { MessageStatus } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
 
 type AgentStreamStore = Pick<
@@ -16,7 +17,11 @@ function formatToolOutput(content: any): string {
       .map((item: any) => item.text)
       .join('\n')
     if (texts) return texts
-    try { return JSON.stringify(content, null, 2) } catch { return '[无法序列化的内容]' }
+    try {
+      return JSON.stringify(content, null, 2)
+    } catch {
+      return '[无法序列化的内容]'
+    }
   }
   if (typeof content === 'object') {
     if (content.details?.content) {
@@ -33,9 +38,17 @@ function formatToolOutput(content: any): string {
     }
     if (content.error && typeof content.error === 'string') return content.error
     if (content.message && typeof content.message === 'string') return content.message
-    try { return JSON.stringify(content, null, 2) } catch { return '[无法序列化的内容]' }
+    try {
+      return JSON.stringify(content, null, 2)
+    } catch {
+      return '[无法序列化的内容]'
+    }
   }
-  try { return String(content) } catch { return '[无法转换的内容]' }
+  try {
+    return String(content)
+  } catch {
+    return '[无法转换的内容]'
+  }
 }
 
 function formatToolDisplayText(payload: any): string {
@@ -85,11 +98,9 @@ export function handleAgentStreamEvent({
     return nextAssistantMessageId
   }
 
-  const currentMessage = store.conversations.find(
-    c => c.id === conversationId
-  )?.messages.find(
-    m => m.id === nextAssistantMessageId
-  )
+  const currentMessage = store.conversations
+    .find(c => c.id === conversationId)
+    ?.messages.find(m => m.id === nextAssistantMessageId)
 
   if (!currentMessage) {
     return nextAssistantMessageId
@@ -100,22 +111,26 @@ export function handleAgentStreamEvent({
       if (eventData.payload?.delta) {
         store.updateMessage(conversationId, nextAssistantMessageId, {
           content: (currentMessage.content || '') + eventData.payload.delta,
-          events: [...(currentMessage.events || []), {
-            type: 'message.delta',
-            content: eventData.payload.delta,
-            timestamp: eventData.ts_ms || Date.now(),
-          }],
+          events: [
+            ...(currentMessage.events || []),
+            {
+              type: 'message.delta',
+              content: eventData.payload.delta,
+              timestamp: eventData.ts_ms || Date.now(),
+            },
+          ],
         })
       }
       break
     case 'message.completed':
     case 'turn.completed':
       store.updateMessage(conversationId, nextAssistantMessageId, {
-        content: eventData.type === 'message.completed'
-          ? eventData.payload?.text ?? currentMessage.content ?? ''
-          : currentMessage.content ?? '',
+        content:
+          eventData.type === 'message.completed'
+            ? (eventData.payload?.text ?? currentMessage.content ?? '')
+            : (currentMessage.content ?? ''),
         isStreaming: false,
-        toolCalls: currentMessage.toolCalls?.map((toolCall) =>
+        toolCalls: currentMessage.toolCalls?.map(toolCall =>
           toolCall.status === 'running'
             ? {
                 ...toolCall,
@@ -124,33 +139,39 @@ export function handleAgentStreamEvent({
               }
             : toolCall
         ),
-        events: currentMessage.events?.map((event) =>
-          event.toolCall?.status === 'running'
-            ? {
-                ...event,
-                toolCall: {
-                  ...event.toolCall,
-                  status: 'completed' as const,
-                  displayText: event.toolCall.displayText || '工具调用已结束',
-                },
-              }
-            : event
-        ),
+        events: (currentMessage.events || [])
+          .filter(e => e.type !== 'message.delta')
+          .map(event =>
+            event.toolCall?.status === 'running'
+              ? {
+                  ...event,
+                  toolCall: {
+                    ...event.toolCall,
+                    status: 'completed' as const,
+                    displayText: event.toolCall.displayText || '工具调用已结束',
+                  },
+                }
+              : event
+          ),
       })
       store.setStreaming(conversationId, false)
       break
     case 'thinking':
       if (eventData.payload?.thinking) {
         const thinkingText = eventData.payload.thinking
-        const displayText = eventData.payload.display_text || `AI正在思考：${eventData.payload.thinking}`
+        const displayText =
+          eventData.payload.display_text || `AI正在思考：${eventData.payload.thinking}`
         store.updateMessage(conversationId, nextAssistantMessageId, {
           thinking: [...(currentMessage.thinking || []), thinkingText],
           displayText: [...(currentMessage.displayText || []), displayText],
-          events: [...(currentMessage.events || []), {
-            type: 'thinking',
-            content: displayText,
-            timestamp: eventData.ts_ms || Date.now(),
-          }],
+          events: [
+            ...(currentMessage.events || []),
+            {
+              type: 'thinking',
+              content: displayText,
+              timestamp: eventData.ts_ms || Date.now(),
+            },
+          ],
         })
       }
       break
@@ -161,29 +182,37 @@ export function handleAgentStreamEvent({
           name: eventData.payload.tool_name,
           status: 'running' as const,
           input: eventData.payload.arguments,
-          displayText: eventData.payload.display_text || `正在调用工具：${eventData.payload.tool_name}`,
+          displayText:
+            eventData.payload.display_text || `正在调用工具：${eventData.payload.tool_name}`,
         }
         store.updateMessage(conversationId, nextAssistantMessageId, {
           toolCalls: [...(currentMessage.toolCalls || []), toolCall],
-          events: [...(currentMessage.events || []), {
-            type: 'tool.call.started',
-            content: eventData.payload.display_text || `正在调用工具：${eventData.payload.tool_name}`,
-            timestamp: eventData.ts_ms || Date.now(),
-            toolCall,
-          }],
+          events: [
+            ...(currentMessage.events || []),
+            {
+              type: 'tool.call.started',
+              content:
+                eventData.payload.display_text || `正在调用工具：${eventData.payload.tool_name}`,
+              timestamp: eventData.ts_ms || Date.now(),
+              toolCall,
+            },
+          ],
         })
       }
       break
     case 'tool.call.response':
       if (eventData.payload?.name) {
-        const existingToolCall = currentMessage.toolCalls?.find((item) =>
-          (eventData.payload.tool_call_id && item.id === eventData.payload.tool_call_id) ||
-          (!eventData.payload.tool_call_id && item.name === eventData.payload.name && item.status === 'running')
+        const existingToolCall = currentMessage.toolCalls?.find(
+          item =>
+            (eventData.payload.tool_call_id && item.id === eventData.payload.tool_call_id) ||
+            (!eventData.payload.tool_call_id &&
+              item.name === eventData.payload.name &&
+              item.status === 'running')
         )
         const toolCall = {
           id: eventData.payload.tool_call_id || existingToolCall?.id || generateUUID(),
           name: eventData.payload.name,
-          status: eventData.payload.is_error ? 'error' as const : 'completed' as const,
+          status: eventData.payload.is_error ? ('error' as const) : ('completed' as const),
           input: eventData.payload.arguments || existingToolCall?.input,
           output: eventData.payload.content,
           error: eventData.payload.is_error ? eventData.payload.content : undefined,
@@ -191,18 +220,21 @@ export function handleAgentStreamEvent({
           displayText: formatToolDisplayText(eventData.payload),
         }
         const nextToolCalls = existingToolCall
-          ? (currentMessage.toolCalls || []).map((item) =>
+          ? (currentMessage.toolCalls || []).map(item =>
               item.id === existingToolCall.id ? { ...item, ...toolCall } : item
             )
           : [...(currentMessage.toolCalls || []), toolCall]
         store.updateMessage(conversationId, nextAssistantMessageId, {
           toolCalls: nextToolCalls,
-          events: [...(currentMessage.events || []), {
-            type: 'tool.call.response',
-            content: formatToolDisplayText(eventData.payload),
-            timestamp: eventData.ts_ms || Date.now(),
-            toolCall,
-          }],
+          events: [
+            ...(currentMessage.events || []),
+            {
+              type: 'tool.call.response',
+              content: formatToolDisplayText(eventData.payload),
+              timestamp: eventData.ts_ms || Date.now(),
+              toolCall,
+            },
+          ],
         })
       }
       break
@@ -220,6 +252,12 @@ export function handleAgentStreamEvent({
     case 'stream.error':
     case 'client.error':
       console.error('Error event:', eventData.payload || 'No payload')
+      store.updateMessage(conversationId, nextAssistantMessageId, {
+        isStreaming: false,
+        status: MessageStatus.ERROR,
+        // 清除 delta 事件，消息已终止，使用 message.content 作为权威数据源
+        events: (currentMessage.events || []).filter(e => e.type !== 'message.delta'),
+      })
       store.setStreaming(conversationId, false)
       break
   }
