@@ -1,6 +1,6 @@
 import { httpClient } from '@/lib/http-client'
-import { Session, ApiResponse, SessionManagementStrategy,Conversation,Message} from '@/lib/types'
-import { SessionStatus, MessageStatus} from '@/lib/types'
+import { Session, ApiResponse, SessionManagementStrategy, Conversation, Message } from '@/lib/types'
+import { SessionStatus, MessageStatus } from '@/lib/types'
 
 /**
  * 会话服务类 - 负责会话的创建和管理
@@ -10,10 +10,7 @@ class SessionService {
    * 创建会话
    */
   public async createSession(agentId: string): Promise<Session> {
-    const response = await httpClient.post<any>(
-      `/agents/${agentId}/sessions`,
-      {}
-    )
+    const response = await httpClient.post<any>(`/agents/${agentId}/sessions`, {})
     // 处理不同的响应格式：可能直接返回session对象，也可能包装在data字段中
     const sessionData = response.data || response
     return this.transformSession(sessionData, agentId)
@@ -23,9 +20,7 @@ class SessionService {
    * 获取Agent的所有会话
    */
   public async getSessions(agentId: string): Promise<Session[]> {
-    const response = await httpClient.get<ApiResponse<Session[]>>(
-      `/agents/${agentId}/sessions`
-    )
+    const response = await httpClient.get<ApiResponse<Session[]>>(`/agents/${agentId}/sessions`)
     return response.data.map(session => this.transformSession(session, agentId))
   }
 
@@ -47,9 +42,7 @@ class SessionService {
    * 获取会话列表（含摘要信息）
    */
   public async getConversations(agentId: string): Promise<any[]> {
-    const response = await httpClient.get<any[]>(
-      `/agents/${agentId}/conversations`
-    )
+    const response = await httpClient.get<any[]>(`/agents/${agentId}/conversations`)
     return Array.isArray(response) ? response : (response as any).data || []
   }
 
@@ -61,7 +54,7 @@ class SessionService {
     agentId: string,
     sessionId: string,
     limit: number = 10,
-    before?: string,
+    before?: string
   ): Promise<any> {
     const params = new URLSearchParams({ limit: String(limit) })
     if (before) params.set('before', before)
@@ -110,21 +103,28 @@ class SessionService {
       role: msg.role,
       content: msg.content,
       timestamp: new Date(msg.timestamp || msg.created_at),
-      isStreaming: msg.isStreaming ?? (msg.status === MessageStatus.GENERATING),
+      isStreaming: msg.isStreaming ?? msg.status === MessageStatus.GENERATING,
       status: msg.status,
       toolCalls: msg.toolCalls || msg.tool_calls,
       thinking: msg.thinking,
       events: (msg.events || [])
         .filter((evt: any) => {
+          // 非生成中的消息（completed / interrupted / error）：过滤掉 delta 事件
+          if (msg.status && msg.status !== 'generating' && evt.type === 'message.delta')
+            return false
+          // 过滤掉空内容的 delta 事件
           if (evt.type === 'message.delta' && !evt.delta && !evt.content) return false
           return true
         })
         .map((evt: any) => ({
           type: evt.type,
           content: evt.content || evt.delta || '',
-          timestamp: typeof evt.timestamp === 'number'
-            ? evt.timestamp
-            : evt.timestamp ? new Date(evt.timestamp).getTime() : Date.now(),
+          timestamp:
+            typeof evt.timestamp === 'number'
+              ? evt.timestamp
+              : evt.timestamp
+                ? new Date(evt.timestamp).getTime()
+                : Date.now(),
           toolCall: evt.toolCall || undefined,
         })),
       usage: msg.usage,
@@ -145,7 +145,7 @@ class SessionService {
       contextInitialized: session.context_initialized ?? session.contextInitialized ?? true,
       runtimeType: session.runtime_type || session.runtimeType || 'openclaw',
       createdAt: session.created_at || session.createdAt,
-      updatedAt: session.updated_at || session.updatedAt
+      updatedAt: session.updated_at || session.updatedAt,
     }
   }
 }
