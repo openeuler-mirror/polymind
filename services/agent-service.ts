@@ -1,5 +1,11 @@
 import { httpClient } from '@/lib/http-client'
-import { Agent, CreateAgentRequest, UpdateAgentRequest, ApiResponse } from '@/lib/types'
+import {
+  Agent,
+  CreateAgentRequest,
+  UpdateAgentRequest,
+  ApiResponse,
+  CreateAgentHubRequest,
+} from '@/lib/types'
 import { AgentStatus, AdapterType } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
 
@@ -76,6 +82,43 @@ class AgentService {
 
   public async deleteAgent(agentId: string): Promise<void> {
     await httpClient.delete(`/agents/${agentId}`)
+  }
+
+  public async importAgentFromHub(request: CreateAgentHubRequest): Promise<Agent> {
+    const backendRequest: Record<string, any> = {
+      git_url: request.git_url,
+      sandbox_type: request.sandbox_type,
+      adapter_type: request.adapter_type,
+    }
+
+    if (request.branch) {
+      backendRequest.branch = request.branch
+    }
+    if (request.idle_timeout_seconds) {
+      backendRequest.idle_timeout_seconds = request.idle_timeout_seconds
+    }
+    if (request.model_id) {
+      backendRequest.model_id = request.model_id
+    }
+
+    console.log('从AgentHub导入智能体请求:', backendRequest)
+
+    try {
+      const response = await httpClient.post<Agent>('/agents/agenthub', backendRequest)
+
+      console.log('从AgentHub导入智能体响应:', response)
+      console.log('响应类型:', typeof response)
+      console.log('响应是否为空:', response === null || response === undefined)
+
+      if (!response) {
+        throw new Error('Invalid API response: no response received')
+      }
+      return this.transformAgent(response)
+    } catch (err) {
+      console.error('从AgentHub导入智能体失败:', err)
+      console.error('错误详情:', err instanceof Error ? err.stack : err)
+      throw err
+    }
   }
 
   public async pauseAgent(agentId: string): Promise<{ agent?: Agent; error?: string }> {

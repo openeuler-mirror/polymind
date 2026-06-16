@@ -1402,26 +1402,51 @@ flowchart TB
 
 ### 8.1 API 路径总览
 
-| 方法     | 路径                                                         | 说明               |
-| ------ | ---------------------------------------------------------- | ---------------- |
-| GET    | `/healthz`                                                  | 服务存活检查          |
-| POST   | `/agents`                                                  | 创建 Agent         |
-| GET    | `/agents`                                                  | 列出所有 Agent     |
-| GET    | `/agents/{agent_id}`                                       | 获取 Agent 详情      |
-| DELETE | `/agents/{agent_id}`                                       | 删除 Agent         |
-| POST   | `/agents/{agent_id}/pause`                                 | 暂停 Agent         |
-| POST   | `/agents/{agent_id}/resume`                                | 恢复 Agent         |
-| GET    | `/agents/{agent_id}/sessions`                              | 列出所有会话         |
-| POST   | `/agents/{agent_id}/sessions`                              | 创建会话           |
-| GET    | `/agents/{agent_id}/sessions/{session_id}`                 | 获取会话详情         |
-| DELETE | `/agents/{agent_id}/sessions/{session_id}`                 | 删除会话           |
-| POST   | `/agents/{agent_id}/sessions/{session_id}/messages`        | 发送消息           |
-| POST   | `/agents/{agent_id}/sessions/{session_id}/messages/stream` | 发送消息并以 SSE 流返回 |
-| GET    | `/agents/{agent_id}/sessions/{session_id}/events`          | 查询会话事件回放       |
-| POST   | `/models`                                                  | 添加大模型配置        |
-| GET    | `/models`                                                  | 获取大模型列表        |
-| PUT    | `/models/{model_id}`                                       | 更新大模型配置        |
-| DELETE | `/models/{model_id}`                                       | 删除大模型配置        |
+| 方法     | 路径                                                         | 说明                                   |
+| ------ | ---------------------------------------------------------- | ------------------------------------ |
+| GET    | `/healthz`                                                  | 服务存活检查                              |
+| POST   | `/agents`                                                  | 创建 Agent                             |
+| POST   | `/agents/agenthub`                                         | 从远程 git 模板仓库创建 Agent                  |
+| GET    | `/agents`                                                  | 列出所有 Agent                         |
+| GET    | `/agents/{agent_id}`                                       | 获取 Agent 详情                          |
+| DELETE | `/agents/{agent_id}`                                       | 删除 Agent                             |
+| POST   | `/agents/{agent_id}/pause`                                 | 暂停 Agent                             |
+| POST   | `/agents/{agent_id}/resume`                                | 恢复 Agent                             |
+| POST   | `/agents/{agent_id}/skills/`                               | 为 agent 安装技能                         |
+| GET    | `/agents/{agent_id}/skills/installed`                      | 查询已安装技能                            |
+| POST   | `/agents/{agent_id}/skills/installed/sync`                 | 从 runtime 拉取已安装技能并同步本地记录             |
+| POST   | `/agents/{agent_id}/skills/uninstall`                      | 卸载 agent 已安装技能                       |
+| POST   | `/agents/{agent_id}/mcp-servers/{server_id}/enable`        | 启用 MCP Server                          |
+| POST   | `/agents/{agent_id}/mcp-servers/{server_id}/disable`       | 卸载 MCP Server                          |
+| GET    | `/agents/{agent_id}/sessions`                              | 列出所有会话                             |
+| POST   | `/agents/{agent_id}/sessions`                              | 创建会话                               |
+| GET    | `/agents/{agent_id}/sessions/{session_id}`                 | 获取会话详情                             |
+| DELETE | `/agents/{agent_id}/sessions/{session_id}`                 | 删除会话                               |
+| POST   | `/agents/{agent_id}/sessions/{session_id}/messages`        | 发送消息                               |
+| POST   | `/agents/{agent_id}/sessions/{session_id}/messages/stream` | 发送消息并以 SSE 流返回                     |
+| POST   | `/agents/{agent_id}/sessions/{session_id}/messages/stream/reconnect` | SSE 流重连 |
+| POST   | `/agents/{agent_id}/sessions/{session_id}/abort`           | 中止会话                               |
+| GET    | `/agents/{agent_id}/sessions/{session_id}/events`          | 查询会话事件回放                           |
+| GET    | `/agents/{agent_id}/conversations`                         | 列出会话摘要                             |
+| GET    | `/agents/{agent_id}/conversations/{session_id}`            | 获取会话详情（本地数据库）                     |
+| PATCH  | `/agents/{agent_id}/conversations/{session_id}`            | 更新会话元数据                            |
+| GET    | `/skills/repos`                                            | 查询技能仓库列表                           |
+| POST   | `/skills/repos`                                            | 通过 Git 仓库注册技能仓库                    |
+| POST   | `/skills/repos/upload`                                     | 上传 ZIP 压缩包注册本地技能仓库                  |
+| GET    | `/skills/repos/{repo_id}`                                  | 查询单个技能仓库详情                        |
+| PATCH  | `/skills/repos/{repo_id}`                                  | 更新技能仓库配置                          |
+| DELETE | `/skills/repos/{repo_id}`                                  | 删除技能仓库及其本地归档/解压目录                 |
+| POST   | `/skills/discover`                                         | 扫描全部技能仓库，刷新技能索引                   |
+| POST   | `/skills/discover/{repo_id}`                               | 扫描指定技能仓库，刷新技能索引                   |
+| GET    | `/skills/skills`                                           | 查询已发现的技能清单                         |
+| POST   | `/models`                                                  | 添加大模型配置                            |
+| GET    | `/models`                                                  | 获取大模型列表                            |
+| PUT    | `/models/{model_id}`                                       | 更新大模型配置                            |
+| DELETE | `/models/{model_id}`                                       | 删除大模型配置                            |
+| POST   | `/mcp-servers`                                             | 添加 MCP Server 配置                       |
+| GET    | `/mcp-servers`                                             | 获取 MCP Server 列表                       |
+| PUT    | `/mcp-servers/{server_id}`                                 | 更新 MCP Server 配置                       |
+| DELETE | `/mcp-servers/{server_id}`                                 | 删除 MCP Server 配置                       |
 
 ### 8.2 数据模型
 
@@ -1727,10 +1752,41 @@ class SandboxType(str, Enum):
 | `RUNTIME_BACKUP_NOT_FOUND`      | 404      | 运行时备份不存在                            |
 | `RUNTIME_BACKUP_RESTORE_FAILED` | 500      | 恢复备份失败                              |
 | `RUNTIME_START_FAILED`          | 500      | 启动运行时失败                             |
+| `SKILL_NOT_FOUND`               | 404      | 技能不存在，或 agent 上未找到已安装技能记录            |
+| `SKILL_SYNC_FAILED`             | 500      | 从 runtime 同步已安装技能失败                     |
+| `SKILL_INSTALL_RECORD_FAILED`   | 500      | runtime 已安装成功，但本地安装记录持久化失败            |
+| `SKILL_UNINSTALL_RECORD_FAILED` | 500      | runtime 已卸载成功，但本地安装记录删除失败            |
+| `TEMPLATE_REPO_CLONE_FAILED`    | 500      | 从 git 克隆 agent 模板仓库失败                    |
+| `MODEL_NOT_FOUND`               | 404      | 模型配置不存在                              |
+| `MODEL_DUPLICATE`               | 409      | 模型配置已存在                              |
+| `MODEL_CREATE_FAILED`           | 500      | 模型配置创建失败                            |
+| `MODEL_DELETE_FAILED`           | 500      | 模型配置删除失败                            |
+| `MCP_SERVER_NOT_FOUND`          | 404      | MCP Server 配置不存在                        |
+| `MCP_SERVER_DUPLICATE`          | 409      | MCP Server 配置已存在                        |
+| `MCP_SERVER_CREATE_FAILED`      | 500      | MCP Server 配置创建失败                      |
+| `MCP_SERVER_DELETE_FAILED`      | 500      | MCP Server 配置删除失败                      |
 
-### 8.4 接口时序图
+**HTTP 状态码映射规则：**
+- 以 `_NOT_FOUND` 结尾 → `404`
+- 以 `_NOT_SUPPORTED` 或 `_MISMATCH` 结尾 → `400`
+- 以 `INVALID_` 开头 → `409`
+- 以 `_FAILED` 结尾 → `500`
+- 其他 → `400`
 
-#### 8.4.1 创建 Agent 时序
+### 8.4 环境变量
+
+| 变量名                          | 说明                                  | 默认值               |
+| ----------------------------- | ----------------------------------- | ------------------ |
+| `AUTH_TOKEN`                  | API 认证 token                         | 空                  |
+| `WITTY_DOCKER_HOST`           | Docker 主机地址                         | `127.0.0.1`         |
+| `WITTY_DOCKER_IMAGE`          | Docker 镜像名                          | `witty-agent-server` |
+| `WITTY_DOCKER_IMAGE_TAG`      | Docker 镜像标签                         | `latest`           |
+| `WITTY_DOCKER_CONTAINER_PORT` | 容器端口                               | `8080`             |
+| `WITTY_AGENT_SERVER_APP_DIR`  | 本地进程模式 app 目录                     | 空                  |
+
+### 8.5 接口时序图
+
+#### 8.5.1 创建 Agent 时序
 
 ```mermaid
 sequenceDiagram
@@ -1765,7 +1821,7 @@ sequenceDiagram
     AgentAPI-->>Client: 201 Created<br/>{id, status, sandbox_id,<br/>default_session_id}
 ```
 
-#### 8.4.2 发送消息时序
+#### 8.5.2 发送消息时序
 
 ```mermaid
 sequenceDiagram

@@ -419,6 +419,18 @@ export interface UpdateAgentRequest {
   idleTimeout?: number
 }
 
+/**
+ * 从AgentHub创建Agent请求接口
+ */
+export interface CreateAgentHubRequest {
+  git_url: string
+  branch?: string
+  sandbox_type: SandboxType | string
+  adapter_type: AdapterType | string
+  idle_timeout_seconds?: number
+  model_id?: string
+}
+
 // ============================================
 // 会话相关类型
 // ============================================
