@@ -311,6 +311,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={SandboxType.LOCAL_PROCESS}>本地进程</SelectItem>
+                  <SelectItem value={SandboxType.DOCKER}>Docker</SelectItem>
                 </SelectContent>
               </Select>
             </div>

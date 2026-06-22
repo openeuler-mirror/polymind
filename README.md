@@ -44,16 +44,8 @@
 
 #### 方式一：一键脚本安装（推荐非开发人员使用）
 
-项目提供了 `install.sh` 脚本，自动完成环境检测、依赖安装和环境隔离，适合非开发人员快速部署。
+项目提供了 `install-local.sh` 脚本，自动完成环境检测、依赖安装和环境隔离，适合非开发人员快速部署。
 
-**前置条件：**
-
-| 依赖 | 说明 | 安装方式 |
-|------|------|----------|
-| Node.js | v22+ | [nodejs.org](https://nodejs.org/) |
-| pnpm | 包管理器 | `npm install -g pnpm` |
-| Python 3 | 后端运行时 | [python.org](https://www.python.org/downloads/) |
-| pip | Python 包管理器 | 随 Python 一同安装 |
 
 **安装步骤：**
 
@@ -67,7 +59,7 @@ cd polymind
 2. 运行安装脚本：
 
 ```bash
-bash install.sh
+bash install-local.sh
 ```
 
 脚本将自动执行以下操作：
@@ -142,17 +134,10 @@ polymind --port 8080
 polymind --host 0.0.0.0 --port 8080
 ```
 
-#### 环境变量启动
-
-支持通过环境变量控制启动参数，适合脚本化部署：
-
-```bash
-BACKEND_HOST=192.168.1.100 BACKEND_PORT=8000 FRONTEND_PORT=3000 polymind
-```
 
 ## 配置说明
 
-PolyMind 使用 `~/.polymind/.env` 作为全局配置文件，首次运行时自动生成。修改配置后重启服务即可生效。
+PolyMind 使用 `~/.polymind/.env` 作为全局配置文件，首次运行时自动生成。
 
 ### 核心配置项
 
@@ -160,7 +145,7 @@ PolyMind 使用 `~/.polymind/.env` 作为全局配置文件，首次运行时自
 |--------|------|--------|
 | `NEXT_PUBLIC_AGENTD_API_URL` | agentd 后端 API 地址 | `http://127.0.0.1:8000` |
 | `NEXT_PUBLIC_WS_URL` | WebSocket 连接地址 | `ws://127.0.0.1:8000/ws` |
-| `NEXT_PUBLIC_API_TIMEOUT` | API 请求超时时间（毫秒） | `30000` |
+| `NEXT_PUBLIC_API_TIMEOUT` | API 请求超时时间（毫秒） | `120000` |
 | `NEXT_PUBLIC_AUTH_TOKEN` | API 访问认证 Token | `dev-token` |
 | `NEXT_PUBLIC_APP_NAME` | 应用名称 | `PolyMind` |
 | `NEXT_PUBLIC_DEBUG` | 调试模式 | `false` |
@@ -172,16 +157,6 @@ PolyMind 使用 `~/.polymind/.env` 作为全局配置文件，首次运行时自
 | `NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS` | WebSocket 最大重连次数 | `5` |
 | `NEXT_PUBLIC_RECONNECT_INTERVAL` | 重连间隔（毫秒） | `3000` |
 
-### 网络与访问控制
-
-| 配置项 | 说明 | 默认值 |
-|--------|------|--------|
-| `BACKEND_HOST` | 后端服务主机地址 | `127.0.0.1` |
-| `BACKEND_PORT` | 后端服务端口 | `8000` |
-| `FRONTEND_PORT` | 前端服务端口 | `3000` |
-| `ALLOWED_ORIGINS` | 允许访问的来源（逗号分隔） | `127.0.0.1,localhost` |
-
-> **提示：** 如需从外部机器访问 PolyMind，请将 `ALLOWED_ORIGINS` 添加服务器 IP，并将 `BACKEND_HOST` 设为服务器的局域网 IP 地址。
 
 ## 部署流程
 
@@ -225,7 +200,6 @@ pnpm run start
 ### 生产环境注意事项
 
 - **认证 Token** — 务必修改 `NEXT_PUBLIC_AUTH_TOKEN` 默认值，使用强随机字符串
-- **网络隔离** — 生产环境建议将 `ALLOWED_ORIGINS` 限制为可信 IP，避免未授权访问
 - **反向代理** — 推荐在 PolyMind 前部署 Nginx 等反向代理，配置 HTTPS 证书
 - **进程管理** — 建议使用 systemd 或 PM2 管理服务进程，实现自动重启
 
@@ -283,7 +257,7 @@ polymind/
 │   ├── cve-service.ts      # CVE 漏洞服务
 │   └── patchflow-agent-service.ts  # Patchflow Agent
 ├── scripts/                # 构建/安装辅助脚本
-├── install.sh              # 一键安装脚本
+├── install-local.sh        # 一键安装脚本
 ├── start.sh                # 一键启动脚本
 └── packaging/              # 打包发布脚本
 ```

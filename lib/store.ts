@@ -512,7 +512,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // Agent相关操作
   setCurrentAgent: agentId => {
-    const currentSessionId = new URLSearchParams(window.location.search).get('session')
+    const currentSessionId =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('session')
+        : null
     set({ currentAgentId: agentId })
     if (!get().currentConversationId) {
       syncUrlParams(agentId || undefined, currentSessionId || undefined)
