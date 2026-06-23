@@ -66,7 +66,6 @@ usage() {
   echo ""
   echo "示例:"
   echo "  $0                                    # 默认安装（使用国内镜像）"
-  echo "  ALLOWED_ORIGINS=10.0.0.1 $0           # 指定IP后安装"
   exit 0
 }
 
@@ -221,11 +220,10 @@ install_node() {
     fi
   fi
 
+  export NVM_NODEJS_ORG_MIRROR="https://npmmirror.com/mirrors/node"
   [ -s "$nvm_dir/nvm.sh" ] && . "$nvm_dir/nvm.sh"
 
   unset npm_config_prefix
-
-  export NVM_NODEJS_ORG_MIRROR="https://npmmirror.com/mirrors/node"
 
   log_step "安装 Node.js $REQUIRED_NODE_MAJOR LTS..."
   nvm install "$REQUIRED_NODE_MAJOR" 2>> "$INSTALL_LOG" || {

@@ -16,13 +16,8 @@ A self-hosted AI Agent interaction platform with native agentd service integrati
 - [Configuration](#configuration)
 - [Deployment](#deployment)
 - [Local Development](#local-development)
-- [FAQ](#faq)
 - [License](#license)
 - [Support](#support)
-
-## About the Project
-
-PolyMind is a self-hosted AI Agent interaction platform with native agentd service integration. It combines AI chat, Agent workflow orchestration, and multi-model management into a complete, out-of-the-box solution.
 
 ### Features
 
@@ -44,24 +39,12 @@ PolyMind is a self-hosted AI Agent interaction platform with native agentd servi
 | Styling | Tailwind CSS 4 |
 | State Management | Zustand 5 |
 | Charts | Recharts |
-| Backend Service | agentd (Python, distributed via witty-service) |
-| Communication | HTTP REST + WebSocket + SSE |
-| Build Output | Next.js Standalone |
 
 ### Installation
 
 #### Method 1: One-Click Script Installation (Recommended for Non-Developers)
 
-The project provides an `install.sh` script that automatically completes environment detection, dependency installation, and environment isolation.
-
-**Prerequisites:**
-
-| Dependency | Description | Installation |
-|------------|-------------|--------------|
-| Node.js | v22+ | [nodejs.org](https://nodejs.org/) |
-| pnpm | Package manager | `npm install -g pnpm` |
-| Python 3 | Backend runtime | [python.org](https://www.python.org/downloads/) |
-| pip | Python package manager | Included with Python |
+The project provides an `install-local.sh` script that automatically completes environment detection, dependency installation, and environment isolation, suitable for non-developers to quickly deploy.
 
 **Installation Steps:**
 
@@ -75,7 +58,7 @@ cd polymind
 2. Run the installation script:
 
 ```bash
-bash install.sh
+bash install-local.sh
 ```
 
 The script will automatically:
@@ -150,17 +133,10 @@ polymind --port 8080
 polymind --host 0.0.0.0 --port 8080
 ```
 
-#### Start with Environment Variables
-
-Support for environment variable configuration, suitable for scripted deployment:
-
-```bash
-BACKEND_HOST=192.168.1.100 BACKEND_PORT=8000 FRONTEND_PORT=3000 polymind
-```
 
 ## Configuration
 
-PolyMind uses `~/.polymind/.env` as the global configuration file, which is automatically generated on first run. Changes take effect after restarting the service.
+PolyMind uses `~/.polymind/.env` as the global configuration file, which is automatically generated on first run.
 
 ### Core Configuration
 
@@ -168,7 +144,7 @@ PolyMind uses `~/.polymind/.env` as the global configuration file, which is auto
 |--------|-------------|---------|
 | `NEXT_PUBLIC_AGENTD_API_URL` | agentd backend API URL | `http://127.0.0.1:8000` |
 | `NEXT_PUBLIC_WS_URL` | WebSocket URL | `ws://127.0.0.1:8000/ws` |
-| `NEXT_PUBLIC_API_TIMEOUT` | API timeout in milliseconds | `30000` |
+| `NEXT_PUBLIC_API_TIMEOUT` | API timeout in milliseconds | `120000` |
 | `NEXT_PUBLIC_AUTH_TOKEN` | API access token | `dev-token` |
 | `NEXT_PUBLIC_APP_NAME` | Application name | `PolyMind` |
 | `NEXT_PUBLIC_DEBUG` | Debug mode | `false` |
@@ -179,17 +155,6 @@ PolyMind uses `~/.polymind/.env` as the global configuration file, which is auto
 |--------|-------------|---------|
 | `NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS` | Max WebSocket reconnect attempts | `5` |
 | `NEXT_PUBLIC_RECONNECT_INTERVAL` | Reconnect interval in milliseconds | `3000` |
-
-### Network and Access Control
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `BACKEND_HOST` | Backend service host | `127.0.0.1` |
-| `BACKEND_PORT` | Backend service port | `8000` |
-| `FRONTEND_PORT` | Frontend service port | `3000` |
-| `ALLOWED_ORIGINS` | Allowed origins (comma-separated) | `127.0.0.1,localhost` |
-
-> **Note:** To access PolyMind from external machines, add the server IP to `ALLOWED_ORIGINS` and set `BACKEND_HOST` to the server's LAN IP address.
 
 ## Deployment
 
@@ -233,7 +198,6 @@ pnpm run start
 ### Production Notes
 
 - **Authentication Token** — Always change the default `NEXT_PUBLIC_AUTH_TOKEN` to a strong random string
-- **Network Isolation** — Restrict `ALLOWED_ORIGINS` to trusted IPs in production
 - **Reverse Proxy** — Deploy Nginx or similar reverse proxy in front of PolyMind with HTTPS
 - **Process Management** — Use systemd or PM2 for process management and automatic restarts
 
@@ -291,7 +255,7 @@ polymind/
 │   ├── cve-service.ts      # CVE service
 │   └── patchflow-agent-service.ts  # Patchflow Agent
 ├── scripts/                # Build and installation helper scripts
-├── install.sh              # One-click installation script
+├── install-local.sh        # One-click installation script
 ├── start.sh                # One-click start script
 └── packaging/              # Packaging scripts
 ```
