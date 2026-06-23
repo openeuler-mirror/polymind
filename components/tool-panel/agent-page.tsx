@@ -58,6 +58,7 @@ export function AgentPage() {
   })
   const [deleteAgentId, setDeleteAgentId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [processingAgentId, setProcessingAgentId] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [importForm, setImportForm] = useState({
@@ -129,6 +130,10 @@ export function AgentPage() {
   // 处理智能体状态变更
   const handleAgentAction = async (agentId: string, action: 'pause' | 'resume' | 'delete') => {
     try {
+      if (action === 'pause' || action === 'resume') {
+        setProcessingAgentId(agentId)
+      }
+
       if (action === 'pause') {
         const result = await agentService.pauseAgent(agentId)
         console.log('Pause agent result:', result)
@@ -189,6 +194,10 @@ export function AgentPage() {
       if (action === 'delete') {
         setIsDeleting(false)
         setDeleteAgentId(null)
+      }
+    } finally {
+      if (action === 'pause' || action === 'resume') {
+        setProcessingAgentId(null)
       }
     }
   }
@@ -402,25 +411,47 @@ export function AgentPage() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="text-green-500 hover:text-green-600"
                             onClick={() => handleAgentAction(agent.id, 'pause')}
+                            disabled={processingAgentId === agent.id}
                           >
-                            <Pause className="h-3 w-3 mr-1" />
-                            暂停
+                            {processingAgentId === agent.id ? (
+                              <>
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                暂停中...
+                              </>
+                            ) : (
+                              <>
+                                <Pause className="h-3 w-3 mr-1" />
+                                暂停
+                              </>
+                            )}
                           </Button>
                         ) : (
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="text-green-500 hover:text-green-600"
                             onClick={() => handleAgentAction(agent.id, 'resume')}
+                            disabled={processingAgentId === agent.id}
                           >
-                            <Play className="h-3 w-3 mr-1" />
-                            启动
+                            {processingAgentId === agent.id ? (
+                              <>
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                启动中...
+                              </>
+                            ) : (
+                              <>
+                                <Play className="h-3 w-3 mr-1" />
+                                启动
+                              </>
+                            )}
                           </Button>
                         )}
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-red-500"
+                          className="text-red-500 hover:text-red-600"
                           onClick={() => setDeleteAgentId(agent.id)}
                         >
                           <Trash2 className="h-3 w-3 mr-1" />

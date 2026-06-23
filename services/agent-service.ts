@@ -123,22 +123,23 @@ class AgentService {
 
   public async pauseAgent(agentId: string): Promise<{ agent?: Agent; error?: string }> {
     try {
-      const response = await httpClient.post<ApiResponse<Agent>>(`/agents/${agentId}/pause`)
+      const response = await httpClient.post<any>(`/agents/${agentId}/pause`)
       if (!response) {
         return { error: 'Invalid API response' }
       }
-      if (response.success) {
-        if (response.data) {
-          const agent = this.transformAgent(response.data)
-          agent.status = AgentStatus.PAUSED
-          return { agent }
-        } else {
-          const agent = await this.getAgent(agentId)
-          agent.status = AgentStatus.PAUSED
-          return { agent }
-        }
+      if (response.success !== undefined && !response.success) {
+        return { error: '暂停失败，请稍后重试' }
       }
-      return { error: '暂停失败，请稍后重试' }
+      const agentData = response.data || response
+      if (agentData && typeof agentData === 'object' && agentData.id) {
+        const agent = this.transformAgent(agentData)
+        agent.status = AgentStatus.PAUSED
+        return { agent }
+      } else {
+        const agent = await this.getAgent(agentId)
+        agent.status = AgentStatus.PAUSED
+        return { agent }
+      }
     } catch (err) {
       return { error: '暂停失败，请稍后重试' }
     }
@@ -146,26 +147,26 @@ class AgentService {
 
   public async resumeAgent(agentId: string): Promise<{ agent?: Agent; error?: string }> {
     try {
-      const response = await httpClient.post<ApiResponse<Agent>>(`/agents/${agentId}/resume`)
+      const response = await httpClient.post<any>(`/agents/${agentId}/resume`)
       console.log('Resume agent response:', response)
       if (!response) {
         console.log('No response received')
         return { error: 'Invalid API response' }
       }
-      console.log('Response success:', response.success)
-      if (response.success) {
-        if (response.data) {
-          const agent = this.transformAgent(response.data)
-          agent.status = AgentStatus.RUNNING
-          return { agent }
-        } else {
-          const agent = await this.getAgent(agentId)
-          agent.status = AgentStatus.RUNNING
-          return { agent }
-        }
+      if (response.success !== undefined && !response.success) {
+        console.log('Success is false, returning error')
+        return { error: '启动失败，请稍后重试' }
       }
-      console.log('Success is false, returning error')
-      return { error: '启动失败，请稍后重试' }
+      const agentData = response.data || response
+      if (agentData && typeof agentData === 'object' && agentData.id) {
+        const agent = this.transformAgent(agentData)
+        agent.status = AgentStatus.RUNNING
+        return { agent }
+      } else {
+        const agent = await this.getAgent(agentId)
+        agent.status = AgentStatus.RUNNING
+        return { agent }
+      }
     } catch (err) {
       console.error('Error in resumeAgent:', err)
       return { error: '启动失败，请稍后重试' }
@@ -177,7 +178,7 @@ class AgentService {
       throw new Error('Agent data is invalid')
     }
 
-    const status = agent.status?.toUpperCase() as AgentStatus
+    const status = agent.status?.toLowerCase() as AgentStatus
 
     return {
       id: agent.id,
