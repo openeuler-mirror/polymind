@@ -441,6 +441,13 @@ http {
 
     access_log {{POLYMIND_DIR}}/nginx/access.log;
 
+    # 使用用户目录存放临时文件（避免非 root 运行时权限错误）
+    client_body_temp_path {{POLYMIND_DIR}}/nginx/tmp/client_body;
+    proxy_temp_path {{POLYMIND_DIR}}/nginx/tmp/proxy;
+    fastcgi_temp_path {{POLYMIND_DIR}}/nginx/tmp/fastcgi;
+    uwsgi_temp_path {{POLYMIND_DIR}}/nginx/tmp/uwsgi;
+    scgi_temp_path {{POLYMIND_DIR}}/nginx/tmp/scgi;
+
     server {
         listen {{FRONTEND_PORT}};
         server_name _;
@@ -606,7 +613,7 @@ install_app_packages() {
 
   log_step "安装 openclaw ..."
 
-  run_with_log "$INSTALL_LOG" pnpm add -g "openclaw@latest" --registry="$PNPM_MIRROR" || {
+  run_with_log "$INSTALL_LOG" pnpm add -g "openclaw@2026.6.10" --registry="$PNPM_MIRROR" || {
     log_err "openclaw 安装失败"
     return 1
   }
