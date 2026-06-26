@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# PolyMind 一键安装脚本 (Linux / macOS)
+# PolyMind 一键安装脚本 (Linux)
 # 负责依赖检测、环境隔离和所有软件包的安装
 # 安装完成后请使用 start.sh 启动服务
 # ============================================================
@@ -117,7 +117,6 @@ version_gte() {
 get_os() {
   case "$(uname -s)" in
     Linux*)  echo "linux" ;;
-    Darwin*) echo "macos" ;;
     *)       echo "unknown" ;;
   esac
 }
@@ -322,19 +321,10 @@ install_python_and_pip() {
   fi
 
   if ! $found_python; then
-    local os
-    os=$(get_os)
     log_err "未找到 Python >= 3.${REQUIRED_PYTHON_MINOR}"
     log_info "请先手动安装 Python >= 3.${REQUIRED_PYTHON_MINOR}"
-    case "$os" in
-      linux)
-        log_detail "Ubuntu/Debian: sudo apt install python3 python3-pip python3-venv"
-        log_detail "CentOS/RHEL:  sudo dnf install python3 python3-pip"
-        ;;
-      macos)
-        log_detail "brew install python@3.${REQUIRED_PYTHON_MINOR}"
-        ;;
-    esac
+    log_detail "Ubuntu/Debian: sudo apt install python3 python3-pip python3-venv"
+    log_detail "CentOS/RHEL:  sudo dnf install python3 python3-pip"
     return 1
   fi
 
@@ -372,43 +362,27 @@ install_nginx() {
 
   log_warn "nginx 未安装，尝试自动安装..."
 
-  local os
-  os=$(get_os)
-
-  if [ "$os" = "linux" ]; then
-    if command -v apt-get &> /dev/null; then
-      log_step "apt-get install nginx..."
-      sudo apt-get update -qq && sudo apt-get install -y -qq nginx 2>> "$INSTALL_LOG" || {
-        log_warn "apt-get 安装失败"
-        return 2
-      }
-    elif command -v yum &> /dev/null; then
-      log_step "yum install nginx..."
-      sudo yum install -y nginx 2>> "$INSTALL_LOG" || {
-        log_warn "yum 安装失败"
-        return 2
-      }
-    elif command -v dnf &> /dev/null; then
-      log_step "dnf install nginx..."
-      sudo dnf install -y nginx 2>> "$INSTALL_LOG" || {
-        log_warn "dnf 安装失败"
-        return 2
-      }
-    else
-      log_warn "未找到包管理器，无法自动安装 nginx"
+  if command -v apt-get &> /dev/null; then
+    log_step "apt-get install nginx..."
+    sudo apt-get update -qq && sudo apt-get install -y -qq nginx 2>> "$INSTALL_LOG" || {
+      log_warn "apt-get 安装失败"
       return 2
-    fi
-  elif [ "$os" = "macos" ]; then
-    if command -v brew &> /dev/null; then
-      log_step "brew install nginx..."
-      brew install nginx 2>> "$INSTALL_LOG" || {
-        log_warn "brew 安装失败"
-        return 2
-      }
-    else
-      log_warn "未找到 Homebrew，无法自动安装 nginx"
+    }
+  elif command -v yum &> /dev/null; then
+    log_step "yum install nginx..."
+    sudo yum install -y nginx 2>> "$INSTALL_LOG" || {
+      log_warn "yum 安装失败"
       return 2
-    fi
+    }
+  elif command -v dnf &> /dev/null; then
+    log_step "dnf install nginx..."
+    sudo dnf install -y nginx 2>> "$INSTALL_LOG" || {
+      log_warn "dnf 安装失败"
+      return 2
+    }
+  else
+    log_warn "未找到包管理器，无法自动安装 nginx"
+    return 2
   fi
 
   if command -v nginx &> /dev/null; then
