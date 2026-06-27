@@ -70,6 +70,7 @@ export function AgentPage() {
   const [loadingModels, setLoadingModels] = useState(false)
   const { toast } = useToast()
   const removeAgent = useChatStore(state => state.removeAgent)
+  const updateAgent = useChatStore(state => state.updateAgent)
   const agentCreateFlag = useChatStore(state => state.agentCreateFlag)
   const addAgent = useChatStore(state => state.addAgent)
   const setCurrentAgent = useChatStore(state => state.setCurrentAgent)
@@ -151,6 +152,7 @@ export function AgentPage() {
           setAgents(prevAgents =>
             prevAgents.map(agent => (agent.id === agentId ? result.agent! : agent))
           )
+          updateAgent(result.agent)
         }
       } else if (action === 'resume') {
         const result = await agentService.resumeAgent(agentId)
@@ -169,6 +171,7 @@ export function AgentPage() {
           setAgents(prevAgents =>
             prevAgents.map(agent => (agent.id === agentId ? result.agent! : agent))
           )
+          updateAgent(result.agent)
         }
       } else if (action === 'delete') {
         setIsDeleting(true)
