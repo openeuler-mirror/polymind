@@ -5,14 +5,43 @@ import { Plus, Edit, Trash2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { modelService } from '@/services/model-service'
-import { ModelConfig, CreateModelRequest, UpdateModelRequest, ModelProvider, ApiFormat } from '@/lib/types'
+import {
+  ModelConfig,
+  CreateModelRequest,
+  UpdateModelRequest,
+  ModelProvider,
+  Compatibility,
+} from '@/lib/types'
 import { useToast } from '@/hooks/use-toast'
 import aiProvidersConfig from '@/lib/ai-providers-config.json'
 
@@ -70,12 +99,12 @@ export function ModelPage() {
     provider: ModelProvider.OPENAI,
     apiKey: '',
     apiBaseUrl: '',
-    apiFormat: 'openai' as ApiFormat
+    compatibility: 'openai' as Compatibility,
   })
 
   const [formErrors, setFormErrors] = useState<{
     provider?: string
-    apiFormat?: string
+    compatibility?: string
     name?: string
     apiKey?: string
     apiBaseUrl?: string
@@ -95,7 +124,7 @@ export function ModelPage() {
       toast({
         title: '加载失败',
         description: '无法加载模型配置列表',
-        variant: 'destructive'
+        variant: 'destructive',
       })
     } finally {
       setIsLoading(false)
@@ -112,18 +141,19 @@ export function ModelPage() {
         provider: model.provider as ModelProvider,
         apiKey: '',
         apiBaseUrl: model.apiBaseUrl || '',
-        apiFormat: model.apiFormat || 'openai'
+        compatibility: model.compatibility || 'openai',
       })
     } else {
       setEditingModel(null)
       const defaultProvider = aiProvidersConfig.providers.find(p => p.id === ModelProvider.OPENAI)
-      const defaultModel = defaultProvider?.models.find(m => m.isDefault) || defaultProvider?.models[0]
+      const defaultModel =
+        defaultProvider?.models.find(m => m.isDefault) || defaultProvider?.models[0]
       setFormData({
         name: defaultModel?.id || '',
         provider: ModelProvider.OPENAI,
         apiKey: '',
         apiBaseUrl: defaultProvider?.apiBaseUrl || '',
-        apiFormat: 'openai'
+        compatibility: 'openai',
       })
     }
     setIsDialogOpen(true)
@@ -138,13 +168,13 @@ export function ModelPage() {
   const handleProviderChange = (providerId: string) => {
     const provider = aiProvidersConfig.providers.find(p => p.id === providerId)
     const defaultModel = provider?.models.find(m => m.isDefault) || provider?.models[0]
-    
+
     setFormData(prev => ({
       ...prev,
       provider: providerId as ModelProvider,
-      name: providerId === ModelProvider.CUSTOM ? '' : (defaultModel?.id || ''),
+      name: providerId === ModelProvider.CUSTOM ? '' : defaultModel?.id || '',
       apiBaseUrl: provider?.apiBaseUrl || '',
-      apiFormat: 'openai'
+      compatibility: 'openai',
     }))
     setFormErrors({})
   }
@@ -156,8 +186,8 @@ export function ModelPage() {
       errors.provider = '请选择服务商'
     }
 
-    if (formData.provider === ModelProvider.CUSTOM && !formData.apiFormat) {
-      errors.apiFormat = '请选择 API 格式'
+    if (formData.provider === ModelProvider.CUSTOM && !formData.compatibility) {
+      errors.compatibility = '请选择 API 格式'
     }
 
     if (!formData.name || !formData.name.trim()) {
@@ -168,7 +198,10 @@ export function ModelPage() {
       errors.apiKey = '请输入 API 密钥'
     }
 
-    if (formData.provider === ModelProvider.CUSTOM && (!formData.apiBaseUrl || !formData.apiBaseUrl.trim())) {
+    if (
+      formData.provider === ModelProvider.CUSTOM &&
+      (!formData.apiBaseUrl || !formData.apiBaseUrl.trim())
+    ) {
       errors.apiBaseUrl = '请输入自定义请求地址'
     }
 
@@ -188,7 +221,8 @@ export function ModelPage() {
           provider: formData.provider,
           apiKey: formData.apiKey || undefined,
           apiBaseUrl: formData.apiBaseUrl,
-          apiFormat: formData.provider === ModelProvider.CUSTOM ? formData.apiFormat : undefined
+          compatibility:
+            formData.provider === ModelProvider.CUSTOM ? formData.compatibility : undefined,
         }
         await modelService.updateModel(editingModel.id, request)
       } else {
@@ -197,9 +231,10 @@ export function ModelPage() {
           provider: formData.provider,
           apiKey: formData.apiKey,
           apiBaseUrl: formData.apiBaseUrl,
-          apiFormat: formData.provider === ModelProvider.CUSTOM ? formData.apiFormat : undefined,
+          compatibility:
+            formData.provider === ModelProvider.CUSTOM ? formData.compatibility : undefined,
           enabled: true,
-          isDefault: false
+          isDefault: false,
         }
         await modelService.createModel(request)
       }
@@ -210,7 +245,7 @@ export function ModelPage() {
       toast({
         title: '保存失败',
         description: editingModel ? '无法更新模型配置' : '无法创建模型配置',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       setIsSubmitting(false)
     }
@@ -218,7 +253,7 @@ export function ModelPage() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return
-    
+
     try {
       await modelService.deleteModel(deleteTarget.id)
       setDeleteTarget(null)
@@ -228,7 +263,7 @@ export function ModelPage() {
       toast({
         title: '删除失败',
         description: '无法删除模型配置',
-        variant: 'destructive'
+        variant: 'destructive',
       })
     }
   }
@@ -251,7 +286,7 @@ export function ModelPage() {
       xai: 'bg-yellow-500',
       siliconflow: 'bg-teal-500',
       azure: 'bg-sky-500',
-      custom: 'bg-gray-500'
+      custom: 'bg-gray-500',
     }
     return colors[providerId] || 'bg-gray-500'
   }
@@ -286,12 +321,14 @@ export function ModelPage() {
             </DialogHeader>
             <div className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label htmlFor="provider"><span className="text-red-500">*</span> 服务商</Label>
-                <Select
-                  value={formData.provider}
-                  onValueChange={handleProviderChange}
-                >
-                  <SelectTrigger id="provider" className={`w-full ${formErrors.provider ? 'border-red-500' : ''}`}>
+                <Label htmlFor="provider">
+                  <span className="text-red-500">*</span> 服务商
+                </Label>
+                <Select value={formData.provider} onValueChange={handleProviderChange}>
+                  <SelectTrigger
+                    id="provider"
+                    className={`w-full ${formErrors.provider ? 'border-red-500' : ''}`}
+                  >
                     <SelectValue placeholder="选择服务商" />
                   </SelectTrigger>
                   <SelectContent>
@@ -310,15 +347,23 @@ export function ModelPage() {
 
               {formData.provider === ModelProvider.CUSTOM && (
                 <div className="space-y-2">
-                  <Label htmlFor="apiFormat"><span className="text-red-500">*</span> API 格式</Label>
+                  <Label htmlFor="compatibility">
+                    <span className="text-red-500">*</span> API 格式
+                  </Label>
                   <Select
-                    value={formData.apiFormat}
-                    onValueChange={(value) => {
-                      setFormData(prev => ({ ...prev, apiFormat: value as 'openai' | 'anthropic' }))
-                      setFormErrors(prev => ({ ...prev, apiFormat: undefined }))
+                    value={formData.compatibility}
+                    onValueChange={value => {
+                      setFormData(prev => ({
+                        ...prev,
+                        compatibility: value as 'openai' | 'anthropic',
+                      }))
+                      setFormErrors(prev => ({ ...prev, compatibility: undefined }))
                     }}
                   >
-                    <SelectTrigger id="apiFormat" className={`w-full ${formErrors.apiFormat ? 'border-red-500' : ''}`}>
+                    <SelectTrigger
+                      id="compatibility"
+                      className={`w-full ${formErrors.compatibility ? 'border-red-500' : ''}`}
+                    >
                       <SelectValue placeholder="选择 API 格式" />
                     </SelectTrigger>
                     <SelectContent>
@@ -326,19 +371,21 @@ export function ModelPage() {
                       <SelectItem value="anthropic">Anthropic Messages 格式</SelectItem>
                     </SelectContent>
                   </Select>
-                  {formErrors.apiFormat && (
-                    <p className="text-sm text-red-500">{formErrors.apiFormat}</p>
+                  {formErrors.compatibility && (
+                    <p className="text-sm text-red-500">{formErrors.compatibility}</p>
                   )}
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="modelName"><span className="text-red-500">*</span> 模型</Label>
+                <Label htmlFor="modelName">
+                  <span className="text-red-500">*</span> 模型
+                </Label>
                 {formData.provider === ModelProvider.CUSTOM ? (
                   <Input
                     id="modelName"
                     value={formData.name}
-                    onChange={(e) => {
+                    onChange={e => {
                       setFormData(prev => ({ ...prev, name: e.target.value }))
                       setFormErrors(prev => ({ ...prev, name: undefined }))
                     }}
@@ -348,12 +395,15 @@ export function ModelPage() {
                 ) : (
                   <Select
                     value={formData.name}
-                    onValueChange={(value) => {
+                    onValueChange={value => {
                       setFormData(prev => ({ ...prev, name: value }))
                       setFormErrors(prev => ({ ...prev, name: undefined }))
                     }}
                   >
-                    <SelectTrigger id="modelName" className={`w-full ${formErrors.name ? 'border-red-500' : ''}`}>
+                    <SelectTrigger
+                      id="modelName"
+                      className={`w-full ${formErrors.name ? 'border-red-500' : ''}`}
+                    >
                       <SelectValue placeholder="选择模型" />
                     </SelectTrigger>
                     <SelectContent side="bottom" className="max-h-[300px]">
@@ -369,17 +419,17 @@ export function ModelPage() {
                     </SelectContent>
                   </Select>
                 )}
-                {formErrors.name && (
-                  <p className="text-sm text-red-500">{formErrors.name}</p>
-                )}
+                {formErrors.name && <p className="text-sm text-red-500">{formErrors.name}</p>}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="apiKey"><span className="text-red-500">*</span> API密钥</Label>
+                <Label htmlFor="apiKey">
+                  <span className="text-red-500">*</span> API密钥
+                </Label>
                 <Input
                   id="apiKey"
                   value={formData.apiKey}
-                  onChange={(e) => {
+                  onChange={e => {
                     setFormData(prev => ({ ...prev, apiKey: e.target.value }))
                     setFormErrors(prev => ({ ...prev, apiKey: undefined }))
                   }}
@@ -388,22 +438,26 @@ export function ModelPage() {
                   type="text"
                   autoComplete="off"
                 />
-                {formErrors.apiKey && (
-                  <p className="text-sm text-red-500">{formErrors.apiKey}</p>
-                )}
+                {formErrors.apiKey && <p className="text-sm text-red-500">{formErrors.apiKey}</p>}
               </div>
 
               {formData.provider === ModelProvider.CUSTOM && (
                 <div className="space-y-2">
-                  <Label htmlFor="apiBaseUrl"><span className="text-red-500">*</span> 自定义请求地址</Label>
+                  <Label htmlFor="apiBaseUrl">
+                    <span className="text-red-500">*</span> 自定义请求地址
+                  </Label>
                   <Input
                     id="apiBaseUrl"
                     value={formData.apiBaseUrl}
-                    onChange={(e) => {
+                    onChange={e => {
                       setFormData(prev => ({ ...prev, apiBaseUrl: e.target.value }))
                       setFormErrors(prev => ({ ...prev, apiBaseUrl: undefined }))
                     }}
-                    placeholder={formData.apiFormat === 'anthropic' ? 'e.g. https://api.anthropic.com' : 'e.g. https://api.openai.com/v1'}
+                    placeholder={
+                      formData.compatibility === 'anthropic'
+                        ? 'e.g. https://api.anthropic.com'
+                        : 'e.g. https://api.openai.com/v1'
+                    }
                     className={`w-full ${formErrors.apiBaseUrl ? 'border-red-500' : ''}`}
                   />
                   {formErrors.apiBaseUrl && (
@@ -415,8 +469,12 @@ export function ModelPage() {
 
             <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full mt-6">
               {isSubmitting
-                ? (editingModel ? '保存中...' : '添加中...')
-                : (editingModel ? '保存更改' : '添加模型')}
+                ? editingModel
+                  ? '保存中...'
+                  : '添加中...'
+                : editingModel
+                  ? '保存更改'
+                  : '添加模型'}
             </Button>
           </DialogContent>
         </Dialog>
@@ -440,29 +498,34 @@ export function ModelPage() {
           {models.map(model => {
             const providerConfig = getProviderConfig(model.provider)
             const modelConfig = providerConfig?.models.find(m => m.id === model.name)
-            
+
             return (
               <Card key={model.id} className="group hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-lg ${getProviderColor(model.provider)} flex items-center justify-center`}>
+                      <div
+                        className={`w-10 h-10 rounded-lg ${getProviderColor(model.provider)} flex items-center justify-center`}
+                      >
                         <Zap className="w-5 h-5 text-white" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="font-medium">{modelConfig?.name || model.name}</h3>
                           {model.isDefault && (
-                            <Badge variant="secondary" className="text-xs">默认</Badge>
+                            <Badge variant="secondary" className="text-xs">
+                              默认
+                            </Badge>
                           )}
                           {!model.enabled && (
-                            <Badge variant="outline" className="text-xs">已禁用</Badge>
+                            <Badge variant="outline" className="text-xs">
+                              已禁用
+                            </Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
                           <span>{getProviderName(model.provider)}</span>
                         </div>
-
                       </div>
                     </div>
 
@@ -470,7 +533,11 @@ export function ModelPage() {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(model)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenDialog(model)}
+                            >
                               <Edit className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>
@@ -482,7 +549,14 @@ export function ModelPage() {
                           <TooltipTrigger asChild>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={() => setDeleteTarget({ id: model.id, name: model.name })}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-red-500 hover:text-red-600"
+                                  onClick={() =>
+                                    setDeleteTarget({ id: model.id, name: model.name })
+                                  }
+                                >
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               </AlertDialogTrigger>
@@ -495,7 +569,12 @@ export function ModelPage() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>取消</AlertDialogCancel>
-                                  <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">删除</AlertDialogAction>
+                                  <AlertDialogAction
+                                    onClick={handleDelete}
+                                    className="bg-red-500 hover:bg-red-600"
+                                  >
+                                    删除
+                                  </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
