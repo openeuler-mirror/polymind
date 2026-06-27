@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# PolyMind 启动脚本 (Linux / macOS)
+# PolyMind 启动脚本 (Linux)
 # 负责配置加载、端口管理和服务启停
 # 需先运行 install.sh 完成依赖安装
 # ============================================================
@@ -164,6 +164,12 @@ generate_nginx_config() {
     -e "s|{{BACKEND_PORT}}|$BACKEND_PORT|g" \
     -e "s|{{NEXTJS_UPSTREAM_PORT}}|$NEXTJS_UPSTREAM_PORT|g" \
     "$NGINX_CONF_TEMPLATE" > "$NGINX_CONF"
+
+  # 显式设置 nginx worker 用户
+  sed -i "1i user $(whoami);" "$NGINX_CONF"
+
+  # 创建 nginx 临时目录（非 root 运行时必需）
+  mkdir -p "$NGINX_DIR/tmp/client_body" "$NGINX_DIR/tmp/proxy" "$NGINX_DIR/tmp/fastcgi" "$NGINX_DIR/tmp/uwsgi" "$NGINX_DIR/tmp/scgi"
 
   log_ok "nginx 配置已生成: $NGINX_CONF"
 }
