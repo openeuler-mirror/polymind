@@ -90,70 +90,55 @@ interface Config {
 const PROVIDER_ID_MAP: Record<string, string> = {
   openai: 'openai',
   anthropic: 'anthropic',
-  alibaba: 'alibaba',
   deepseek: 'deepseek',
   zhipuai: 'zhipuai',
-  minimax: 'minimax',
   moonshotai: 'moonshotai',
   google: 'google',
   xai: 'xai',
-  siliconflow: 'siliconflow'
 }
 
 const PROVIDER_URLS: Record<string, { website: string; apiKeyUrl: string }> = {
   openai: {
     website: 'https://openai.com',
-    apiKeyUrl: 'https://platform.openai.com/api-keys'
+    apiKeyUrl: 'https://platform.openai.com/api-keys',
   },
   anthropic: {
     website: 'https://anthropic.com',
-    apiKeyUrl: 'https://console.anthropic.com'
-  },
-  alibaba: {
-    website: 'https://www.alibabacloud.com',
-    apiKeyUrl: 'https://dashscope.aliyun.com'
+    apiKeyUrl: 'https://console.anthropic.com',
   },
   deepseek: {
     website: 'https://deepseek.com',
-    apiKeyUrl: 'https://platform.deepseek.com'
+    apiKeyUrl: 'https://platform.deepseek.com',
   },
   zhipuai: {
     website: 'https://zhipu.ai',
-    apiKeyUrl: 'https://zhipu.ai/manage-apikey/apikey-list'
-  },
-  minimax: {
-    website: 'https://platform.minimax.io',
-    apiKeyUrl: 'https://platform.minimax.io/docs/guides/quickstart'
+    apiKeyUrl: 'https://zhipu.ai/manage-apikey/apikey-list',
   },
   moonshotai: {
     website: 'https://moonshot.ai',
-    apiKeyUrl: 'https://platform.moonshot.ai'
+    apiKeyUrl: 'https://platform.moonshot.ai',
   },
   google: {
     website: 'https://ai.google.com',
-    apiKeyUrl: 'https://makersuite.google.com/app/apikey'
+    apiKeyUrl: 'https://makersuite.google.com/app/apikey',
   },
   xai: {
     website: 'https://x.ai',
-    apiKeyUrl: 'https://console.x.ai'
+    apiKeyUrl: 'https://console.x.ai',
   },
-  siliconflow: {
-    website: 'https://siliconflow.cn',
-    apiKeyUrl: 'https://cloud.siliconflow.cn/api-key'
-  }
 }
 
 const PROVIDER_LOGOS: Record<string, string> = {
-  openai: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/ChatGPT_logo.svg/2048px-ChatGPT_logo.svg.png',
-  anthropic: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Anthropic-logo.svg/1200px-Anthropic-logo.svg.png',
-  alibaba: 'https://www.aliyun.com/favicon.ico',
+  openai:
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/ChatGPT_logo.svg/2048px-ChatGPT_logo.svg.png',
+  anthropic:
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Anthropic-logo.svg/1200px-Anthropic-logo.svg.png',
   deepseek: 'https://deepseek.com/favicon.ico',
   zhipuai: 'https://zhipu.ai/favicon.ico',
-  minimax: 'https://platform.minimax.io/favicon.ico',
   moonshotai: 'https://moonshot.ai/favicon.ico',
-  google: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/2560px-Google_2015_logo.svg.png',
+  google:
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/2560px-Google_2015_logo.svg.png',
   xai: 'https://x.ai/favicon.ico',
-  siliconflow: 'https://siliconflow.cn/favicon.ico'
 }
 
 async function fetchModelsDevData(): Promise<Record<string, ModelsDevProvider>> {
@@ -182,17 +167,17 @@ function loadTempModels(): Record<string, ModelsDevProvider> {
 
 function loadCurrentConfig(): Config {
   const configPath = path.join(process.cwd(), 'lib/ai-providers-config.json')
-  
+
   if (!fs.existsSync(configPath)) {
     return createDefaultConfig()
   }
-  
+
   const content = fs.readFileSync(configPath, 'utf-8').trim()
-  
+
   if (!content) {
     return createDefaultConfig()
   }
-  
+
   try {
     return JSON.parse(content)
   } catch {
@@ -204,7 +189,7 @@ function createDefaultConfig(): Config {
   return {
     version: '1.0.0',
     lastUpdated: new Date().toISOString().split('T')[0],
-    providers: []
+    providers: [],
   }
 }
 
@@ -220,7 +205,7 @@ function transformModelFromDev(
 ): ConfigModel {
   const modalitiesInput = modelData.modalities?.input || []
   const modalitiesOutput = modelData.modalities?.output || []
-  
+
   return {
     id: modelData.id,
     name: modelData.name,
@@ -231,7 +216,7 @@ function transformModelFromDev(
       input: modelData.cost?.input || 0,
       output: modelData.cost?.output || 0,
       currency: 'USD',
-      per: '1M tokens'
+      per: '1M tokens',
     },
     capabilities: {
       imageInput: modalitiesInput.includes('image'),
@@ -241,11 +226,32 @@ function transformModelFromDev(
       toolCalls: modelData.tool_call || false,
       reasoning: modelData.reasoning || false,
       structuredOutputs: modelData.structured_output || true,
-      functionCalling: modelData.tool_call || false
+      functionCalling: modelData.tool_call || false,
     },
     isDefault,
-    isDeprecated: false
+    isDeprecated: false,
   }
+}
+
+function pickDefaultByLastUpdated(models: ConfigModel[], devProvider: ModelsDevProvider): void {
+  if (models.length === 0) return
+
+  // Find the model with the latest last_updated
+  let defaultModel = models[0]
+  let latestDate = ''
+
+  for (const model of models) {
+    const lastUpdated = devProvider.models[model.id]?.last_updated
+    if (lastUpdated && lastUpdated > latestDate) {
+      latestDate = lastUpdated
+      defaultModel = model
+    }
+  }
+
+  models.forEach(m => {
+    m.isDefault = false
+  })
+  defaultModel.isDefault = true
 }
 
 function updateProviderFromDev(
@@ -255,32 +261,28 @@ function updateProviderFromDev(
   const providerId = PROVIDER_ID_MAP[existingProvider.id] || existingProvider.id
   const providerUrls = PROVIDER_URLS[providerId] || {
     website: '',
-    apiKeyUrl: ''
+    apiKeyUrl: '',
   }
-  
+
   const models: ConfigModel[] = []
   const devModelIds = Object.keys(devProvider.models)
-  
+
   const existingModelIds = existingProvider.models.map(m => m.id)
   const allModelIds = new Set([...existingModelIds, ...devModelIds])
-  
+
   for (const modelId of allModelIds) {
     const devModel = devProvider.models[modelId]
     const existingModel = existingProvider.models.find(m => m.id === modelId)
-    
-    const isDefault = existingModel?.isDefault || false
-    
+
     if (devModel) {
-      models.push(transformModelFromDev(modelId, devModel, isDefault))
+      models.push(transformModelFromDev(modelId, devModel, false))
     } else if (existingModel) {
       models.push({ ...existingModel })
     }
   }
-  
-  if (models.length > 0 && !models.find(m => m.isDefault)) {
-    models[0].isDefault = true
-  }
-  
+
+  pickDefaultByLastUpdated(models, devProvider)
+
   return {
     ...existingProvider,
     id: existingProvider.id,
@@ -292,31 +294,29 @@ function updateProviderFromDev(
     supportsToolCalls: models.some(m => m.capabilities.toolCalls),
     supportsReasoning: models.some(m => m.capabilities.reasoning),
     supportsStreaming: true,
-    models
+    models,
   }
 }
 
-function createProviderFromDev(
-  providerId: string,
-  devProvider: ModelsDevProvider
-): ConfigProvider {
+function createProviderFromDev(providerId: string, devProvider: ModelsDevProvider): ConfigProvider {
   const providerUrls = PROVIDER_URLS[providerId] || {
     website: '',
-    apiKeyUrl: ''
+    apiKeyUrl: '',
   }
-  
+
   const models: ConfigModel[] = []
   const devModelIds = Object.keys(devProvider.models)
-  
+
   for (const modelId of devModelIds) {
     const devModel = devProvider.models[modelId]
-    
+
     if (devModel) {
-      const isDefault = models.length === 0
-      models.push(transformModelFromDev(modelId, devModel, isDefault))
+      models.push(transformModelFromDev(modelId, devModel, false))
     }
   }
-  
+
+  pickDefaultByLastUpdated(models, devProvider)
+
   return {
     id: providerId,
     name: devProvider.name || providerId,
@@ -327,26 +327,32 @@ function createProviderFromDev(
     supportsToolCalls: models.some(m => m.capabilities.toolCalls),
     supportsReasoning: models.some(m => m.capabilities.reasoning),
     supportsStreaming: true,
-    models
+    models,
   }
 }
 
 async function main(): Promise<void> {
   console.log('📦 Loading temp/models.json...')
   const tempModels = loadTempModels()
-  
+
   console.log('📦 Loading current config...')
   const currentConfig = loadCurrentConfig()
-  
+
   console.log('🌐 Fetching latest data from models.dev...')
-  const devData = await fetchModelsDevData()
-  
+  let devData: Record<string, ModelsDevProvider>
+  try {
+    devData = await fetchModelsDevData()
+  } catch (err) {
+    console.log('  - Fetch failed, falling back to temp data...')
+    devData = tempModels
+  }
+
   console.log('🔄 Updating providers...')
   const updatedProviders: ConfigProvider[] = []
-  
+
   if (currentConfig.providers.length === 0) {
     console.log('  - Creating new providers from temp models and dev data...')
-    
+
     for (const [providerId, tempProvider] of Object.entries(tempModels)) {
       if (PROVIDER_ID_MAP[providerId]) {
         console.log(`    - Creating ${tempProvider.name} from temp...`)
@@ -354,7 +360,7 @@ async function main(): Promise<void> {
         updatedProviders.push(newProvider)
       }
     }
-    
+
     for (const [providerId, devProvider] of Object.entries(devData)) {
       if (PROVIDER_ID_MAP[providerId] && !updatedProviders.find(p => p.id === providerId)) {
         console.log(`    - Creating ${devProvider.name} from dev...`)
@@ -364,11 +370,15 @@ async function main(): Promise<void> {
     }
   } else {
     for (const existingProvider of currentConfig.providers) {
-      const providerId = PROVIDER_ID_MAP[existingProvider.id] || existingProvider.id
-      
+      const providerId = PROVIDER_ID_MAP[existingProvider.id]
+      if (!providerId) {
+        console.log(`  - Skipping ${existingProvider.name} (not in provider map)`)
+        continue
+      }
+
       const tempProvider = tempModels[providerId]
       const devProvider = devData[providerId]
-      
+
       if (tempProvider) {
         console.log(`  - Updating ${existingProvider.name} from temp...`)
         const updatedProvider = updateProviderFromDev(existingProvider, tempProvider)
@@ -382,12 +392,12 @@ async function main(): Promise<void> {
         updatedProviders.push(existingProvider)
       }
     }
-    
+
     for (const providerId of Object.keys(PROVIDER_ID_MAP)) {
       if (!updatedProviders.find(p => p.id === providerId)) {
         const tempProvider = tempModels[providerId]
         const devProvider = devData[providerId]
-        
+
         if (tempProvider) {
           console.log(`  - Adding ${providerId} from temp...`)
           const newProvider = createProviderFromDev(providerId, tempProvider)
@@ -400,16 +410,16 @@ async function main(): Promise<void> {
       }
     }
   }
-  
+
   const updatedConfig: Config = {
     version: currentConfig.version || '1.0.0',
     lastUpdated: new Date().toISOString().split('T')[0],
-    providers: updatedProviders
+    providers: updatedProviders,
   }
-  
+
   console.log('💾 Saving updated config...')
   saveConfig(updatedConfig)
-  
+
   console.log('✅ Done! Config has been updated.')
 }
 

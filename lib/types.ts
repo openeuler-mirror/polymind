@@ -138,9 +138,9 @@ export enum ModelProvider {
 }
 
 /**
- * API 格式类型
+ * API 兼容格式类型
  */
-export type ApiFormat = 'openai' | 'anthropic'
+export type Compatibility = 'openai' | 'anthropic'
 
 /**
  * 模型配置接口
@@ -150,7 +150,7 @@ export interface ModelConfig {
   name: string
   provider: ModelProvider | string
   apiBaseUrl?: string
-  apiFormat?: ApiFormat
+  compatibility?: Compatibility
   enabled: boolean
   maxTokens?: number
   temperature?: number
@@ -167,7 +167,7 @@ export interface CreateModelRequest {
   provider: ModelProvider | string
   apiKey: string
   apiBaseUrl?: string
-  apiFormat?: ApiFormat
+  compatibility?: Compatibility
   enabled?: boolean
   maxTokens?: number
   temperature?: number
@@ -182,7 +182,7 @@ export interface UpdateModelRequest {
   provider?: ModelProvider | string
   apiKey?: string
   apiBaseUrl?: string
-  apiFormat?: ApiFormat
+  compatibility?: Compatibility
   enabled?: boolean
   maxTokens?: number
   temperature?: number
