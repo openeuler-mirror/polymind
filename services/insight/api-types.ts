@@ -132,6 +132,8 @@ export interface InterruptionTypeStat {
   count: number
 }
 
+export type InterruptionTypeDetail = InterruptionTypeStat
+
 interface InterruptionAggregateCount {
   total: number
   by_severity: InterruptionSeverityCounts
