@@ -11,10 +11,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import {
   canAcknowledgeManagedAgent,
@@ -147,22 +145,6 @@ function formatClockTime(timestampMs: number | null): string {
 
 function formatPorts(ports: number[]): string {
   return ports.length > 0 ? ports.join(', ') : '—'
-}
-
-function HealthRailSkeleton() {
-  return (
-    <Card>
-      <CardHeader className="space-y-3">
-        <Skeleton className="h-5 w-28" />
-        <Skeleton className="h-4 w-40" />
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-32 w-full" />
-        ))}
-      </CardContent>
-    </Card>
-  )
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -357,7 +339,6 @@ interface InsightHealthRailProps {
   loading: boolean
   error: string | null
   lastScanTime: number | null
-  mode?: 'card' | 'drawer'
   onAcknowledgeOffline?: (pid: number) => Promise<void>
 }
 
@@ -366,7 +347,6 @@ export function InsightHealthRail({
   loading,
   error,
   lastScanTime,
-  mode = 'card',
   onAcknowledgeOffline,
 }: InsightHealthRailProps) {
   const summary = summarizeManagedHealthAgents(agents)
@@ -374,20 +354,16 @@ export function InsightHealthRail({
   const [expanded, setExpanded] = useState(false)
 
   if (loading) {
-    if (mode === 'drawer') {
-      return (
-        <div className="w-10 overflow-hidden rounded-l-2xl border border-r-0 bg-background/95 shadow-lg">
-          <div className="flex h-[640px] w-10 flex-col items-center gap-3 border-r bg-muted/40 px-1 py-4 text-muted-foreground">
-            <HeartPulse className="h-4 w-4 animate-pulse" />
-            <span className="[writing-mode:vertical-rl] text-[12px] font-semibold tracking-[0.16em]">
-              健康状态
-            </span>
-          </div>
+    return (
+      <div className="w-10 overflow-hidden rounded-l-2xl border border-r-0 bg-background/95 shadow-lg">
+        <div className="flex h-[640px] w-10 flex-col items-center gap-3 border-r bg-muted/40 px-1 py-4 text-muted-foreground">
+          <HeartPulse className="h-4 w-4 animate-pulse" />
+          <span className="[writing-mode:vertical-rl] text-[12px] font-semibold tracking-[0.16em]">
+            健康状态
+          </span>
         </div>
-      )
-    }
-
-    return <HealthRailSkeleton />
+      </div>
+    )
   }
 
   const badges = (
@@ -458,78 +434,60 @@ export function InsightHealthRail({
     </ScrollArea>
   )
 
-  if (mode === 'drawer') {
-    return (
-      <div
-        className={cn(
-          'overflow-hidden rounded-l-2xl border border-r-0 bg-background/95 shadow-lg backdrop-blur transition-[width] duration-300',
-          hasAttention && !expanded && 'border-red-200 bg-red-50/60 shadow-red-100/70'
-        )}
-        style={{ width: expanded ? DRAWER_WIDTH : 40 }}
-      >
-        <div className="flex h-[640px]">
-          <button
-            type="button"
-            className={cn(
-              'flex w-10 shrink-0 flex-col items-center gap-3 border-r px-1 py-4 text-center transition-colors',
-              hasAttention
-                ? 'bg-red-50/70 text-red-700 hover:bg-red-100/80'
-                : 'bg-muted/40 hover:bg-muted/60'
-            )}
-            onClick={() => {
-              setExpanded(currentValue => !currentValue)
-            }}
-          >
-            <HeartPulse
-              className={cn('h-4 w-4', hasAttention ? 'text-red-600' : 'text-muted-foreground')}
-            />
-            <span className="[writing-mode:vertical-rl] text-[13px] font-semibold tracking-[0.18em] text-foreground">
-              健康状态
-            </span>
-            <Badge variant="outline" className="px-1 text-[9px]">
-              {agents.length}
-            </Badge>
-            {summary.attentionCount > 0 ? (
-              <Badge className="border border-red-200 bg-red-50 px-1 text-[9px] text-red-700">
-                {summary.attentionCount}
-              </Badge>
-            ) : null}
-            {error ? <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-600" /> : null}
-            {expanded ? (
-              <ChevronRight className="mt-auto h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronLeft className="mt-auto h-4 w-4 text-muted-foreground" />
-            )}
-          </button>
-
-          {expanded ? (
-            <div className="min-w-0 flex-1 space-y-3 p-3">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Activity className="h-3.5 w-3.5" />
-                {formatClockTime(lastScanTime)}
-              </div>
-              {badges}
-              {contentBody}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="space-y-3 pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <CardTitle className="text-base">健康状态</CardTitle>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Activity className="h-3.5 w-3.5" />
-            {formatClockTime(lastScanTime)}
+    <div
+      className={cn(
+        'overflow-hidden rounded-l-2xl border border-r-0 bg-background/95 shadow-lg backdrop-blur transition-[width] duration-300',
+        hasAttention && !expanded && 'border-red-200 bg-red-50/60 shadow-red-100/70'
+      )}
+      style={{ width: expanded ? DRAWER_WIDTH : 40 }}
+    >
+      <div className="flex h-[640px]">
+        <button
+          type="button"
+          className={cn(
+            'flex w-10 shrink-0 flex-col items-center gap-3 border-r px-1 py-4 text-center transition-colors',
+            hasAttention
+              ? 'bg-red-50/70 text-red-700 hover:bg-red-100/80'
+              : 'bg-muted/40 hover:bg-muted/60'
+          )}
+          onClick={() => {
+            setExpanded(currentValue => !currentValue)
+          }}
+        >
+          <HeartPulse
+            className={cn('h-4 w-4', hasAttention ? 'text-red-600' : 'text-muted-foreground')}
+          />
+          <span className="[writing-mode:vertical-rl] text-[13px] font-semibold tracking-[0.18em] text-foreground">
+            健康状态
+          </span>
+          <Badge variant="outline" className="px-1 text-[9px]">
+            {agents.length}
+          </Badge>
+          {summary.attentionCount > 0 ? (
+            <Badge className="border border-red-200 bg-red-50 px-1 text-[9px] text-red-700">
+              {summary.attentionCount}
+            </Badge>
+          ) : null}
+          {error ? <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-600" /> : null}
+          {expanded ? (
+            <ChevronRight className="mt-auto h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronLeft className="mt-auto h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+
+        {expanded ? (
+          <div className="min-w-0 flex-1 space-y-3 p-3">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Activity className="h-3.5 w-3.5" />
+              {formatClockTime(lastScanTime)}
+            </div>
+            {badges}
+            {contentBody}
           </div>
-        </div>
-        {badges}
-      </CardHeader>
-      <CardContent className="space-y-4 pt-0">{contentBody}</CardContent>
-    </Card>
+        ) : null}
+      </div>
+    </div>
   )
 }

@@ -110,7 +110,6 @@ function AtifQueryCard({
     onSelectTarget({
       source: querySource,
       id: nextId,
-      description: nextId,
     })
   }
 

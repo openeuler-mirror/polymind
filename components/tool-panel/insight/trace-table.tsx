@@ -227,7 +227,6 @@ function TraceSubtable({
                       onOpenAtif({
                         source: 'conversation',
                         id: trace.conversation_id,
-                        description: trace.user_query?.trim() || trace.conversation_id,
                       })
                     }}
                   >
@@ -337,9 +336,6 @@ function SessionRow({
               onOpenAtif({
                 source: 'session',
                 id: session.session_id,
-                description: session.agent_name
-                  ? `${session.agent_name} · ${session.session_id}`
-                  : session.session_id,
               })
             }}
           >

@@ -13,6 +13,20 @@ export function isAllInsightAgents(value: string) {
   return value === 'all'
 }
 
+export function getInsightOverviewLoadMode(options: {
+  sessionCount: number
+  lastUpdated: Date | null
+}): 'loading' | 'refreshing' {
+  return options.sessionCount === 0 && options.lastUpdated === null ? 'loading' : 'refreshing'
+}
+
+export function shouldShowInsightTimeseriesLoading(options: {
+  tokenSeriesCount: number
+  modelSeriesCount: number
+}) {
+  return options.tokenSeriesCount === 0 && options.modelSeriesCount === 0
+}
+
 export function getInsightInterruptionTotal({
   selectedWittyAgentId,
   interruptionCountLoaded,

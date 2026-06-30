@@ -27,5 +27,4 @@ export type InsightAtifSource = 'session' | 'conversation'
 export interface InsightAtifTarget {
   source: InsightAtifSource
   id: string
-  description?: string
 }

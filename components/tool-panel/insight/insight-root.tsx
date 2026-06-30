@@ -82,7 +82,6 @@ export function InsightRoot() {
               loading={controller.healthLoading}
               error={controller.healthError}
               lastScanTime={controller.healthLastScanTime}
-              mode="drawer"
               onAcknowledgeOffline={controller.acknowledgeOfflineAgent}
             />
           </div>

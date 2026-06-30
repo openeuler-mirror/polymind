@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { filterManagedHealthAgents, sortManagedHealthAgents } from './agent-health-utils'
-import { getInsightInterruptionTotal, isAllInsightAgents } from './overview-utils'
+import {
+  getInsightInterruptionTotal,
+  getInsightOverviewLoadMode,
+  isAllInsightAgents,
+  shouldShowInsightTimeseriesLoading,
+} from './overview-utils'
 import type {
   AgentHealthStatus,
   ConversationInterruptionCount,
   InterruptionCountResponse,
   InterruptionRecord,
-  InterruptionSeverity,
-  InterruptionTypeDetail,
   SessionInterruptionCount,
   SessionSummary,
   TimeseriesResponse,
@@ -21,10 +24,7 @@ import { insightService } from '@/services/insight/service'
 export type InsightRangePreset = '1h' | '6h' | '24h' | '7d'
 
 export interface InsightQueryRange {
-  preset: InsightRangePreset
   label: string
-  startMs: number
-  endMs: number
   startNs: number
   endNs: number
 }
@@ -68,10 +68,7 @@ function buildQueryRange(preset: InsightRangePreset): InsightQueryRange {
   const startMs = endMs - matchedPreset.durationMs
 
   return {
-    preset,
     label: matchedPreset.label,
-    startMs,
-    endMs,
     startNs: startMs * 1_000_000,
     endNs: endMs * 1_000_000,
   }
@@ -114,30 +111,6 @@ function indexConversationInterruptionCounts(
     },
     {}
   )
-}
-
-function decrementSeverityCounts(
-  counts: Record<InterruptionSeverity, number>,
-  severity: InterruptionSeverity
-): Record<InterruptionSeverity, number> {
-  return {
-    ...counts,
-    [severity]: Math.max(0, counts[severity] - 1),
-  }
-}
-
-function decrementTypeCounts(
-  types: InterruptionTypeDetail[],
-  severity: InterruptionSeverity,
-  interruptionType: string
-): InterruptionTypeDetail[] {
-  return types
-    .map(type =>
-      type.severity === severity && type.interruption_type === interruptionType
-        ? { ...type, count: Math.max(0, type.count - 1) }
-        : type
-    )
-    .filter(type => type.count > 0)
 }
 
 function getErrorMessage(error: unknown): string {
@@ -197,11 +170,13 @@ export function useInsightOverview(options?: { enabled?: boolean }) {
   const requestIdRef = useRef(0)
   const interruptionRequestIdRef = useRef(0)
   const healthRequestIdRef = useRef(0)
-  const lastUpdatedRef = useRef<Date | null>(null)
-  const sessionCountRef = useRef(0)
-  const tokenSeriesCountRef = useRef(0)
-  const modelSeriesCountRef = useRef(0)
-  const healthAgentCountRef = useRef(0)
+  const overviewStateRef = useRef({
+    lastUpdated: null as Date | null,
+    sessionCount: 0,
+    tokenSeriesCount: 0,
+    modelSeriesCount: 0,
+    healthAgentCount: 0,
+  })
   const [interruptionSheet, setInterruptionSheet] = useState<InsightInterruptionSheetState>({
     open: false,
     scope: null,
@@ -213,24 +188,14 @@ export function useInsightOverview(options?: { enabled?: boolean }) {
   const pageSize = 10
 
   useEffect(() => {
-    lastUpdatedRef.current = lastUpdated
-  }, [lastUpdated])
-
-  useEffect(() => {
-    sessionCountRef.current = sessions.length
-  }, [sessions.length])
-
-  useEffect(() => {
-    tokenSeriesCountRef.current = tokenSeries.length
-  }, [tokenSeries.length])
-
-  useEffect(() => {
-    modelSeriesCountRef.current = modelSeries.length
-  }, [modelSeries.length])
-
-  useEffect(() => {
-    healthAgentCountRef.current = healthAgents.length
-  }, [healthAgents.length])
+    overviewStateRef.current = {
+      lastUpdated,
+      sessionCount: sessions.length,
+      tokenSeriesCount: tokenSeries.length,
+      modelSeriesCount: modelSeries.length,
+      healthAgentCount: healthAgents.length,
+    }
+  }, [healthAgents.length, lastUpdated, modelSeries.length, sessions.length, tokenSeries.length])
 
   const agentFilterOptions = useMemo(() => createAgentFilterOptions(wittyAgents), [wittyAgents])
 
@@ -243,7 +208,7 @@ export function useInsightOverview(options?: { enabled?: boolean }) {
 
       const requestId = ++healthRequestIdRef.current
 
-      if (showLoading || healthAgentCountRef.current === 0) {
+      if (showLoading || overviewStateRef.current.healthAgentCount === 0) {
         setHealthLoading(true)
       }
 
@@ -276,24 +241,64 @@ export function useInsightOverview(options?: { enabled?: boolean }) {
     [enabled, selectedWittyAgentId]
   )
 
-  const acknowledgeOfflineAgent = useCallback(async (pid: number) => {
-    await insightService.deleteAgentHealth(pid)
+  const acknowledgeOfflineAgent = useCallback(
+    async (pid: number) => {
+      await insightService.deleteAgentHealth(pid)
+      await refreshHealth(true)
+    },
+    [refreshHealth]
+  )
 
-    setHealthAgents(currentValue =>
-      sortManagedHealthAgents(
-        currentValue.map(agent =>
-          agent.runtime?.pid === pid
-            ? {
-                ...agent,
-                overall_status: 'missing_runtime',
-                status_reason: '已确认移除离线 runtime，等待下一次健康扫描同步',
-                runtime: null,
-              }
-            : agent
-        )
+  const refreshInterruptionAggregates = useCallback(async () => {
+    const selectedAgentId = isAllInsightAgents(selectedWittyAgentId)
+      ? undefined
+      : selectedWittyAgentId
+
+    const [interruptionResult, sessionCountsResult, conversationCountsResult] =
+      await Promise.allSettled([
+        insightService.getInterruptionCount({
+          start_ns: queryRange.startNs,
+          end_ns: queryRange.endNs,
+          witty_agent_id: selectedAgentId,
+        }),
+        insightService.getInterruptionSessionCounts({
+          start_ns: queryRange.startNs,
+          end_ns: queryRange.endNs,
+          witty_agent_id: selectedAgentId,
+        }),
+        insightService.getInterruptionConversationCounts({
+          start_ns: queryRange.startNs,
+          end_ns: queryRange.endNs,
+          witty_agent_id: selectedAgentId,
+        }),
+      ])
+
+    if (interruptionResult.status === 'fulfilled') {
+      setInterruptionCount(interruptionResult.value)
+      setInterruptionCountLoaded(true)
+    } else {
+      setInterruptionCount(null)
+      setInterruptionCountLoaded(false)
+    }
+
+    if (sessionCountsResult.status === 'fulfilled') {
+      setSessionInterruptionCounts(indexSessionInterruptionCounts(sessionCountsResult.value))
+      setSessionInterruptionCountsLoaded(true)
+    } else {
+      setSessionInterruptionCounts({})
+      setSessionInterruptionCountsLoaded(false)
+    }
+
+    if (conversationCountsResult.status === 'fulfilled') {
+      setConversationInterruptionCounts(
+        indexConversationInterruptionCounts(conversationCountsResult.value)
       )
-    )
-  }, [])
+      setConversationInterruptionCountsLoaded(true)
+    } else {
+      setConversationInterruptionCounts({})
+      setConversationInterruptionCountsLoaded(false)
+    }
+  }, [queryRange.endNs, queryRange.startNs, selectedWittyAgentId])
 
   const refreshOverview = useCallback(async () => {
     if (!enabled) {
@@ -306,9 +311,12 @@ export function useInsightOverview(options?: { enabled?: boolean }) {
 
     const requestId = ++requestIdRef.current
     const nextQueryRange = buildQueryRange(selectedPreset)
-    const shouldBlock = sessionCountRef.current === 0 && lastUpdatedRef.current === null
+    const nextLoadMode = getInsightOverviewLoadMode({
+      sessionCount: overviewStateRef.current.sessionCount,
+      lastUpdated: overviewStateRef.current.lastUpdated,
+    })
 
-    if (shouldBlock) {
+    if (nextLoadMode === 'loading') {
       setLoading(true)
     } else {
       setRefreshing(true)
@@ -319,7 +327,12 @@ export function useInsightOverview(options?: { enabled?: boolean }) {
     setLastUpdated(new Date())
     void refreshHealth()
 
-    if (tokenSeriesCountRef.current === 0 && modelSeriesCountRef.current === 0) {
+    if (
+      shouldShowInsightTimeseriesLoading({
+        tokenSeriesCount: overviewStateRef.current.tokenSeriesCount,
+        modelSeriesCount: overviewStateRef.current.modelSeriesCount,
+      })
+    ) {
       setTimeseriesLoading(true)
     }
 
@@ -572,82 +585,21 @@ export function useInsightOverview(options?: { enabled?: boolean }) {
     }))
   }, [])
 
-  const resolveInterruptionRecord = useCallback(async (record: InterruptionRecord) => {
-    await insightService.resolveInterruption(record.interruption_id)
+  const resolveInterruptionRecord = useCallback(
+    async (record: InterruptionRecord) => {
+      await insightService.resolveInterruption(record.interruption_id)
 
-    setInterruptionCount(currentValue => {
-      if (!currentValue) {
-        return currentValue
-      }
+      setInterruptionSheet(currentValue => ({
+        ...currentValue,
+        records: currentValue.records.filter(
+          item => item.interruption_id !== record.interruption_id
+        ),
+      }))
 
-      return {
-        total: Math.max(0, currentValue.total - 1),
-        by_severity: decrementSeverityCounts(currentValue.by_severity, record.severity),
-      }
-    })
-
-    if (record.session_id) {
-      setSessionInterruptionCounts(currentValue => {
-        const existing = currentValue[record.session_id!]
-        if (!existing) {
-          return currentValue
-        }
-
-        const nextTotal = Math.max(0, existing.total - 1)
-        const nextCounts: SessionInterruptionCount = {
-          session_id: existing.session_id,
-          runtime_session_id: existing.runtime_session_id,
-          total: nextTotal,
-          by_severity: decrementSeverityCounts(existing.by_severity, record.severity),
-          types: decrementTypeCounts(existing.types, record.severity, record.interruption_type),
-        }
-
-        if (nextTotal === 0) {
-          const next = { ...currentValue }
-          delete next[record.session_id!]
-          return next
-        }
-
-        return {
-          ...currentValue,
-          [record.session_id!]: nextCounts,
-        }
-      })
-    }
-
-    if (record.conversation_id) {
-      setConversationInterruptionCounts(currentValue => {
-        const existing = currentValue[record.conversation_id!]
-        if (!existing) {
-          return currentValue
-        }
-
-        const nextTotal = Math.max(0, existing.total - 1)
-        const nextCounts: ConversationInterruptionCount = {
-          conversation_id: existing.conversation_id,
-          total: nextTotal,
-          by_severity: decrementSeverityCounts(existing.by_severity, record.severity),
-          types: decrementTypeCounts(existing.types, record.severity, record.interruption_type),
-        }
-
-        if (nextTotal === 0) {
-          const next = { ...currentValue }
-          delete next[record.conversation_id!]
-          return next
-        }
-
-        return {
-          ...currentValue,
-          [record.conversation_id!]: nextCounts,
-        }
-      })
-    }
-
-    setInterruptionSheet(currentValue => ({
-      ...currentValue,
-      records: currentValue.records.filter(item => item.interruption_id !== record.interruption_id),
-    }))
-  }, [])
+      await refreshInterruptionAggregates()
+    },
+    [refreshInterruptionAggregates]
+  )
 
   useEffect(() => {
     if (!enabled) {

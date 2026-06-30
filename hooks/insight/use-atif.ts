@@ -18,57 +18,50 @@ export function useInsightAtif(target: InsightAtifTarget | null) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const loadDocument = useCallback(
-    async (nextTarget: InsightAtifTarget | null = target) => {
-      if (!nextTarget) {
-        setDoc(null)
-        setLoading(false)
-        setError(null)
+  const loadDocument = useCallback(async (nextTarget: InsightAtifTarget | null) => {
+    if (!nextTarget) {
+      setDoc(null)
+      setLoading(false)
+      setError(null)
+      return
+    }
+
+    const requestId = ++requestIdRef.current
+    setLoading(true)
+    setError(null)
+    setDoc(null)
+
+    try {
+      const loadedDoc =
+        nextTarget.source === 'session'
+          ? await insightService.getAtifBySession(nextTarget.id)
+          : await insightService.getAtifByConversation(nextTarget.id)
+
+      if (requestIdRef.current !== requestId) {
         return
       }
 
-      const requestId = ++requestIdRef.current
-      setLoading(true)
-      setError(null)
-      setDoc(null)
-
-      try {
-        const loadedDoc =
-          nextTarget.source === 'session'
-            ? await insightService.getAtifBySession(nextTarget.id)
-            : await insightService.getAtifByConversation(nextTarget.id)
-
-        if (requestIdRef.current !== requestId) {
-          return
-        }
-
-        setDoc(loadedDoc)
-      } catch (loadError) {
-        if (requestIdRef.current !== requestId) {
-          return
-        }
-
-        setError(getErrorMessage(loadError))
-      } finally {
-        if (requestIdRef.current === requestId) {
-          setLoading(false)
-        }
+      setDoc(loadedDoc)
+    } catch (loadError) {
+      if (requestIdRef.current !== requestId) {
+        return
       }
-    },
-    [target]
-  )
+
+      setError(getErrorMessage(loadError))
+    } finally {
+      if (requestIdRef.current === requestId) {
+        setLoading(false)
+      }
+    }
+  }, [])
 
   useEffect(() => {
-    let cancelled = false
-
-    queueMicrotask(() => {
-      if (!cancelled) {
-        void loadDocument(target)
-      }
-    })
+    const timeoutId = window.setTimeout(() => {
+      void loadDocument(target)
+    }, 0)
 
     return () => {
-      cancelled = true
+      window.clearTimeout(timeoutId)
     }
   }, [loadDocument, target])
 
