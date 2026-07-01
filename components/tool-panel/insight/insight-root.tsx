@@ -77,13 +77,7 @@ export function InsightRoot() {
       {availability.status === 'available' ? (
         <div className="pointer-events-none absolute top-20 right-0 hidden h-[calc(100%-5rem)] md:block">
           <div className="pointer-events-auto sticky top-20">
-            <InsightHealthRail
-              agents={controller.healthAgents}
-              loading={controller.healthLoading}
-              error={controller.healthError}
-              lastScanTime={controller.healthLastScanTime}
-              onAcknowledgeOffline={controller.acknowledgeOfflineAgent}
-            />
+            <InsightHealthRail controller={controller.health} />
           </div>
         </div>
       ) : null}

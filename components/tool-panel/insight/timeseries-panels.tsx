@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/chart'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { InsightOverviewTimeseriesController } from '@/hooks/insight/use-overview'
 import type { ModelTimeseriesBucket, TimeseriesBucket } from '@/hooks/insight/types'
 import { cn } from '@/lib/utils'
 import {
@@ -259,23 +260,11 @@ function ModelTimeseriesChart({
 }
 
 interface InsightTimeseriesPanelsProps {
-  tokenSeries: TimeseriesBucket[]
-  modelSeries: ModelTimeseriesBucket[]
-  startNs: number
-  endNs: number
-  loading: boolean
-  error: string | null
+  controller: InsightOverviewTimeseriesController
 }
 
-export function InsightTimeseriesPanels({
-  tokenSeries,
-  modelSeries,
-  startNs,
-  endNs,
-  loading,
-  error,
-}: InsightTimeseriesPanelsProps) {
-  if (loading) {
+export function InsightTimeseriesPanels({ controller }: InsightTimeseriesPanelsProps) {
+  if (controller.loading) {
     return <TimeseriesSkeleton />
   }
 
@@ -286,14 +275,18 @@ export function InsightTimeseriesPanels({
           <CardTitle className="text-base">Token 时序图</CardTitle>
         </CardHeader>
         <CardContent>
-          {error ? (
+          {controller.error ? (
             <Alert variant="destructive">
               <AlertCircle />
               <AlertTitle>时序图加载失败</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>{controller.error}</AlertDescription>
             </Alert>
           ) : (
-            <TokenTimeseriesChart data={tokenSeries} startNs={startNs} endNs={endNs} />
+            <TokenTimeseriesChart
+              data={controller.tokenSeries}
+              startNs={controller.startNs}
+              endNs={controller.endNs}
+            />
           )}
         </CardContent>
       </Card>
@@ -303,14 +296,18 @@ export function InsightTimeseriesPanels({
           <CardTitle className="text-base">模型 Token 时序图</CardTitle>
         </CardHeader>
         <CardContent>
-          {error ? (
+          {controller.error ? (
             <Alert variant="destructive">
               <AlertCircle />
               <AlertTitle>时序图加载失败</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>{controller.error}</AlertDescription>
             </Alert>
           ) : (
-            <ModelTimeseriesChart data={modelSeries} startNs={startNs} endNs={endNs} />
+            <ModelTimeseriesChart
+              data={controller.modelSeries}
+              startNs={controller.startNs}
+              endNs={controller.endNs}
+            />
           )}
         </CardContent>
       </Card>

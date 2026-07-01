@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
+import type { InsightOverviewInterruptionsController } from '@/hooks/insight/use-overview'
 import type { InterruptionRecord, InterruptionSeverity } from '@/hooks/insight/types'
 import { cn } from '@/lib/utils'
 
@@ -152,46 +153,32 @@ function InterruptionDetailCard({
 }
 
 interface InsightInterruptionSheetProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  title: string
-  records: InterruptionRecord[]
-  loading: boolean
-  error: string | null
-  onResolveRecord?: (record: InterruptionRecord) => Promise<void>
+  controller: InsightOverviewInterruptionsController
 }
 
-export function InsightInterruptionSheet({
-  open,
-  onOpenChange,
-  title,
-  records,
-  loading,
-  error,
-  onResolveRecord,
-}: InsightInterruptionSheetProps) {
+export function InsightInterruptionSheet({ controller }: InsightInterruptionSheetProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={controller.sheet.open} onOpenChange={controller.setInterruptionSheetOpen}>
       <DialogContent className="max-w-5xl gap-0 overflow-hidden p-0">
         <DialogHeader className="border-b px-6 py-5">
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>{controller.sheet.title}</DialogTitle>
         </DialogHeader>
 
         <ScrollArea className="max-h-[78vh] px-6 pb-6">
-          {loading ? (
+          {controller.sheet.loading ? (
             <div className="flex min-h-60 items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
               <Spinner className="h-4 w-4" />
               正在加载异常中断详情...
             </div>
-          ) : error ? (
+          ) : controller.sheet.error ? (
             <div className="py-4">
               <Alert variant="destructive">
                 <AlertCircle />
                 <AlertTitle>异常中断详情加载失败</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{controller.sheet.error}</AlertDescription>
               </Alert>
             </div>
-          ) : records.length === 0 ? (
+          ) : controller.sheet.records.length === 0 ? (
             <div className="py-4">
               <Empty className="border-muted bg-background/60">
                 <EmptyHeader>
@@ -204,11 +191,11 @@ export function InsightInterruptionSheet({
             </div>
           ) : (
             <div className="space-y-3 py-4">
-              {records.map(record => (
+              {controller.sheet.records.map(record => (
                 <InterruptionDetailCard
                   key={record.interruption_id}
                   record={record}
-                  onResolve={onResolveRecord}
+                  onResolve={controller.resolveInterruptionRecord}
                 />
               ))}
             </div>

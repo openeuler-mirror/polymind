@@ -18,6 +18,7 @@ import {
   canAcknowledgeManagedAgent,
   summarizeManagedHealthAgents,
 } from '@/hooks/insight/agent-health-utils'
+import type { InsightOverviewHealthController } from '@/hooks/insight/use-overview'
 import type { AgentHealthStatus, AgentRuntimeHealthStatus } from '@/hooks/insight/types'
 import { cn } from '@/lib/utils'
 
@@ -335,25 +336,15 @@ function HealthAgentCard({
 }
 
 interface InsightHealthRailProps {
-  agents: AgentHealthStatus[]
-  loading: boolean
-  error: string | null
-  lastScanTime: number | null
-  onAcknowledgeOffline?: (pid: number) => Promise<void>
+  controller: InsightOverviewHealthController
 }
 
-export function InsightHealthRail({
-  agents,
-  loading,
-  error,
-  lastScanTime,
-  onAcknowledgeOffline,
-}: InsightHealthRailProps) {
-  const summary = summarizeManagedHealthAgents(agents)
+export function InsightHealthRail({ controller }: InsightHealthRailProps) {
+  const summary = summarizeManagedHealthAgents(controller.agents)
   const hasAttention = summary.attentionCount > 0
   const [expanded, setExpanded] = useState(false)
 
-  if (loading) {
+  if (controller.loading) {
     return (
       <div className="w-10 overflow-hidden rounded-l-2xl border border-r-0 bg-background/95 shadow-lg">
         <div className="flex h-[640px] w-10 flex-col items-center gap-3 border-r bg-muted/40 px-1 py-4 text-muted-foreground">
@@ -368,7 +359,7 @@ export function InsightHealthRail({
 
   const badges = (
     <div className="flex flex-wrap gap-2">
-      <Badge variant="outline">总计 {agents.length}</Badge>
+      <Badge variant="outline">总计 {controller.agents.length}</Badge>
       <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700">
         正常 {summary.healthyCount}
       </Badge>
@@ -405,13 +396,13 @@ export function InsightHealthRail({
     </div>
   )
 
-  const contentBody = error ? (
+  const contentBody = controller.error ? (
     <Alert variant="destructive">
       <AlertCircle />
       <AlertTitle>健康状态加载失败</AlertTitle>
-      <AlertDescription>{error}</AlertDescription>
+      <AlertDescription>{controller.error}</AlertDescription>
     </Alert>
-  ) : agents.length === 0 ? (
+  ) : controller.agents.length === 0 ? (
     <Empty className="border-muted bg-background/60 py-10">
       <EmptyHeader>
         <EmptyMedia variant="icon">
@@ -423,11 +414,11 @@ export function InsightHealthRail({
   ) : (
     <ScrollArea className="h-[520px] pr-3">
       <div className="space-y-3 pb-1">
-        {agents.map(agent => (
+        {controller.agents.map(agent => (
           <HealthAgentCard
             key={agent.witty_agent_id}
             agent={agent}
-            onAcknowledgeOffline={onAcknowledgeOffline}
+            onAcknowledgeOffline={controller.acknowledgeOfflineAgent}
           />
         ))}
       </div>
@@ -462,14 +453,16 @@ export function InsightHealthRail({
             健康状态
           </span>
           <Badge variant="outline" className="px-1 text-[9px]">
-            {agents.length}
+            {controller.agents.length}
           </Badge>
           {summary.attentionCount > 0 ? (
             <Badge className="border border-red-200 bg-red-50 px-1 text-[9px] text-red-700">
               {summary.attentionCount}
             </Badge>
           ) : null}
-          {error ? <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-600" /> : null}
+          {controller.error ? (
+            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
+          ) : null}
           {expanded ? (
             <ChevronRight className="mt-auto h-4 w-4 text-muted-foreground" />
           ) : (
@@ -481,7 +474,7 @@ export function InsightHealthRail({
           <div className="min-w-0 flex-1 space-y-3 p-3">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Activity className="h-3.5 w-3.5" />
-              {formatClockTime(lastScanTime)}
+              {formatClockTime(controller.lastScanTime)}
             </div>
             {badges}
             {contentBody}

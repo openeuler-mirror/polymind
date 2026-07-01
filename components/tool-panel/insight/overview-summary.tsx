@@ -1,6 +1,6 @@
 import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { InsightOverviewSummary } from '@/hooks/insight/use-overview'
+import type { InsightOverviewSummaryController } from '@/hooks/insight/use-overview'
 import { cn } from '@/lib/utils'
 
 function formatTokens(value: number): string {
@@ -23,31 +23,31 @@ function SummarySkeleton() {
 }
 
 interface InsightOverviewSummaryCardsProps {
-  interruptionCountLoaded: boolean
-  loading: boolean
-  summary: InsightOverviewSummary
+  controller: InsightOverviewSummaryController
 }
 
-export function InsightOverviewSummaryCards({
-  interruptionCountLoaded,
-  loading,
-  summary,
-}: InsightOverviewSummaryCardsProps) {
-  if (loading) {
+export function InsightOverviewSummaryCards({ controller }: InsightOverviewSummaryCardsProps) {
+  if (controller.loading) {
     return <SummarySkeleton />
   }
 
   const cards = [
-    { label: '会话数', value: String(summary.sessionCount) },
-    { label: '输入 Token', value: formatTokens(summary.totalInputTokens), tone: 'text-sky-700' },
+    { label: '会话数', value: String(controller.summary.sessionCount) },
+    {
+      label: '输入 Token',
+      value: formatTokens(controller.summary.totalInputTokens),
+      tone: 'text-sky-700',
+    },
     {
       label: '输出 Token',
-      value: formatTokens(summary.totalOutputTokens),
+      value: formatTokens(controller.summary.totalOutputTokens),
       tone: 'text-emerald-700',
     },
     {
       label: '异常中断',
-      value: interruptionCountLoaded ? String(summary.interruptionTotal ?? 0) : '—',
+      value: controller.interruptionCountLoaded
+        ? String(controller.summary.interruptionTotal ?? 0)
+        : '—',
     },
   ]
 

@@ -23,6 +23,11 @@ import type {
   SessionSummary,
   TraceSummary,
 } from '@/hooks/insight/types'
+import type {
+  InsightOverviewInterruptionsController,
+  InsightOverviewSessionsController,
+  InsightOverviewStatusController,
+} from '@/hooks/insight/use-overview'
 import { cn } from '@/lib/utils'
 
 function formatNs(ns: number): string {
@@ -368,51 +373,17 @@ function SessionRow({
 }
 
 interface InsightTraceTableProps {
-  conversationInterruptionCounts: Record<string, ConversationInterruptionCount>
-  conversationInterruptionCountsLoaded: boolean
-  error: string | null
-  expandedSessionId: string | null
-  loading: boolean
+  sessionsController: InsightOverviewSessionsController
+  interruptionsController: InsightOverviewInterruptionsController
+  status: InsightOverviewStatusController
   onOpenAtif: (target: InsightAtifTarget) => void
-  onOpenConversationInterruptions: (trace: TraceSummary) => void | Promise<void>
-  onOpenSessionInterruptions: (session: SessionSummary) => void | Promise<void>
-  onPageChange: (page: number) => void
-  onToggleSession: (sessionId: string) => void | Promise<void>
-  pageSize: number
-  refreshing: boolean
-  sessionInterruptionCounts: Record<string, SessionInterruptionCount>
-  sessionInterruptionCountsLoaded: boolean
-  sessionPage: number
-  sessionTotalPages: number
-  sessions: SessionSummary[]
-  traceErrorBySessionId: Record<string, string | null>
-  traceLoadingBySessionId: Record<string, boolean>
-  tracesBySessionId: Record<string, TraceSummary[]>
-  visibleSessions: SessionSummary[]
 }
 
 export function InsightTraceTable({
-  conversationInterruptionCounts,
-  conversationInterruptionCountsLoaded,
-  error,
-  expandedSessionId,
-  loading,
+  sessionsController,
+  interruptionsController,
+  status,
   onOpenAtif,
-  onOpenConversationInterruptions,
-  onOpenSessionInterruptions,
-  onPageChange,
-  onToggleSession,
-  pageSize,
-  refreshing,
-  sessionInterruptionCounts,
-  sessionInterruptionCountsLoaded,
-  sessionPage,
-  sessionTotalPages,
-  sessions,
-  traceErrorBySessionId,
-  traceLoadingBySessionId,
-  tracesBySessionId,
-  visibleSessions,
 }: InsightTraceTableProps) {
   return (
     <Card className="overflow-hidden">
@@ -420,20 +391,21 @@ export function InsightTraceTable({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <CardTitle className="text-base">会话列表</CardTitle>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {refreshing ? <Spinner className="h-4 w-4" /> : null}共 {sessions.length} 条
+            {status.refreshing ? <Spinner className="h-4 w-4" /> : null}共{' '}
+            {sessionsController.sessions.length} 条
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        {error ? (
+        {status.error ? (
           <Alert variant="destructive">
             <AlertCircle />
             <AlertTitle>会话列表加载失败</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{status.error}</AlertDescription>
           </Alert>
-        ) : loading ? (
+        ) : status.loading ? (
           <OverviewTableSkeleton />
-        ) : visibleSessions.length === 0 ? (
+        ) : sessionsController.visibleSessions.length === 0 ? (
           <Empty className="border-muted bg-background/60">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -461,26 +433,38 @@ export function InsightTraceTable({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleSessions.map(session => (
+                  {sessionsController.visibleSessions.map(session => (
                     <SessionRow
                       key={session.session_id}
                       session={session}
-                      expanded={expandedSessionId === session.session_id}
+                      expanded={sessionsController.expandedSessionId === session.session_id}
                       onToggle={() => {
-                        void onToggleSession(session.session_id)
+                        void sessionsController.toggleSession(session.session_id)
                       }}
-                      traces={tracesBySessionId[session.session_id] || []}
-                      traceLoading={traceLoadingBySessionId[session.session_id] || false}
-                      traceError={traceErrorBySessionId[session.session_id] || null}
-                      sessionInterruptionCount={sessionInterruptionCounts[session.session_id]}
-                      sessionInterruptionCountsLoaded={sessionInterruptionCountsLoaded}
-                      conversationInterruptionCounts={conversationInterruptionCounts}
-                      conversationInterruptionCountsLoaded={conversationInterruptionCountsLoaded}
+                      traces={sessionsController.tracesBySessionId[session.session_id] || []}
+                      traceLoading={
+                        sessionsController.traceLoadingBySessionId[session.session_id] || false
+                      }
+                      traceError={
+                        sessionsController.traceErrorBySessionId[session.session_id] || null
+                      }
+                      sessionInterruptionCount={
+                        interruptionsController.sessionInterruptionCounts[session.session_id]
+                      }
+                      sessionInterruptionCountsLoaded={
+                        interruptionsController.sessionInterruptionCountsLoaded
+                      }
+                      conversationInterruptionCounts={
+                        interruptionsController.conversationInterruptionCounts
+                      }
+                      conversationInterruptionCountsLoaded={
+                        interruptionsController.conversationInterruptionCountsLoaded
+                      }
                       onOpenSessionInterruptions={sessionValue => {
-                        void onOpenSessionInterruptions(sessionValue)
+                        void interruptionsController.openSessionInterruptions(sessionValue)
                       }}
                       onOpenConversationInterruptions={trace => {
-                        void onOpenConversationInterruptions(trace)
+                        void interruptionsController.openConversationInterruptions(trace)
                       }}
                       onOpenAtif={onOpenAtif}
                     />
@@ -489,26 +473,43 @@ export function InsightTraceTable({
               </Table>
             </div>
 
-            {sessionTotalPages > 1 ? (
+            {sessionsController.sessionTotalPages > 1 ? (
               <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-xs text-muted-foreground">
-                  显示 {sessionPage * pageSize + 1}-
-                  {Math.min((sessionPage + 1) * pageSize, sessions.length)} / {sessions.length}
+                  显示 {sessionsController.sessionPage * sessionsController.pageSize + 1}-
+                  {Math.min(
+                    (sessionsController.sessionPage + 1) * sessionsController.pageSize,
+                    sessionsController.sessions.length
+                  )}{' '}
+                  / {sessionsController.sessions.length}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={sessionPage === 0}
-                    onClick={() => onPageChange(Math.max(0, sessionPage - 1))}
+                    disabled={sessionsController.sessionPage === 0}
+                    onClick={() =>
+                      sessionsController.setSessionPage(
+                        Math.max(0, sessionsController.sessionPage - 1)
+                      )
+                    }
                   >
                     上一页
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={sessionPage === sessionTotalPages - 1}
-                    onClick={() => onPageChange(Math.min(sessionTotalPages - 1, sessionPage + 1))}
+                    disabled={
+                      sessionsController.sessionPage === sessionsController.sessionTotalPages - 1
+                    }
+                    onClick={() =>
+                      sessionsController.setSessionPage(
+                        Math.min(
+                          sessionsController.sessionTotalPages - 1,
+                          sessionsController.sessionPage + 1
+                        )
+                      )
+                    }
                   >
                     下一页
                   </Button>
