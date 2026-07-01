@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Activity, AlertCircle, ChevronLeft, ChevronRight, HeartPulse } from 'lucide-react'
 import {
   Accordion,
@@ -9,6 +9,15 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
@@ -110,12 +119,12 @@ function getAdapterStatusMeta(status: string | null) {
   }
 }
 
-function formatRelativeTime(timestampMs: number | null): string {
+function formatRelativeTime(timestampMs: number | null, now: number): string {
   if (!timestampMs) {
     return '—'
   }
 
-  const diffSeconds = Math.floor((Date.now() - timestampMs) / 1000)
+  const diffSeconds = Math.floor((now - timestampMs) / 1000)
 
   if (diffSeconds < 5) {
     return '刚刚'
@@ -159,10 +168,12 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function RuntimeCard({
   runtime,
+  now,
   title,
   value,
 }: {
   runtime: AgentRuntimeHealthStatus
+  now: number
   title: string
   value: string
 }) {
@@ -171,7 +182,7 @@ function RuntimeCard({
     ['端口', formatPorts(runtime.ports)],
     ['延迟', runtime.latency_ms !== null ? `${runtime.latency_ms} ms` : '—'],
     ['分类', runtime.category || '—'],
-    ['最近检查', formatRelativeTime(runtime.last_check_time)],
+    ['最近检查', formatRelativeTime(runtime.last_check_time, now)],
   ]
 
   return (
@@ -210,15 +221,18 @@ function RuntimeCard({
 
 function HealthAgentCard({
   agent,
+  now,
   onAcknowledgeOffline,
 }: {
   agent: AgentHealthStatus
+  now: number
   onAcknowledgeOffline?: (pid: number) => Promise<void>
 }) {
   const statusMeta = STATUS_META[agent.overall_status]
   const adapterMeta = getAdapterStatusMeta(agent.adapter_status)
   const [removing, setRemoving] = useState(false)
   const [removeError, setRemoveError] = useState<string | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const canAcknowledge = canAcknowledgeManagedAgent(agent)
   const details = [
     ['Witty 状态', agent.witty_status || '—'],
@@ -236,16 +250,12 @@ function HealthAgentCard({
       return
     }
 
-    const confirmed = window.confirm('确认将该离线 runtime 从健康状态列表中移除吗？')
-    if (!confirmed) {
-      return
-    }
-
     setRemoving(true)
     setRemoveError(null)
 
     try {
       await onAcknowledgeOffline(runtimePid)
+      setConfirmOpen(false)
     } catch (error) {
       setRemoveError(error instanceof Error ? error.message : '移除失败，请稍后重试')
     } finally {
@@ -294,6 +304,7 @@ function HealthAgentCard({
         <div className="mt-3">
           <RuntimeCard
             runtime={agent.runtime}
+            now={now}
             title="Primary Runtime"
             value={`${agent.witty_agent_id}-primary`}
           />
@@ -306,6 +317,7 @@ function HealthAgentCard({
             <RuntimeCard
               key={`${agent.witty_agent_id}-${runtime.pid}`}
               runtime={runtime}
+              now={now}
               title="候选 Runtime"
               value={`${agent.witty_agent_id}-${runtime.pid}`}
             />
@@ -315,18 +327,44 @@ function HealthAgentCard({
 
       {canAcknowledge ? (
         <div className="mt-3 flex justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={removing}
-            onClick={() => {
-              void handleAcknowledgeOffline()
-            }}
-          >
-            {removing ? <Spinner className="mr-2 h-3.5 w-3.5" /> : null}
-            确认下线并移除
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={removing}
+              onClick={() => {
+                setConfirmOpen(true)
+              }}
+            >
+              {removing ? <Spinner className="mr-2 h-3.5 w-3.5" /> : null}
+              确认下线并移除
+            </Button>
+
+            <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>确认移除离线 Runtime</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    该操作会将当前离线 runtime 从健康状态列表中移除。
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={removing}>取消</AlertDialogCancel>
+                  <Button
+                    type="button"
+                    disabled={removing}
+                    onClick={() => {
+                      void handleAcknowledgeOffline()
+                    }}
+                  >
+                    {removing ? <Spinner className="mr-2 h-3.5 w-3.5" /> : null}
+                    确认移除
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
         </div>
       ) : null}
 
@@ -343,6 +381,17 @@ export function InsightHealthRail({ controller }: InsightHealthRailProps) {
   const summary = summarizeManagedHealthAgents(controller.agents)
   const hasAttention = summary.attentionCount > 0
   const [expanded, setExpanded] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      setNow(Date.now())
+    }, 30000)
+
+    return () => {
+      window.clearInterval(timerId)
+    }
+  }, [])
 
   if (controller.loading) {
     return (
@@ -418,6 +467,7 @@ export function InsightHealthRail({ controller }: InsightHealthRailProps) {
           <HealthAgentCard
             key={agent.witty_agent_id}
             agent={agent}
+            now={now}
             onAcknowledgeOffline={controller.acknowledgeOfflineAgent}
           />
         ))}

@@ -3,6 +3,15 @@
 import { useState } from 'react'
 import { AlertCircle, CircleAlert } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -84,13 +93,10 @@ function InterruptionDetailCard({
   const severityMeta = SEVERITY_META[record.severity]
   const [resolving, setResolving] = useState(false)
   const [resolveError, setResolveError] = useState<string | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const handleResolve = async () => {
-    const confirmed = window.confirm(
-      '标记为已处理后，此中断事件将不再计入异常统计。\n\n确认标记为已处理吗？'
-    )
-
-    if (!confirmed || !onResolve) {
+    if (!onResolve) {
       return
     }
 
@@ -99,6 +105,7 @@ function InterruptionDetailCard({
 
     try {
       await onResolve(record)
+      setConfirmOpen(false)
     } catch (error) {
       setResolveError(error instanceof Error ? error.message : '操作失败，请稍后重试')
     } finally {
@@ -125,16 +132,44 @@ function InterruptionDetailCard({
         </div>
 
         {onResolve ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={resolving}
-            onClick={handleResolve}
-          >
-            {resolving ? <Spinner className="mr-2 h-3.5 w-3.5" /> : null}
-            标记已处理
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={resolving}
+              onClick={() => {
+                setConfirmOpen(true)
+              }}
+            >
+              {resolving ? <Spinner className="mr-2 h-3.5 w-3.5" /> : null}
+              标记已处理
+            </Button>
+
+            <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>确认标记为已处理</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    标记为已处理后，此中断事件将不再计入异常统计。
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={resolving}>取消</AlertDialogCancel>
+                  <Button
+                    type="button"
+                    disabled={resolving}
+                    onClick={() => {
+                      void handleResolve()
+                    }}
+                  >
+                    {resolving ? <Spinner className="mr-2 h-3.5 w-3.5" /> : null}
+                    确认处理
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
         ) : null}
       </div>
 
