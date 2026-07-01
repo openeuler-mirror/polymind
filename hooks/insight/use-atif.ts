@@ -56,12 +56,16 @@ export function useInsightAtif(target: InsightAtifTarget | null) {
   }, [])
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void loadDocument(target)
-    }, 0)
+    let cancelled = false
+
+    queueMicrotask(() => {
+      if (!cancelled) {
+        void loadDocument(target)
+      }
+    })
 
     return () => {
-      window.clearTimeout(timeoutId)
+      cancelled = true
     }
   }, [loadDocument, target])
 

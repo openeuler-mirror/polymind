@@ -50,10 +50,14 @@ export function fillTokenBuckets(
   endNs: number,
   bucketCount: number
 ): TimeseriesBucket[] {
+  if (bucketCount <= 0 || endNs <= startNs) {
+    return []
+  }
+
   const bucketNs = Math.floor((endNs - startNs) / Math.max(bucketCount, 1))
 
   if (bucketNs <= 0) {
-    return data
+    return []
   }
 
   const byIndex = new Map<number, TimeseriesBucket>()
@@ -82,10 +86,14 @@ export function fillModelBuckets(
   bucketCount: number,
   models: string[]
 ): ModelTimeseriesBucket[] {
+  if (bucketCount <= 0 || endNs <= startNs) {
+    return []
+  }
+
   const bucketNs = Math.floor((endNs - startNs) / Math.max(bucketCount, 1))
 
   if (bucketNs <= 0) {
-    return data
+    return []
   }
 
   const byIndexModel = new Map<number, Map<string, number>>()
@@ -123,6 +131,14 @@ export function buildTokenChartData({
   endNs: number
   bucketCount: number
 }) {
+  if (bucketCount <= 0 || endNs <= startNs) {
+    return {
+      chartData: [],
+      filled: [],
+      ticks: [],
+    }
+  }
+
   const spanMs = (endNs - startNs) / 1_000_000
   const filled = fillTokenBuckets(data, startNs, endNs, bucketCount)
   const chartData = filled.map(bucket => ({
@@ -150,6 +166,15 @@ export function buildModelChartData({
   endNs: number
   bucketCount: number
 }) {
+  if (bucketCount <= 0 || endNs <= startNs) {
+    return {
+      chartData: [],
+      filled: [],
+      models: [],
+      ticks: [],
+    }
+  }
+
   const spanMs = (endNs - startNs) / 1_000_000
   const models = Array.from(new Set(data.map(item => item.model))).sort()
   const filled = fillModelBuckets(data, startNs, endNs, bucketCount, models)
