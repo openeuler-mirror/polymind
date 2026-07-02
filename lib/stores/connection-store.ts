@@ -37,6 +37,8 @@ function getStreamingAssistant(get: () => StoreState) {
 
 // 辅助函数：WebSocket 事件处理器
 function createEventHandler(get: () => StoreState) {
+  // 捕获创建时的会话 ID，避免错误事件到达时 currentConversationId 已变更
+  const conversationId = get().currentConversationId
   return (event: EventItem) => {
     console.log(`[WS] type: ${event.type}`)
 
@@ -112,8 +114,7 @@ function createEventHandler(get: () => StoreState) {
       case 'stream.error':
       case 'client.error': {
         console.error('Error event:', event.payload)
-        const errorCid = get().currentConversationId
-        get().setStreaming(errorCid, false)
+        get().setStreaming(conversationId, false)
         break
       }
       default:
@@ -160,22 +161,25 @@ export const createConnectionSlice: StateCreator<StoreState, [], [], ConnectionS
       const currentConv = currentConvId
         ? get().conversations.find(c => c.id === currentConvId)
         : null
-      let session: Session | undefined
+      let sessionId: string
 
       if (currentConv?.sessionId) {
-        session = { id: currentConv.sessionId } as Session
+        sessionId = currentConv.sessionId
       } else {
-        session = await get().createNewSession(agentId)
+        const session = await get().createNewSession(agentId)
+        sessionId = session.id
       }
 
       const wsClient = messageService.connectForMessages(
         agentId,
-        session.id,
+        sessionId,
         createEventHandler(get),
         error => {
-          set({ connectionError: error.message, isConnecting: false })
-          const cid = get().currentConversationId
-          get().setStreaming(cid, false)
+          set({
+            connectionError: String(error?.message ?? error),
+            isConnecting: false,
+          })
+          get().setStreaming(currentConvId, false)
         }
       )
 
@@ -185,7 +189,10 @@ export const createConnectionSlice: StateCreator<StoreState, [], [], ConnectionS
         return { wsConnections, isConnecting: false }
       })
     } catch (error: any) {
-      set({ isConnecting: false, connectionError: error.message })
+      set({
+        isConnecting: false,
+        connectionError: String(error?.message ?? error),
+      })
     }
   },
 
@@ -210,6 +217,10 @@ export const createConnectionSlice: StateCreator<StoreState, [], [], ConnectionS
   ) => {
     if (!sessionId) {
       throw new Error('No active session for agent')
+    }
+
+    if (!get().wsConnections[agentId]) {
+      throw new Error(`WebSocket connection not established for agent "${agentId}". `)
     }
 
     try {
