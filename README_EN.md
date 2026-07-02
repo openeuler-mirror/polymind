@@ -156,6 +156,12 @@ PolyMind uses `~/.polymind/.env` as the global configuration file, which is auto
 | `NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS` | Max WebSocket reconnect attempts | `5` |
 | `NEXT_PUBLIC_RECONNECT_INTERVAL` | Reconnect interval in milliseconds | `3000` |
 
+### Insight Observability
+
+- The `Monitoring` panel reads data from the aggregated `/insight/*` endpoints exposed by `witty-service`.
+- The `polymind` frontend does not require extra Insight-specific environment variables and does not connect to raw `witty-insight` directly.
+- If the monitoring panel is unavailable, first check whether Insight integration is enabled in `witty-service` and whether it can reach `witty-insight`.
+
 ## Deployment
 
 ### Testing Environment

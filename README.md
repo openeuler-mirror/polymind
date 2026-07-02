@@ -157,6 +157,12 @@ PolyMind 使用 `~/.polymind/.env` 作为全局配置文件，首次运行时自
 | `NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS` | WebSocket 最大重连次数 | `5` |
 | `NEXT_PUBLIC_RECONNECT_INTERVAL` | 重连间隔（毫秒） | `3000` |
 
+### Insight 观测能力
+
+- `监测系统` 面板的数据由 `witty-service` 的 `/insight/*` 聚合接口提供。
+- `polymind` 前端本身不需要额外配置 Insight 专项环境变量，也不会直连 raw `witty-insight`。
+- 如果监测系统不可用，请优先检查 `witty-service` 是否已启用 Insight 集成，以及它是否能够访问 `witty-insight`。
+
 
 ## 部署流程
 
