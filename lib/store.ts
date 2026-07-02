@@ -595,7 +595,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // If the deleted agent was the current one, pick the next available
       const isCurrentAgentDeleted = state.currentAgentId === agentId
       const nextAgentId = isCurrentAgentDeleted
-        ? (agents.find(a => a.status !== 'deleted')?.id ?? null)
+        ? (agents.find(a => a.status !== AgentStatus.DELETED)?.id ?? null)
         : state.currentAgentId
 
       // Sync URL params: removed conversation OR removed current agent
