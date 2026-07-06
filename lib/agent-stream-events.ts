@@ -58,7 +58,7 @@ function formatToolDisplayText(payload: any): string {
     return `工具调用失败：${errorContent.substring(0, 100)}${errorContent.length > 100 ? '...' : ''}`
   }
   const outputContent = formatToolOutput(payload.content)
-  return `工具调用结果：${outputContent.substring(0, 100)}${outputContent.length > 100 ? '...' : ''}`
+  return `${outputContent.substring(0, 100)}${outputContent.length > 100 ? '...' : ''}`
 }
 
 export function handleAgentStreamEvent({

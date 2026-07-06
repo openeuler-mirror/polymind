@@ -774,13 +774,13 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   const config = statusConfig[toolCall.status] || statusConfig.pending
   const StatusIcon = config.icon
 
-  // 根据工具名称映射不同的图标
+  // 根据工具名称映射不同的图标，未知工具默认用 Wrench
   const toolIconMap: Record<string, LucideIcon> = {
     read: BookOpen,
     exec: SquareTerminal,
     process: Cpu,
   }
-  const ToolIcon = toolIconMap[toolCall.name] || StatusIcon
+  const ToolIcon = toolIconMap[toolCall.name] || Wrench
 
   // 提取文件路径（用于 read 工具）
   const getReadFilePath = (): string | null => {
@@ -899,7 +899,8 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
                   </pre>
                 </div>
               )}
-              {displayOutput && (
+              {/* 错误状态下 output 通常与 error 内容重复，只展示错误区域 */}
+              {displayOutput && toolCall.status !== 'error' && (
                 <div>
                   <div className="text-muted-foreground mb-1 font-medium">输出</div>
                   <pre className="bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">

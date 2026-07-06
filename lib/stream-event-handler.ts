@@ -49,27 +49,34 @@ export function formatDisplayText(payload: any): string {
     return `工具调用失败：${errContent.substring(0, 100)}${errContent.length > 100 ? '...' : ''}`
   }
   const outContent = formatOutput(payload.content)
-  return `工具调用结果：${outContent.substring(0, 100)}${outContent.length > 100 ? '...' : ''}`
+  return `${outContent.substring(0, 100)}${outContent.length > 100 ? '...' : ''}`
 }
 
 export function handleStreamEvent(
   eventData: any,
   conversationId: string,
   messageId: string,
-  updateMessage: (cId: string, mId: string, updates: Partial<Message> | ((m: Message) => Partial<Message>)) => void,
+  updateMessage: (
+    cId: string,
+    mId: string,
+    updates: Partial<Message> | ((m: Message) => Partial<Message>)
+  ) => void,
   setStreaming: (cId: string | null, streaming: boolean) => void,
-  locallyCreatedMessageIds?: MutableRefObject<Set<string>>,
+  locallyCreatedMessageIds?: MutableRefObject<Set<string>>
 ) {
   switch (eventData.type) {
     case 'message.delta':
       if (eventData.payload?.delta) {
         updateMessage(conversationId, messageId, (m: Message) => ({
           content: (m.content || '') + eventData.payload.delta,
-          events: [...(m.events || []), {
-            type: 'message.delta',
-            content: eventData.payload.delta,
-            timestamp: eventData.ts_ms || Date.now(),
-          }],
+          events: [
+            ...(m.events || []),
+            {
+              type: 'message.delta',
+              content: eventData.payload.delta,
+              timestamp: eventData.ts_ms || Date.now(),
+            },
+          ],
         }))
       }
       break
@@ -86,18 +93,26 @@ export function handleStreamEvent(
       if (eventData.payload?.thinking) {
         updateMessage(conversationId, messageId, (m: Message) => ({
           thinking: [...(m.thinking || []), eventData.payload.thinking],
-          displayText: [...(m.displayText || []), eventData.payload.display_text || `AI正在思考：${eventData.payload.thinking}`],
-          events: [...(m.events || []), {
-            type: 'thinking',
-            content: eventData.payload.display_text || `AI正在思考：${eventData.payload.thinking}`,
-            timestamp: eventData.ts_ms || Date.now(),
-          }],
+          displayText: [
+            ...(m.displayText || []),
+            eventData.payload.display_text || `AI正在思考：${eventData.payload.thinking}`,
+          ],
+          events: [
+            ...(m.events || []),
+            {
+              type: 'thinking',
+              content:
+                eventData.payload.display_text || `AI正在思考：${eventData.payload.thinking}`,
+              timestamp: eventData.ts_ms || Date.now(),
+            },
+          ],
         }))
       }
       break
     case 'tool.call.started':
       if (eventData.payload?.tool_name) {
-        const displayText = eventData.payload.display_text || `正在调用工具：${eventData.payload.tool_name}`
+        const displayText =
+          eventData.payload.display_text || `正在调用工具：${eventData.payload.tool_name}`
         const toolCall = {
           id: eventData.payload.tool_call_id || generateUUID(),
           name: eventData.payload.tool_name,
@@ -107,12 +122,15 @@ export function handleStreamEvent(
         }
         updateMessage(conversationId, messageId, (m: Message) => ({
           toolCalls: [...(m.toolCalls || []), toolCall],
-          events: [...(m.events || []), {
-            type: 'tool.call.started',
-            content: displayText,
-            timestamp: eventData.ts_ms || Date.now(),
-            toolCall,
-          }],
+          events: [
+            ...(m.events || []),
+            {
+              type: 'tool.call.started',
+              content: displayText,
+              timestamp: eventData.ts_ms || Date.now(),
+              toolCall,
+            },
+          ],
         }))
       }
       break
@@ -131,12 +149,15 @@ export function handleStreamEvent(
         }
         updateMessage(conversationId, messageId, (m: Message) => ({
           toolCalls: [...(m.toolCalls || []), toolCall],
-          events: [...(m.events || []), {
-            type: 'tool.call.response',
-            content: displayText,
-            timestamp: eventData.ts_ms || Date.now(),
-            toolCall,
-          }],
+          events: [
+            ...(m.events || []),
+            {
+              type: 'tool.call.response',
+              content: displayText,
+              timestamp: eventData.ts_ms || Date.now(),
+              toolCall,
+            },
+          ],
         }))
       }
       break
