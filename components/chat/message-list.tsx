@@ -22,6 +22,7 @@ import {
   AlertCircle,
   BookOpen,
   Terminal,
+  SquareTerminal,
   Cpu,
   type LucideIcon,
 } from 'lucide-react'
@@ -776,7 +777,7 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   // 根据工具名称映射不同的图标
   const toolIconMap: Record<string, LucideIcon> = {
     read: BookOpen,
-    exec: Terminal,
+    exec: SquareTerminal,
     process: Cpu,
   }
   const ToolIcon = toolIconMap[toolCall.name] || StatusIcon
@@ -818,7 +819,11 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
           </Tooltip>
         </TooltipProvider>
         <span className="flex-1 text-left font-mono text-xs font-medium truncate">
-          {readFilePath || execCommand || toolCall.name}
+          {toolCall.name === 'exec'
+            ? isExpanded
+              ? toolCall.name
+              : execCommand || toolCall.name
+            : readFilePath || toolCall.name}
         </span>
         {toolCall.duration && (
           <span className="text-xs text-muted-foreground shrink-0 font-mono">
@@ -942,7 +947,7 @@ function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: 
           <Sparkles className="h-3.5 w-3.5 shrink-0 animate-pulse text-accent" />
         )}
         <span className="italic text-muted-foreground">
-          {completed ? `已完成思考（${stepCount} 步）` : '正在思考...'}
+          {completed ? '已完成思考' : '正在思考...'}
         </span>
         <ChevronDown
           className={cn(
