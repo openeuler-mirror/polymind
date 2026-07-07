@@ -49,9 +49,33 @@ function parseSSEStream(
     const events: any[] = []
     let buffer = ''
 
+    const processLine = (line: string) => {
+      if (line.startsWith('data: ')) {
+        const data = line.substring(6)
+        if (data) {
+          try {
+            const event = JSON.parse(data)
+            events.push(event)
+            if (onEvent) {
+              onEvent(event.event || event)
+            }
+          } catch (error) {
+            console.error(`Error parsing ${logPrefix} event:`, error)
+          }
+        }
+      }
+    }
+
     const processStream = async () => {
       const { done, value } = await reader.read()
       if (done) {
+        // 处理 buffer 中残留的最后一个不完整行（不以 \n 结尾的情况）
+        if (buffer.trim()) {
+          const remainingLines = buffer.split('\n')
+          for (const line of remainingLines) {
+            processLine(line)
+          }
+        }
         resolve(events)
         return
       }
@@ -59,20 +83,7 @@ function parseSSEStream(
       const lines = buffer.split('\n')
       buffer = lines.pop() || ''
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.substring(6)
-          if (data) {
-            try {
-              const event = JSON.parse(data)
-              events.push(event)
-              if (onEvent) {
-                onEvent(event.event || event)
-              }
-            } catch (error) {
-              console.error(`Error parsing ${logPrefix} event:`, error)
-            }
-          }
-        }
+        processLine(line)
       }
       await processStream()
     }

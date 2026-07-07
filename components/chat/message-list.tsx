@@ -225,10 +225,6 @@ const MessageItem = memo(function MessageItem({
                   />
                 )
               } else if (group.type === 'delta-group') {
-                // 对于非流式消息（completed / interrupted / error），跳过 delta 事件渲染
-                if (!message.isStreaming) {
-                  return null
-                }
                 const deltaContent = group.events.map((event: EventItem) => event.content).join('')
                 if (!deltaContent) return null
                 return (
@@ -256,8 +252,11 @@ const MessageItem = memo(function MessageItem({
           </div>
         )}
 
-        {/* Message Content - now displayed in events section */}
-        {(isUser || !message.events || message.events.length === 0 || !message.isStreaming) && (
+        {/* Message Content - only render when no delta-events cover the text content */}
+        {(isUser ||
+          !message.events ||
+          message.events.length === 0 ||
+          !message.events.some(e => e.type === 'message.delta')) && (
           <>
             {message.status === 'interrupted' && !message.content ? (
               <div className="rounded-2xl px-4 py-3 bg-card border border-border">
