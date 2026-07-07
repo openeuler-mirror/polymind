@@ -20,7 +20,7 @@ export interface ConnectionSlice {
     sessionId: string,
     content: string,
     onEvent?: (event: EventItem) => void
-  ) => Promise<any[]>
+  ) => Promise<EventItem[]>
   createNewSession: (agentId: string) => Promise<Session>
 }
 
@@ -200,11 +200,7 @@ export const createConnectionSlice: StateCreator<StoreState, [], [], ConnectionS
     messageService.disconnect(agentId)
     set(state => {
       const wsConnections = { ...state.wsConnections }
-      if (wsConnections[agentId]) {
-        const wsClient = wsConnections[agentId]
-        wsClient.close()
-        delete wsConnections[agentId]
-      }
+      delete wsConnections[agentId]
       return { wsConnections }
     })
   },

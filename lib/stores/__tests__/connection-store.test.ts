@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { createConnectionSlice, type ConnectionSlice } from '../connection-store'
 import { createChatSlice, type ChatSlice } from '../chat-store'
+import { createAgentSlice, type AgentSlice } from '../agent-store'
 import { createSettingsSlice, type SettingsSlice } from '../settings-store'
 import { createUISlice, type UISlice } from '../ui-store'
 
@@ -18,10 +19,11 @@ jest.mock('@/services/message-service', () => ({
 
 import { messageService } from '@/services/message-service'
 
-type TestState = ChatSlice & ConnectionSlice & SettingsSlice & UISlice
+type TestState = ChatSlice & AgentSlice & ConnectionSlice & SettingsSlice & UISlice
 
 const useTestStore = create<TestState>()((...a) => ({
   ...createChatSlice(...a),
+  ...createAgentSlice(...a),
   ...createConnectionSlice(...a),
   ...createSettingsSlice(...a),
   ...createUISlice(...a),
@@ -46,9 +48,8 @@ describe('ConnectionSlice', () => {
     expect(state._stoppingInProgress).toBe(false)
   })
 
-  it('should disconnect from agent and close websocket', () => {
-    const mockClose = jest.fn()
-    const mockWsClient = { close: mockClose } as any
+  it('should disconnect from agent and clean up store state', () => {
+    const mockWsClient = { close: jest.fn() } as any
 
     // Set up a mock websocket connection in the store
     useTestStore.setState({
@@ -58,11 +59,8 @@ describe('ConnectionSlice', () => {
     // Actually call the store's disconnectFromAgent method
     useTestStore.getState().disconnectFromAgent('agent-1')
 
-    // Should call messageService.disconnect for the agent
+    // Should delegate close to messageService (which handles wsClient.close internally)
     expect(messageService.disconnect).toHaveBeenCalledWith('agent-1')
-
-    // Should close the websocket client
-    expect(mockClose).toHaveBeenCalled()
 
     // Should remove the connection from store state
     expect(useTestStore.getState().wsConnections['agent-1']).toBeUndefined()
