@@ -31,6 +31,8 @@ NEXT_PUBLIC_APP_NAME=PolyMind
 NEXT_PUBLIC_APP_VERSION=1.0.0
 # 调试模式
 NEXT_PUBLIC_DEBUG=false
+# WittyHub 技能广场 API 地址
+NEXT_WITTYHUB_API_URL=http://127.0.0.1:8081
 `
 
 // 如果配置文件不存在则写入默认配置，存在则不覆盖
