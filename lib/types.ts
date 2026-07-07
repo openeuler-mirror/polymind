@@ -200,6 +200,7 @@ export enum AgentStatus {
   RUNNING = 'running',
   PAUSED = 'paused',
   ERROR = 'error',
+  DELETED = 'deleted',
 }
 
 /**
