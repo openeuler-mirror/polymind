@@ -1,6 +1,11 @@
 import type React from 'react'
 import type { MCPTool } from '../types'
 
+export function getUrlParam(key: string): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get(key)
+}
+
 export function syncUrlParams(agentId?: string, sessionId?: string) {
   if (typeof window === 'undefined') return
   const params = new URLSearchParams(window.location.search)
