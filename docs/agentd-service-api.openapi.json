@@ -1585,7 +1585,7 @@
       "post": {
         "summary": "安装技能",
         "deprecated": false,
-        "description": "为指定 agent 安装一个已发现技能",
+        "description": "为指定 agent 安装一个技能；支持本地已发现技能与 WittyHub 技能",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -3527,11 +3527,21 @@
       "properties": {
         "skill_id": {
           "type": "string",
-          "description": "技能唯一标识"
+          "description": "技能唯一标识；WittyHub 安装时可传远端 skill_id 用于记录元数据"
         },
         "skill_name": {
           "type": "string",
-          "description": "技能名；主要用于错误详情和日志"
+          "description": "技能名；主要用于安装和日志定位"
+        },
+        "source_type": {
+          "type": "string",
+          "description": "安装来源类型；安装 WittyHub 技能时传 wittyhub",
+          "nullable": true
+        },
+        "source_url": {
+          "type": "string",
+          "description": "技能来源地址；source_type 为 wittyhub 时必填",
+          "nullable": true
         }
       },
       "required": ["skill_id", "skill_name"]
@@ -3559,7 +3569,7 @@
         },
         "source_type": {
           "type": "string",
-          "description": "安装来源类型"
+          "description": "安装来源类型，如 builtin、git、local、clawhub、wittyhub"
         },
         "repo_id": {
           "type": "string",
@@ -3588,7 +3598,7 @@
         },
         "skill_source": {
           "type": "string",
-          "description": "技能来源",
+          "description": "技能来源标识或地址，如 git、local、builtin、clawhub、wittyhub",
           "nullable": true
         },
         "skill_md_url": {
@@ -3696,7 +3706,7 @@
         },
         "skill_source": {
           "type": "string",
-          "description": "技能来源，如 git、local、builtin、clawhub",
+          "description": "技能来源标识或地址，如 git、local、builtin、clawhub、wittyhub",
           "nullable": true
         },
         "skill_md_url": {
