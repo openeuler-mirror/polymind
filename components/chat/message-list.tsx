@@ -18,7 +18,13 @@ import {
   AlertTriangle,
   Lightbulb,
   ChevronDown,
+  Sparkles,
   AlertCircle,
+  BookOpen,
+  Terminal,
+  SquareTerminal,
+  Cpu,
+  type LucideIcon,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -212,24 +218,11 @@ const MessageItem = memo(function MessageItem({
                 const isLastGroup = groupIndex === groups.length - 1
                 const thinkingCompleted = !!message.content || !isLastGroup || !message.isStreaming
                 return (
-                  <div
+                  <ThinkingGroup
                     key={`thinking-group-${groupIndex}`}
-                    className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm space-y-2"
-                  >
-                    {group.events.map((event: EventItem, index: number) => (
-                      <div
-                        key={`thinking-${groupIndex}-${index}`}
-                        className="flex items-center gap-2"
-                      >
-                        {thinkingCompleted ? (
-                          <CheckCircle2 className="h-4 w-4 text-accent" />
-                        ) : (
-                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                        )}
-                        <span className="text-muted-foreground">{event.content}</span>
-                      </div>
-                    ))}
-                  </div>
+                    events={group.events}
+                    completed={thinkingCompleted}
+                  />
                 )
               } else if (group.type === 'delta-group') {
                 // 对于非流式消息（completed / interrupted / error），跳过 delta 事件渲染
@@ -699,8 +692,6 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   const isCompleted = toolCall.status === 'completed'
   const [isExpanded, setIsExpanded] = useState(false)
 
-  console.log(`[ToolCall] ${toolCall.name} - status: ${toolCall.status}`)
-
   // 格式化输出，使其更易读
   const formatOutput = (output: any): string => {
     if (typeof output === 'string') {
@@ -708,6 +699,16 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
     }
 
     if (typeof output === 'object' && output !== null) {
+      // 如果顶层是数组，提取文本内容
+      if (Array.isArray(output)) {
+        const texts = output
+          .filter((item: any) => item && item.type === 'text')
+          .map((item: any) => item.text)
+          .join('\n')
+        if (texts) return texts
+        return JSON.stringify(output, null, 2)
+      }
+
       // 如果有 details.content，优先使用
       if (output.details?.content) {
         const content = output.details.content
@@ -743,83 +744,231 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   const formattedOutput = toolCall.output ? formatOutput(toolCall.output) : null
   const displayOutput = formattedOutput ? formatForDisplay(formattedOutput) : null
 
+  const statusConfig = {
+    running: {
+      icon: Loader2,
+      iconClass: 'animate-spin text-primary',
+      label: '运行中',
+      labelClass: 'bg-primary/10 text-primary',
+    },
+    completed: {
+      icon: CheckCircle2,
+      iconClass: 'text-accent',
+      label: '已完成',
+      labelClass: 'bg-accent/10 text-accent',
+    },
+    error: {
+      icon: AlertCircle,
+      iconClass: 'text-red-500',
+      label: '出错',
+      labelClass: 'bg-red-500/10 text-red-500',
+    },
+    pending: {
+      icon: Wrench,
+      iconClass: 'text-muted-foreground',
+      label: '待执行',
+      labelClass: 'bg-muted text-muted-foreground',
+    },
+  }
+
+  const config = statusConfig[toolCall.status] || statusConfig.pending
+  const StatusIcon = config.icon
+
+  // 根据工具名称映射不同的图标，未知工具默认用 Wrench
+  const toolIconMap: Record<string, LucideIcon> = {
+    read: BookOpen,
+    exec: SquareTerminal,
+    process: Cpu,
+  }
+  const ToolIcon = toolIconMap[toolCall.name] || Wrench
+
+  // 提取文件路径（用于 read 工具）
+  const getReadFilePath = (): string | null => {
+    if (toolCall.name !== 'read' || !toolCall.input) return null
+    const input = toolCall.input as Record<string, unknown>
+    return (input.file_path as string) || (input.path as string) || null
+  }
+  const readFilePath = getReadFilePath()
+
+  // 提取命令文本（用于 exec 工具）
+  const getExecCommand = (): string | null => {
+    if (toolCall.name !== 'exec' || !toolCall.input) return null
+    const input = toolCall.input as Record<string, unknown>
+    return (input.command as string) || null
+  }
+  const execCommand = getExecCommand()
+
   return (
-    <div className="rounded-lg border border-border bg-muted/50 text-sm">
-      <div
-        className="flex items-center gap-2 px-3 py-2 cursor-pointer"
+    <div className="rounded-lg border border-border bg-card text-sm shadow-sm">
+      {/* Header */}
+      <button
         onClick={() => setIsExpanded(!isExpanded)}
-      >
-        {isRunning ? (
-          <Loader2 className="h-4 w-4 animate-spin text-primary" />
-        ) : toolCall.status === 'error' ? (
-          <AlertCircle className="h-4 w-4 text-red-500" />
-        ) : isCompleted ? (
-          <CheckCircle2 className="h-4 w-4 text-accent" />
-        ) : (
-          <Wrench className="h-4 w-4 text-muted-foreground" />
+        className={cn(
+          'flex w-full items-center gap-2 px-3 py-2 transition-colors',
+          isExpanded ? 'border-b border-border' : 'hover:bg-muted/50'
         )}
-        <span className={toolCall.status === 'error' ? 'font-medium text-red-500' : 'font-medium'}>
-          {toolCall.name}
+      >
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <ToolIcon className={cn('h-4 w-4 shrink-0', config.iconClass)} />
+              </span>
+            </TooltipTrigger>
+            {toolCall.name === 'read' && <TooltipContent>查看文件</TooltipContent>}
+          </Tooltip>
+        </TooltipProvider>
+        <span className="flex-1 text-left font-mono text-xs font-medium truncate">
+          {toolCall.name === 'exec'
+            ? isExpanded
+              ? toolCall.name
+              : execCommand || toolCall.name
+            : readFilePath || toolCall.name}
         </span>
         {toolCall.duration && (
-          <span className="text-muted-foreground">{(toolCall.duration / 1000).toFixed(1)}s</span>
+          <span className="text-xs text-muted-foreground shrink-0 font-mono">
+            {(toolCall.duration / 1000).toFixed(1)}s
+          </span>
         )}
-        <span className={`ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="lucide lucide-chevron-down h-4 w-4 text-muted-foreground"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </span>
-      </div>
+        <ChevronDown
+          className={cn(
+            'h-3 w-3 shrink-0 text-muted-foreground/60 transition-transform',
+            isExpanded && 'rotate-180'
+          )}
+        />
+      </button>
+
+      {/* Expandable content */}
       {isExpanded && (
-        <div className="px-3 pb-2 space-y-2">
+        <div className="px-3 py-2 space-y-2 text-xs">
           {toolCall.displayText &&
+            toolCall.name !== 'read' &&
             displayOutput &&
             !toolCall.displayText.includes(displayOutput.slice(0, 50)) && (
-              <div className="text-muted-foreground text-xs">{toolCall.displayText}</div>
+              <div className="text-muted-foreground">{toolCall.displayText}</div>
             )}
-          {toolCall.input && (
-            <div className="text-xs">
-              <div className="text-muted-foreground mb-1">输入:</div>
-              <pre className="bg-background/50 rounded p-2 overflow-x-auto text-xs whitespace-pre-wrap break-words font-mono leading-relaxed">
-                {formatForDisplay(
-                  typeof toolCall.input === 'string'
-                    ? toolCall.input
-                    : JSON.stringify(toolCall.input, null, 2)
-                )}
-              </pre>
-            </div>
-          )}
-          {displayOutput && (
-            <div className="text-xs">
-              <div className="text-muted-foreground mb-1">输出:</div>
-              <pre className="bg-background/50 rounded p-2 overflow-x-auto text-xs whitespace-pre-wrap break-words font-mono leading-relaxed">
+          {toolCall.name === 'read' ? (
+            // read 工具：直接显示文件内容
+            displayOutput ? (
+              <pre className="bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                 {displayOutput}
               </pre>
-            </div>
-          )}
-          {toolCall.error && (
-            <div className="text-xs text-red-500">
-              <div className="mb-1">错误:</div>
-              <pre className="bg-red-500/10 rounded p-2 overflow-x-auto text-xs whitespace-pre-wrap break-words font-mono leading-relaxed">
+            ) : toolCall.error ? (
+              <pre className="bg-red-500/10 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                 {formatForDisplay(
                   typeof toolCall.error === 'string'
                     ? toolCall.error
                     : JSON.stringify(toolCall.error, null, 2)
                 )}
               </pre>
+            ) : null
+          ) : toolCall.name === 'exec' ? (
+            // exec 工具：终端风格
+            <div className="bg-zinc-950 rounded-md p-3 font-mono text-xs leading-relaxed space-y-2">
+              {execCommand && (
+                <div className="flex items-start gap-2">
+                  <span className="text-green-400 shrink-0 select-none">$</span>
+                  <span className="text-zinc-100 whitespace-pre-wrap break-words">
+                    {formatForDisplay(execCommand)}
+                  </span>
+                </div>
+              )}
+              {displayOutput && (
+                <div
+                  className={cn(
+                    'whitespace-pre-wrap break-words border-t border-zinc-800 pt-2',
+                    toolCall.status === 'error' ? 'text-red-400' : 'text-zinc-300'
+                  )}
+                >
+                  {displayOutput}
+                </div>
+              )}
             </div>
+          ) : (
+            // 其他工具：保持原有格式
+            <>
+              {toolCall.input && (
+                <div>
+                  <div className="text-muted-foreground mb-1 font-medium">输入</div>
+                  <pre className="bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+                    {formatForDisplay(
+                      typeof toolCall.input === 'string'
+                        ? toolCall.input
+                        : JSON.stringify(toolCall.input, null, 2)
+                    )}
+                  </pre>
+                </div>
+              )}
+              {/* 错误状态下 output 通常与 error 内容重复，只展示错误区域 */}
+              {displayOutput && toolCall.status !== 'error' && (
+                <div>
+                  <div className="text-muted-foreground mb-1 font-medium">输出</div>
+                  <pre className="bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+                    {displayOutput}
+                  </pre>
+                </div>
+              )}
+              {toolCall.error && (
+                <div>
+                  <div className="text-red-500 mb-1 font-medium">错误</div>
+                  <pre className="bg-red-500/10 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+                    {formatForDisplay(
+                      typeof toolCall.error === 'string'
+                        ? toolCall.error
+                        : JSON.stringify(toolCall.error, null, 2)
+                    )}
+                  </pre>
+                </div>
+              )}
+            </>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: boolean }) {
+  const [expanded, setExpanded] = useState(!completed)
+  const stepCount = events.length
+
+  return (
+    <div className="overflow-hidden rounded-r-lg border border-border border-l-2 border-l-accent/20 bg-accent/[0.02]">
+      {/* Header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={cn(
+          'flex w-full items-center gap-2 px-3 py-1.5 text-sm transition-colors',
+          expanded ? 'bg-accent/[0.03]' : 'hover:bg-accent/[0.03]'
+        )}
+      >
+        {completed ? (
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent" />
+        ) : (
+          <Sparkles className="h-3.5 w-3.5 shrink-0 animate-pulse text-accent" />
+        )}
+        <span className="italic text-muted-foreground">
+          {completed ? '已完成思考' : '正在思考...'}
+        </span>
+        <ChevronDown
+          className={cn(
+            'h-3 w-3 ml-auto shrink-0 text-muted-foreground/60 transition-transform',
+            expanded && 'rotate-180'
+          )}
+        />
+      </button>
+
+      {/* Expandable content */}
+      {expanded && (
+        <div className="border-t border-border/50 px-3 py-2 text-sm space-y-1.5">
+          {events.map((event, index) => (
+            <div key={`thinking-step-${index}`} className="flex items-start gap-2">
+              <span className="mt-0.5 shrink-0 text-accent/60 text-[10px] font-mono leading-[18px]">
+                {String(index + 1).padStart(2, '0')}
+              </span>
+              <span className="italic text-muted-foreground/80">{event.content}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>

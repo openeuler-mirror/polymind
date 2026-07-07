@@ -65,7 +65,6 @@ function parseSSEStream(
             try {
               const event = JSON.parse(data)
               events.push(event)
-              console.log(`${logPrefix} type: ${event.event?.type || event.type}`)
               if (onEvent) {
                 onEvent(event.event || event)
               }
