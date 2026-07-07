@@ -22,7 +22,7 @@ export interface AgentSlice {
   removeAgent: (agentId: string) => void
   setAgents: (agents: Agent[]) => void
   initializeAgent: (config: CreateAgentRequest) => Promise<Agent>
-  fetchAgentsWithConversations: () => Promise<{ fromCache?: boolean }>
+  fetchAgentsWithConversations: () => Promise<void>
 }
 
 function patchAgentNames(
@@ -54,7 +54,7 @@ function mergeAndSort<T extends { updatedAt: Date | string }>(fresh: T[], patche
 }
 
 export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (set, get) => {
-  let pendingFetch: Promise<{ fromCache: boolean }> | null = null
+  let pendingFetch: Promise<void> | null = null
 
   return {
     agents: [],
@@ -144,7 +144,7 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
           sandboxId: undefined,
           defaultSessionId: undefined,
           hasScheduledTasks: false,
-          idleTimeoutSeconds: config.idleTimeoutSeconds || 300,
+          idleTimeoutSeconds: config.idleTimeoutSeconds ?? 300,
           createdAt: now,
           updatedAt: now,
         }
@@ -162,11 +162,8 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
         return await pendingFetch
       }
 
-      let fromCache = false
-
       const cached = cacheGetAll()
       if (cached) {
-        fromCache = true
         set(state => {
           const existingIds = new Set(state.conversations.map(c => c.id))
           const existingSessionIds = new Set(
@@ -229,13 +226,12 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
         } finally {
           pendingFetch = null
         }
-        return { fromCache }
       }
 
       pendingFetch = doNetworkRefresh()
 
-      if (fromCache) {
-        return { fromCache: true }
+      if (cached) {
+        return
       }
 
       return await pendingFetch

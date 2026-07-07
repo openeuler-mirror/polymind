@@ -328,13 +328,13 @@ describe('AgentSlice', () => {
   })
 
   describe('fetchAgentsWithConversations', () => {
-    it('should return fromCache: false and populate store on network success', async () => {
+    it('should populate store on network success', async () => {
       ;(cacheGetAll as jest.Mock).mockReturnValue(null)
       setupNetworkMocks([{ id: 'agent-1', name: 'Agent 1' }], [])
 
       const result = await useTestStore.getState().fetchAgentsWithConversations()
 
-      expect(result).toEqual({ fromCache: false })
+      expect(result).toBeUndefined()
       expect(agentService.getAgentsWithConversations).toHaveBeenCalledTimes(1)
 
       const state = useTestStore.getState()
@@ -343,7 +343,7 @@ describe('AgentSlice', () => {
       expect(state.isAgentsLoading).toBe(false)
     })
 
-    it('should return fromCache: true and apply cached data before network completes', async () => {
+    it('should apply cached data before network completes', async () => {
       const cachedAgent = { ...testAgent, id: 'cached-agent', name: 'Cached Agent' }
       ;(cacheGetAll as jest.Mock).mockReturnValue({
         agents: [cachedAgent],
@@ -359,10 +359,7 @@ describe('AgentSlice', () => {
       ;(agentService.getAgentsWithConversations as jest.Mock).mockReturnValue(deferred)
       setupTransformAgentMock()
 
-      const result = await useTestStore.getState().fetchAgentsWithConversations()
-
-      // Should return fromCache: true since cache was hit
-      expect(result).toEqual({ fromCache: true })
+      await useTestStore.getState().fetchAgentsWithConversations()
 
       // Cache data should be in store immediately, before network completes
       const stateBeforeNetwork = useTestStore.getState()
@@ -396,9 +393,7 @@ describe('AgentSlice', () => {
       ;(agentService.getAgentsWithConversations as jest.Mock).mockReturnValue(deferred)
       setupTransformAgentMock()
 
-      const result = await useTestStore.getState().fetchAgentsWithConversations()
-
-      expect(result).toEqual({ fromCache: true })
+      await useTestStore.getState().fetchAgentsWithConversations()
 
       // Store conversations should now have agentName patched from sessionAgentNames
       const state = useTestStore.getState()
@@ -417,9 +412,7 @@ describe('AgentSlice', () => {
         new Error('Network error')
       )
 
-      const result = await useTestStore.getState().fetchAgentsWithConversations()
-
-      expect(result).toEqual({ fromCache: false })
+      await useTestStore.getState().fetchAgentsWithConversations()
 
       const state = useTestStore.getState()
       // Should not be stuck loading
@@ -428,7 +421,7 @@ describe('AgentSlice', () => {
       expect(state.agents).toEqual([])
     })
 
-    it('should deduplicate concurrent calls and return fromCache: false for the waiter', async () => {
+    it('should deduplicate concurrent calls', async () => {
       ;(cacheGetAll as jest.Mock).mockReturnValue(null)
 
       // Deferred promise to control when network resolves
@@ -458,13 +451,7 @@ describe('AgentSlice', () => {
       // Resolve the network request
       resolveNetwork!([{ id: 'agent-1', name: 'Agent 1', conversations: [] }])
 
-      const [r1, r2] = await Promise.all([call1, call2])
-
-      // First call: cache miss, waited for network
-      expect(r1).toEqual({ fromCache: false })
-      // Second call: dedup path, waited for pendingFetch
-      // Returns fromCache: false because store now has network data
-      expect(r2).toEqual({ fromCache: false })
+      await Promise.all([call1, call2])
 
       // Only one network request should have been made
       expect(agentService.getAgentsWithConversations).toHaveBeenCalledTimes(1)
@@ -536,9 +523,7 @@ describe('AgentSlice', () => {
       ;(agentService.getAgentsWithConversations as jest.Mock).mockReturnValue(deferred)
       setupTransformAgentMock()
 
-      const result = await useTestStore.getState().fetchAgentsWithConversations()
-
-      expect(result).toEqual({ fromCache: true })
+      await useTestStore.getState().fetchAgentsWithConversations()
 
       const state = useTestStore.getState()
       // The duplicate cached conversation should NOT have been added
