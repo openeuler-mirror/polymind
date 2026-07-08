@@ -72,6 +72,7 @@ interface CommitTableProps {
   canContinueReport: boolean
   onOpenPathBrowser: () => void
   onGenerateReport: () => void
+  onRunAll: () => void
   onContinueReport: () => void
   onExecuteSelected: () => void
   onDeleteSelectedRows: () => void
@@ -125,6 +126,7 @@ export function CommitTable({
   canContinueReport,
   onOpenPathBrowser,
   onGenerateReport,
+  onRunAll,
   onContinueReport,
   onExecuteSelected,
   onDeleteSelectedRows,
@@ -178,6 +180,14 @@ export function CommitTable({
                   <Play className="mr-1 h-4 w-4" />
                 )}
                 导入 Excel 并生成报告
+              </Button>
+              <Button size="sm" className="h-8" onClick={onRunAll} disabled={running || (!excelPath.trim() && !baseReportPath.trim())}>
+                {running && runningLabel === '一键运行' ? (
+                  <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="mr-1 h-4 w-4" />
+                )}
+                一键运行
               </Button>
               <Button
                 variant="outline"

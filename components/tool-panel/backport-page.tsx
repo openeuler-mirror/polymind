@@ -35,6 +35,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
 import {
   Dialog,
   DialogContent,
@@ -64,6 +65,7 @@ import {
   BackportGitLogEntry,
   BackportOperationResultData,
   BackportPatchResource,
+  BackportRunProgress,
   BackportStage,
   BackportTimelineEntry,
 } from '@/lib/backport-types'
@@ -76,9 +78,24 @@ import { generateUUID } from '@/lib/utils'
 
 const BACKPORT_COMMIT_PAGE_SIZE = 5
 
+const toRunAllNumber = (value: number | undefined): number => {
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? numericValue : 0
+}
+
+const hasRunAllNumber = (value: number | undefined): value is number => {
+  return Number.isFinite(Number(value))
+}
+
 export function BackportPage() {
   const { toast } = useToast()
   const patchAnchorRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const workingCommitsRef = useRef<BackportCommitRow[]>([])
+  const configRef = useRef<BackportConfig>(DEFAULT_BACKPORT_CONFIG)
+  const runAllRowStartedAtRef = useRef<Record<string, number>>({})
+  const runAllLastProcessedCountRef = useRef(0)
+  const runAllReportRefreshInFlightRef = useRef(false)
+  const runAllPendingReportRefreshPathRef = useRef<string | null>(null)
 
   const [config, setConfig] = useState<BackportConfig>(DEFAULT_BACKPORT_CONFIG)
   const [loadingConfig, setLoadingConfig] = useState(false)
@@ -87,6 +104,7 @@ export function BackportPage() {
   const [stage, setStage] = useState<BackportStage>('idle')
   const [running, setRunning] = useState(false)
   const [runningLabel, setRunningLabel] = useState('')
+  const [runAllProgress, setRunAllProgress] = useState<BackportRunProgress | null>(null)
   const [analyzingConflictRowId, setAnalyzingConflictRowId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [excelPath, setExcelPath] = useState('')
@@ -278,6 +296,7 @@ export function BackportPage() {
     [workingCommits],
   )
   const canContinueReport = Boolean(baseReportPath.trim()) && hasPendingRows && !firstBlockingConflictRow
+
   const selectedGitEntry = useMemo(
     () =>
       gitLogEntries.find(
@@ -321,6 +340,14 @@ export function BackportPage() {
     setCommitPage(prev => Math.min(Math.max(prev, 1), totalCommitPages))
   }, [totalCommitPages])
 
+  useEffect(() => {
+    workingCommitsRef.current = workingCommits
+  }, [workingCommits])
+
+  useEffect(() => {
+    configRef.current = config
+  }, [config])
+
   const addTimeline = (
     title: string,
     level: BackportTimelineEntry['level'] = 'info',
@@ -339,6 +366,58 @@ export function BackportPage() {
       ]
       return next.slice(0, 200)
     })
+  }
+
+  const getRunAllRowKey = (row: BackportCommitRow) => (
+    stringifyValue(row.data.row_id || row.data.commit || row.data.input_commit || row.rowId).trim() || row.rowId
+  )
+
+  const formatRunAllRowState = (data: BackportCommitItem | undefined) => {
+    if (!data) return '未知'
+    const status = resolveStatusMeta(data).label
+    const conflict = resolveConflictMeta(data).label
+    return `${status} / ${conflict}`
+  }
+
+  const formatRunAllDuration = (startedAt: number | undefined) => {
+    if (!startedAt) return '耗时 --'
+    const elapsedSeconds = Math.max(0, (Date.now() - startedAt) / 1000)
+    return elapsedSeconds >= 60
+      ? `耗时 ${(elapsedSeconds / 60).toFixed(1)} 分钟`
+      : `耗时 ${elapsedSeconds.toFixed(1)} 秒`
+  }
+
+  const refreshRunAllReportSnapshot = async (reportPath: string) => {
+    const normalizedPath = reportPath.trim()
+    if (!normalizedPath) return
+
+    if (runAllReportRefreshInFlightRef.current) {
+      runAllPendingReportRefreshPathRef.current = normalizedPath
+      return
+    }
+
+    runAllReportRefreshInFlightRef.current = true
+    try {
+      const response = await backportService.loadReport({
+        config: configRef.current,
+        baseReportPath: normalizedPath,
+      })
+      const commits = response.parsedResult?.report?.commits
+      if (Array.isArray(commits)) {
+        const nextRows = normalizeCommitRows(commits)
+        setOriginalCommits(nextRows)
+        setWorkingCommits(nextRows)
+      }
+    } catch (cause) {
+      console.warn('Failed to refresh Backport report snapshot:', cause)
+    } finally {
+      runAllReportRefreshInFlightRef.current = false
+      const pendingPath = runAllPendingReportRefreshPathRef.current
+      runAllPendingReportRefreshPathRef.current = null
+      if (pendingPath) {
+        void refreshRunAllReportSnapshot(pendingPath)
+      }
+    }
   }
 
   const applyOperationResult = (result: BackportOperationResultData | null) => {
@@ -363,7 +442,7 @@ export function BackportPage() {
       }
     }
 
-    if (result.operation === 'generate_report') {
+    if (result.operation === 'generate_report' || result.operation === 'run_all') {
       setFilteredReportPath('')
       setConfig(prev => ({ ...prev, current_filtered_report_path: '' }))
       setPatchPreviews({})
@@ -395,7 +474,11 @@ export function BackportPage() {
 
     if (Array.isArray(result.report?.commits)) {
       const nextRows = normalizeCommitRows(result.report.commits)
-      if (result.operation === 'generate_report' || result.operation === 'continue_report') {
+      if (
+        result.operation === 'generate_report' ||
+        result.operation === 'continue_report' ||
+        result.operation === 'run_all'
+      ) {
         setOriginalCommits(nextRows)
         setWorkingCommits(nextRows)
       } else {
@@ -453,6 +536,55 @@ export function BackportPage() {
 
     if (event.type === 'stream.error' || event.type === 'client.error') {
       addTimeline('流式执行失败', 'error', JSON.stringify(payload, null, 2))
+    }
+  }
+
+  const handleRunAllProgress = (progress: BackportRunProgress) => {
+    setRunAllProgress(progress)
+    const progressRowId = stringifyValue(progress.current_row_id).trim()
+    if (progressRowId && !runAllRowStartedAtRef.current[progressRowId]) {
+      runAllRowStartedAtRef.current[progressRowId] = Date.now()
+    }
+
+    const nextProcessedCount = toRunAllNumber(progress.processed_count)
+    const shouldRecordCompletedRows = nextProcessedCount > runAllLastProcessedCountRef.current
+    if (shouldRecordCompletedRows) {
+      const previousRows = workingCommitsRef.current
+      const previousRowsById = new Map(previousRows.map(row => [getRunAllRowKey(row), row]))
+      const updatedRows = normalizeCommitRows(progress.updated_commits || [])
+      for (const row of updatedRows) {
+        const rowKey = getRunAllRowKey(row)
+        const previousRow = previousRowsById.get(rowKey)
+        const commit = stringifyValue(row.data.commit || row.data.input_commit || rowKey).slice(0, 12)
+        const title = resolveCommitTitle(row.data)
+        const previousState = formatRunAllRowState(previousRow?.data)
+        const nextState = formatRunAllRowState(row.data)
+        const duration = formatRunAllDuration(runAllRowStartedAtRef.current[rowKey] || runAllRowStartedAtRef.current[progressRowId])
+        const failed = resolveStatusMeta(row.data).kind === 'failed'
+        addTimeline(
+          `Commit ${commit} 运行完成`,
+          failed ? 'error' : 'success',
+          [
+            title ? `标题: ${title}` : '',
+            `状态: ${previousState} -> ${nextState}`,
+            duration,
+            progress.message ? `说明: ${progress.message}` : '',
+          ].filter(Boolean).join('\n')
+        )
+        delete runAllRowStartedAtRef.current[rowKey]
+      }
+      runAllLastProcessedCountRef.current = nextProcessedCount
+      setSupportTab('timeline')
+    }
+
+    if (Array.isArray(progress.updated_commits) && progress.updated_commits.length > 0) {
+      setWorkingCommits(prev => mergeCommitRows(prev, progress.updated_commits || []))
+      setOriginalCommits(prev => mergeCommitRows(prev, progress.updated_commits || []))
+    }
+    if (progress.current_report_path) {
+      setBaseReportPath(progress.current_report_path)
+      setConfig(prev => ({ ...prev, current_report_path: progress.current_report_path || '' }))
+      void refreshRunAllReportSnapshot(progress.current_report_path)
     }
   }
 
@@ -659,6 +791,56 @@ export function BackportPage() {
         handleAgentEvent
       )
     )
+  }
+
+  const handleRunAll = async () => {
+    const normalizedExcelPath = excelPath.trim()
+    const normalizedBaseReportPath = baseReportPath.trim()
+    if (!normalizedExcelPath && !normalizedBaseReportPath) {
+      toast({
+        title: '提示',
+        description: '请先填写 Excel 路径或生成可继续的 report',
+      })
+      return
+    }
+
+    await handleSaveConfig(true)
+    const runConfig = normalizeBackportConfig({
+      ...config,
+      current_excel_path: normalizedExcelPath,
+    })
+    configRef.current = runConfig
+    setConfig(runConfig)
+    setExcelPath(normalizedExcelPath)
+    setRunAllProgress(null)
+    runAllRowStartedAtRef.current = {}
+    runAllLastProcessedCountRef.current = 0
+    runAllReportRefreshInFlightRef.current = false
+    runAllPendingReportRefreshPathRef.current = null
+
+    const response = await runOperation('一键运行', () =>
+      backportService.runAll(
+        {
+          config: runConfig,
+          excelPath: normalizedExcelPath,
+          baseReportPath: normalizedBaseReportPath,
+          workingReportPath: filteredReportPath.trim() || normalizedBaseReportPath,
+        },
+        handleAgentEvent,
+        handleRunAllProgress,
+      )
+    )
+    if (response.parsedResult?.stage === 'completed') {
+      toast({
+        title: '完成',
+        description: 'Backport 已完成一键运行',
+      })
+    } else if (response.parsedResult?.stage === 'interactive_editing') {
+      toast({
+        title: '已暂停',
+        description: response.parsedResult.summary || '需要人工处理后继续',
+      })
+    }
   }
 
   const handleContinueReport = async () => {
@@ -1344,6 +1526,30 @@ export function BackportPage() {
     }
   }, [workingCommits])
 
+  const runAllPhaseLabel = useMemo(() => {
+    if (!runAllProgress?.phase) return ''
+    const labels: Record<string, string> = {
+      initializing: '初始化',
+      checking: '检查',
+      applying: '应用',
+      resolving: '解冲突',
+      skipped: '跳过',
+      failed: '失败',
+      completed: '完成',
+    }
+    return labels[runAllProgress.phase] || runAllProgress.phase
+  }, [runAllProgress])
+
+  const runAllProgressPercent = useMemo(() => {
+    const current = toRunAllNumber(runAllProgress?.current_index)
+    const total = toRunAllNumber(runAllProgress?.total)
+    if (total <= 0) return 0
+    return Math.min(100, Math.max(0, Math.round((current / total) * 100)))
+  }, [runAllProgress])
+
+  const hasRunAllIndex =
+    hasRunAllNumber(runAllProgress?.current_index) && hasRunAllNumber(runAllProgress?.total)
+
   return (
     <div className="h-full w-full overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_36%),linear-gradient(180deg,rgba(248,250,252,0.95),rgba(255,255,255,1))]">
       <div className="mx-auto max-w-7xl space-y-4 p-4">
@@ -1393,6 +1599,41 @@ export function BackportPage() {
               重置页面
             </Button>
           </div>
+          {runningLabel === '一键运行' && runAllProgress ? (
+            <div className="xl:basis-full">
+              <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-blue-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-white text-blue-700">
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                        <span>一键运行 · {runAllPhaseLabel || '运行中'}</span>
+                        {hasRunAllIndex ? (
+                          <span className="rounded-md border border-blue-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-blue-700">
+                            {runAllProgress.current_index}/{runAllProgress.total}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-1 line-clamp-2 text-xs leading-5 text-blue-700">
+                        {runAllProgress.message || '正在处理 Backport 任务'}
+                        {runAllProgress.current_title ? (
+                          <span className="ml-2 font-mono text-blue-800">{runAllProgress.current_title}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2 text-xs text-blue-700">
+                    <span>已处理 {toRunAllNumber(runAllProgress.processed_count)}</span>
+                    <span>失败 {toRunAllNumber(runAllProgress.failed_count)}</span>
+                    <span className="font-mono">{runAllProgressPercent}%</span>
+                  </div>
+                </div>
+                <Progress value={runAllProgressPercent} className="mt-3 h-1.5 bg-blue-100 [&>div]:bg-blue-600" />
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <Card>
@@ -1680,6 +1921,7 @@ export function BackportPage() {
           canContinueReport={canContinueReport}
           onOpenPathBrowser={openPathBrowser}
           onGenerateReport={handleGenerateReport}
+          onRunAll={handleRunAll}
           onContinueReport={handleContinueReport}
           onExecuteSelected={handleExecuteSelected}
           onDeleteSelectedRows={handleDeleteSelectedRows}

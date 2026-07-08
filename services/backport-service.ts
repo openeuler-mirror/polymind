@@ -12,16 +12,21 @@ import {
   BackportLoadGitLogRequest,
   BackportLoadPatchPreviewRequest,
   BackportLoadGitShowRequest,
+  BackportLoadReportRequest,
   BackportManualPatchRequest,
   BackportPatchPreviewResponse,
   BackportRecheckConflictRequest,
+  BackportRunAllRequest,
+  BackportRunProgress,
   BackportRunResponse,
   BackportToolSnapshot,
   BackportTryResolveRequest,
 } from '@/lib/backport-types'
 
 type BackportAction =
+  | 'run_all'
   | 'generate_report'
+  | 'load_report'
   | 'continue_report'
   | 'recheck_conflict'
   | 'load_git_log'
@@ -45,6 +50,7 @@ type BackportAsyncRunResponse = {
   status: 'running' | 'success' | 'failed'
   result: BackportRunResponse | null
   error: string
+  progress?: BackportRunProgress | null
 }
 
 function parseJsonObject(text: string): Record<string, unknown> {
@@ -150,6 +156,81 @@ class BackportService {
     }
     if (!current.result) {
       throw new Error('生成配置与报告未返回结果')
+    }
+
+    this.emitSyntheticToolEvents(current.result.toolSnapshots, onEvent)
+
+    onEvent?.({
+      type: 'message.completed',
+      payload: {
+        text: current.result.assistantText,
+      },
+    })
+
+    return current.result
+  }
+
+  public async loadReport(request: BackportLoadReportRequest): Promise<BackportRunResponse> {
+    return this.runAction({
+      action: 'load_report',
+      payload: {
+        config: request.config,
+        base_report_path: request.baseReportPath,
+      },
+    })
+  }
+
+  public async runAll(
+    request: BackportRunAllRequest,
+    onEvent?: (event: any) => void,
+    onProgress?: (progress: BackportRunProgress) => void,
+  ): Promise<BackportRunResponse> {
+    onEvent?.({ type: 'message.started', payload: {} })
+
+    const runRequest: BackportRunRequest = {
+      action: 'run_all',
+      payload: {
+        config: request.config,
+        excel_path: request.excelPath,
+        base_report_path: request.baseReportPath,
+        working_report_path: request.workingReportPath,
+      },
+    }
+    const created = await httpClient.post<BackportAsyncRunResponse>(
+      '/backport/runs',
+      runRequest,
+      { timeout: 30000 },
+    )
+
+    let current = created
+    let lastProgressText = ''
+    if (current.progress) {
+      lastProgressText = JSON.stringify(current.progress)
+      onProgress?.(current.progress)
+    }
+    while (current.status === 'running') {
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      current = await httpClient.get<BackportAsyncRunResponse>(
+        `/backport/runs/${encodeURIComponent(created.run_id)}`,
+        { timeout: 30000 },
+      )
+      if (current.progress) {
+        const progressText = JSON.stringify(current.progress)
+        if (progressText !== lastProgressText) {
+          lastProgressText = progressText
+          onProgress?.(current.progress)
+        }
+      }
+    }
+    if (current.progress) {
+      onProgress?.(current.progress)
+    }
+
+    if (current.status === 'failed') {
+      throw new Error(current.error || '一键运行失败')
+    }
+    if (!current.result) {
+      throw new Error('一键运行未返回结果')
     }
 
     this.emitSyntheticToolEvents(current.result.toolSnapshots, onEvent)
