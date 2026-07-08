@@ -232,6 +232,25 @@ describe('ChatSlice', () => {
 
       expect(sessionService.deleteSession).toHaveBeenCalledWith('agent-1', 'sess-1')
     })
+
+    it('should still delete local conversation and log error when deleteSession fails', async () => {
+      seedConversation({ sessionId: 'sess-1', agentId: 'agent-1' })
+      useTestStore.setState({ currentConversationId: 'conv-1' })
+      ;(sessionService.deleteSession as jest.Mock).mockRejectedValue(new Error('Network error'))
+
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+
+      await useTestStore.getState().deleteConversation('conv-1')
+
+      // Local conversation is still deleted
+      expect(useTestStore.getState().conversations.length).toBe(0)
+      expect(useTestStore.getState().currentConversationId).toBeNull()
+
+      // Error is logged without crashing
+      expect(consoleSpy).toHaveBeenCalledWith('Failed to delete session:', expect.any(Error))
+
+      consoleSpy.mockRestore()
+    })
   })
 
   describe('addMessage', () => {
