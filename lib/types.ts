@@ -727,7 +727,8 @@ export interface InstallAgentSkillRequest {
   skill_id: string
   skill_name: string
   source_type?: SkillRepositorySourceType
-  source_url?: string
+  skill_source?: string
+  metadata?: Record<string, unknown> | null
 }
 
 /**

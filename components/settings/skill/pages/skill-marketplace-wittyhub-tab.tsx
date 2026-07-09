@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
+import { extractApiErrorMessage } from '@/lib/error-handler'
 import { SkillResponse } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
 import {
@@ -104,7 +105,7 @@ export function WittyHubMarketplaceTab({
         console.error('Failed to load wittyhub skills page:', error)
         toast({
           title: '加载失败',
-          description: '无法获取 WittyHub 技能列表，请稍后重试。',
+          description: extractApiErrorMessage(error, '无法获取 WittyHub 技能列表，请稍后重试。'),
           variant: 'destructive',
         })
       } finally {
@@ -122,11 +123,23 @@ export function WittyHubMarketplaceTab({
   })
 
   useEffect(() => {
-    void refreshStats()
+    const timer = window.setTimeout(() => {
+      void refreshStats()
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
   }, [refreshStats])
 
   useEffect(() => {
-    void loadPage(0, true)
+    const timer = window.setTimeout(() => {
+      void loadPage(0, true)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
   }, [loadPage, searchTerm])
 
   return (
