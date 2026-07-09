@@ -163,9 +163,36 @@ export interface BackportRunResponse {
   toolSnapshots: BackportToolSnapshot[]
 }
 
+export interface BackportRunProgress {
+  phase?: string
+  message?: string
+  current_report_path?: string
+  current_index?: number
+  total?: number
+  current_commit?: string
+  current_title?: string
+  current_row_id?: string
+  processed_count?: number
+  failed_count?: number
+  updated_commits?: BackportCommitItem[]
+  conflict_report_summary?: Record<string, unknown>
+}
+
 export interface BackportGenerateReportRequest {
   config: BackportConfig
   excelPath: string
+}
+
+export interface BackportLoadReportRequest {
+  config: BackportConfig
+  baseReportPath: string
+}
+
+export interface BackportRunAllRequest {
+  config: BackportConfig
+  excelPath: string
+  baseReportPath?: string
+  workingReportPath?: string
 }
 
 export interface BackportLoadGitLogRequest {

@@ -124,11 +124,12 @@ export function handleAgentStreamEvent({
       break
     case 'message.completed':
     case 'turn.completed':
+      const completedText = eventData.type === 'message.completed' ? eventData.payload?.text : undefined
+      const currentText = currentMessage.content ?? ''
       store.updateMessage(conversationId, nextAssistantMessageId, {
-        content:
-          eventData.type === 'message.completed'
-            ? (eventData.payload?.text ?? currentMessage.content ?? '')
-            : (currentMessage.content ?? ''),
+        content: typeof completedText === 'string' && completedText.length > currentText.length
+          ? completedText
+          : currentText,
         isStreaming: false,
         toolCalls: currentMessage.toolCalls?.map(toolCall =>
           toolCall.status === 'running'
