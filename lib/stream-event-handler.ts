@@ -82,11 +82,11 @@ export function handleStreamEvent(
       break
     case 'message.completed':
       locallyCreatedMessageIds?.current.delete(messageId)
-      updateMessage(conversationId, messageId, {
-        content: eventData.payload?.text || '',
+      updateMessage(conversationId, messageId, (m: Message) => ({
+        content: m.content || eventData.payload?.text || '',
         isStreaming: false,
         status: MessageStatus.COMPLETED,
-      })
+      }))
       setStreaming(conversationId, false)
       break
     case 'thinking':
@@ -135,11 +135,11 @@ export function handleStreamEvent(
       }
       break
     case 'tool.call.response':
-      if (eventData.payload?.name) {
+      if (eventData.payload?.name || eventData.payload?.tool_name) {
         const displayText = formatDisplayText(eventData.payload)
         const toolCall = {
           id: eventData.payload.tool_call_id || generateUUID(),
-          name: eventData.payload.name,
+          name: eventData.payload.name || eventData.payload.tool_name,
           status: (eventData.payload.is_error ? 'error' : 'completed') as 'error' | 'completed',
           input: eventData.payload.arguments,
           output: eventData.payload.content,

@@ -98,6 +98,16 @@ class SessionService {
    * 将 API 会话详情中的消息转换为前端 Message 类型
    */
   public transformMessage(msg: any): Message {
+    const isFinished = msg.status && msg.status !== MessageStatus.GENERATING
+    // 已完成消息的 toolCall 强制标记为 completed，避免服务端返回的中间状态导致 UI 显示错误
+    const normalizeToolCallStatus = (toolCall: any) => {
+      if (!toolCall) return undefined
+      if (isFinished && toolCall.status === 'running') {
+        return { ...toolCall, status: 'completed' as const }
+      }
+      return toolCall
+    }
+
     return {
       id: msg.id,
       role: msg.role,
@@ -105,7 +115,7 @@ class SessionService {
       timestamp: new Date(msg.timestamp || msg.created_at),
       isStreaming: msg.isStreaming ?? msg.status === MessageStatus.GENERATING,
       status: msg.status,
-      toolCalls: msg.toolCalls || msg.tool_calls,
+      toolCalls: (msg.toolCalls || msg.tool_calls || []).map(normalizeToolCallStatus),
       thinking: msg.thinking,
       events: (msg.events || [])
         .filter((evt: any) => {
@@ -125,7 +135,7 @@ class SessionService {
               : evt.timestamp
                 ? new Date(evt.timestamp).getTime()
                 : Date.now(),
-          toolCall: evt.toolCall || undefined,
+          toolCall: normalizeToolCallStatus(evt.toolCall),
         })),
       usage: msg.usage,
     }

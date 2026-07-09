@@ -201,17 +201,17 @@ export function handleAgentStreamEvent({
       }
       break
     case 'tool.call.response':
-      if (eventData.payload?.name) {
+      if (eventData.payload?.name || eventData.payload?.tool_name) {
         const existingToolCall = currentMessage.toolCalls?.find(
           item =>
             (eventData.payload.tool_call_id && item.id === eventData.payload.tool_call_id) ||
             (!eventData.payload.tool_call_id &&
-              item.name === eventData.payload.name &&
+              item.name === (eventData.payload.name || eventData.payload.tool_name) &&
               item.status === 'running')
         )
         const toolCall = {
           id: eventData.payload.tool_call_id || existingToolCall?.id || generateUUID(),
-          name: eventData.payload.name,
+          name: eventData.payload.name || eventData.payload.tool_name,
           status: eventData.payload.is_error ? ('error' as const) : ('completed' as const),
           input: eventData.payload.arguments || existingToolCall?.input,
           output: eventData.payload.content,
