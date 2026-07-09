@@ -3527,7 +3527,7 @@
       "properties": {
         "skill_id": {
           "type": "string",
-          "description": "技能唯一标识；WittyHub 安装时可传远端 skill_id 用于记录元数据"
+          "description": "技能唯一标识；安装时skill_id 用于记录元数据"
         },
         "skill_name": {
           "type": "string",
@@ -3535,7 +3535,7 @@
         },
         "source_type": {
           "type": "string",
-          "description": "安装来源类型；安装 WittyHub 技能时传 wittyhub",
+          "description": "安装来源类型；如安装 WittyHub 技能时传 wittyhub",
           "nullable": true
         },
         "source_url": {
