@@ -620,7 +620,7 @@ export interface CveArtifactResponse {
 /**
  * 技能仓库来源类型
  */
-export type SkillRepositorySourceType = 'git' | 'local'
+export type SkillRepositorySourceType = 'builtin' | 'git' | 'local' | 'clawhub' | 'wittyhub'
 
 /**
  * 技能仓库响应
@@ -659,13 +659,58 @@ export interface SkillResponse {
   skill_md_url?: string | null
 }
 
+export interface WittyHubSkillResponse {
+  id: string
+  skill_id: string
+  name: string
+  description?: string | null
+  version?: string | null
+  commit_id?: string | null
+  author?: string | null
+  source: string
+  source_url: string
+  category?: string | null
+  tags?: string[] | null
+  platform?: string | null
+  metadata?: Record<string, unknown>
+  content?: string | null
+  security_score?: number | null
+  download_count: number
+  rating?: string | null
+  created_at: string
+  updated_at: string
+  last_indexed_at?: string | null
+}
+
+export interface WittyHubSkillListResponse {
+  skills: WittyHubSkillResponse[]
+  total: number
+  skip: number
+  limit: number
+}
+
+export interface WittyHubSearchResponse {
+  results: WittyHubSkillResponse[]
+  total: number
+  query: string
+  skip: number
+  limit: number
+  mode: string
+}
+
+export interface WittyHubStatsResponse {
+  total_skills: number
+  total_categories: number
+  categories: Array<Record<string, unknown>>
+}
+
 /**
  * Agent skill 响应（安装与已安装查询共用）
  */
 export interface AgentSkillResponse {
   agent_id: string
   skill_id: string
-  source_type: 'builtin' | 'git' | 'local'
+  source_type: SkillRepositorySourceType
   repo_id: string | null
   skill_name: string
   installed_at: string
@@ -682,6 +727,8 @@ export interface AgentSkillResponse {
 export interface InstallAgentSkillRequest {
   skill_id: string
   skill_name: string
+  source_type?: SkillRepositorySourceType
+  source_url?: string
 }
 
 /**
@@ -697,6 +744,13 @@ export interface UninstallAgentSkillRequest {
 export interface InstallAgentSkillResponse {
   agent_id: string
   skill_id: string
+  source_type: SkillRepositorySourceType
+  repo_id: string | null
   skill_name: string
-  message: string
+  installed_at?: string
+  relative_path?: string | null
+  metadata?: Record<string, unknown> | null
+  skill_source?: string | null
+  skill_md_url?: string | null
+  message?: string | null
 }
