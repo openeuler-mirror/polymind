@@ -193,6 +193,7 @@ class AgentService {
       hasScheduledTasks: agent.has_scheduled_tasks ?? agent.hasScheduledTasks ?? false,
       defaultSessionId: agent.default_session_id || agent.defaultSessionId,
       processPort: agent.process_port || agent.processPort,
+      modelId: agent.model_id || agent.modelId,
       skills: agent.skills || [],
       mcpServerList: agent.mcp_server_list || [],
       createdAt: agent.created_at || agent.createdAt,

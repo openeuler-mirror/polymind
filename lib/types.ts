@@ -331,6 +331,7 @@ export interface Agent {
   hasScheduledTasks: boolean
   defaultSessionId?: string | null
   processPort?: number | null
+  modelId?: string | null
   skills?: AgentSkill[]
   mcpServerList?: string[]
   createdAt: string

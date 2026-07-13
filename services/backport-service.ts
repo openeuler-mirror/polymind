@@ -1,6 +1,7 @@
 import { httpClient } from '@/lib/http-client'
 import {
   BackportApplyRowRequest,
+  BackportAsyncRunResponse,
   BackportBrowseResponse,
   BackportCommitMessagePreview,
   BackportCommitMessagePreviewRequest,
@@ -16,6 +17,9 @@ import {
   BackportManualPatchRequest,
   BackportPatchPreviewResponse,
   BackportRecheckConflictRequest,
+  BackportRuntimeStatus,
+  BackportRunAllControl,
+  BackportRunAllLifecycle,
   BackportRunAllRequest,
   BackportRunProgress,
   BackportRunResponse,
@@ -44,15 +48,6 @@ type BackportRunRequest = {
   payload: Record<string, unknown>
 }
 
-type BackportAsyncRunResponse = {
-  run_id: string
-  action: string
-  status: 'running' | 'success' | 'failed'
-  result: BackportRunResponse | null
-  error: string
-  progress?: BackportRunProgress | null
-}
-
 function parseJsonObject(text: string): Record<string, unknown> {
   try {
     const value = JSON.parse(text)
@@ -71,9 +66,21 @@ class BackportService {
     return httpClient.put<BackportConfigUpdateResponse>('/backport/config', payload)
   }
 
+  public async getRuntimeStatus(payload: BackportConfig): Promise<BackportRuntimeStatus> {
+    return httpClient.post<BackportRuntimeStatus>('/backport/runtime-status', payload)
+  }
+
   public async browsePath(path?: string): Promise<BackportBrowseResponse> {
     const query = path ? `?path=${encodeURIComponent(path)}` : ''
     return httpClient.get<BackportBrowseResponse>(`/backport/browse${query}`)
+  }
+
+  public async pauseRun(runId: string): Promise<BackportAsyncRunResponse> {
+    return httpClient.post<BackportAsyncRunResponse>(
+      `/backport/runs/${encodeURIComponent(runId)}/pause`,
+      {},
+      { timeout: 30000 },
+    )
   }
 
   public async loadPatchPreview(
@@ -184,6 +191,7 @@ class BackportService {
     request: BackportRunAllRequest,
     onEvent?: (event: any) => void,
     onProgress?: (progress: BackportRunProgress) => void,
+    lifecycle?: BackportRunAllLifecycle,
   ): Promise<BackportRunResponse> {
     onEvent?.({ type: 'message.started', payload: {} })
 
@@ -201,6 +209,12 @@ class BackportService {
       runRequest,
       { timeout: 30000 },
     )
+    const control: BackportRunAllControl = {
+      runId: created.run_id,
+      pause: () => this.pauseRun(created.run_id),
+    }
+    lifecycle?.onRunCreated?.(control)
+    lifecycle?.onRunUpdated?.(created)
 
     let current = created
     let lastProgressText = ''
@@ -214,6 +228,7 @@ class BackportService {
         `/backport/runs/${encodeURIComponent(created.run_id)}`,
         { timeout: 30000 },
       )
+      lifecycle?.onRunUpdated?.(current)
       if (current.progress) {
         const progressText = JSON.stringify(current.progress)
         if (progressText !== lastProgressText) {
@@ -225,6 +240,7 @@ class BackportService {
     if (current.progress) {
       onProgress?.(current.progress)
     }
+    lifecycle?.onRunUpdated?.(current)
 
     if (current.status === 'failed') {
       throw new Error(current.error || '一键运行失败')

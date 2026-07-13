@@ -7,6 +7,7 @@ import {
   FolderOpen,
   GitBranch,
   ListFilter,
+  Pause,
   Play,
   RefreshCw,
   RotateCcw,
@@ -42,6 +43,8 @@ interface CommitTableProps {
   onExcelPathChange: (value: string) => void
   running: boolean
   runningLabel: string
+  canPauseRunAll: boolean
+  runAllPauseState: 'idle' | 'running' | 'pause_requested' | 'paused'
   baseReportPath: string
   filteredRows: BackportCommitRow[]
   paginatedRows: BackportCommitRow[]
@@ -73,6 +76,7 @@ interface CommitTableProps {
   onOpenPathBrowser: () => void
   onGenerateReport: () => void
   onRunAll: () => void
+  onPauseRunAll: () => void
   onContinueReport: () => void
   onExecuteSelected: () => void
   onDeleteSelectedRows: () => void
@@ -96,6 +100,8 @@ export function CommitTable({
   onExcelPathChange,
   running,
   runningLabel,
+  canPauseRunAll,
+  runAllPauseState,
   baseReportPath,
   filteredRows,
   paginatedRows,
@@ -127,6 +133,7 @@ export function CommitTable({
   onOpenPathBrowser,
   onGenerateReport,
   onRunAll,
+  onPauseRunAll,
   onContinueReport,
   onExecuteSelected,
   onDeleteSelectedRows,
@@ -147,6 +154,45 @@ export function CommitTable({
   const updateFilter = <T,>(setter: (value: T) => void, value: T) => {
     setter(value)
     clearSelection()
+  }
+
+  const isRunAllRunning = running && runningLabel === '一键运行'
+  const isRunAllPauseRequested = runAllPauseState === 'pause_requested'
+  const isRunAllPaused = runAllPauseState === 'paused'
+  const isOtherOperationRunning = running && !isRunAllRunning
+  const lacksRunAllInput = !running && !excelPath.trim() && !baseReportPath.trim()
+  const runAllButtonDisabled =
+    isOtherOperationRunning ||
+    (isRunAllRunning && !canPauseRunAll) ||
+    isRunAllPauseRequested ||
+    lacksRunAllInput
+
+  let runAllButtonClick = onRunAll
+  if (isRunAllRunning) {
+    runAllButtonClick = onPauseRunAll
+  }
+
+  let runAllButtonTitle: string | undefined
+  if (isRunAllPauseRequested) {
+    runAllButtonTitle = '正在完成当前 commit，完成后暂停并保存 report'
+  } else if (isRunAllPaused) {
+    runAllButtonTitle = '从已保存的 report 继续一键运行'
+  }
+
+  let runAllButtonIcon = <Play className="mr-1 h-4 w-4" />
+  if (isRunAllRunning && isRunAllPauseRequested) {
+    runAllButtonIcon = <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
+  } else if (isRunAllRunning) {
+    runAllButtonIcon = <Pause className="mr-1 h-4 w-4" />
+  }
+
+  let runAllButtonLabel = '一键运行'
+  if (isRunAllRunning && isRunAllPauseRequested) {
+    runAllButtonLabel = '暂停中...'
+  } else if (isRunAllRunning) {
+    runAllButtonLabel = '暂停'
+  } else if (isRunAllPaused) {
+    runAllButtonLabel = '继续一键运行'
   }
 
   return (
@@ -181,13 +227,15 @@ export function CommitTable({
                 )}
                 导入 Excel 并生成报告
               </Button>
-              <Button size="sm" className="h-8" onClick={onRunAll} disabled={running || (!excelPath.trim() && !baseReportPath.trim())}>
-                {running && runningLabel === '一键运行' ? (
-                  <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
-                ) : (
-                  <Play className="mr-1 h-4 w-4" />
-                )}
-                一键运行
+              <Button
+                size="sm"
+                className="h-8"
+                onClick={runAllButtonClick}
+                disabled={runAllButtonDisabled}
+                title={runAllButtonTitle}
+              >
+                {runAllButtonIcon}
+                {runAllButtonLabel}
               </Button>
               <Button
                 variant="outline"
