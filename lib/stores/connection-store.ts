@@ -215,10 +215,6 @@ export const createConnectionSlice: StateCreator<StoreState, [], [], ConnectionS
       throw new Error('No active session for agent')
     }
 
-    if (!get().wsConnections[agentId]) {
-      throw new Error(`WebSocket connection not established for agent "${agentId}". `)
-    }
-
     try {
       const events = await messageService.sendMessage(agentId, sessionId, content, onEvent)
       return events

@@ -6,7 +6,7 @@ import { sessionService } from '@/services/session-service'
 import { generateUUID } from '../utils'
 import { cacheDelete, cacheSetAll, cacheGetAll, CACHE_KEYS } from '../cache'
 import { appConfig } from '@/app/config'
-import { syncUrlParams } from './utils'
+import { syncUrlParams, getUrlParam } from './utils'
 import type { StoreState } from './index'
 
 export interface AgentSlice {
@@ -64,10 +64,7 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
     isAgentsLoading: false,
 
     setCurrentAgent: agentId => {
-      const currentSessionId =
-        typeof window !== 'undefined'
-          ? new URLSearchParams(window.location.search).get('session')
-          : null
+      const currentSessionId = getUrlParam('session')
       set({ currentAgentId: agentId })
       if (!get().currentConversationId) {
         syncUrlParams(agentId || undefined, currentSessionId || undefined)
