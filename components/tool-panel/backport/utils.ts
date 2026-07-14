@@ -19,6 +19,7 @@ commit {{commit_id}} {{source}}
 
 export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   project_url: '',
+  backport_model_id: '',
   project_dir: '',
   source_branch: '',
   target_path: '',
@@ -33,6 +34,7 @@ export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   current_excel_path: '',
   current_report_path: '',
   current_filtered_report_path: '',
+  cvekit_options: {},
 }
 
 export type RowStatusKind = 'success' | 'failed' | 'conflict' | 'noop' | 'skipped' | 'unmatched' | 'pending'
@@ -46,9 +48,20 @@ export type BackportConflictAnalysisPatch = {
 }
 
 export function normalizeBackportConfig(config: Partial<BackportConfig>): BackportConfig {
+  const legacyConfig = config as Partial<BackportConfig> & { enable_conflict_summary?: boolean }
+  const cvekitOptions = {
+    ...(config.cvekit_options || {}),
+  }
+  if (
+    typeof legacyConfig.enable_conflict_summary === 'boolean' &&
+    typeof cvekitOptions.enable_conflict_summary === 'undefined'
+  ) {
+    cvekitOptions.enable_conflict_summary = legacyConfig.enable_conflict_summary
+  }
   const normalized = {
     ...DEFAULT_BACKPORT_CONFIG,
     ...config,
+    cvekit_options: cvekitOptions,
   }
   if (!normalized.commit_message_template.trim()) {
     normalized.commit_message_template = DEFAULT_COMMIT_MESSAGE_TEMPLATE
@@ -212,6 +225,7 @@ export function stageLabel(stage: BackportStage): string {
     executing: '执行中',
     completed: '已完成',
     failed: '失败',
+    paused: '已暂停',
   }
   return map[stage]
 }

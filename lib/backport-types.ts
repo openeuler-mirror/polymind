@@ -6,9 +6,11 @@ export type BackportStage =
   | 'executing'
   | 'completed'
   | 'failed'
+  | 'paused'
 
 export interface BackportConfig {
   project_url: string
+  backport_model_id: string
   project_dir: string
   source_branch: string
   target_path: string
@@ -23,11 +25,24 @@ export interface BackportConfig {
   current_excel_path: string
   current_report_path: string
   current_filtered_report_path: string
+  cvekit_options: Record<string, unknown>
 }
 
 export interface BackportConfigUpdateResponse {
   ok: boolean
   config_path?: string
+}
+
+export interface BackportRuntimeStatus {
+  ok: boolean
+  model_configured: boolean
+  model_name: string
+  model_provider: string
+  api_key_available: boolean
+  mcp_configured: boolean
+  cvekit_available: boolean
+  cvekit_path: string
+  errors: string[]
 }
 
 export interface BackportBrowseEntry {
@@ -176,6 +191,55 @@ export interface BackportRunProgress {
   failed_count?: number
   updated_commits?: BackportCommitItem[]
   conflict_report_summary?: Record<string, unknown>
+}
+
+export interface BackportAsyncRunResponse {
+  run_id: string
+  action: string
+  status: 'running' | 'success' | 'failed'
+  result: BackportRunResponse | null
+  error: string
+  progress?: BackportRunProgress | null
+  pause_requested?: boolean
+  paused_at?: number | null
+}
+
+export interface BackportRunAllControl {
+  runId: string
+  pause: () => Promise<BackportAsyncRunResponse>
+}
+
+export interface BackportRunAllLifecycle {
+  onRunCreated?: (control: BackportRunAllControl) => void
+  onRunUpdated?: (run: BackportAsyncRunResponse) => void
+}
+
+export type BackportRunAllPauseState = 'idle' | 'running' | 'pause_requested' | 'paused'
+
+export interface BackportRunAllUiState {
+  pauseState: BackportRunAllPauseState
+  progress: BackportRunProgress | null
+  control: BackportRunAllControl | null
+  rowStartedAt: Record<string, number>
+  lastProcessedCount: number
+  reportRefreshInFlight: boolean
+  pendingReportRefreshPath: string | null
+  statusCardVisible: boolean
+}
+
+export function resetRunAllStateForGeneratedReport(
+  _state: BackportRunAllUiState
+): BackportRunAllUiState {
+  return {
+    pauseState: 'idle',
+    progress: null,
+    control: null,
+    rowStartedAt: {},
+    lastProcessedCount: 0,
+    reportRefreshInFlight: false,
+    pendingReportRefreshPath: null,
+    statusCardVisible: false,
+  }
 }
 
 export interface BackportGenerateReportRequest {

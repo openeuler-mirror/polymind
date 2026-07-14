@@ -53,6 +53,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { handleAgentStreamEvent } from '@/lib/agent-stream-events'
@@ -65,18 +66,46 @@ import {
   BackportGitLogEntry,
   BackportOperationResultData,
   BackportPatchResource,
+  BackportRuntimeStatus,
+  BackportRunAllControl,
   BackportRunProgress,
   BackportStage,
   BackportTimelineEntry,
+  resetRunAllStateForGeneratedReport,
 } from '@/lib/backport-types'
 import { useChatStore } from '@/lib/store'
-import type { Message } from '@/lib/types'
+import type { Message, ModelConfig } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { backportService } from '@/services/backport-service'
+import { modelService } from '@/services/model-service'
 import { patchflowAgentService } from '@/services/patchflow-agent-service'
 import { generateUUID } from '@/lib/utils'
 
 const BACKPORT_COMMIT_PAGE_SIZE = 5
+const BACKPORT_MODEL_EMPTY_VALUE = '__none__'
+const BACKPORT_SUPPORTED_PROVIDERS = new Set([
+  'openai',
+  'deepseek',
+  'siliconflow',
+  'minimax',
+  'local',
+  'moonshotai',
+  'zhipuai',
+  'xai',
+  'alibaba',
+])
+
+const isBackportCompatibleModel = (model: ModelConfig): boolean => {
+  const provider = String(model.provider || '').trim().toLowerCase()
+  if (!model.enabled) return false
+  if (provider === 'custom') return model.compatibility === 'openai'
+  return BACKPORT_SUPPORTED_PROVIDERS.has(provider)
+}
+
+const formatBackportModelLabel = (model: ModelConfig): string => {
+  const provider = String(model.provider || '').trim()
+  return provider ? `${model.name} · ${provider}` : model.name
+}
 
 const toRunAllNumber = (value: number | undefined): number => {
   const numericValue = Number(value)
@@ -85,6 +114,64 @@ const toRunAllNumber = (value: number | undefined): number => {
 
 const hasRunAllNumber = (value: number | undefined): value is number => {
   return Number.isFinite(Number(value))
+}
+
+const conflictReportStatusLabel = (status: string): string => {
+  const normalized = status.trim().toLowerCase()
+  const labels: Record<string, string> = {
+    success: '成功',
+    failed: '失败',
+    skipped: '跳过',
+    pending: '等待中',
+  }
+  return labels[normalized] || status || '未知'
+}
+
+const buildConflictReportText = (rows: BackportCommitRow[]): string => {
+  const sections = rows
+    .map((row) => {
+      const summary = row.data.conflict_summary
+      if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return ''
+
+      const summaryData = summary as Record<string, unknown>
+      const status = stringifyValue(summaryData.status).trim()
+      const normalizedStatus = status.toLowerCase()
+      const score = stringifyValue(summaryData.score).trim()
+      const reason = stringifyValue(summaryData.reason).trim()
+      const error = stringifyValue(summaryData.error).trim()
+      const commit = stringifyValue(row.data.commit || row.data.input_commit).trim()
+      const shortCommit = commit ? commit.slice(0, 12) : '未知 commit'
+      const title = resolveCommitTitle(row.data)
+      const heading = `${shortCommit}${title ? ` ${title}` : ''}`
+
+      if (normalizedStatus === 'success') {
+        return [
+          heading,
+          '',
+          `评分：${score || '-'}`,
+          '',
+          '原因：',
+          reason || '未返回原因',
+        ].join('\n')
+      }
+
+      const lines = [
+        heading,
+        '',
+        `状态：${conflictReportStatusLabel(status)}`,
+      ]
+
+      if (error || normalizedStatus === 'failed') {
+        lines.push('', `错误：${error || '未返回错误信息'}`)
+      }
+      if (reason) {
+        lines.push('', '原因：', reason)
+      }
+      return lines.join('\n')
+    })
+    .filter(Boolean)
+
+  return sections.map((section, index) => `## ${index + 1}. ${section}`).join('\n\n')
 }
 
 export function BackportPage() {
@@ -99,12 +186,19 @@ export function BackportPage() {
 
   const [config, setConfig] = useState<BackportConfig>(DEFAULT_BACKPORT_CONFIG)
   const [loadingConfig, setLoadingConfig] = useState(false)
+  const [backportModels, setBackportModels] = useState<ModelConfig[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
+  const [runtimeStatus, setRuntimeStatus] = useState<BackportRuntimeStatus | null>(null)
+  const [loadingRuntimeStatus, setLoadingRuntimeStatus] = useState(false)
   const [savingConfig, setSavingConfig] = useState(false)
   const [configExpanded, setConfigExpanded] = useState(false)
   const [stage, setStage] = useState<BackportStage>('idle')
   const [running, setRunning] = useState(false)
   const [runningLabel, setRunningLabel] = useState('')
   const [runAllProgress, setRunAllProgress] = useState<BackportRunProgress | null>(null)
+  const [runAllControl, setRunAllControl] = useState<BackportRunAllControl | null>(null)
+  const [runAllPauseState, setRunAllPauseState] = useState<'idle' | 'running' | 'pause_requested' | 'paused'>('idle')
+  const [runAllStatusCardVisible, setRunAllStatusCardVisible] = useState(false)
   const [analyzingConflictRowId, setAnalyzingConflictRowId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [excelPath, setExcelPath] = useState('')
@@ -123,7 +217,7 @@ export function BackportPage() {
   const [commitPage, setCommitPage] = useState(1)
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([])
   const [timeline, setTimeline] = useState<BackportTimelineEntry[]>([])
-  const [supportTab, setSupportTab] = useState<'timeline' | 'git'>('timeline')
+  const [supportTab, setSupportTab] = useState<'timeline' | 'git' | 'conflict-report'>('timeline')
   const [gitLogEntries, setGitLogEntries] = useState<BackportGitLogEntry[]>([])
   const [gitLogLoading, setGitLogLoading] = useState(false)
   const [selectedGitRevision, setSelectedGitRevision] = useState<string | null>(null)
@@ -152,6 +246,28 @@ export function BackportPage() {
     DEFAULT_BACKPORT_CONFIG.commit_message_template
   )
 
+  const resetRunAllGeneratedReportState = () => {
+    const nextState = resetRunAllStateForGeneratedReport({
+      pauseState: runAllPauseState,
+      progress: runAllProgress,
+      control: runAllControl,
+      rowStartedAt: runAllRowStartedAtRef.current,
+      lastProcessedCount: runAllLastProcessedCountRef.current,
+      reportRefreshInFlight: runAllReportRefreshInFlightRef.current,
+      pendingReportRefreshPath: runAllPendingReportRefreshPathRef.current,
+      statusCardVisible: runAllStatusCardVisible,
+    })
+
+    setRunAllPauseState(nextState.pauseState)
+    setRunAllProgress(nextState.progress)
+    setRunAllControl(nextState.control)
+    runAllRowStartedAtRef.current = nextState.rowStartedAt
+    runAllLastProcessedCountRef.current = nextState.lastProcessedCount
+    runAllReportRefreshInFlightRef.current = nextState.reportRefreshInFlight
+    runAllPendingReportRefreshPathRef.current = nextState.pendingReportRefreshPath
+    setRunAllStatusCardVisible(nextState.statusCardVisible)
+  }
+
   const titleCandidates = useMemo(() => {
     const uniqueTitles = new Set<string>()
     for (const row of workingCommits) {
@@ -161,6 +277,16 @@ export function BackportPage() {
     }
     return [...uniqueTitles].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')).slice(0, 80)
   }, [workingCommits])
+
+  const compatibleBackportModels = useMemo(
+    () => backportModels.filter(isBackportCompatibleModel),
+    [backportModels]
+  )
+
+  const selectedBackportModel = useMemo(
+    () => compatibleBackportModels.find(model => model.id === config.backport_model_id) || null,
+    [compatibleBackportModels, config.backport_model_id]
+  )
 
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim()
@@ -452,6 +578,10 @@ export function BackportPage() {
       setInspectorOpen(false)
     }
 
+    if (result.operation === 'generate_report') {
+      resetRunAllGeneratedReportState()
+    }
+
     if (result.artifacts?.config_path) {
       setConfigPath(result.artifacts.config_path)
     }
@@ -540,6 +670,7 @@ export function BackportPage() {
   }
 
   const handleRunAllProgress = (progress: BackportRunProgress) => {
+    setRunAllStatusCardVisible(true)
     setRunAllProgress(progress)
     const progressRowId = stringifyValue(progress.current_row_id).trim()
     if (progressRowId && !runAllRowStartedAtRef.current[progressRowId]) {
@@ -619,16 +750,64 @@ export function BackportPage() {
     }
   }
 
+  const loadRuntimeStatus = async (nextConfig: BackportConfig) => {
+    setLoadingRuntimeStatus(true)
+    try {
+      const status = await backportService.getRuntimeStatus(nextConfig)
+      setRuntimeStatus(status)
+    } catch (cause) {
+      console.error('Failed to load Backport runtime status:', cause)
+      setRuntimeStatus({
+        ok: false,
+        model_configured: false,
+        model_name: '',
+        model_provider: '',
+        api_key_available: false,
+        mcp_configured: false,
+        cvekit_available: false,
+        cvekit_path: '',
+        errors: [cause instanceof Error ? cause.message : '加载运行环境状态失败'],
+      })
+    } finally {
+      setLoadingRuntimeStatus(false)
+    }
+  }
+
   const loadPage = async () => {
     setLoadingConfig(true)
+    setLoadingModels(true)
     try {
       const nextConfig = await backportService.getConfig()
-      const sanitizedConfig = normalizeBackportConfig(nextConfig)
+      let sanitizedConfig = normalizeBackportConfig(nextConfig)
+      try {
+        const models = await modelService.getModels()
+        setBackportModels(models)
+        const compatibleModels = models.filter(isBackportCompatibleModel)
+        if (!sanitizedConfig.backport_model_id) {
+          const defaultModel =
+            compatibleModels.find(model => model.isDefault) ||
+            (compatibleModels.length === 1 ? compatibleModels[0] : null)
+          if (defaultModel) {
+            sanitizedConfig = {
+              ...sanitizedConfig,
+              backport_model_id: defaultModel.id,
+            }
+          }
+        }
+      } catch (modelError) {
+        console.error('Failed to load Backport model list:', modelError)
+        toast({
+          title: '提示',
+          description: '加载 Backport 运行模型列表失败',
+          variant: 'destructive',
+        })
+      }
       setConfig(sanitizedConfig)
       setExcelPath(sanitizedConfig.current_excel_path || '')
       setBaseReportPath(sanitizedConfig.current_report_path || '')
       setFilteredReportPath(sanitizedConfig.current_filtered_report_path || '')
       setLastSavedCommitMessageTemplate(sanitizedConfig.commit_message_template)
+      void loadRuntimeStatus(sanitizedConfig)
       if (sanitizedConfig.current_report_path.trim()) {
         addTimeline('已恢复当前 report 路径', 'info', sanitizedConfig.current_report_path.trim())
       }
@@ -641,6 +820,7 @@ export function BackportPage() {
       })
     } finally {
       setLoadingConfig(false)
+      setLoadingModels(false)
     }
   }
 
@@ -676,6 +856,7 @@ export function BackportPage() {
       const response = await backportService.updateConfig(persistedConfig)
       setConfig(persistedConfig)
       setLastSavedCommitMessageTemplate(persistedConfig.commit_message_template)
+      void loadRuntimeStatus(persistedConfig)
       if (templateChanged) {
         setWorkingCommits(prev =>
           prev.map(row =>
@@ -813,23 +994,60 @@ export function BackportPage() {
     setConfig(runConfig)
     setExcelPath(normalizedExcelPath)
     setRunAllProgress(null)
+    setRunAllControl(null)
+    setRunAllPauseState('running')
+    setRunAllStatusCardVisible(true)
     runAllRowStartedAtRef.current = {}
     runAllLastProcessedCountRef.current = 0
     runAllReportRefreshInFlightRef.current = false
     runAllPendingReportRefreshPathRef.current = null
 
-    const response = await runOperation('一键运行', () =>
-      backportService.runAll(
-        {
-          config: runConfig,
-          excelPath: normalizedExcelPath,
-          baseReportPath: normalizedBaseReportPath,
-          workingReportPath: filteredReportPath.trim() || normalizedBaseReportPath,
-        },
-        handleAgentEvent,
-        handleRunAllProgress,
+    let response: Awaited<ReturnType<typeof backportService.runAll>>
+    try {
+      response = await runOperation('一键运行', () =>
+        backportService.runAll(
+          {
+            config: runConfig,
+            excelPath: normalizedExcelPath,
+            baseReportPath: normalizedBaseReportPath,
+            workingReportPath: filteredReportPath.trim() || normalizedBaseReportPath,
+          },
+          handleAgentEvent,
+          handleRunAllProgress,
+          {
+            onRunCreated: (control) => {
+              setRunAllControl(control)
+              setRunAllPauseState('running')
+            },
+            onRunUpdated: (run) => {
+              if (run.pause_requested && run.status === 'running') {
+                setRunAllPauseState('pause_requested')
+              }
+            },
+          },
+        )
       )
-    )
+    } catch (cause) {
+      setRunAllControl(null)
+      setRunAllPauseState('idle')
+      setRunAllProgress(null)
+      setRunAllStatusCardVisible(false)
+      runAllRowStartedAtRef.current = {}
+      runAllLastProcessedCountRef.current = 0
+      runAllReportRefreshInFlightRef.current = false
+      runAllPendingReportRefreshPathRef.current = null
+      throw cause
+    }
+    setRunAllControl(null)
+    if (response.parsedResult?.stage === 'paused') {
+      setRunAllPauseState('paused')
+      toast({
+        title: '已暂停',
+        description: response.parsedResult.summary || '当前 report 已保存，可继续一键运行',
+      })
+      return
+    }
+    setRunAllPauseState('idle')
     if (response.parsedResult?.stage === 'completed') {
       toast({
         title: '完成',
@@ -839,6 +1057,29 @@ export function BackportPage() {
       toast({
         title: '已暂停',
         description: response.parsedResult.summary || '需要人工处理后继续',
+      })
+    }
+  }
+
+  const handlePauseRunAll = async () => {
+    if (!runAllControl || runAllPauseState !== 'running') return
+    const previousProgress = runAllProgress
+    setRunAllPauseState('pause_requested')
+    setRunAllProgress((current) => ({
+      ...(current || {}),
+      phase: 'pause_requested',
+      message: '正在完成当前 commit，完成后暂停并保存 report',
+    }))
+    try {
+      await runAllControl.pause()
+    } catch (cause) {
+      console.error('Failed to pause Backport run_all:', cause)
+      setRunAllPauseState('running')
+      setRunAllProgress(previousProgress)
+      toast({
+        title: '暂停失败',
+        description: cause instanceof Error ? cause.message : '无法请求暂停一键运行',
+        variant: 'destructive',
       })
     }
   }
@@ -1526,6 +1767,11 @@ export function BackportPage() {
     }
   }, [workingCommits])
 
+  const conflictReportText = useMemo(
+    () => buildConflictReportText(workingCommits),
+    [workingCommits],
+  )
+
   const runAllPhaseLabel = useMemo(() => {
     if (!runAllProgress?.phase) return ''
     const labels: Record<string, string> = {
@@ -1536,9 +1782,23 @@ export function BackportPage() {
       skipped: '跳过',
       failed: '失败',
       completed: '完成',
+      pause_requested: '暂停中',
+      paused: '已暂停',
     }
     return labels[runAllProgress.phase] || runAllProgress.phase
   }, [runAllProgress])
+
+  const runAllDisplayLabel = useMemo(() => {
+    if (runAllPauseState === 'paused') return '已暂停'
+    if (runAllPauseState === 'pause_requested') return '暂停中'
+    return runAllPhaseLabel || '运行中'
+  }, [runAllPauseState, runAllPhaseLabel])
+
+  const runAllDisplayMessage = useMemo(() => {
+    if (runAllPauseState === 'pause_requested') return '正在完成当前 commit，完成后暂停并保存 report'
+    if (runAllPauseState === 'paused') return '已暂停，report 已保存，可继续'
+    return runAllProgress?.message || '正在处理 Backport 任务'
+  }, [runAllPauseState, runAllProgress?.message])
 
   const runAllProgressPercent = useMemo(() => {
     const current = toRunAllNumber(runAllProgress?.current_index)
@@ -1599,17 +1859,22 @@ export function BackportPage() {
               重置页面
             </Button>
           </div>
-          {runningLabel === '一键运行' && runAllProgress ? (
+          {runAllStatusCardVisible && runAllProgress ? (
             <div className="xl:basis-full">
               <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-blue-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                 <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex min-w-0 items-start gap-2.5">
                     <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-white text-blue-700">
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      <RefreshCw
+                        className={cn(
+                          'h-3.5 w-3.5',
+                          runAllPauseState !== 'paused' && 'animate-spin'
+                        )}
+                      />
                     </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                        <span>一键运行 · {runAllPhaseLabel || '运行中'}</span>
+                        <span>一键运行 · {runAllDisplayLabel}</span>
                         {hasRunAllIndex ? (
                           <span className="rounded-md border border-blue-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-blue-700">
                             {runAllProgress.current_index}/{runAllProgress.total}
@@ -1617,7 +1882,7 @@ export function BackportPage() {
                         ) : null}
                       </div>
                       <div className="mt-1 line-clamp-2 text-xs leading-5 text-blue-700">
-                        {runAllProgress.message || '正在处理 Backport 任务'}
+                        {runAllDisplayMessage}
                         {runAllProgress.current_title ? (
                           <span className="ml-2 font-mono text-blue-800">{runAllProgress.current_title}</span>
                         ) : null}
@@ -1765,6 +2030,93 @@ export function BackportPage() {
                 </div>
 
                 <div className="space-y-3">
+                  <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium text-slate-900">运行模型</p>
+                        {selectedBackportModel ? (
+                          <Badge variant="outline" className="text-[10px]">
+                            {selectedBackportModel.provider}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <Select
+                        value={config.backport_model_id || BACKPORT_MODEL_EMPTY_VALUE}
+                        onValueChange={value => {
+                          const nextModelId = value === BACKPORT_MODEL_EMPTY_VALUE ? '' : value
+                          const nextConfig = {
+                            ...config,
+                            backport_model_id: nextModelId,
+                          }
+                          setConfig(nextConfig)
+                          void loadRuntimeStatus(nextConfig)
+                        }}
+                        disabled={
+                          running ||
+                          loadingConfig ||
+                          loadingModels ||
+                          compatibleBackportModels.length === 0
+                        }
+                      >
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue
+                            placeholder={loadingModels ? '加载模型中...' : '选择 Backport 运行模型'}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={BACKPORT_MODEL_EMPTY_VALUE}>
+                            未选择
+                          </SelectItem>
+                          {compatibleBackportModels.map(model => (
+                            <SelectItem key={model.id} value={model.id}>
+                              {formatBackportModelLabel(model)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs leading-5 text-muted-foreground">
+                        {compatibleBackportModels.length === 0
+                          ? '请先在模型设置页添加 OpenAI-compatible 模型。'
+                          : selectedBackportModel?.apiBaseUrl
+                            ? selectedBackportModel.apiBaseUrl
+                            : '将使用 cvekit 对应 provider 的默认 API 地址。'}
+                      </p>
+                      <div className="space-y-2 pt-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium text-slate-900">运行环境</span>
+                          <Badge
+                            variant={runtimeStatus?.ok ? 'default' : 'secondary'}
+                            className="text-[10px]"
+                          >
+                            {loadingRuntimeStatus
+                              ? '检查中'
+                              : runtimeStatus?.ok
+                                ? '可用'
+                                : '待配置'}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] leading-5 text-muted-foreground">
+                          <span>
+                            模型：{runtimeStatus?.model_configured ? runtimeStatus.model_name : '未选择'}
+                          </span>
+                          <span>
+                            API Key：{runtimeStatus?.api_key_available ? '可用' : '未就绪'}
+                          </span>
+                          <span>
+                            MCP：{runtimeStatus?.mcp_configured ? 'cvekit_mcp 已配置' : '未配置'}
+                          </span>
+                          <span>
+                            cvekit：{runtimeStatus?.cvekit_available ? '已找到' : '未找到'}
+                          </span>
+                        </div>
+                        {runtimeStatus?.errors.length ? (
+                          <p className="text-xs leading-5 text-red-600">
+                            {runtimeStatus.errors[0]}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">提交人姓名 (signer_name)</p>
                     <Input
@@ -1781,6 +2133,30 @@ export function BackportPage() {
                       onChange={e => setConfig(prev => ({ ...prev, signer_email: e.target.value }))}
                       className="text-xs"
                     />
+                  </div>
+                  <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium text-slate-900">执行时生成冲突报告</div>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          对生成的解冲突补丁进行 AI 评分，会增加执行耗时。
+                        </p>
+                      </div>
+                      <Switch
+                        checked={Boolean(config.cvekit_options.enable_conflict_summary)}
+                        onCheckedChange={checked =>
+                          setConfig(prev => ({
+                            ...prev,
+                            cvekit_options: {
+                              ...prev.cvekit_options,
+                              enable_conflict_summary: checked,
+                            },
+                          }))
+                        }
+                        disabled={running || loadingConfig}
+                        aria-label="执行时生成冲突报告"
+                      />
+                    </div>
                   </div>
                   <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -1891,6 +2267,8 @@ export function BackportPage() {
           onExcelPathChange={setExcelPath}
           running={running}
           runningLabel={runningLabel}
+          canPauseRunAll={Boolean(runAllControl) && runAllPauseState === 'running'}
+          runAllPauseState={runAllPauseState}
           baseReportPath={baseReportPath}
           filteredRows={filteredRows}
           paginatedRows={paginatedRows}
@@ -1922,6 +2300,7 @@ export function BackportPage() {
           onOpenPathBrowser={openPathBrowser}
           onGenerateReport={handleGenerateReport}
           onRunAll={handleRunAll}
+          onPauseRunAll={handlePauseRunAll}
           onContinueReport={handleContinueReport}
           onExecuteSelected={handleExecuteSelected}
           onDeleteSelectedRows={handleDeleteSelectedRows}
@@ -1953,6 +2332,7 @@ export function BackportPage() {
             targetPath={config.target_path}
             running={running}
             timeline={timeline}
+            conflictReportText={conflictReportText}
             gitLogEntries={gitLogEntries}
             gitLogLoading={gitLogLoading}
             gitShowLoading={gitShowLoading}
