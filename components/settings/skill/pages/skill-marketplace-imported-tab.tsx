@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import { extractApiErrorMessage } from '@/lib/error-handler'
 import { SkillRepositoryResponse, SkillResponse } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
 import {
@@ -147,7 +148,7 @@ export function ImportedMarketplaceTab({
       console.error('Failed to refresh imported skill marketplace:', error)
       toast({
         title: '加载失败',
-        description: '无法获取导入技能列表，请稍后重试。',
+        description: extractApiErrorMessage(error, '无法获取导入技能列表，请稍后重试。'),
         variant: 'destructive',
       })
     } finally {
@@ -156,7 +157,13 @@ export function ImportedMarketplaceTab({
   }, [toast])
 
   useEffect(() => {
-    void refreshImportedMarketplace()
+    const timer = window.setTimeout(() => {
+      void refreshImportedMarketplace()
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
   }, [refreshImportedMarketplace])
 
   useEffect(() => {
@@ -168,7 +175,6 @@ export function ImportedMarketplaceTab({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex w-full flex-col gap-3 xl:flex-row xl:items-center">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="shrink-0 text-xs text-muted-foreground">仓库</span>
             <Select value={selectedSource} onValueChange={setSelectedSource}>
               <SelectTrigger className="w-80 shrink-0">
                 <SelectValue placeholder="按仓库筛选" />

@@ -1,7 +1,7 @@
 'use client'
 
 import type { ElementType, ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CheckCircle, FolderOpen, Pencil, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,7 @@ import {
   SkillRepositoryResponse,
   SkillRepositorySourceType,
 } from '@/lib/types'
+import { extractApiErrorMessage } from '@/lib/error-handler'
 import { cn } from '@/lib/utils'
 import { skillService } from '@/services/skill-service'
 
@@ -69,8 +70,8 @@ export function SkillRepoManagement() {
   const { toast } = useToast()
 
   const hasDiscoveringRepo = useMemo(
-    () => repos.some((repo) => isInProgressStatus(repo.skill_discover_status)),
-    [repos],
+    () => repos.some(repo => isInProgressStatus(repo.skill_discover_status)),
+    [repos]
   )
 
   const filteredRepos = useMemo(() => {
@@ -79,7 +80,7 @@ export function SkillRepoManagement() {
       return repos
     }
 
-    return repos.filter((repo) =>
+    return repos.filter(repo =>
       [
         repo.source_type,
         repo.url,
@@ -89,13 +90,73 @@ export function SkillRepoManagement() {
         String(repo.skill_num ?? ''),
       ]
         .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(keyword)),
+        .some(value => value!.toLowerCase().includes(keyword))
     )
   }, [repos, searchTerm])
 
-  useEffect(() => {
-    void fetchRepos()
+  const fetchRepos = useCallback(async () => {
+    try {
+      setLoading(true)
+      const repositories = await skillService.listRepositoryResponses()
+      setRepos(repositories)
+    } catch (error) {
+      console.error('Failed to fetch skill repos:', error)
+      toast({
+        title: '加载失败',
+        description: extractApiErrorMessage(error, '无法获取仓库源列表，请稍后重试。'),
+        variant: 'destructive',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
+
+  const refreshDiscoverStatuses = useCallback(
+    async (silent = false) => {
+      try {
+        const repositories = await skillService.listRepositoryResponses()
+        setRepos(repositories)
+      } catch (error) {
+        console.error('Failed to refresh discover statuses:', error)
+        if (!silent) {
+          toast({
+            title: '刷新失败',
+            description: extractApiErrorMessage(error, '无法更新扫描状态，请稍后重试。'),
+            variant: 'destructive',
+          })
+        }
+      }
+    },
+    [toast]
+  )
+
+  const resetCreateForm = useCallback(() => {
+    setCreateForm({ ...initialFormState, uploaded_file: undefined })
   }, [])
+
+  const openCreateDialog = useCallback((sourceType: SkillRepositorySourceType) => {
+    setCreateForm({
+      ...initialFormState,
+      source_type: sourceType,
+      uploaded_file: undefined,
+    })
+    setIsCreateOpen(true)
+  }, [])
+
+  const openEditDialog = useCallback((repo: SkillRepositoryResponse) => {
+    setEditForm(buildFormStateFromRepository(repo))
+    setEditingRepo(repo)
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void fetchRepos()
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [fetchRepos])
 
   useEffect(() => {
     if (!hasDiscoveringRepo) {
@@ -109,15 +170,7 @@ export function SkillRepoManagement() {
     return () => {
       window.clearInterval(timer)
     }
-  }, [hasDiscoveringRepo])
-
-  useEffect(() => {
-    if (!editingRepo) {
-      return
-    }
-
-    setEditForm(buildFormStateFromRepository(editingRepo))
-  }, [editingRepo])
+  }, [hasDiscoveringRepo, refreshDiscoverStatuses])
 
   const validateUploadFile = (file: File) => {
     const isZipFile =
@@ -126,7 +179,11 @@ export function SkillRepoManagement() {
       file.type === 'application/x-zip-compressed'
 
     if (!isZipFile) {
-      toast({ title: '文件格式错误', description: '仅支持 ZIP 格式的文件。', variant: 'destructive' })
+      toast({
+        title: '文件格式错误',
+        description: '仅支持 ZIP 格式的文件。',
+        variant: 'destructive',
+      })
       return false
     }
 
@@ -136,52 +193,6 @@ export function SkillRepoManagement() {
     }
 
     return true
-  }
-
-  const fetchRepos = async () => {
-    try {
-      setLoading(true)
-      const repositories = await skillService.listRepositoryResponses()
-      setRepos(repositories)
-    } catch (error) {
-      console.error('Failed to fetch skill repos:', error)
-      toast({
-        title: '加载失败',
-        description: '无法获取仓库源列表，请稍后重试。',
-        variant: 'destructive',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const refreshDiscoverStatuses = async (silent = false) => {
-    try {
-      const repositories = await skillService.listRepositoryResponses()
-      setRepos(repositories)
-    } catch (error) {
-      console.error('Failed to refresh discover statuses:', error)
-      if (!silent) {
-        toast({
-          title: '刷新失败',
-          description: '无法更新扫描状态，请稍后重试。',
-          variant: 'destructive',
-        })
-      }
-    }
-  }
-
-  const resetCreateForm = () => {
-    setCreateForm({ ...initialFormState, uploaded_file: undefined })
-  }
-
-  const openCreateDialog = (sourceType: SkillRepositorySourceType) => {
-    setCreateForm({
-      ...initialFormState,
-      source_type: sourceType,
-      uploaded_file: undefined,
-    })
-    setIsCreateOpen(true)
   }
 
   const handleCreate = async () => {
@@ -200,7 +211,7 @@ export function SkillRepoManagement() {
         console.error('Failed to upload repo archive:', error)
         toast({
           title: '上传失败',
-          description: '文件上传失败，请检查文件后重试。',
+          description: extractApiErrorMessage(error, '文件上传失败，请检查文件后重试。'),
           variant: 'destructive',
         })
       } finally {
@@ -238,7 +249,7 @@ export function SkillRepoManagement() {
       console.error('Failed to create repo:', error)
       toast({
         title: '创建失败',
-        description: '仓库源创建失败，请检查信息后重试。',
+        description: extractApiErrorMessage(error, '仓库源创建失败，请检查信息后重试。'),
         variant: 'destructive',
       })
     } finally {
@@ -265,13 +276,9 @@ export function SkillRepoManagement() {
 
     try {
       setSubmitting(true)
-      const updatedRepo = await skillService.updateRepo(
-        editingRepo.repo_id,
-        request,
-        editingRepo,
-      )
-      setRepos((currentRepos) =>
-        currentRepos.map((repo) => (repo.repo_id === updatedRepo.repo_id ? updatedRepo : repo)),
+      const updatedRepo = await skillService.updateRepo(editingRepo.repo_id, request, editingRepo)
+      setRepos(currentRepos =>
+        currentRepos.map(repo => (repo.repo_id === updatedRepo.repo_id ? updatedRepo : repo))
       )
       setEditingRepo(null)
       toast({
@@ -282,7 +289,7 @@ export function SkillRepoManagement() {
       console.error('Failed to update repo:', error)
       toast({
         title: '更新失败',
-        description: '仓库源更新失败，请稍后重试。',
+        description: extractApiErrorMessage(error, '仓库源更新失败，请稍后重试。'),
         variant: 'destructive',
       })
     } finally {
@@ -297,7 +304,7 @@ export function SkillRepoManagement() {
 
     try {
       await skillService.deleteRepo(repo.repo_id)
-      setRepos((currentRepos) => currentRepos.filter((item) => item.repo_id !== repo.repo_id))
+      setRepos(currentRepos => currentRepos.filter(item => item.repo_id !== repo.repo_id))
       toast({
         title: '删除成功',
         description: '仓库源已移除。',
@@ -306,7 +313,7 @@ export function SkillRepoManagement() {
       console.error('Failed to delete repo:', error)
       toast({
         title: '删除失败',
-        description: '仓库源删除失败，请稍后重试。',
+        description: extractApiErrorMessage(error, '仓库源删除失败，请稍后重试。'),
         variant: 'destructive',
       })
     }
@@ -314,8 +321,8 @@ export function SkillRepoManagement() {
 
   const handleDiscoverRepo = async (repo: SkillRepositoryResponse) => {
     try {
-      setUpdatingRepoIds((currentIds) => new Set(currentIds).add(repo.repo_id))
-      setRepos((currentRepos) => upsertDiscoverStatus(currentRepos, repo))
+      setUpdatingRepoIds(currentIds => new Set(currentIds).add(repo.repo_id))
+      setRepos(currentRepos => upsertDiscoverStatus(currentRepos, repo))
       await skillService.discoverRepoSkills(repo.repo_id)
       await refreshDiscoverStatuses(true)
       toast({
@@ -326,11 +333,11 @@ export function SkillRepoManagement() {
       console.error('Failed to discover repo skills:', error)
       toast({
         title: '更新失败',
-        description: '无法更新该仓库的技能信息，请稍后重试。',
+        description: extractApiErrorMessage(error, '无法更新该仓库的技能信息，请稍后重试。'),
         variant: 'destructive',
       })
     } finally {
-      setUpdatingRepoIds((currentIds) => {
+      setUpdatingRepoIds(currentIds => {
         const nextIds = new Set(currentIds)
         nextIds.delete(repo.repo_id)
         return nextIds
@@ -341,7 +348,7 @@ export function SkillRepoManagement() {
   return (
     <div className="space-y-6">
       <p className="text-sm leading-6 text-muted-foreground">
-        统一管理技能来源，支持直接新增 Git 源和本地源。
+        管理技能来源，支持直接新增 Git 源和本地源。
       </p>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -363,7 +370,7 @@ export function SkillRepoManagement() {
             <CardTitle>仓库源列表</CardTitle>
             <Input
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+              onChange={event => setSearchTerm(event.target.value)}
               placeholder="搜索仓库"
               className="max-w-xl"
             />
@@ -384,7 +391,7 @@ export function SkillRepoManagement() {
             </Card>
           ) : (
             <div className="divide-y divide-border">
-              {filteredRepos.map((repo) => {
+              {filteredRepos.map(repo => {
                 const location = getRepositoryLocation(repo)
                 const statusDisplay = getRepositoryStatusDisplay(repo)
                 const isUpdating = updatingRepoIds.has(repo.repo_id)
@@ -395,13 +402,20 @@ export function SkillRepoManagement() {
                     className="flex flex-col gap-3 px-6 py-4 lg:flex-row lg:items-center lg:justify-between"
                   >
                     <div className="min-w-0 flex-1 space-y-1.5">
-                      <InlineInfo icon={location.icon} label={location.label} value={location.value} />
+                      <InlineInfo
+                        icon={location.icon}
+                        label={location.label}
+                        value={location.value}
+                      />
                       <CompactMetaRow>
                         {repo.source_type === 'git' ? (
                           <CompactMeta label="分支" value={repo.branch || '默认分支'} />
                         ) : null}
                         {statusDisplay.mode === 'discovering' ? (
-                          <CompactStatus label={statusDisplay.label} status={statusDisplay.status} />
+                          <CompactStatus
+                            label={statusDisplay.label}
+                            status={statusDisplay.status}
+                          />
                         ) : (
                           <CompactMeta label={statusDisplay.label} value={statusDisplay.value} />
                         )}
@@ -417,7 +431,7 @@ export function SkillRepoManagement() {
                         <RefreshCw className={cn('mr-2 h-4 w-4', isUpdating && 'animate-spin')} />
                         更新
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setEditingRepo(repo)}>
+                      <Button variant="ghost" size="sm" onClick={() => openEditDialog(repo)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         编辑
                       </Button>
@@ -442,7 +456,9 @@ export function SkillRepoManagement() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{createForm.source_type === 'git' ? '新增 Git 源' : '新增本地源'}</DialogTitle>
+            <DialogTitle>
+              {createForm.source_type === 'git' ? '新增 Git 源' : '新增本地源'}
+            </DialogTitle>
             <DialogDescription>
               {createForm.source_type === 'git'
                 ? '请填写 Git 仓库地址；如有需要，可补充分支信息。'
@@ -455,8 +471,8 @@ export function SkillRepoManagement() {
                 <FormField label="仓库地址" description="请输入可访问的 Git 仓库地址。">
                   <Input
                     value={createForm.url}
-                    onChange={(event) =>
-                      setCreateForm((currentForm) => ({ ...currentForm, url: event.target.value }))
+                    onChange={event =>
+                      setCreateForm(currentForm => ({ ...currentForm, url: event.target.value }))
                     }
                     placeholder="请输入 Git 仓库 URL"
                   />
@@ -464,8 +480,8 @@ export function SkillRepoManagement() {
                 <FormField label="分支" description="可选；不填写时使用默认分支。">
                   <Input
                     value={createForm.branch}
-                    onChange={(event) =>
-                      setCreateForm((currentForm) => ({ ...currentForm, branch: event.target.value }))
+                    onChange={event =>
+                      setCreateForm(currentForm => ({ ...currentForm, branch: event.target.value }))
                     }
                     placeholder="例如：main 或 master"
                   />
@@ -480,17 +496,17 @@ export function SkillRepoManagement() {
                         'flex h-32 items-center justify-center rounded-lg border-2 border-dashed transition-colors',
                         createForm.uploaded_file
                           ? 'border-green-500 bg-green-50'
-                          : 'border-border hover:border-primary hover:bg-primary/5',
+                          : 'border-border hover:border-primary hover:bg-primary/5'
                       )}
-                      onDragOver={(event) => {
+                      onDragOver={event => {
                         event.preventDefault()
                         event.stopPropagation()
                       }}
-                      onDragLeave={(event) => {
+                      onDragLeave={event => {
                         event.preventDefault()
                         event.stopPropagation()
                       }}
-                      onDrop={(event) => {
+                      onDrop={event => {
                         event.preventDefault()
                         event.stopPropagation()
                         const file = event.dataTransfer.files?.[0]
@@ -498,7 +514,7 @@ export function SkillRepoManagement() {
                         if (!validateUploadFile(file)) {
                           return
                         }
-                        setCreateForm((currentForm) => ({
+                        setCreateForm(currentForm => ({
                           ...currentForm,
                           uploaded_file: file,
                         }))
@@ -509,14 +525,14 @@ export function SkillRepoManagement() {
                         accept=".zip"
                         className="hidden"
                         id="repo-upload"
-                        onChange={(event) => {
+                        onChange={event => {
                           const file = event.target.files?.[0]
                           if (!file) return
                           if (!validateUploadFile(file)) {
                             event.target.value = ''
                             return
                           }
-                          setCreateForm((currentForm) => ({
+                          setCreateForm(currentForm => ({
                             ...currentForm,
                             uploaded_file: file,
                           }))
@@ -551,7 +567,7 @@ export function SkillRepoManagement() {
                         size="sm"
                         className="mt-2 h-8 px-2 text-xs text-red-600 hover:text-red-600"
                         onClick={() =>
-                          setCreateForm((currentForm) => ({
+                          setCreateForm(currentForm => ({
                             ...currentForm,
                             uploaded_file: undefined,
                           }))
@@ -578,13 +594,17 @@ export function SkillRepoManagement() {
               取消
             </Button>
             <Button onClick={() => void handleCreate()} disabled={submitting}>
-              {submitting ? '提交中...' : createForm.source_type === 'git' ? '创建 Git 源' : '创建本地源'}
+              {submitting
+                ? '提交中...'
+                : createForm.source_type === 'git'
+                  ? '创建 Git 源'
+                  : '创建本地源'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingRepo} onOpenChange={(open) => !open && setEditingRepo(null)}>
+      <Dialog open={!!editingRepo} onOpenChange={open => !open && setEditingRepo(null)}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>编辑仓库源</DialogTitle>
@@ -593,7 +613,10 @@ export function SkillRepoManagement() {
           {editingRepo ? (
             <div className="space-y-4 pt-2">
               <FormField label="修改提示">
-                <Input value={editingRepo.source_type === 'git' ? '修改Git仓库' : '不可修改'} disabled />
+                <Input
+                  value={editingRepo.source_type === 'git' ? '修改Git仓库' : '不可修改'}
+                  disabled
+                />
               </FormField>
               {editingRepo.source_type === 'git' ? (
                 <>
@@ -603,8 +626,8 @@ export function SkillRepoManagement() {
                   <FormField label="分支" description="更新后，系统将基于新的分支继续同步内容。">
                     <Input
                       value={editForm.branch}
-                      onChange={(event) =>
-                        setEditForm((currentForm) => ({ ...currentForm, branch: event.target.value }))
+                      onChange={event =>
+                        setEditForm(currentForm => ({ ...currentForm, branch: event.target.value }))
                       }
                       placeholder="例如：main"
                     />
@@ -650,9 +673,7 @@ function getRepositoryLocation(repo: SkillRepositoryResponse): RepositoryLocatio
   }
 }
 
-function getRepositoryStatusDisplay(
-  status?: SkillRepositoryResponse,
-): RepositoryStatusDisplay {
+function getRepositoryStatusDisplay(status?: SkillRepositoryResponse): RepositoryStatusDisplay {
   if (isInProgressStatus(status?.skill_discover_status)) {
     return {
       mode: 'discovering',
@@ -722,13 +743,7 @@ function CompactMeta({
   )
 }
 
-function CompactStatus({
-  label,
-  status,
-}: {
-  label: string
-  status?: string
-}) {
+function CompactStatus({ label, status }: { label: string; status?: string }) {
   return (
     <div className="flex items-center gap-1.5">
       <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin text-blue-600" />
@@ -742,7 +757,10 @@ function DiscoverStatusBadge({ status }: { status?: string }) {
   const statusMeta = getDiscoverStatusMeta(status)
 
   return (
-    <Badge variant="outline" className={cn('h-5 px-1.5 text-[11px] font-normal', statusMeta.className)}>
+    <Badge
+      variant="outline"
+      className={cn('h-5 px-1.5 text-[11px] font-normal', statusMeta.className)}
+    >
       {statusMeta.label}
     </Badge>
   )
@@ -798,18 +816,18 @@ function getDiscoverStatusMeta(status?: string) {
 
 function upsertDiscoverStatus(
   currentStatuses: SkillRepositoryResponse[],
-  repo: SkillRepositoryResponse,
+  repo: SkillRepositoryResponse
 ): SkillRepositoryResponse[] {
-  const nextStatuses = currentStatuses.map((item) =>
+  const nextStatuses = currentStatuses.map(item =>
     item.repo_id === repo.repo_id
       ? {
           ...item,
           skill_discover_status: 'discovering',
         }
-      : item,
+      : item
   )
 
-  if (nextStatuses.some((item) => item.repo_id === repo.repo_id)) {
+  if (nextStatuses.some(item => item.repo_id === repo.repo_id)) {
     return nextStatuses
   }
 
@@ -898,7 +916,7 @@ function buildCreatePayload(form: RepoFormState): SkillRepositoryRequest | null 
 
 function buildUpdatePayload(
   repo: SkillRepositoryResponse,
-  form: RepoFormState,
+  form: RepoFormState
 ): SkillRepositoryRequest | null {
   if (repo.source_type === 'git') {
     const nextBranch = form.branch.trim()
