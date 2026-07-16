@@ -763,7 +763,6 @@ export function BackportPage() {
         model_name: '',
         model_provider: '',
         api_key_available: false,
-        mcp_configured: false,
         cvekit_available: false,
         cvekit_path: '',
         errors: [cause instanceof Error ? cause.message : '加载运行环境状态失败'],
@@ -2098,12 +2097,6 @@ export function BackportPage() {
                         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] leading-5 text-muted-foreground">
                           <span>
                             模型：{runtimeStatus?.model_configured ? runtimeStatus.model_name : '未选择'}
-                          </span>
-                          <span>
-                            API Key：{runtimeStatus?.api_key_available ? '可用' : '未就绪'}
-                          </span>
-                          <span>
-                            MCP：{runtimeStatus?.mcp_configured ? 'cvekit_mcp 已配置' : '未配置'}
                           </span>
                           <span>
                             cvekit：{runtimeStatus?.cvekit_available ? '已找到' : '未找到'}
