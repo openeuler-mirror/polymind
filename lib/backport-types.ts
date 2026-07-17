@@ -39,7 +39,6 @@ export interface BackportRuntimeStatus {
   model_name: string
   model_provider: string
   api_key_available: boolean
-  mcp_configured: boolean
   cvekit_available: boolean
   cvekit_path: string
   errors: string[]
