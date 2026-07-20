@@ -35,6 +35,10 @@ export interface BackportConfig {
   current_excel_path: string
   current_report_path: string
   current_filtered_report_path: string
+  source_repo_input?: string
+  target_repo_input?: string
+  source_repo_state?: BackportRepositoryInfo | null
+  target_repo_state?: BackportRepositoryInfo | null
   cvekit_options: Record<string, unknown>
 }
 
@@ -52,6 +56,47 @@ export interface BackportRuntimeStatus {
   cvekit_available: boolean
   cvekit_path: string
   errors: string[]
+}
+
+export type BackportRepositoryRole = 'source' | 'target'
+
+export interface BackportRepositoryInfo {
+  role: BackportRepositoryRole
+  input: string
+  input_type: 'remote' | 'local'
+  display_name: string
+  source_url: string
+  local_path: string
+  default_branch: string
+  selected_branch: string
+  current_branch: string
+  head: string
+  short_head: string
+  local_branches: string[]
+  remote_branches: string[]
+  status_clean: boolean
+  operation_in_progress: boolean
+  writable: boolean
+  can_read: boolean
+  can_write: boolean
+  warnings: string[]
+  cache_dir: string
+  updated_at: number
+}
+
+export interface BackportRepositoryPrepareResponse {
+  task_id: string
+  status: 'running' | 'success' | 'failed'
+  role: BackportRepositoryRole
+  input: string
+  progress: number
+  steps: Array<{ title: string; status: string; detail?: string }>
+  result: BackportRepositoryInfo | null
+  error: string
+}
+
+export interface BackportRecentRepositoriesResponse {
+  repositories: BackportRepositoryInfo[]
 }
 
 export interface BackportBrowseEntry {
