@@ -24,6 +24,10 @@ export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   source_branch: '',
   target_path: '',
   target_release: '',
+  target_config_layout: 'none',
+  target_config_layout_opts: {
+    default_level: 'L1-RECOMMEND',
+  },
   patch_dataset_dir: '',
   signer_name: '',
   signer_email: '',
@@ -37,7 +41,14 @@ export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   cvekit_options: {},
 }
 
-export type RowStatusKind = 'success' | 'failed' | 'conflict' | 'noop' | 'skipped' | 'unmatched' | 'pending'
+export type RowStatusKind =
+  | 'success'
+  | 'failed'
+  | 'conflict'
+  | 'noop'
+  | 'skipped'
+  | 'unmatched'
+  | 'pending'
 
 const RELEVANT_PATCH_HUNK_CHAR_LIMIT = 1600
 
@@ -62,6 +73,20 @@ export function normalizeBackportConfig(config: Partial<BackportConfig>): Backpo
     ...DEFAULT_BACKPORT_CONFIG,
     ...config,
     cvekit_options: cvekitOptions,
+    target_config_layout_opts: {
+      ...DEFAULT_BACKPORT_CONFIG.target_config_layout_opts,
+      ...config.target_config_layout_opts,
+    },
+  }
+  if (normalized.target_config_layout !== 'anolis') {
+    normalized.target_config_layout = 'none'
+  }
+  if (
+    !['L0-MANDATORY', 'L1-RECOMMEND', 'L2-OPTIONAL'].includes(
+      normalized.target_config_layout_opts.default_level
+    )
+  ) {
+    normalized.target_config_layout_opts.default_level = 'L1-RECOMMEND'
   }
   if (!normalized.commit_message_template.trim()) {
     normalized.commit_message_template = DEFAULT_COMMIT_MESSAGE_TEMPLATE
@@ -96,7 +121,7 @@ export function resolveCommitTitle(item: BackportCommitItem): string {
       item.message ||
       item.commit_message ||
       item.commit_subject ||
-      '',
+      ''
   ).trim()
 }
 
@@ -135,7 +160,10 @@ function resolveCommitIdentity(item: BackportCommitItem): string {
   return ''
 }
 
-export function mergeCommitRows(baseRows: BackportCommitRow[], updatedCommits: BackportCommitItem[]): BackportCommitRow[] {
+export function mergeCommitRows(
+  baseRows: BackportCommitRow[],
+  updatedCommits: BackportCommitItem[]
+): BackportCommitRow[] {
   const updatesById = new Map<string, BackportCommitItem>()
   const unmatched: BackportCommitItem[] = []
 
@@ -148,7 +176,7 @@ export function mergeCommitRows(baseRows: BackportCommitRow[], updatedCommits: B
     }
   }
 
-  const nextRows = baseRows.map((row) => {
+  const nextRows = baseRows.map(row => {
     const identity = resolveCommitIdentity(row.data)
     if (!identity) return row
 
@@ -232,7 +260,11 @@ export function stageLabel(stage: BackportStage): string {
 
 export function isSkippedRow(item: BackportCommitItem): boolean {
   const status = stringifyValue(item.status).trim().toLowerCase()
-  return Boolean(item.is_merge_commit) || String(item.merged_in_target || '').toLowerCase() === 'skipped' || status === 'skipped'
+  return (
+    Boolean(item.is_merge_commit) ||
+    String(item.merged_in_target || '').toLowerCase() === 'skipped' ||
+    status === 'skipped'
+  )
 }
 
 export function hasPatchResource(item: BackportCommitItem, kind: BackportPatchKind): boolean {
@@ -440,8 +472,12 @@ export function resolveTargetMeta(item: BackportCommitItem): {
   }
 }
 
-export function buildPatchResources(item: BackportCommitItem, rowId: string): BackportPatchResource[] {
-  const commitId = stringifyValue(item.row_id || item.commit || item.input_commit || rowId).trim() || rowId
+export function buildPatchResources(
+  item: BackportCommitItem,
+  rowId: string
+): BackportPatchResource[] {
+  const commitId =
+    stringifyValue(item.row_id || item.commit || item.input_commit || rowId).trim() || rowId
   const patches = (item.patches as BackportPatchMap | undefined) || {}
 
   const originalMeta = patches.original
@@ -472,17 +508,21 @@ export function buildPatchResources(item: BackportCommitItem, rowId: string): Ba
       label: '回移植 Patch',
       exists: backportedMeta?.exists ?? Boolean(backportedPath),
       fileId: `${commitId}:backported`,
-      fileName: backportedMeta?.file_name || (backportedPath ? fileNameFromPath(backportedPath) : ''),
+      fileName:
+        backportedMeta?.file_name || (backportedPath ? fileNameFromPath(backportedPath) : ''),
     },
   ]
 }
 
-export function buildDisplayPatchResources(item: BackportCommitItem, rowId: string): BackportPatchResource[] {
+export function buildDisplayPatchResources(
+  item: BackportCommitItem,
+  rowId: string
+): BackportPatchResource[] {
   const resources = buildPatchResources(item, rowId)
-  const original = resources.find((resource) => resource.kind === 'original') || resources[0]
+  const original = resources.find(resource => resource.kind === 'original') || resources[0]
   const applicable =
-    resources.find((resource) => resource.kind === 'backported' && resource.exists) ||
-    resources.find((resource) => resource.kind === 'current' && resource.exists) ||
+    resources.find(resource => resource.kind === 'backported' && resource.exists) ||
+    resources.find(resource => resource.kind === 'current' && resource.exists) ||
     original
 
   const displayResources: BackportPatchResource[] = []
@@ -507,7 +547,7 @@ export function buildPatchPreviewKey(rowId: string, resource: BackportPatchResou
 }
 
 function uniqueStrings(values: string[]): string[] {
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))]
+  return [...new Set(values.map(value => value.trim()).filter(Boolean))]
 }
 
 function normalizePatchPath(path: string): string {
@@ -567,16 +607,16 @@ function evidenceLinesFromValue(value: unknown): string[] {
 
 function extractStringList(value: unknown): string[] {
   if (Array.isArray(value)) {
-    return value.flatMap((item) => extractStringList(item))
+    return value.flatMap(item => extractStringList(item))
   }
   if (value && typeof value === 'object') {
-    return Object.values(value).flatMap((item) => extractStringList(item))
+    return Object.values(value).flatMap(item => extractStringList(item))
   }
   const text = stringifyValue(value).trim()
   if (!text) return []
   return text
     .split(/[,，\n]/)
-    .map((item) => item.trim())
+    .map(item => item.trim())
     .filter(Boolean)
 }
 
@@ -592,19 +632,23 @@ function extractFailureEvidence(item: BackportCommitItem) {
   ]
 
   const evidenceLines = rawLines
-    .map((line) => line.trim())
+    .map(line => line.trim())
     .filter(Boolean)
-    .filter((line) => !isGitHintLine(line))
+    .filter(line => !isGitHintLine(line))
 
-  const keyLinePattern = /(cmdline|stderr|stdout|CONFLICT|patch failed|patch does not apply|could not apply)/i
-  const keyLogLines = evidenceLines
-    .filter((line) => keyLinePattern.test(line))
-    .slice(0, 30)
+  const keyLinePattern =
+    /(cmdline|stderr|stdout|CONFLICT|patch failed|patch does not apply|could not apply)/i
+  const keyLogLines = evidenceLines.filter(line => keyLinePattern.test(line)).slice(0, 30)
 
   const commands = uniqueStrings(
     evidenceLines
-      .filter((line) => /cmdline/i.test(line))
-      .map((line) => line.replace(/^["']?cmdline["']?\s*[:=]\s*/i, '').replace(/^-\s*/, '').trim()),
+      .filter(line => /cmdline/i.test(line))
+      .map(line =>
+        line
+          .replace(/^["']?cmdline["']?\s*[:=]\s*/i, '')
+          .replace(/^-\s*/, '')
+          .trim()
+      )
   )
 
   const failedHunks: { file: string; line: number | null }[] = []
@@ -641,7 +685,7 @@ function extractFailureEvidence(item: BackportCommitItem) {
 
   const conflictFiles = [
     ...extractStringList(item.conflict_files),
-    ...evidenceLines.flatMap((line) => {
+    ...evidenceLines.flatMap(line => {
       const conflictInMatch = line.match(/CONFLICT\s*\([^)]+\):.*\s+in\s+(.+)$/i)
       if (conflictInMatch) return [normalizePatchPath(conflictInMatch[1])]
 
@@ -661,8 +705,9 @@ function extractFailureEvidence(item: BackportCommitItem) {
     empty_patch: Boolean(item.empty_patch),
     equivalent_exists: Boolean(item.equivalent_exists),
     applied_commit: stringifyValue(item.applied_commit).trim(),
-    failed_hunks: failedHunks.filter((hunk, index, all) =>
-      all.findIndex((item) => item.file === hunk.file && item.line === hunk.line) === index
+    failed_hunks: failedHunks.filter(
+      (hunk, index, all) =>
+        all.findIndex(item => item.file === hunk.file && item.line === hunk.line) === index
     ),
     conflict_files: uniqueStrings(conflictFiles.map(normalizePatchPath)),
     commands,
@@ -691,7 +736,7 @@ function extractTouchedFilesFromPatch(patchText: string): string[] {
 function extractRelevantPatchHunks(
   patchText: string,
   targetFiles: string[],
-  maxChars = RELEVANT_PATCH_HUNK_CHAR_LIMIT,
+  maxChars = RELEVANT_PATCH_HUNK_CHAR_LIMIT
 ): { text: string; truncated: boolean } {
   const normalizedTargets = uniqueStrings(targetFiles.map(normalizePatchPath))
   const lines = patchText.split(/\r?\n/)
@@ -703,8 +748,14 @@ function extractRelevantPatchHunks(
 
   const fileMatches = (file: string): boolean => {
     const normalizedFile = normalizePatchPath(file)
-    return normalizedTargets.length === 0 || normalizedTargets.some((target) =>
-      normalizedFile === target || normalizedFile.endsWith(`/${target}`) || target.endsWith(`/${normalizedFile}`)
+    return (
+      normalizedTargets.length === 0 ||
+      normalizedTargets.some(
+        target =>
+          normalizedFile === target ||
+          normalizedFile.endsWith(`/${target}`) ||
+          target.endsWith(`/${normalizedFile}`)
+      )
     )
   }
 
@@ -785,18 +836,24 @@ export function buildCompactBackportConflictAnalysisMessage({
     row,
   })
   const failureEvidence = extractFailureEvidence(row.data)
-  const originalPatch = patches.find((patch) => patch.resource.kind === 'original')
+  const originalPatch = patches.find(patch => patch.resource.kind === 'original')
   const touchedFiles = uniqueStrings(
-    patches.flatMap((patch) => patch.response ? extractTouchedFilesFromPatch(patch.response.patch_text || '') : []),
+    patches.flatMap(patch =>
+      patch.response ? extractTouchedFilesFromPatch(patch.response.patch_text || '') : []
+    )
   )
   const focusFiles = uniqueStrings([
-    ...failureEvidence.failed_hunks.map((hunk) => hunk.file),
+    ...failureEvidence.failed_hunks.map(hunk => hunk.file),
     ...failureEvidence.conflict_files,
     ...touchedFiles,
   ])
-  const hunkSourcePatch = originalPatch?.response || patches.find((patch) => patch.response)?.response
+  const hunkSourcePatch = originalPatch?.response || patches.find(patch => patch.response)?.response
   const relevantPatchHunk = hunkSourcePatch
-    ? extractRelevantPatchHunks(hunkSourcePatch.patch_text || '', focusFiles, RELEVANT_PATCH_HUNK_CHAR_LIMIT)
+    ? extractRelevantPatchHunks(
+        hunkSourcePatch.patch_text || '',
+        focusFiles,
+        RELEVANT_PATCH_HUNK_CHAR_LIMIT
+      )
     : { text: '未加载到可用 patch hunk。', truncated: false }
 
   return `请进入 patch investigation mode，分析这个 Backport / git apply patch 失败原因。
@@ -821,12 +878,16 @@ ${JSON.stringify(failureEvidence, null, 2)}
 
 ## Patch Focus
 \`\`\`json
-${JSON.stringify({
+${JSON.stringify(
+  {
     touched_files: touchedFiles,
     focus_files: focusFiles,
     failed_hunks: failureEvidence.failed_hunks,
     conflict_files: failureEvidence.conflict_files,
-  }, null, 2)}
+  },
+  null,
+  2
+)}
 \`\`\`
 
 ## Relevant Patch Hunk
@@ -839,12 +900,19 @@ ${relevantPatchHunk.text}
 
 ## Available Files
 \`\`\`json
-${JSON.stringify({
-    original_patch_file: originalPatch?.response?.file_name || originalPatch?.resource.fileName || stringifyValue(row.data.original_patch_path).trim(),
+${JSON.stringify(
+  {
+    original_patch_file:
+      originalPatch?.response?.file_name ||
+      originalPatch?.resource.fileName ||
+      stringifyValue(row.data.original_patch_path).trim(),
     target_repo_path: config.target_path,
     source_repo_path: config.project_dir,
     report_path: workingReportPath || baseReportPath,
-  }, null, 2)}
+  },
+  null,
+  2
+)}
 \`\`\`
 
 ## 输出要求

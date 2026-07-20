@@ -8,6 +8,14 @@ export type BackportStage =
   | 'failed'
   | 'paused'
 
+export type BackportTargetConfigLayout = 'none' | 'anolis'
+
+export type BackportTargetConfigDefaultLevel = 'L0-MANDATORY' | 'L1-RECOMMEND' | 'L2-OPTIONAL'
+
+export interface BackportTargetConfigLayoutOptions {
+  default_level: BackportTargetConfigDefaultLevel
+}
+
 export interface BackportConfig {
   project_url: string
   backport_model_id: string
@@ -15,6 +23,8 @@ export interface BackportConfig {
   source_branch: string
   target_path: string
   target_release: string
+  target_config_layout: BackportTargetConfigLayout
+  target_config_layout_opts: BackportTargetConfigLayoutOptions
   patch_dataset_dir: string
   signer_name: string
   signer_email: string

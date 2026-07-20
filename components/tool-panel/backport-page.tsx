@@ -35,6 +35,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Progress } from '@/components/ui/progress'
 import {
   Dialog,
@@ -49,6 +50,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -413,15 +415,20 @@ export function BackportPage() {
     [paginatedRows, selectedRowSet]
   )
   const firstBlockingConflictRow = useMemo(
-    () => workingCommits.find((row) => Boolean(row.data.has_conflict) && !isSkippedRow(row.data)) || null,
-    [workingCommits],
+    () =>
+      workingCommits.find(row => Boolean(row.data.has_conflict) && !isSkippedRow(row.data)) || null,
+    [workingCommits]
   )
   const firstBlockingConflictRowId = firstBlockingConflictRow?.rowId || null
   const hasPendingRows = useMemo(
-    () => workingCommits.some((row) => stringifyValue(row.data.status).trim().toLowerCase() === 'pending'),
-    [workingCommits],
+    () =>
+      workingCommits.some(
+        row => stringifyValue(row.data.status).trim().toLowerCase() === 'pending'
+      ),
+    [workingCommits]
   )
-  const canContinueReport = Boolean(baseReportPath.trim()) && hasPendingRows && !firstBlockingConflictRow
+  const canContinueReport =
+    Boolean(baseReportPath.trim()) && hasPendingRows && !firstBlockingConflictRow
 
   const selectedGitEntry = useMemo(
     () =>
@@ -494,9 +501,10 @@ export function BackportPage() {
     })
   }
 
-  const getRunAllRowKey = (row: BackportCommitRow) => (
-    stringifyValue(row.data.row_id || row.data.commit || row.data.input_commit || row.rowId).trim() || row.rowId
-  )
+  const getRunAllRowKey = (row: BackportCommitRow) =>
+    stringifyValue(
+      row.data.row_id || row.data.commit || row.data.input_commit || row.rowId
+    ).trim() || row.rowId
 
   const formatRunAllRowState = (data: BackportCommitItem | undefined) => {
     if (!data) return '未知'
@@ -686,11 +694,16 @@ export function BackportPage() {
       for (const row of updatedRows) {
         const rowKey = getRunAllRowKey(row)
         const previousRow = previousRowsById.get(rowKey)
-        const commit = stringifyValue(row.data.commit || row.data.input_commit || rowKey).slice(0, 12)
+        const commit = stringifyValue(row.data.commit || row.data.input_commit || rowKey).slice(
+          0,
+          12
+        )
         const title = resolveCommitTitle(row.data)
         const previousState = formatRunAllRowState(previousRow?.data)
         const nextState = formatRunAllRowState(row.data)
-        const duration = formatRunAllDuration(runAllRowStartedAtRef.current[rowKey] || runAllRowStartedAtRef.current[progressRowId])
+        const duration = formatRunAllDuration(
+          runAllRowStartedAtRef.current[rowKey] || runAllRowStartedAtRef.current[progressRowId]
+        )
         const failed = resolveStatusMeta(row.data).kind === 'failed'
         addTimeline(
           `Commit ${commit} 运行完成`,
@@ -700,7 +713,9 @@ export function BackportPage() {
             `状态: ${previousState} -> ${nextState}`,
             duration,
             progress.message ? `说明: ${progress.message}` : '',
-          ].filter(Boolean).join('\n')
+          ]
+            .filter(Boolean)
+            .join('\n')
         )
         delete runAllRowStartedAtRef.current[rowKey]
       }
@@ -1359,11 +1374,13 @@ export function BackportPage() {
   }
 
   const canResolveConflictRow = (row: BackportCommitRow): boolean => {
-    return !running
-      && row.rowId === firstBlockingConflictRowId
-      && Boolean(row.data.has_conflict)
-      && !isSkippedRow(row.data)
-      && baseReportPath.trim().length > 0
+    return (
+      !running &&
+      row.rowId === firstBlockingConflictRowId &&
+      Boolean(row.data.has_conflict) &&
+      !isSkippedRow(row.data) &&
+      baseReportPath.trim().length > 0
+    )
   }
 
   const handleResolveConflictRow = async (row: BackportCommitRow) => {
@@ -1376,17 +1393,19 @@ export function BackportPage() {
           workingReportPath: filteredReportPath || baseReportPath,
           row: deepClone(row.data),
         },
-        handleAgentEvent,
-      ),
+        handleAgentEvent
+      )
     )
   }
 
   const canRecheckConflictRow = (row: BackportCommitRow): boolean => {
-    return !running
-      && row.rowId === firstBlockingConflictRowId
-      && Boolean(row.data.has_conflict)
-      && !isSkippedRow(row.data)
-      && baseReportPath.trim().length > 0
+    return (
+      !running &&
+      row.rowId === firstBlockingConflictRowId &&
+      Boolean(row.data.has_conflict) &&
+      !isSkippedRow(row.data) &&
+      baseReportPath.trim().length > 0
+    )
   }
 
   const handleRecheckConflictRow = async (row: BackportCommitRow) => {
@@ -1883,7 +1902,9 @@ export function BackportPage() {
                       <div className="mt-1 line-clamp-2 text-xs leading-5 text-blue-700">
                         {runAllDisplayMessage}
                         {runAllProgress.current_title ? (
-                          <span className="ml-2 font-mono text-blue-800">{runAllProgress.current_title}</span>
+                          <span className="ml-2 font-mono text-blue-800">
+                            {runAllProgress.current_title}
+                          </span>
                         ) : null}
                       </div>
                     </div>
@@ -1894,7 +1915,10 @@ export function BackportPage() {
                     <span className="font-mono">{runAllProgressPercent}%</span>
                   </div>
                 </div>
-                <Progress value={runAllProgressPercent} className="mt-3 h-1.5 bg-blue-100 [&>div]:bg-blue-600" />
+                <Progress
+                  value={runAllProgressPercent}
+                  className="mt-3 h-1.5 bg-blue-100 [&>div]:bg-blue-600"
+                />
               </div>
             </div>
           ) : null}
@@ -1990,6 +2014,76 @@ export function BackportPage() {
                       className="font-mono text-xs"
                     />
                   </div>
+                  <Field className="gap-1">
+                    <FieldLabel htmlFor="target-config-layout" className="text-xs font-normal">
+                      目标配置布局 (target_config_layout)
+                    </FieldLabel>
+                    <Select
+                      value={config.target_config_layout}
+                      onValueChange={value =>
+                        setConfig(prev => ({
+                          ...prev,
+                          target_config_layout: value === 'anolis' ? 'anolis' : 'none',
+                        }))
+                      }
+                      disabled={running || loadingConfig}
+                    >
+                      <SelectTrigger id="target-config-layout" className="w-full text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="none">不启用（none）</SelectItem>
+                          <SelectItem value="anolis">Anolis 拆分配置（anolis）</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription className="text-xs">
+                      将 defconfig 中的 CONFIG_* 变更映射到目标仓的独立配置文件。
+                    </FieldDescription>
+                  </Field>
+                  <Field
+                    className="gap-1"
+                    data-disabled={config.target_config_layout !== 'anolis' || undefined}
+                  >
+                    <FieldLabel
+                      htmlFor="target-config-default-level"
+                      className="text-xs font-normal"
+                    >
+                      新建配置默认 Level (default_level)
+                    </FieldLabel>
+                    <Select
+                      value={config.target_config_layout_opts.default_level}
+                      onValueChange={value =>
+                        setConfig(prev => ({
+                          ...prev,
+                          target_config_layout_opts: {
+                            default_level:
+                              value === 'L0-MANDATORY' || value === 'L2-OPTIONAL'
+                                ? value
+                                : 'L1-RECOMMEND',
+                          },
+                        }))
+                      }
+                      disabled={
+                        running || loadingConfig || config.target_config_layout !== 'anolis'
+                      }
+                    >
+                      <SelectTrigger id="target-config-default-level" className="w-full text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="L0-MANDATORY">L0-MANDATORY</SelectItem>
+                          <SelectItem value="L1-RECOMMEND">L1-RECOMMEND（默认）</SelectItem>
+                          <SelectItem value="L2-OPTIONAL">L2-OPTIONAL</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription className="text-xs">
+                      仅在 Anolis 布局下生效，用于新建 anolis/configs/ 配置文件。
+                    </FieldDescription>
+                  </Field>
                   <div className="space-y-1 md:col-span-2">
                     <p className="text-xs text-muted-foreground">
                       补丁数据集目录 (patch_dataset_dir)
@@ -2207,9 +2301,11 @@ export function BackportPage() {
                           <SelectValue placeholder="自动判断" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="auto">自动判断</SelectItem>
-                          <SelectItem value="openEuler">全部使用 openEuler</SelectItem>
-                          <SelectItem value="upstream">全部使用 upstream</SelectItem>
+                          <SelectGroup>
+                            <SelectItem value="auto">自动判断</SelectItem>
+                            <SelectItem value="openEuler">全部使用 openEuler</SelectItem>
+                            <SelectItem value="upstream">全部使用 upstream</SelectItem>
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
                       <span>
@@ -2302,10 +2398,10 @@ export function BackportPage() {
           onCopyText={handleCopyText}
           onLoadPatchPreview={(row, resource) => void loadPatchPreview(row, resource)}
           canAnalyzeConflictRow={canAnalyzeConflictRow}
-          onAnalyzeConflictRow={(row) => void handleAnalyzeConflictRow(row)}
+          onAnalyzeConflictRow={row => void handleAnalyzeConflictRow(row)}
           firstBlockingConflictRowId={firstBlockingConflictRowId}
           canRecheckConflictRow={canRecheckConflictRow}
-          onRecheckConflictRow={(row) => void handleRecheckConflictRow(row)}
+          onRecheckConflictRow={row => void handleRecheckConflictRow(row)}
           canApplyRow={canApplyRow}
           canResolveConflictRow={canResolveConflictRow}
           onApplyRow={row => void handleApplyRow(row)}
