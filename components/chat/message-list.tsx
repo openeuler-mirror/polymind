@@ -107,6 +107,15 @@ const MessageItem = memo(function MessageItem({
     selectionsRef.current.set(index, selected)
   }, [])
 
+  // 提取提交/跳过按钮公共的 agentId / sessionId 解析逻辑
+  const getAgentAndSessionId = useCallback(() => {
+    const store = useChatStore.getState()
+    const conv = store.conversations.find(c => c.id === store.currentConversationId)
+    const agentId = conv?.agentId || store.currentAgentId || ''
+    const sessionId = conv?.sessionId || ''
+    return { store, agentId, sessionId }
+  }, [])
+
   // 调试：打印 message 对象
   console.log('Rendering message:', message)
 
@@ -296,10 +305,7 @@ const MessageItem = memo(function MessageItem({
                     for (let i = 0; i < questionCount; i++) {
                       answers.push(selectionsRef.current.get(i) || [])
                     }
-                    const store = useChatStore.getState()
-                    const conv = store.conversations.find(c => c.id === store.currentConversationId)
-                    const agentId = conv?.agentId || store.currentAgentId || ''
-                    const sessionId = conv?.sessionId || ''
+                    const { store, agentId, sessionId } = getAgentAndSessionId()
                     await store.replyQuestion(agentId, sessionId, message.questionId, answers)
                     userActionRef.current = 'submitted'
                   } catch (err: any) {
@@ -323,10 +329,7 @@ const MessageItem = memo(function MessageItem({
                   setSubmittingQuestions(true)
                   setSubmitError(null)
                   try {
-                    const store = useChatStore.getState()
-                    const conv = store.conversations.find(c => c.id === store.currentConversationId)
-                    const agentId = conv?.agentId || store.currentAgentId || ''
-                    const sessionId = conv?.sessionId || ''
+                    const { store, agentId, sessionId } = getAgentAndSessionId()
                     await store.rejectQuestion(agentId, sessionId, message.questionId)
                     userActionRef.current = 'rejected'
                   } catch (err: any) {

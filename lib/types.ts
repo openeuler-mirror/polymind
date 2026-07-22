@@ -45,7 +45,7 @@ export interface EventItem {
  */
 export interface QuestionOption {
   label: string
-  description: string
+  description?: string
 }
 
 /**
