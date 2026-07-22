@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useState, useEffect, useRef } from 'react'
+import { memo, useState, useEffect, useRef, useCallback } from 'react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
@@ -24,6 +24,7 @@ import {
   Terminal,
   SquareTerminal,
   Cpu,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -40,6 +41,8 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Message, ToolCall, Attachment, EventItem } from '@/lib/types'
+import { QuestionCard } from './question-card'
+import { useChatStore } from '@/lib/store'
 
 interface MessageListProps {
   messages: Message[]
@@ -70,6 +73,17 @@ const MessageItem = memo(function MessageItem({
   const [copied, setCopied] = useState(false)
   const isUser = message.role === 'user'
 
+  // 多问题统一提交状态
+  const [submittingQuestions, setSubmittingQuestions] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const selectionsRef = useRef<Map<number, string[]>>(new Map())
+  // 用 ref 追踪用户操作类型（提交/跳过），UI 从 message.question 是否为 null 派生最终状态
+  const userActionRef = useRef<'submitted' | 'rejected' | null>(null)
+
+  // 派生状态：当前是否有活跃的提问卡片
+  const hasActiveQuestions =
+    !isUser && !!message.question?.length && !!message.questionId && userActionRef.current === null
+
   const handleCopy = async () => {
     try {
       if (navigator.clipboard) {
@@ -88,6 +102,10 @@ const MessageItem = memo(function MessageItem({
       console.error('Failed to copy:', err)
     }
   }
+
+  const handleSelectionChange = useCallback((index: number, selected: string[]) => {
+    selectionsRef.current.set(index, selected)
+  }, [])
 
   // 调试：打印 message 对象
   console.log('Rendering message:', message)
@@ -252,37 +270,146 @@ const MessageItem = memo(function MessageItem({
           </div>
         )}
 
+        {/* Question cards — displayed when AI asks questions with options */}
+        {hasActiveQuestions && (
+          <div className="space-y-3">
+            {message.question!.map((q, qIdx) => (
+              <QuestionCard
+                key={`question-${qIdx}`}
+                question={q}
+                questionIndex={qIdx}
+                disabled={submittingQuestions}
+                onSelectionChange={handleSelectionChange}
+              />
+            ))}
+            {/* 统一操作按钮 */}
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                size="sm"
+                onClick={async () => {
+                  if (!message.questionId) return
+                  setSubmittingQuestions(true)
+                  setSubmitError(null)
+                  try {
+                    const answers: string[][] = []
+                    const questionCount = message.question!.length
+                    for (let i = 0; i < questionCount; i++) {
+                      answers.push(selectionsRef.current.get(i) || [])
+                    }
+                    const store = useChatStore.getState()
+                    const conv = store.conversations.find(c => c.id === store.currentConversationId)
+                    const agentId = conv?.agentId || store.currentAgentId || ''
+                    const sessionId = conv?.sessionId || ''
+                    await store.replyQuestion(agentId, sessionId, message.questionId, answers)
+                    userActionRef.current = 'submitted'
+                  } catch (err: any) {
+                    const msg = err?.message || '提交失败，请重试'
+                    setSubmitError(msg)
+                  } finally {
+                    setSubmittingQuestions(false)
+                  }
+                }}
+                disabled={submittingQuestions}
+                className="h-8 text-xs"
+              >
+                {submittingQuestions ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                {submitError ? '重试' : '提交所有回答'}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={async () => {
+                  if (!message.questionId) return
+                  setSubmittingQuestions(true)
+                  setSubmitError(null)
+                  try {
+                    const store = useChatStore.getState()
+                    const conv = store.conversations.find(c => c.id === store.currentConversationId)
+                    const agentId = conv?.agentId || store.currentAgentId || ''
+                    const sessionId = conv?.sessionId || ''
+                    await store.rejectQuestion(agentId, sessionId, message.questionId)
+                    userActionRef.current = 'rejected'
+                  } catch (err: any) {
+                    const msg = err?.message || '操作失败，请重试'
+                    setSubmitError(msg)
+                  } finally {
+                    setSubmittingQuestions(false)
+                  }
+                }}
+                disabled={submittingQuestions}
+                className="h-8 text-xs text-muted-foreground"
+              >
+                <X className="mr-1 h-3.5 w-3.5" />
+                跳过
+              </Button>
+            </div>
+            {/* 提交错误提示 */}
+            {submitError && (
+              <div className="flex items-center gap-1.5 text-xs text-red-500">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <span>{submitError}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Question result indicator — only show after server acknowledges (question cleared) */}
+        {!isUser &&
+          userActionRef.current === 'submitted' &&
+          !message.question?.length &&
+          selectionsRef.current.size > 0 && (
+            <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 text-sm">
+              <Check className="h-4 w-4 shrink-0 text-green-500" />
+              <span className="text-foreground/80">
+                已提交回答：
+                {Array.from(selectionsRef.current.entries()).map(([idx, selected], i) => (
+                  <span key={idx}>
+                    {selected.length > 0 ? selected.join('、') : '（未选择）'}
+                    {i < selectionsRef.current.size - 1 ? '；' : ''}
+                  </span>
+                ))}
+              </span>
+            </div>
+          )}
+        {!isUser && userActionRef.current === 'rejected' && !message.question?.length && (
+          <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
+            <X className="h-4 w-4 shrink-0" />
+            <span>已跳过提问</span>
+          </div>
+        )}
+
         {/* Message Content - only render when no delta-events cover the text content */}
         {(isUser ||
           !message.events ||
           message.events.length === 0 ||
-          !message.events.some(e => e.type === 'message.delta')) && (
-          <>
-            {message.status === 'interrupted' && !message.content ? (
-              <div className="rounded-2xl px-4 py-3 bg-card border border-border">
-                <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>思考已中断</span>
+          !message.events.some(e => e.type === 'message.delta')) &&
+          (isUser || message.content || (message.isStreaming && !hasActiveQuestions)) && (
+            <>
+              {message.status === 'interrupted' && !message.content ? (
+                <div className="rounded-2xl px-4 py-3 bg-card border border-border">
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>思考已中断</span>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div
-                className={cn(
-                  'rounded-2xl px-4 py-3',
-                  isUser ? 'bg-primary text-primary-foreground' : 'bg-card border border-border'
-                )}
-              >
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                  <MessageContent
-                    content={message.content}
-                    isStreaming={message.isStreaming}
-                    isUser={isUser}
-                  />
+              ) : (
+                <div
+                  className={cn(
+                    'rounded-2xl px-4 py-3',
+                    isUser ? 'bg-primary text-primary-foreground' : 'bg-card border border-border'
+                  )}
+                >
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <MessageContent
+                      content={message.content}
+                      isStreaming={message.isStreaming}
+                      isUser={isUser}
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              )}
+            </>
+          )}
 
         {/* Usage Information */}
         {message.usage && (

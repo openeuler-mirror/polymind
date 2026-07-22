@@ -1,11 +1,12 @@
 import type { StateCreator } from 'zustand'
-import type { Session, EventItem } from '../types'
+import type { Session, EventItem, QuestionAskedPayload } from '../types'
 import { SessionStatus } from '../types'
 import type { WebSocketClient } from '@/lib/websocket-client'
 import { messageService } from '@/services/message-service'
 import { sessionService } from '@/services/session-service'
 import { generateUUID } from '../utils'
 import { appConfig } from '@/app/config'
+import { extractQuestions, clearQuestionFields } from '../stream-event-handler'
 import type { StoreState } from './index'
 
 export interface ConnectionSlice {
@@ -22,6 +23,13 @@ export interface ConnectionSlice {
     onEvent?: (event: EventItem) => void
   ) => Promise<EventItem[]>
   createNewSession: (agentId: string) => Promise<Session>
+  replyQuestion: (
+    agentId: string,
+    sessionId: string,
+    requestId: string,
+    answers: string[][]
+  ) => Promise<void>
+  rejectQuestion: (agentId: string, sessionId: string, requestId: string) => Promise<void>
 }
 
 // 辅助函数：查找当前流式 assistant 消息
@@ -111,6 +119,37 @@ function createEventHandler(get: () => StoreState) {
       case 'usage.updated':
         console.log('Usage updated:', event.payload)
         break
+      case 'question.asked': {
+        const { questions, questionId } = extractQuestions(event.payload as QuestionAskedPayload)
+        const found = getStreamingAssistant(get)
+        if (found) {
+          get().updateMessage(found.cid, found.message.id, {
+            question: questions,
+            questionId,
+            events: [
+              ...(found.message.events || []),
+              {
+                type: 'question.asked',
+                content: questions?.[0]?.question || 'AI 提出了一个问题',
+                timestamp: event.ts_ms || Date.now(),
+              },
+            ],
+          })
+        }
+        break
+      }
+      case 'question.replied':
+      case 'question.rejected': {
+        const found = getStreamingAssistant(get)
+        if (found) {
+          get().updateMessage(
+            found.cid,
+            found.message.id,
+            clearQuestionFields(found.message.events)
+          )
+        }
+        break
+      }
       case 'stream.error':
       case 'client.error': {
         console.error('Error event:', event.payload)
@@ -222,5 +261,13 @@ export const createConnectionSlice: StateCreator<StoreState, [], [], ConnectionS
       console.error('Error sending message:', error)
       throw error
     }
+  },
+
+  replyQuestion: (agentId: string, sessionId: string, requestId: string, answers: string[][]) => {
+    return messageService.replyQuestion(agentId, sessionId, requestId, answers)
+  },
+
+  rejectQuestion: (agentId: string, sessionId: string, requestId: string) => {
+    return messageService.rejectQuestion(agentId, sessionId, requestId)
   },
 })

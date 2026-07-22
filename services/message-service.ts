@@ -187,6 +187,31 @@ class MessageService {
   }
 
   /**
+   * 回答 AI 提问
+   */
+  public async replyQuestion(
+    agentId: string,
+    sessionId: string,
+    requestId: string,
+    answers: string[][]
+  ): Promise<void> {
+    const url = `/agents/${agentId}/sessions/${sessionId}/question/reply`
+    await httpClient.post(url, { request_id: requestId, answers })
+  }
+
+  /**
+   * 拒绝 AI 提问
+   */
+  public async rejectQuestion(
+    agentId: string,
+    sessionId: string,
+    requestId: string
+  ): Promise<void> {
+    const url = `/agents/${agentId}/sessions/${sessionId}/question/reject`
+    await httpClient.post(url, { request_id: requestId })
+  }
+
+  /**
    * 重连到正在进行的消息流（页面刷新后恢复流式响应）
    */
   public async reconnectStream(

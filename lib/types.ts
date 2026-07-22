@@ -27,6 +27,9 @@ export interface EventItem {
     | 'session.runtime.changed'
     | 'stream.error'
     | 'client.error'
+    | 'question.asked'
+    | 'question.replied'
+    | 'question.rejected'
   session_id?: string
   event_id?: string
   ts_ms?: number
@@ -35,6 +38,39 @@ export interface EventItem {
   content?: string
   timestamp?: number
   toolCall?: ToolCall
+}
+
+/**
+ * 问题选项接口
+ */
+export interface QuestionOption {
+  label: string
+  description: string
+}
+
+/**
+ * 提问信息接口（对应 OpenCode question.asked 事件）
+ */
+export interface QuestionInfo {
+  question: string
+  header: string
+  options: QuestionOption[]
+  multiple?: boolean
+  custom?: boolean
+}
+
+/**
+ * question.asked 事件 payload 类型
+ */
+export interface QuestionAskedPayload {
+  questions?: {
+    question?: string
+    header?: string
+    options?: QuestionOption[]
+    multiple?: boolean
+    custom?: boolean
+  }[]
+  question_id?: string
 }
 
 export interface Message {
@@ -50,6 +86,8 @@ export interface Message {
   thinking?: string[]
   displayText?: string[]
   events?: EventItem[]
+  question?: QuestionInfo[] | null
+  questionId?: string | null
   usage?: {
     inputTokens?: number
     outputTokens?: number

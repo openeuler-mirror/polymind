@@ -1,7 +1,43 @@
 import type { MutableRefObject } from 'react'
-import type { Message } from './types'
+import type { Message, QuestionInfo, EventItem, QuestionAskedPayload } from './types'
 import { MessageStatus } from './types'
 import { generateUUID } from './utils'
+
+/**
+ * 从 question.asked 事件 payload 中提取所有 QuestionInfo 组成的数组。
+ * 供 SSE、WS 和 agent-stream 三条路径复用。
+ */
+export function extractQuestions(payload: QuestionAskedPayload): {
+  questions: QuestionInfo[] | null
+  questionId: string | null
+} {
+  if (!payload?.questions || !Array.isArray(payload.questions)) {
+    return { questions: null, questionId: null }
+  }
+  const questions: QuestionInfo[] = payload.questions.map((q: any) => ({
+    question: q.question || '',
+    header: q.header || '',
+    options: q.options || [],
+    multiple: q.multiple,
+    custom: q.custom,
+  }))
+  return {
+    questions: questions.length > 0 ? questions : null,
+    questionId: payload.question_id || null,
+  }
+}
+
+/**
+ * 清除消息上的 question 相关字段（question.replied / question.rejected 时使用）。
+ * 同时过滤 events 数组中的 question.asked 事件。
+ */
+export function clearQuestionFields(existingEvents?: EventItem[]): Partial<Message> {
+  return {
+    question: null,
+    questionId: null,
+    ...(existingEvents ? { events: existingEvents.filter(e => e.type !== 'question.asked') } : {}),
+  }
+}
 
 export function formatOutput(content: any): string {
   if (content === null || content === undefined) {
@@ -189,6 +225,26 @@ export function handleStreamEvent(
         status: MessageStatus.COMPLETED,
       })
       setStreaming(conversationId, false)
+      break
+    case 'question.asked': {
+      const { questions, questionId } = extractQuestions(eventData.payload)
+      updateMessage(conversationId, messageId, (m: Message) => ({
+        question: questions,
+        questionId,
+        events: [
+          ...(m.events || []),
+          {
+            type: 'question.asked',
+            content: questions?.[0]?.question || 'AI 提出了一个问题',
+            timestamp: eventData.ts_ms || Date.now(),
+          },
+        ],
+      }))
+      break
+    }
+    case 'question.replied':
+    case 'question.rejected':
+      updateMessage(conversationId, messageId, (m: Message) => clearQuestionFields(m.events))
       break
   }
 }
