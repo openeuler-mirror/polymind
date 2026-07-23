@@ -292,6 +292,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="openclaw">OpenClaw</SelectItem>
+                  <SelectItem value="opencode">OpenCode</SelectItem>
                 </SelectContent>
               </Select>
             </div>
