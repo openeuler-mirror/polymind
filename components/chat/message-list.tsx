@@ -77,12 +77,17 @@ const MessageItem = memo(function MessageItem({
   const [submittingQuestions, setSubmittingQuestions] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const selectionsRef = useRef<Map<number, string[]>>(new Map())
-  // 用 ref 追踪用户操作类型（提交/跳过），UI 从 message.question 是否为 null 派生最终状态
-  const userActionRef = useRef<'submitted' | 'rejected' | null>(null)
+  // 记录最近一次操作（提交/跳过）对应的 questionId，用于多轮提问场景下区分不同批次的提问
+  const lastActionRef = useRef<{ questionId: string; action: 'submitted' | 'rejected' } | null>(
+    null
+  )
 
-  // 派生状态：当前是否有活跃的提问卡片
+  // 派生状态：当前是否有活跃的提问卡片（questionId 变化时自动视为新提问）
   const hasActiveQuestions =
-    !isUser && !!message.question?.length && !!message.questionId && userActionRef.current === null
+    !isUser &&
+    !!message.question?.length &&
+    !!message.questionId &&
+    lastActionRef.current?.questionId !== message.questionId
 
   const handleCopy = async () => {
     try {
@@ -307,7 +312,7 @@ const MessageItem = memo(function MessageItem({
                     }
                     const { store, agentId, sessionId } = getAgentAndSessionId()
                     await store.replyQuestion(agentId, sessionId, message.questionId, answers)
-                    userActionRef.current = 'submitted'
+                    lastActionRef.current = { questionId: message.questionId, action: 'submitted' }
                   } catch (err: any) {
                     const msg = err?.message || '提交失败，请重试'
                     setSubmitError(msg)
@@ -331,7 +336,7 @@ const MessageItem = memo(function MessageItem({
                   try {
                     const { store, agentId, sessionId } = getAgentAndSessionId()
                     await store.rejectQuestion(agentId, sessionId, message.questionId)
-                    userActionRef.current = 'rejected'
+                    lastActionRef.current = { questionId: message.questionId, action: 'rejected' }
                   } catch (err: any) {
                     const msg = err?.message || '操作失败，请重试'
                     setSubmitError(msg)
@@ -358,7 +363,7 @@ const MessageItem = memo(function MessageItem({
 
         {/* Question result indicator — only show after server acknowledges (question cleared) */}
         {!isUser &&
-          userActionRef.current === 'submitted' &&
+          lastActionRef.current?.action === 'submitted' &&
           !message.question?.length &&
           selectionsRef.current.size > 0 && (
             <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 text-sm">
@@ -374,7 +379,7 @@ const MessageItem = memo(function MessageItem({
               </span>
             </div>
           )}
-        {!isUser && userActionRef.current === 'rejected' && !message.question?.length && (
+        {!isUser && lastActionRef.current?.action === 'rejected' && !message.question?.length && (
           <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
             <X className="h-4 w-4 shrink-0" />
             <span>已跳过提问</span>
