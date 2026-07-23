@@ -79,6 +79,7 @@ export function ChatInput({
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const skillListRef = useRef<HTMLDivElement>(null)
   const currentConversation = conversations.find(conv => conv.id === currentConversationId)
   const isStreaming = currentConversation?.isStreaming ?? false
 
@@ -114,6 +115,14 @@ export function ChatInput({
       setShowSkillSelector(false)
     }
   }, [fetchSkills, slashCommandQuery])
+
+  // 键盘导航时自动将选中项滚动到可见区域
+  useEffect(() => {
+    if (skillListRef.current) {
+      const item = skillListRef.current.querySelector(`[data-index="${selectedSkillIndex}"]`)
+      item?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [selectedSkillIndex])
 
   // 处理选择skill
   const handleSelectSkill = useCallback((skill: AgentSkill) => {
@@ -300,10 +309,11 @@ export function ChatInput({
           <div className="absolute bottom-full left-0 right-0 px-4 pb-2 z-50">
             <div className="rounded-lg border shadow-md bg-popover text-popover-foreground">
               <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">可用技能</div>
-              <div className="max-h-64 overflow-y-auto p-1 scrollbar-thin">
+              <div ref={skillListRef} className="max-h-64 overflow-y-auto p-1 scrollbar-thin">
                 {filteredSkills.map((skill, index) => (
                   <div
                     key={skill.name}
+                    data-index={index}
                     onClick={() => handleSelectSkill(skill)}
                     onMouseEnter={() => setSelectedSkillIndex(index)}
                     className={`flex items-center py-2 px-2 rounded-sm cursor-default text-sm ${index === selectedSkillIndex ? 'bg-accent text-accent-foreground' : ''}`}
