@@ -28,16 +28,20 @@ export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   target_config_layout_opts: {
     default_level: 'L1-RECOMMEND',
   },
-  patch_dataset_dir: '',
+  patch_dataset_dir: '~/patched_output',
   signer_name: '',
   signer_email: '',
   commit_message_template: DEFAULT_COMMIT_MESSAGE_TEMPLATE,
-  commit_message_source: 'auto',
+  commit_message_source: 'upstream',
   linux_repo_path: '~/Image/linux',
   commit_sort: 'describe',
   current_excel_path: '',
   current_report_path: '',
   current_filtered_report_path: '',
+  source_repo_input: '',
+  target_repo_input: '',
+  source_repo_state: null,
+  target_repo_state: null,
   cvekit_options: {},
 }
 
@@ -92,7 +96,7 @@ export function normalizeBackportConfig(config: Partial<BackportConfig>): Backpo
     normalized.commit_message_template = DEFAULT_COMMIT_MESSAGE_TEMPLATE
   }
   if (!['auto', 'openEuler', 'upstream'].includes(normalized.commit_message_source)) {
-    normalized.commit_message_source = 'auto'
+    normalized.commit_message_source = 'upstream'
   }
   return normalized
 }

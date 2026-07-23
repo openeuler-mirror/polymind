@@ -16,6 +16,10 @@ import {
   BackportLoadReportRequest,
   BackportManualPatchRequest,
   BackportPatchPreviewResponse,
+  BackportRecentRepositoriesResponse,
+  BackportRepositoryInfo,
+  BackportRepositoryPrepareResponse,
+  BackportRepositoryRole,
   BackportRecheckConflictRequest,
   BackportRuntimeStatus,
   BackportRunAllControl,
@@ -73,6 +77,42 @@ class BackportService {
   public async browsePath(path?: string): Promise<BackportBrowseResponse> {
     const query = path ? `?path=${encodeURIComponent(path)}` : ''
     return httpClient.get<BackportBrowseResponse>(`/backport/browse${query}`)
+  }
+
+  public async getRecentRepositories(): Promise<BackportRecentRepositoriesResponse> {
+    return httpClient.get<BackportRecentRepositoriesResponse>('/backport/repositories/recent')
+  }
+
+  public async prepareRepository(request: {
+    role: BackportRepositoryRole
+    input: string
+    preferredBranch?: string
+  }): Promise<BackportRepositoryPrepareResponse> {
+    return httpClient.post<BackportRepositoryPrepareResponse>('/backport/repositories/prepare', {
+      role: request.role,
+      input: request.input,
+      preferred_branch: request.preferredBranch || '',
+    })
+  }
+
+  public async getRepositoryPrepareTask(taskId: string): Promise<BackportRepositoryPrepareResponse> {
+    return httpClient.get<BackportRepositoryPrepareResponse>(
+      `/backport/repositories/prepare/${encodeURIComponent(taskId)}`
+    )
+  }
+
+  public async refreshRepository(request: {
+    role: BackportRepositoryRole
+    localPath: string
+    sourceUrl?: string
+    selectedBranch?: string
+  }): Promise<BackportRepositoryInfo> {
+    return httpClient.post<BackportRepositoryInfo>('/backport/repositories/refresh', {
+      role: request.role,
+      local_path: request.localPath,
+      source_url: request.sourceUrl || '',
+      selected_branch: request.selectedBranch || '',
+    })
   }
 
   public async pauseRun(runId: string): Promise<BackportAsyncRunResponse> {
