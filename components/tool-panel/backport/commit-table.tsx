@@ -75,7 +75,9 @@ interface CommitTableProps {
   canContinueReport: boolean
   onOpenPathBrowser: () => void
   onGenerateReport: () => void
+  generateReportLabel?: string
   onRunAll: () => void
+  runAllIdleLabel?: string
   onPauseRunAll: () => void
   onContinueReport: () => void
   onExecuteSelected: () => void
@@ -132,7 +134,9 @@ export function CommitTable({
   canContinueReport,
   onOpenPathBrowser,
   onGenerateReport,
+  generateReportLabel = '导入 Excel 并生成报告',
   onRunAll,
+  runAllIdleLabel = '一键运行',
   onPauseRunAll,
   onContinueReport,
   onExecuteSelected,
@@ -186,7 +190,7 @@ export function CommitTable({
     runAllButtonIcon = <Pause className="mr-1 h-4 w-4" />
   }
 
-  let runAllButtonLabel = '一键运行'
+  let runAllButtonLabel = runAllIdleLabel
   if (isRunAllRunning && isRunAllPauseRequested) {
     runAllButtonLabel = '暂停中...'
   } else if (isRunAllRunning) {
@@ -225,7 +229,7 @@ export function CommitTable({
                 ) : (
                   <Play className="mr-1 h-4 w-4" />
                 )}
-                导入 Excel 并生成报告
+                {generateReportLabel}
               </Button>
               <Button
                 size="sm"

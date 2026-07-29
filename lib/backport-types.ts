@@ -174,12 +174,17 @@ export interface BackportToolSnapshot {
 }
 
 export interface BackportOperationArtifacts {
+  run_id?: string
   run_dir?: string
   config_path?: string
   base_config_path?: string
   report_path?: string
   base_report_path?: string
   filtered_report_path?: string
+  latest_report_path?: string
+  execution_dir?: string
+  attempt_dir?: string
+  case_dir?: string
 }
 
 export interface BackportOperationDiagnostics {
@@ -250,12 +255,66 @@ export interface BackportRunProgress {
 export interface BackportAsyncRunResponse {
   run_id: string
   action: string
-  status: 'running' | 'success' | 'failed'
+  status: 'running' | 'paused' | 'success' | 'failed' | 'interrupted'
   result: BackportRunResponse | null
   error: string
   progress?: BackportRunProgress | null
   pause_requested?: boolean
   paused_at?: number | null
+}
+
+export interface BackportRunSummary extends BackportAsyncRunResponse {
+  display_name: string
+  created_at: string
+  updated_at: string
+  current_report_path: string
+  excel_path: string
+  commit_count: number
+  current_excel_version: number
+  current_execution: number
+  run_dir: string
+}
+
+export interface BackportRunListResponse {
+  runs: BackportRunSummary[]
+}
+
+export interface BackportAttemptPatch {
+  kind: string
+  source: string
+  archive: string
+}
+
+export interface BackportAttemptSummary {
+  execution: number
+  attempt_number: number
+  attempt_dir: string
+  updated_at: string
+  report_path: string
+  stdout_path: string
+  stderr_path: string
+  rows: BackportCommitItem[]
+  patches: BackportAttemptPatch[]
+  conflict_report: Record<string, unknown> | null
+}
+
+export interface BackportAttemptListResponse {
+  attempts: BackportAttemptSummary[]
+}
+
+export interface BackportExecutionSummary {
+  execution: number
+  status: string
+  action: string
+  created_at: string
+  updated_at: string
+  report_path: string
+  target: Record<string, unknown>
+  excel_version: number
+}
+
+export interface BackportExecutionListResponse {
+  executions: BackportExecutionSummary[]
 }
 
 export interface BackportRunAllControl {
@@ -299,6 +358,7 @@ export function resetRunAllStateForGeneratedReport(
 export interface BackportGenerateReportRequest {
   config: BackportConfig
   excelPath: string
+  runId?: string
 }
 
 export interface BackportLoadReportRequest {
@@ -309,6 +369,7 @@ export interface BackportLoadReportRequest {
 export interface BackportRunAllRequest {
   config: BackportConfig
   excelPath: string
+  runId?: string
   baseReportPath?: string
   workingReportPath?: string
 }
