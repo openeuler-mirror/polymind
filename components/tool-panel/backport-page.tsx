@@ -17,6 +17,7 @@ import {
   type BackportConflictAnalysisPatch,
   type RowStatusKind,
   buildCompactBackportConflictAnalysisMessage,
+  buildConflictReportText,
   buildPatchPreviewKey,
   buildPatchResources,
   deepClone,
@@ -64,6 +65,7 @@ import {
   BackportCommitItem,
   BackportCommitRow,
   BackportConfig,
+  BackportExecutionRunSummary,
   BackportExecutionSummary,
   BackportGitLogEntry,
   BackportOperationResultData,
@@ -89,7 +91,7 @@ import { generateUUID } from '@/lib/utils'
 
 const BACKPORT_COMMIT_PAGE_SIZE = 5
 const BACKPORT_MODEL_EMPTY_VALUE = '__none__'
-const BACKPORT_ACTIVE_RUN_STORAGE_KEY = 'polymind.backport.activeRunId'
+const BACKPORT_ACTIVE_RUN_STORAGE_KEY = 'polymind.backport.activeTaskId.v3'
 const BACKPORT_SUPPORTED_PROVIDERS = new Set([
   'openai',
   'deepseek',
@@ -128,64 +130,6 @@ const toRunAllNumber = (value: number | undefined): number => {
 
 const hasRunAllNumber = (value: number | undefined): value is number => {
   return Number.isFinite(Number(value))
-}
-
-const conflictReportStatusLabel = (status: string): string => {
-  const normalized = status.trim().toLowerCase()
-  const labels: Record<string, string> = {
-    success: '成功',
-    failed: '失败',
-    skipped: '跳过',
-    pending: '等待中',
-  }
-  return labels[normalized] || status || '未知'
-}
-
-const buildConflictReportText = (rows: BackportCommitRow[]): string => {
-  const sections = rows
-    .map((row) => {
-      const summary = row.data.conflict_summary
-      if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return ''
-
-      const summaryData = summary as Record<string, unknown>
-      const status = stringifyValue(summaryData.status).trim()
-      const normalizedStatus = status.toLowerCase()
-      const score = stringifyValue(summaryData.score).trim()
-      const reason = stringifyValue(summaryData.reason).trim()
-      const error = stringifyValue(summaryData.error).trim()
-      const commit = stringifyValue(row.data.commit || row.data.input_commit).trim()
-      const shortCommit = commit ? commit.slice(0, 12) : '未知 commit'
-      const title = resolveCommitTitle(row.data)
-      const heading = `${shortCommit}${title ? ` ${title}` : ''}`
-
-      if (normalizedStatus === 'success') {
-        return [
-          heading,
-          '',
-          `评分：${score || '-'}`,
-          '',
-          '原因：',
-          reason || '未返回原因',
-        ].join('\n')
-      }
-
-      const lines = [
-        heading,
-        '',
-        `状态：${conflictReportStatusLabel(status)}`,
-      ]
-
-      if (error || normalizedStatus === 'failed') {
-        lines.push('', `错误：${error || '未返回错误信息'}`)
-      }
-      if (reason) {
-        lines.push('', '原因：', reason)
-      }
-      return lines.join('\n')
-    })
-    .filter(Boolean)
-
-  return sections.map((section, index) => `## ${index + 1}. ${section}`).join('\n\n')
 }
 
 const buildLegacyRepositoryInfo = (
@@ -275,7 +219,10 @@ export function BackportPage() {
   const [commitPage, setCommitPage] = useState(1)
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([])
   const [timeline, setTimeline] = useState<BackportTimelineEntry[]>([])
-  const [supportTab, setSupportTab] = useState<'timeline' | 'git' | 'conflict-report'>('timeline')
+  const [executionSummary, setExecutionSummary] =
+    useState<BackportExecutionRunSummary | null>(null)
+  const [supportTab, setSupportTab] =
+    useState<'timeline' | 'summary' | 'git' | 'conflict-report'>('timeline')
   const [gitLogEntries, setGitLogEntries] = useState<BackportGitLogEntry[]>([])
   const [gitLogLoading, setGitLogLoading] = useState(false)
   const [selectedGitRevision, setSelectedGitRevision] = useState<string | null>(null)
@@ -604,7 +551,7 @@ export function BackportPage() {
       setRunHistory(response.runs)
       return response.runs
     } catch (cause) {
-      console.warn('Failed to load Backport run history:', cause)
+      console.warn('Failed to load Backport task history:', cause)
       return []
     }
   }
@@ -615,7 +562,7 @@ export function BackportPage() {
       setExecutionHistory(response.executions)
       return response.executions
     } catch (cause) {
-      console.warn('Failed to load Backport execution history:', cause)
+      console.warn('Failed to load Backport Run history:', cause)
       setExecutionHistory([])
       return []
     }
@@ -708,6 +655,7 @@ export function BackportPage() {
 
     if (result.operation === 'generate_report') {
       resetRunAllGeneratedReportState()
+      setExecutionSummary(null)
     }
 
     if (result.artifacts?.config_path) {
@@ -871,6 +819,7 @@ export function BackportPage() {
     const normalizedRunId = runId.trim()
     if (!normalizedRunId) return
     setRestoringRun(true)
+    setExecutionSummary(null)
     rememberActiveRun(normalizedRunId)
     if (knownSummary?.excel_path) {
       setExcelPath(knownSummary.excel_path)
@@ -884,6 +833,7 @@ export function BackportPage() {
         executions[0]
       setSelectedExecution(selected ? String(selected.execution) : '')
       let current = await backportService.getRun(normalizedRunId)
+      setExecutionSummary(current.execution_summary || null)
       if (current.progress) {
         handleRunAllProgress(current.progress)
       }
@@ -904,6 +854,7 @@ export function BackportPage() {
           handleRunAllProgress,
           {
             onRunUpdated: run => {
+              setExecutionSummary(run.execution_summary || null)
               setRunAllStatusCardVisible(currentVisible =>
                 currentVisible || Boolean(run.progress)
               )
@@ -1026,7 +977,12 @@ export function BackportPage() {
     setLoadingModels(true)
     try {
       const nextConfig = await backportService.getConfig()
-      let sanitizedConfig = normalizeBackportConfig(nextConfig)
+      let sanitizedConfig = normalizeBackportConfig({
+        ...nextConfig,
+        current_excel_path: '',
+        current_report_path: '',
+        current_filtered_report_path: '',
+      })
       try {
         const models = await modelService.getModels()
         setBackportModels(models)
@@ -1058,10 +1014,8 @@ export function BackportPage() {
       void loadRuntimeStatus(sanitizedConfig)
       void loadRecentRepositories()
       void hydrateConfiguredRepositories(sanitizedConfig)
-      if (sanitizedConfig.current_report_path.trim()) {
-        addTimeline('已恢复当前 report 路径', 'info', sanitizedConfig.current_report_path.trim())
-      }
       try {
+        window.localStorage.removeItem('polymind.backport.activeRunId')
         const runs = await refreshRunHistory()
         const storedRunId = window.localStorage.getItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY) || ''
         const selectedRun =
@@ -1069,12 +1023,6 @@ export function BackportPage() {
           runs[0]
         if (selectedRun) {
           await restoreRun(selectedRun.run_id, sanitizedConfig, selectedRun)
-        } else if (sanitizedConfig.current_report_path.trim()) {
-          const loaded = await backportService.loadReport({
-            config: sanitizedConfig,
-            baseReportPath: sanitizedConfig.current_report_path.trim(),
-          })
-          applyOperationResult(loaded.parsedResult)
         }
       } catch (restoreError) {
         console.warn('Failed to restore Backport history:', restoreError)
@@ -1682,6 +1630,7 @@ export function BackportPage() {
     setConfig(runConfig)
     setExcelPath(normalizedExcelPath)
     setRunAllProgress(null)
+    setExecutionSummary(null)
     setRunAllControl(null)
     setRunAllPauseState('running')
     setRunAllStatusCardVisible(true)
@@ -1711,6 +1660,7 @@ export function BackportPage() {
               void refreshRunHistory()
             },
             onRunUpdated: (run) => {
+              setExecutionSummary(run.execution_summary || null)
               if (run.pause_requested && run.status === 'running') {
                 setRunAllPauseState('pause_requested')
               }
@@ -2328,6 +2278,7 @@ export function BackportPage() {
     const execution = executionHistory.find(item => String(item.execution) === value)
     if (!execution?.report_path) return
     setSelectedExecution(value)
+    setExecutionSummary(execution.execution_summary)
     void backportService
       .loadReport({
         config: configRef.current,
@@ -2337,7 +2288,7 @@ export function BackportPage() {
         applyOperationResult(response.parsedResult)
         setStage(execution.status === 'success' ? 'completed' : 'interactive_editing')
         addTimeline(
-          `已切换到 Execution #${execution.execution}`,
+          `已切换到 Run #${execution.execution}`,
           'info',
           execution.report_path,
         )
@@ -2504,8 +2455,12 @@ export function BackportPage() {
   }, [workingCommits])
 
   const conflictReportText = useMemo(
-    () => buildConflictReportText(workingCommits),
-    [workingCommits],
+    () =>
+      buildConflictReportText(
+        workingCommits,
+        Boolean(config.cvekit_options.enable_conflict_summary),
+      ),
+    [workingCommits, config.cvekit_options.enable_conflict_summary],
   )
 
   const runAllPhaseLabel = useMemo(() => {
@@ -2610,7 +2565,7 @@ export function BackportPage() {
                 disabled={running || restoringRun}
               >
                 <SelectTrigger className="h-8 w-[150px] bg-white text-xs">
-                  <SelectValue placeholder="选择执行记录" />
+                  <SelectValue placeholder="选择 Run" />
                 </SelectTrigger>
                 <SelectContent>
                   {executionHistory.map(execution => (
@@ -2619,7 +2574,7 @@ export function BackportPage() {
                       value={String(execution.execution)}
                       disabled={!execution.report_path}
                     >
-                      Execution #{execution.execution} · {execution.status}
+                      Run #{execution.execution} · {execution.status}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -2659,7 +2614,7 @@ export function BackportPage() {
               </Badge>
             ) : null}
             <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
-              无需移植 {rowSummary.noop + rowSummary.skipped}
+              无需处理 {rowSummary.noop + rowSummary.skipped}
             </Badge>
             <Button variant="outline" size="sm" onClick={handleResetAll}>
               <RotateCcw className="mr-1 h-4 w-4" />
@@ -3095,7 +3050,8 @@ export function BackportPage() {
                 <div className="min-w-0">
                   <div className="text-xs font-medium text-slate-900">执行时生成冲突报告</div>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    对解冲突补丁进行 AI 评分，会增加执行耗时。
+                    OpenCode 展示迁移说明；Mystique/PortGPT 对解冲突补丁进行 AI
+                    评分，可能增加执行耗时。
                   </p>
                 </div>
                 <Switch
@@ -3190,6 +3146,7 @@ export function BackportPage() {
             targetPath={config.target_path}
             running={running}
             timeline={timeline}
+            executionSummary={executionSummary}
             conflictReportText={conflictReportText}
             gitLogEntries={gitLogEntries}
             gitLogLoading={gitLogLoading}

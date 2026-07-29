@@ -401,9 +401,9 @@ export function InspectorSheet({
                                 <History className="h-4 w-4 text-blue-600" />
                                 <h4 className="text-sm font-semibold text-slate-950">
                                   {attempt.execution > 0
-                                    ? `Execution #${attempt.execution} · `
+                                    ? `Run #${attempt.execution} · `
                                     : ''}
-                                  Attempt #{attempt.attempt_number}
+                                  Case 记录
                                 </h4>
                                 <Badge variant="outline">
                                   {stringifyValue(attemptRow.status) || '未知状态'}

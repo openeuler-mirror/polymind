@@ -6,6 +6,7 @@ import type {
   BackportPatchMap,
   BackportPatchPreviewResponse,
   BackportPatchResource,
+  BackportRunSummaryCase,
   BackportStage,
 } from '@/lib/backport-types'
 
@@ -53,6 +54,36 @@ export type RowStatusKind =
   | 'skipped'
   | 'unmatched'
   | 'pending'
+
+export function resolveRunSummaryDetectionText(item: BackportRunSummaryCase): string {
+  if (item.detection.state === 'running') return '检测中'
+  if (item.detection.state === 'not_started') return '尚未检测'
+  switch (item.detection.result) {
+    case 'clean_apply':
+      return '无冲突，可直接应用'
+    case 'conflict':
+      return '存在冲突'
+    case 'equivalent_exists':
+      return '等价已存在'
+    case 'already_present':
+      return '目标分支已包含'
+    default:
+      return '检测失败'
+  }
+}
+
+export function resolveRunSummaryFinalText(item: BackportRunSummaryCase): string {
+  if (item.final.state === 'running') return '应用中'
+  if (item.final.result === 'applied') {
+    return item.final.applied_commit
+      ? `已应用 · ${item.final.applied_commit.slice(0, 12)}`
+      : '已应用'
+  }
+  if (item.final.result === 'skipped') return '已跳过'
+  if (item.final.result === 'ready_to_apply') return '等待应用'
+  if (item.final.result === 'failed') return '失败'
+  return '尚未完成'
+}
 
 const RELEVANT_PATCH_HUNK_CHAR_LIMIT = 1600
 
@@ -127,6 +158,82 @@ export function resolveCommitTitle(item: BackportCommitItem): string {
       item.commit_subject ||
       ''
   ).trim()
+}
+
+function conflictReportStatusLabel(status: string): string {
+  const normalized = status.trim().toLowerCase()
+  const labels: Record<string, string> = {
+    success: '成功',
+    failed: '失败',
+    skipped: '跳过',
+    pending: '等待中',
+  }
+  return labels[normalized] || status || '未知'
+}
+
+export function buildConflictReportText(
+  rows: BackportCommitRow[],
+  enabled: boolean,
+): string {
+  if (!enabled) return ''
+
+  const sections = rows
+    .map((row) => {
+      const commit = stringifyValue(row.data.commit || row.data.input_commit).trim()
+      const shortCommit = commit ? commit.slice(0, 12) : '未知 commit'
+      const title = resolveCommitTitle(row.data)
+      const heading = `${shortCommit}${title ? ` ${title}` : ''}`
+      const engine = stringifyValue(row.data.backport_engine).trim().toLowerCase()
+
+      if (engine === 'opencode') {
+        const explanation = stringifyValue(row.data.backport_explanation).trim()
+        const error = stringifyValue(row.data.error).trim()
+        if (!explanation && !error) return ''
+
+        const status = stringifyValue(row.data.status).trim().toLowerCase()
+        const statusLabel =
+          status === 'failed'
+            ? '失败'
+            : Boolean(row.data.equivalent_exists)
+              ? '目标分支中已存在等价实现'
+              : '已生成回移植补丁'
+        const lines = [heading, '', `状态：${statusLabel}`]
+        if (explanation) lines.push('', '迁移说明：', explanation)
+        if (status === 'failed' && error) lines.push('', `错误：${error}`)
+        return lines.join('\n')
+      }
+
+      const summary = row.data.conflict_summary
+      if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return ''
+
+      const summaryData = summary as Record<string, unknown>
+      const status = stringifyValue(summaryData.status).trim()
+      const normalizedStatus = status.toLowerCase()
+      const score = stringifyValue(summaryData.score).trim()
+      const reason = stringifyValue(summaryData.reason).trim()
+      const error = stringifyValue(summaryData.error).trim()
+
+      if (normalizedStatus === 'success') {
+        return [
+          heading,
+          '',
+          `评分：${score || '-'}`,
+          '',
+          '原因：',
+          reason || '未返回原因',
+        ].join('\n')
+      }
+
+      const lines = [heading, '', `状态：${conflictReportStatusLabel(status)}`]
+      if (error || normalizedStatus === 'failed') {
+        lines.push('', `错误：${error || '未返回错误信息'}`)
+      }
+      if (reason) lines.push('', '原因：', reason)
+      return lines.join('\n')
+    })
+    .filter(Boolean)
+
+  return sections.map((section, index) => `## ${index + 1}. ${section}`).join('\n\n')
 }
 
 function fileNameFromPath(path: string): string {
@@ -291,7 +398,12 @@ function isCommitLookupFailure(item: BackportCommitItem): boolean {
 export function resolveBackportProgressText(item: BackportCommitItem): string {
   const appliedCommit = stringifyValue(item.applied_commit).trim()
   const status = stringifyValue(item.status).trim().toLowerCase()
-  if (appliedCommit) return `已应用到目标仓: ${appliedCommit.slice(0, 12)}`
+  if (appliedCommit) {
+    return stringifyValue(item.applied_patch_kind).trim() === 'backported'
+      ? `回移植后已应用到目标仓: ${appliedCommit.slice(0, 12)}`
+      : `已应用到目标仓: ${appliedCommit.slice(0, 12)}`
+  }
+  if (Boolean(item.equivalent_exists)) return '目标分支中已存在等价实现'
   if (isSkippedRow(item)) return '当前条目已跳过'
   if (status === 'pending') return '等待继续检查'
   if (item.merged_in_target === true) return '目标分支已包含该改动'
@@ -310,6 +422,16 @@ export function resolveStatusMeta(item: BackportCommitItem): {
   className: string
 } {
   const status = stringifyValue(item.status).trim().toLowerCase()
+  const appliedCommit = stringifyValue(item.applied_commit).trim()
+  const appliedPatchKind = stringifyValue(item.applied_patch_kind).trim()
+
+  if (appliedCommit) {
+    return {
+      kind: 'success',
+      label: appliedPatchKind === 'backported' ? '回移后合入' : '已合入',
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    }
+  }
 
   if (isSkippedRow(item)) {
     return {
@@ -319,15 +441,35 @@ export function resolveStatusMeta(item: BackportCommitItem): {
     }
   }
 
-  if (
-    item.merged_in_target === true ||
-    Boolean(item.empty_patch) ||
-    Boolean(item.equivalent_exists)
-  ) {
+  if (Boolean(item.equivalent_exists)) {
     return {
       kind: 'noop',
-      label: '无需移植',
+      label: '等价已存在',
       className: 'border-sky-200 bg-sky-50 text-sky-700',
+    }
+  }
+
+  if (item.merged_in_target === true) {
+    return {
+      kind: 'noop',
+      label: '目标已包含',
+      className: 'border-sky-200 bg-sky-50 text-sky-700',
+    }
+  }
+
+  if (Boolean(item.empty_patch)) {
+    return {
+      kind: 'failed',
+      label: '失败',
+      className: 'border-red-200 bg-red-50 text-red-700',
+    }
+  }
+
+  if (hasPatchResource(item, 'backported')) {
+    return {
+      kind: 'conflict',
+      label: '待应用',
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
     }
   }
 
@@ -370,14 +512,6 @@ export function resolveStatusMeta(item: BackportCommitItem): {
     }
   }
 
-  if (stringifyValue(item.applied_commit).trim()) {
-    return {
-      kind: 'success',
-      label: '成功',
-      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    }
-  }
-
   return {
     kind: 'success',
     label: '无冲突待合入',
@@ -393,12 +527,46 @@ export function resolveConflictMeta(item: BackportCommitItem): {
   const method = stringifyValue(item.conflict_check_method).trim()
   const error = stringifyValue(item.conflict_check_error).trim()
   const status = stringifyValue(item.status).trim().toLowerCase()
+  const appliedCommit = stringifyValue(item.applied_commit).trim()
+  const appliedPatchKind = stringifyValue(item.applied_patch_kind).trim()
+
+  if (appliedCommit) {
+    return {
+      label: appliedPatchKind === 'backported' ? '已解冲突' : '无冲突',
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      detail: resolveBackportProgressText(item),
+    }
+  }
 
   if (isSkippedRow(item)) {
     return {
       label: '已跳过',
       className: 'border-slate-200 bg-slate-50 text-slate-700',
       detail: error || 'Merge commit 已跳过',
+    }
+  }
+
+  if (Boolean(item.equivalent_exists) || item.merged_in_target === true) {
+    return {
+      label: '无需处理',
+      className: 'border-sky-200 bg-sky-50 text-sky-700',
+      detail: resolveBackportProgressText(item),
+    }
+  }
+
+  if (Boolean(item.empty_patch)) {
+    return {
+      label: '结果异常',
+      className: 'border-red-200 bg-red-50 text-red-700',
+      detail: error || '未生成可用 Patch，且未确认等价实现',
+    }
+  }
+
+  if (hasPatchResource(item, 'backported')) {
+    return {
+      label: '已解冲突',
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
+      detail: '回移植 Patch 已生成，等待应用',
     }
   }
 
@@ -452,16 +620,34 @@ export function resolveTargetMeta(item: BackportCommitItem): {
   label: string
   className: string
 } {
+  if (stringifyValue(item.applied_commit).trim()) {
+    return {
+      label: '已合入',
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    }
+  }
   if (isSkippedRow(item)) {
     return {
       label: '已跳过',
       className: 'border-slate-200 bg-slate-50 text-slate-700',
     }
   }
+  if (Boolean(item.equivalent_exists)) {
+    return {
+      label: '等价存在',
+      className: 'border-sky-200 bg-sky-50 text-sky-700',
+    }
+  }
   if (item.merged_in_target === true) {
     return {
-      label: '已合入',
-      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      label: '已存在',
+      className: 'border-sky-200 bg-sky-50 text-sky-700',
+    }
+  }
+  if (Boolean(item.empty_patch)) {
+    return {
+      label: '未合入',
+      className: 'border-red-200 bg-red-50 text-red-700',
     }
   }
   if (item.merged_in_target === false) {
