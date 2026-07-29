@@ -1,10 +1,9 @@
 'use client'
 
-import { memo, useState, useEffect, useRef, useCallback } from 'react'
+import { memo, useState, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
-  User,
   Bot,
   Copy,
   Check,
@@ -17,14 +16,13 @@ import {
   Info,
   AlertTriangle,
   Lightbulb,
-  ChevronDown,
-  Sparkles,
+  ChevronRight,
   AlertCircle,
   BookOpen,
-  Terminal,
   SquareTerminal,
   Cpu,
-  X,
+  MessageSquare,
+  CircleSlash,
   type LucideIcon,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -40,16 +38,16 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import type { Message, ToolCall, Attachment, EventItem } from '@/lib/types'
-import { QuestionCard } from './question-card'
-import { useChatStore } from '@/lib/store'
+import type { Message, ToolCall, Attachment, EventItem, QuestionInfo } from '@/lib/types'
+import { formatToolOutput } from '@/lib/format-utils'
 
 interface MessageListProps {
   messages: Message[]
   onRegenerate?: (assistantMessageId: string) => void
+  agentName?: string
 }
 
-export function MessageList({ messages, onRegenerate }: MessageListProps) {
+export function MessageList({ messages, onRegenerate, agentName }: MessageListProps) {
   if (messages.length === 0) {
     return null
   }
@@ -57,7 +55,12 @@ export function MessageList({ messages, onRegenerate }: MessageListProps) {
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
       {messages.map(message => (
-        <MessageItem key={message.id} message={message} onRegenerate={onRegenerate} />
+        <MessageItem
+          key={message.id}
+          message={message}
+          onRegenerate={onRegenerate}
+          agentName={agentName}
+        />
       ))}
     </div>
   )
@@ -66,28 +69,48 @@ export function MessageList({ messages, onRegenerate }: MessageListProps) {
 const MessageItem = memo(function MessageItem({
   message,
   onRegenerate,
+  agentName,
 }: {
   message: Message
   onRegenerate?: (assistantMessageId: string) => void
+  agentName?: string
 }) {
   const [copied, setCopied] = useState(false)
+  // 回答完毕后，过程模块（深度思考/工具调用/提问）折叠在「已完成」耗时行下
+  const [processExpanded, setProcessExpanded] = useState(false)
   const isUser = message.role === 'user'
 
-  // 多问题统一提交状态
-  const [submittingQuestions, setSubmittingQuestions] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const selectionsRef = useRef<Map<number, string[]>>(new Map())
-  // 记录最近一次操作（提交/跳过）对应的 questionId，用于多轮提问场景下区分不同批次的提问
-  const lastActionRef = useRef<{ questionId: string; action: 'submitted' | 'rejected' } | null>(
-    null
-  )
+  // 派生状态：当前消息是否有等待回答的提问（此时不显示"生成回复中"加载态）
+  const hasPendingQuestion =
+    !isUser && !!message.question?.length && (message.questionStatus ?? 'pending') === 'pending'
 
-  // 派生状态：当前是否有活跃的提问卡片（questionId 变化时自动视为新提问）
-  const hasActiveQuestions =
+  const hasProcessModules =
     !isUser &&
-    !!message.question?.length &&
-    !!message.questionId &&
-    lastActionRef.current?.questionId !== message.questionId
+    !!message.events?.some(
+      e =>
+        e.type === 'thinking' ||
+        e.type === 'tool.call.started' ||
+        e.type === 'tool.call.response' ||
+        e.type === 'question.asked'
+    )
+  const processCollapsible =
+    !isUser && !message.isStreaming && hasProcessModules && !hasPendingQuestion
+  const showProcess = !processCollapsible || processExpanded
+
+  // 生成耗时：由事件时间戳推导，用于"已完成 xs"状态展示（历史消息时间戳不可靠时自动隐藏）
+  let durationText: string | null = null
+  if (!isUser && !message.isStreaming && message.events && message.events.length >= 2) {
+    const timestamps = message.events
+      .map(e => e.timestamp)
+      .filter((t): t is number => typeof t === 'number' && t > 0)
+    if (timestamps.length >= 2) {
+      const totalSec = Math.round((Math.max(...timestamps) - Math.min(...timestamps)) / 1000)
+      if (totalSec >= 1) {
+        const m = Math.floor(totalSec / 60)
+        durationText = m > 0 ? `${m}m${totalSec % 60}s` : `${totalSec}s`
+      }
+    }
+  }
 
   const handleCopy = async () => {
     try {
@@ -108,35 +131,37 @@ const MessageItem = memo(function MessageItem({
     }
   }
 
-  const handleSelectionChange = useCallback((index: number, selected: string[]) => {
-    selectionsRef.current.set(index, selected)
-  }, [])
-
-  // 提取提交/跳过按钮公共的 agentId / sessionId 解析逻辑
-  const getAgentAndSessionId = useCallback(() => {
-    const store = useChatStore.getState()
-    const conv = store.conversations.find(c => c.id === store.currentConversationId)
-    const agentId = conv?.agentId || store.currentAgentId || ''
-    const sessionId = conv?.sessionId || ''
-    return { store, agentId, sessionId }
-  }, [])
-
-  // 调试：打印 message 对象
-  console.log('Rendering message:', message)
-
   return (
-    <div className={cn('group flex gap-4 animate-message-in', isUser && 'flex-row-reverse')}>
-      <Avatar className={cn('h-8 w-8 shrink-0', isUser ? 'bg-primary' : 'bg-accent')}>
-        <AvatarFallback
-          className={
-            isUser ? 'bg-primary text-primary-foreground' : 'bg-accent text-accent-foreground'
-          }
-        >
-          {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-        </AvatarFallback>
-      </Avatar>
+    <div className={cn('group animate-message-in', isUser && 'flex flex-row-reverse')}>
+      <div className={cn('flex flex-col gap-2', isUser ? 'max-w-[80%] items-end' : 'w-full')}>
+        {/* 助手消息头部：头像 + 名称 */}
+        {!isUser && (
+          <div className="flex items-center gap-2">
+            <Avatar className="h-6 w-6 bg-accent">
+              <AvatarFallback className="bg-accent text-accent-foreground">
+                <Bot className="h-3.5 w-3.5" />
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-sm font-medium">{agentName || 'AI 助手'}</span>
+          </div>
+        )}
 
-      <div className={cn('flex max-w-[80%] flex-col gap-2', isUser && 'items-end')}>
+        {/* 已完成耗时：点击展开/收起过程模块（深度思考/工具调用/提问） */}
+        {processCollapsible && (
+          <button
+            onClick={() => setProcessExpanded(!processExpanded)}
+            className="group/mod mb-1 flex w-fit items-center gap-2 text-sm  text-muted-foreground transition-colors duration-150 hover:text-foreground"
+          >
+            <span>已完成{durationText ? ` ${durationText}` : ''}</span>
+            <ChevronRight
+              className={cn(
+                'h-3.5 w-3.5 shrink-0 transition-all duration-150',
+                processExpanded && 'rotate-90'
+              )}
+            />
+          </button>
+        )}
+
         {/* Attachments */}
         {message.attachments && message.attachments.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -146,62 +171,53 @@ const MessageItem = memo(function MessageItem({
           </div>
         )}
 
-        {/* Events in order */}
+        {/* Events in order — 按时间线渲染：深度思考 / 正文流式输出 / 工具调用 / 提问流程 */}
         {!isUser && message.events && message.events.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {(() => {
+              const visibleEvents = message.events!
               const groupedEvents: any[] = []
               let currentThinkingGroup: any[] = []
               let currentDeltaGroup: any[] = []
 
-              message.events.forEach((event, index) => {
-                // 保留tool.call.started事件，用于显示正在执行的工具调用状态
-
+              visibleEvents.forEach((event, index) => {
                 if (event.type === 'thinking') {
-                  // If we have a current delta group, add it to groupedEvents
                   if (currentDeltaGroup.length > 0) {
                     groupedEvents.push({ type: 'delta-group', events: currentDeltaGroup })
                     currentDeltaGroup = []
                   }
                   currentThinkingGroup.push(event)
                 } else if (event.type === 'message.delta') {
-                  // If we have a current thinking group, add it to groupedEvents
                   if (currentThinkingGroup.length > 0) {
                     groupedEvents.push({ type: 'thinking-group', events: currentThinkingGroup })
                     currentThinkingGroup = []
                   }
                   currentDeltaGroup.push(event)
                 } else {
-                  // If we have a current thinking group, add it to groupedEvents
                   if (currentThinkingGroup.length > 0) {
                     groupedEvents.push({ type: 'thinking-group', events: currentThinkingGroup })
                     currentThinkingGroup = []
                   }
-                  // If we have a current delta group, add it to groupedEvents
                   if (currentDeltaGroup.length > 0) {
                     groupedEvents.push({ type: 'delta-group', events: currentDeltaGroup })
                     currentDeltaGroup = []
                   }
-                  // Add the non-thinking, non-delta event
                   groupedEvents.push(event)
                 }
               })
 
-              // Add any remaining thinking events
               if (currentThinkingGroup.length > 0) {
                 groupedEvents.push({ type: 'thinking-group', events: currentThinkingGroup })
               }
 
-              // Add any remaining delta events
               if (currentDeltaGroup.length > 0) {
                 groupedEvents.push({ type: 'delta-group', events: currentDeltaGroup })
               }
 
-              // 去重并合并工具调用事件：同一个toolCall.id合并属性，保留最新状态和所有字段，保持原有顺序
+              // 去重并合并工具调用事件
               const toolCallMap = new Map()
               const deduplicatedGroups = []
 
-              // 第一次遍历：合并同id的工具调用属性
               for (const group of groupedEvents) {
                 if (
                   (group.type === 'tool.call.started' || group.type === 'tool.call.response') &&
@@ -209,10 +225,8 @@ const MessageItem = memo(function MessageItem({
                 ) {
                   const toolCallId = group.toolCall.id
                   if (toolCallMap.has(toolCallId)) {
-                    // 合并属性：新属性覆盖旧属性，但input字段优先保留有值的版本，避免空值覆盖
                     const existing = toolCallMap.get(toolCallId)
                     const mergedToolCall = { ...existing.toolCall, ...group.toolCall }
-                    // 特殊处理input：如果新的input是空的，保留旧的input
                     if (
                       (!group.toolCall.input ||
                         (typeof group.toolCall.input === 'object' &&
@@ -228,7 +242,6 @@ const MessageItem = memo(function MessageItem({
                 }
               }
 
-              // 第二次遍历：按原有顺序构建结果，遇到工具调用事件用合并后的版本替换
               const processedToolCallIds = new Set()
               for (const group of groupedEvents) {
                 if (
@@ -246,6 +259,8 @@ const MessageItem = memo(function MessageItem({
 
               return deduplicatedGroups
             })().map((group: any, groupIndex: number, groups: any[]) => {
+              // 回答完毕后，过程模块折叠在「已完成」行下，仅保留正文（delta-group）
+              if (!showProcess && group.type !== 'delta-group') return null
               if (group.type === 'thinking-group') {
                 const isLastGroup = groupIndex === groups.length - 1
                 const thinkingCompleted = !!message.content || !isLastGroup || !message.isStreaming
@@ -259,16 +274,7 @@ const MessageItem = memo(function MessageItem({
               } else if (group.type === 'delta-group') {
                 const deltaContent = group.events.map((event: EventItem) => event.content).join('')
                 if (!deltaContent) return null
-                return (
-                  <div
-                    key={`delta-group-${groupIndex}`}
-                    className="rounded-2xl px-4 py-3 bg-card border border-border"
-                  >
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                      <MessageContent content={deltaContent} />
-                    </div>
-                  </div>
-                )
+                return <ResponseBlock key={`delta-group-${groupIndex}`} content={deltaContent} />
               } else if (
                 group.type === 'tool.call.started' ||
                 group.type === 'tool.call.response'
@@ -278,143 +284,66 @@ const MessageItem = memo(function MessageItem({
                     {group.toolCall && <ToolCallBadge toolCall={group.toolCall} />}
                   </div>
                 )
+              } else if (group.type === 'question.asked') {
+                // 该轮提问的结论事件（replied / rejected）在其之后
+                const resolutionEvent =
+                  groups
+                    .slice(groupIndex + 1)
+                    .find(
+                      (g: any) => g.type === 'question.replied' || g.type === 'question.rejected'
+                    ) ?? null
+                const isLastAsked = !groups
+                  .slice(groupIndex + 1)
+                  .some((g: any) => g.type === 'question.asked')
+                return (
+                  <QuestionFlowBlock
+                    key={`question-${groupIndex}`}
+                    askedEvent={group}
+                    message={message}
+                    isLastAsked={isLastAsked}
+                    resolutionEvent={resolutionEvent}
+                  />
+                )
+              } else if (group.type === 'question.replied' || group.type === 'question.rejected') {
+                // 结论已合并进对应的 QuestionFlowBlock 渲染
+                return null
               }
               return null
             })}
           </div>
         )}
 
-        {/* Question cards — displayed when AI asks questions with options */}
-        {hasActiveQuestions && (
-          <div className="space-y-3">
-            {message.question!.map((q, qIdx) => (
-              <QuestionCard
-                key={`question-${qIdx}`}
-                question={q}
-                questionIndex={qIdx}
-                disabled={submittingQuestions}
-                onSelectionChange={handleSelectionChange}
-              />
-            ))}
-            {/* 统一操作按钮 */}
-            <div className="flex items-center gap-2 pt-1">
-              <Button
-                size="sm"
-                onClick={async () => {
-                  if (!message.questionId) return
-                  setSubmittingQuestions(true)
-                  setSubmitError(null)
-                  try {
-                    const answers: string[][] = []
-                    const questionCount = message.question!.length
-                    for (let i = 0; i < questionCount; i++) {
-                      answers.push(selectionsRef.current.get(i) || [])
-                    }
-                    const { store, agentId, sessionId } = getAgentAndSessionId()
-                    await store.replyQuestion(agentId, sessionId, message.questionId, answers)
-                    lastActionRef.current = { questionId: message.questionId, action: 'submitted' }
-                  } catch (err: any) {
-                    const msg = err?.message || '提交失败，请重试'
-                    setSubmitError(msg)
-                  } finally {
-                    setSubmittingQuestions(false)
-                  }
-                }}
-                disabled={submittingQuestions}
-                className="h-8 text-xs"
-              >
-                {submittingQuestions ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-                {submitError ? '重试' : '提交所有回答'}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={async () => {
-                  if (!message.questionId) return
-                  setSubmittingQuestions(true)
-                  setSubmitError(null)
-                  try {
-                    const { store, agentId, sessionId } = getAgentAndSessionId()
-                    await store.rejectQuestion(agentId, sessionId, message.questionId)
-                    lastActionRef.current = { questionId: message.questionId, action: 'rejected' }
-                  } catch (err: any) {
-                    const msg = err?.message || '操作失败，请重试'
-                    setSubmitError(msg)
-                  } finally {
-                    setSubmittingQuestions(false)
-                  }
-                }}
-                disabled={submittingQuestions}
-                className="h-8 text-xs text-muted-foreground"
-              >
-                <X className="mr-1 h-3.5 w-3.5" />
-                跳过
-              </Button>
-            </div>
-            {/* 提交错误提示 */}
-            {submitError && (
-              <div className="flex items-center gap-1.5 text-xs text-red-500">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                <span>{submitError}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Question result indicator — only show after server acknowledges (question cleared) */}
+        {/* 流式进行中的尾随状态行（已有正文流式输出时） */}
         {!isUser &&
-          lastActionRef.current?.action === 'submitted' &&
-          !message.question?.length &&
-          selectionsRef.current.size > 0 && (
-            <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-2.5 text-sm">
-              <Check className="h-4 w-4 shrink-0 text-green-500" />
-              <span className="text-foreground/80">
-                已提交回答：
-                {Array.from(selectionsRef.current.entries()).map(([idx, selected], i) => (
-                  <span key={idx}>
-                    {selected.length > 0 ? selected.join('、') : '（未选择）'}
-                    {i < selectionsRef.current.size - 1 ? '；' : ''}
-                  </span>
-                ))}
-              </span>
+          message.isStreaming &&
+          !hasPendingQuestion &&
+          message.events?.some(e => e.type === 'message.delta') && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>生成回复中</span>
             </div>
           )}
-        {!isUser && lastActionRef.current?.action === 'rejected' && !message.question?.length && (
-          <div className="flex items-center gap-2 rounded-2xl border border-border bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
-            <X className="h-4 w-4 shrink-0" />
-            <span>已跳过提问</span>
-          </div>
-        )}
 
-        {/* Message Content - only render when no delta-events cover the text content */}
+        {/* Message Content — 当 events 中有 delta 时隐藏纯文本内容，避免重复渲染 */}
         {(isUser ||
           !message.events ||
           message.events.length === 0 ||
           !message.events.some(e => e.type === 'message.delta')) &&
-          (isUser || message.content || (message.isStreaming && !hasActiveQuestions)) && (
+          (isUser || message.content || (message.isStreaming && !hasPendingQuestion)) && (
             <>
               {message.status === 'interrupted' && !message.content ? (
-                <div className="rounded-2xl px-4 py-3 bg-card border border-border">
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>思考已中断</span>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>思考已中断</span>
+                </div>
+              ) : isUser ? (
+                <div className="rounded-2xl bg-[#edf3fe] px-4 py-3">
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <MessageContent content={message.content} isStreaming={message.isStreaming} />
                   </div>
                 </div>
               ) : (
-                <div
-                  className={cn(
-                    'rounded-2xl px-4 py-3',
-                    isUser ? 'bg-primary text-primary-foreground' : 'bg-card border border-border'
-                  )}
-                >
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <MessageContent
-                      content={message.content}
-                      isStreaming={message.isStreaming}
-                      isUser={isUser}
-                    />
-                  </div>
-                </div>
+                <ResponseBlock content={message.content} isStreaming={message.isStreaming} />
               )}
             </>
           )}
@@ -479,15 +408,15 @@ const MessageItem = memo(function MessageItem({
   )
 })
 
-function MessageContent({
-  content,
-  isStreaming,
-  isUser,
-}: {
-  content: string
-  isStreaming?: boolean
-  isUser?: boolean
-}) {
+function ResponseBlock({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
+  return (
+    <div className="prose prose-sm dark:prose-invert max-w-none">
+      <MessageContent content={content} isStreaming={isStreaming} />
+    </div>
+  )
+}
+
+function MessageContent({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   const mermaidInitialized = useRef(false)
 
   useEffect(() => {
@@ -503,9 +432,9 @@ function MessageContent({
 
   if (!content && isStreaming) {
     return (
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <span>思考中...</span>
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <span>生成回复中</span>
       </div>
     )
   }
@@ -566,11 +495,7 @@ function MessageContent({
           a: ({ href, children }) => (
             <a
               href={href}
-              className={cn(
-                isUser
-                  ? 'text-primary-foreground underline hover:text-primary-foreground/80'
-                  : 'text-primary underline hover:text-primary/80'
-              )}
+              className="text-primary underline hover:text-primary/80"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -813,7 +738,7 @@ function Admonition({ children, type }: { children: React.ReactNode; type?: stri
           onClick={() => setIsOpen(!isOpen)}
           className="ml-auto rounded p-1 hover:bg-black/10"
         >
-          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <ChevronRight className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
         </button>
       </div>
       {isOpen && <div className="text-sm">{children}</div>}
@@ -826,56 +751,13 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   const isCompleted = toolCall.status === 'completed'
   const [isExpanded, setIsExpanded] = useState(false)
 
-  // 格式化输出，使其更易读
-  const formatOutput = (output: any): string => {
-    if (typeof output === 'string') {
-      return output
-    }
-
-    if (typeof output === 'object' && output !== null) {
-      // 如果顶层是数组，提取文本内容
-      if (Array.isArray(output)) {
-        const texts = output
-          .filter((item: any) => item && item.type === 'text')
-          .map((item: any) => item.text)
-          .join('\n')
-        if (texts) return texts
-        return JSON.stringify(output, null, 2)
-      }
-
-      // 如果有 details.content，优先使用
-      if (output.details?.content) {
-        const content = output.details.content
-        return typeof content === 'string' ? content : JSON.stringify(content)
-      }
-
-      // 如果有 text 字段
-      if (output.text) {
-        return typeof output.text === 'string' ? output.text : JSON.stringify(output.text)
-      }
-
-      // 如果有 content 数组，提取文本
-      if (Array.isArray(output.content)) {
-        const texts = output.content
-          .filter((item: any) => item && item.type === 'text')
-          .map((item: any) => item.text)
-          .join('\n')
-        if (texts) return texts
-      }
-
-      return JSON.stringify(output, null, 2)
-    }
-
-    return String(output)
-  }
-
   // 处理换行符，确保在 HTML 中正确显示
   const formatForDisplay = (text: string): string => {
     if (!text) return ''
     return text.split('\\n').join('\n')
   }
 
-  const formattedOutput = toolCall.output ? formatOutput(toolCall.output) : null
+  const formattedOutput = toolCall.output ? formatToolOutput(toolCall.output) : null
   const displayOutput = formattedOutput ? formatForDisplay(formattedOutput) : null
 
   const statusConfig = {
@@ -933,26 +815,23 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   const execCommand = getExecCommand()
 
   return (
-    <div className="rounded-lg border border-border bg-card text-sm shadow-sm">
+    <div className="text-sm">
       {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className={cn(
-          'flex w-full items-center gap-2 px-3 py-2 transition-colors',
-          isExpanded ? 'border-b border-border' : 'hover:bg-muted/50'
-        )}
+        className="group/mod flex min-w-0 max-w-full items-center gap-2 py-1 text-muted-foreground transition-colors duration-150 hover:text-foreground"
       >
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-flex">
-                <ToolIcon className={cn('h-4 w-4 shrink-0', config.iconClass)} />
+                <ToolIcon className={cn('h-3.5 w-3.5 shrink-0', config.iconClass)} />
               </span>
             </TooltipTrigger>
             {toolCall.name === 'read' && <TooltipContent>查看文件</TooltipContent>}
           </Tooltip>
         </TooltipProvider>
-        <span className="flex-1 text-left font-mono text-xs font-medium truncate">
+        <span className="font-mono text-xs font-medium truncate max-w-[70%]">
           {toolCall.name === 'exec'
             ? isExpanded
               ? toolCall.name
@@ -960,21 +839,22 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
             : readFilePath || toolCall.name}
         </span>
         {toolCall.duration && (
-          <span className="text-xs text-muted-foreground shrink-0 font-mono">
+          <span className="text-xs text-muted-foreground/70 shrink-0 font-mono">
             {(toolCall.duration / 1000).toFixed(1)}s
           </span>
         )}
-        <ChevronDown
+        <ChevronRight
           className={cn(
-            'h-3 w-3 shrink-0 text-muted-foreground/60 transition-transform',
-            isExpanded && 'rotate-180'
+            'h-3.5 w-3.5 shrink-0 transition-all duration-150',
+            'opacity-0 -translate-x-1 group-hover/mod:translate-x-0 group-hover/mod:opacity-100',
+            isExpanded && 'rotate-90'
           )}
         />
       </button>
 
       {/* Expandable content */}
       {isExpanded && (
-        <div className="px-3 py-2 space-y-2 text-xs">
+        <div className="ml-5 mt-1 space-y-2 border-l border-border/50 pl-3 text-xs">
           {toolCall.displayText &&
             toolCall.name !== 'read' &&
             displayOutput &&
@@ -999,11 +879,11 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
           ) : toolCall.name === 'exec' ? (
             // exec 工具：终端风格
             <div className="bg-zinc-950 rounded-md p-3 font-mono text-xs leading-relaxed space-y-2">
-              {execCommand && (
+              {(execCommand || toolCall.inputRaw) && (
                 <div className="flex items-start gap-2">
                   <span className="text-green-400 shrink-0 select-none">$</span>
                   <span className="text-zinc-100 whitespace-pre-wrap break-words">
-                    {formatForDisplay(execCommand)}
+                    {formatForDisplay(execCommand || toolCall.inputRaw || '')}
                   </span>
                 </div>
               )}
@@ -1021,7 +901,7 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
           ) : (
             // 其他工具：保持原有格式
             <>
-              {toolCall.input && (
+              {toolCall.input ? (
                 <div>
                   <div className="text-muted-foreground mb-1 font-medium">输入</div>
                   <pre className="bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
@@ -1032,7 +912,15 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
                     )}
                   </pre>
                 </div>
-              )}
+              ) : toolCall.inputRaw ? (
+                // tool.call.delta 流式累积的原始内容
+                <div>
+                  <div className="text-muted-foreground mb-1 font-medium">输入（流式）</div>
+                  <pre className="bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+                    {toolCall.inputRaw}
+                  </pre>
+                </div>
+              ) : null}
               {/* 错误状态下 output 通常与 error 内容重复，只展示错误区域 */}
               {displayOutput && toolCall.status !== 'error' && (
                 <div>
@@ -1062,46 +950,169 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   )
 }
 
-function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: boolean }) {
-  const [expanded, setExpanded] = useState(!completed)
-  const stepCount = events.length
+function QuestionFlowBlock({
+  askedEvent,
+  message,
+  isLastAsked,
+  resolutionEvent,
+}: {
+  askedEvent: EventItem
+  message: Message
+  isLastAsked: boolean
+  resolutionEvent: EventItem | null
+}) {
+  // message.question 始终持有最新一轮提问；历史轮次从事件 payload 还原
+  const askedQuestions =
+    (askedEvent.payload?.questions as QuestionInfo[] | null | undefined) ?? null
+  const questions = isLastAsked ? (message.question ?? askedQuestions) : askedQuestions
+
+  let status: 'pending' | 'replied' | 'rejected' = 'pending'
+  let answers: string[][] | null = null
+  if (resolutionEvent) {
+    status = resolutionEvent.type === 'question.replied' ? 'replied' : 'rejected'
+    answers =
+      (resolutionEvent.payload?.answers as string[][] | undefined) ??
+      (isLastAsked ? (message.questionAnswers ?? null) : null)
+  } else if (isLastAsked && message.questionStatus) {
+    status = message.questionStatus
+    answers = message.questionAnswers ?? null
+  }
+
+  const [statusExpanded, setStatusExpanded] = useState(false)
+  const [cardExpanded, setCardExpanded] = useState(status === 'replied')
+
+  // 已跳过
+  if (status === 'rejected') {
+    return (
+      <div className="flex items-center gap-2 py-0.5 text-sm text-muted-foreground">
+        <CircleSlash className="h-3.5 w-3.5 shrink-0" />
+        <span>您跳过了此问题</span>
+      </div>
+    )
+  }
+
+  // 提问中：活跃等待态仅在消息仍在流式生成时展示
+  const waiting =
+    status === 'pending' &&
+    isLastAsked &&
+    !!message.isStreaming &&
+    (message.questionStatus ?? 'pending') === 'pending'
 
   return (
-    <div className="overflow-hidden rounded-r-lg border border-border border-l-2 border-l-accent/20 bg-accent/[0.02]">
-      {/* Header */}
+    <div className="space-y-2">
+      {/* 状态行：仅提问中（pending）展示 */}
+      {status === 'pending' && (
+        <div>
+          <button
+            onClick={() => questions?.length && setStatusExpanded(!statusExpanded)}
+            className="group/mod flex items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
+          >
+            {waiting && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />}
+            <span>等待你的回答</span>
+            {questions && questions.length > 0 && (
+              <ChevronRight
+                className={cn(
+                  'h-3.5 w-3.5 shrink-0 transition-all duration-150',
+                  'opacity-0 -translate-x-1 group-hover/mod:translate-x-0 group-hover/mod:opacity-100',
+                  statusExpanded && 'rotate-90'
+                )}
+              />
+            )}
+          </button>
+          {statusExpanded && questions && (
+            <div className="mt-1.5 space-y-1 border-l border-border/50 pl-3 text-sm">
+              {questions.map((q, i) => (
+                <p key={i} className="leading-relaxed text-muted-foreground/80">
+                  {i + 1}. {q.header || q.question}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 提问卡片行：向用户提问 */}
+      <div>
+        <button
+          onClick={() => setCardExpanded(!cardExpanded)}
+          className="group/mod flex items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
+        >
+          <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+          <span>向用户提问</span>
+          <ChevronRight
+            className={cn(
+              'h-3.5 w-3.5 shrink-0 transition-all duration-150',
+              'opacity-0 -translate-x-1 group-hover/mod:translate-x-0 group-hover/mod:opacity-100',
+              cardExpanded && 'rotate-90'
+            )}
+          />
+        </button>
+        {cardExpanded && (
+          <div className="mt-1.5 space-y-3 rounded-xl bg-muted/50 px-4 py-3">
+            {questions && questions.length > 0 ? (
+              questions.map((q, i) => {
+                const ans = answers?.[i] ?? []
+                return (
+                  <div key={i}>
+                    <div className="text-sm text-muted-foreground">{q.header || q.question}</div>
+                    {ans.length > 0 ? (
+                      <div className="mt-0.5 text-sm font-semibold text-foreground">
+                        {ans.join('、')}
+                      </div>
+                    ) : (
+                      <div className="mt-0.5 text-sm text-muted-foreground/60">
+                        {waiting ? '待回答' : '（未作答）'}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            ) : (
+              <div className="text-sm text-muted-foreground">{askedEvent.content}</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: boolean }) {
+  const [expanded, setExpanded] = useState(!completed)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // 流式输出时保持滚动到底部
+  useEffect(() => {
+    if (expanded && !completed && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [events.length, expanded, completed])
+
+  return (
+    <div>
       <button
         onClick={() => setExpanded(!expanded)}
-        className={cn(
-          'flex w-full items-center gap-2 px-3 py-1.5 text-sm transition-colors',
-          expanded ? 'bg-accent/[0.03]' : 'hover:bg-accent/[0.03]'
-        )}
+        className="group/mod flex items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
       >
-        {completed ? (
-          <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent" />
-        ) : (
-          <Sparkles className="h-3.5 w-3.5 shrink-0 animate-pulse text-accent" />
-        )}
-        <span className="italic text-muted-foreground">
-          {completed ? '已完成思考' : '正在思考...'}
-        </span>
-        <ChevronDown
+        <span>深度思考</span>
+        <ChevronRight
           className={cn(
-            'h-3 w-3 ml-auto shrink-0 text-muted-foreground/60 transition-transform',
-            expanded && 'rotate-180'
+            'h-3.5 w-3.5 shrink-0 transition-all duration-150',
+            'opacity-0 -translate-x-1 group-hover/mod:translate-x-0 group-hover/mod:opacity-100',
+            expanded && 'rotate-90'
           )}
         />
       </button>
 
-      {/* Expandable content */}
       {expanded && (
-        <div className="border-t border-border/50 px-3 py-2 text-sm space-y-1.5">
+        <div
+          ref={scrollRef}
+          className="mt-1.5 max-h-72 space-y-1.5 overflow-y-auto border-l border-border/50 pl-3 text-sm scrollbar-thin"
+        >
           {events.map((event, index) => (
-            <div key={`thinking-step-${index}`} className="flex items-start gap-2">
-              <span className="mt-0.5 shrink-0 text-accent/60 text-[10px] font-mono leading-[18px]">
-                {String(index + 1).padStart(2, '0')}
-              </span>
-              <span className="italic text-muted-foreground/80">{event.content}</span>
-            </div>
+            <p key={`thinking-step-${index}`} className="leading-relaxed text-muted-foreground/80">
+              {event.content}
+            </p>
           ))}
         </div>
       )}
