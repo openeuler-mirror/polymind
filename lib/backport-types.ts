@@ -255,7 +255,18 @@ export interface BackportRunProgress {
 export interface BackportAsyncRunResponse {
   run_id: string
   action: string
-  status: 'running' | 'paused' | 'success' | 'failed' | 'interrupted'
+  status:
+    | 'generating'
+    | 'ready'
+    | 'generation_failed'
+    | 'pending'
+    | 'running'
+    | 'paused'
+    | 'success'
+    | 'completed'
+    | 'completed_with_failures'
+    | 'failed'
+    | 'interrupted'
   result: BackportRunResponse | null
   error: string
   progress?: BackportRunProgress | null
@@ -273,6 +284,16 @@ export interface BackportRunSummary extends BackportAsyncRunResponse {
   current_excel_version: number
   current_execution: number
   run_dir: string
+  target?: {
+    repository?: string
+    branch?: string
+    head?: string
+  }
+  summary?: {
+    total?: number
+    success?: number
+    failed?: number
+  }
 }
 
 export interface BackportRunListResponse {

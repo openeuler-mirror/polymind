@@ -604,7 +604,7 @@ export function BackportPage() {
       setRunHistory(response.runs)
       return response.runs
     } catch (cause) {
-      console.warn('Failed to load Backport run history:', cause)
+      console.warn('Failed to load Backport task history:', cause)
       return []
     }
   }
@@ -615,7 +615,7 @@ export function BackportPage() {
       setExecutionHistory(response.executions)
       return response.executions
     } catch (cause) {
-      console.warn('Failed to load Backport execution history:', cause)
+      console.warn('Failed to load Backport Run history:', cause)
       setExecutionHistory([])
       return []
     }
@@ -2337,7 +2337,7 @@ export function BackportPage() {
         applyOperationResult(response.parsedResult)
         setStage(execution.status === 'success' ? 'completed' : 'interactive_editing')
         addTimeline(
-          `已切换到 Execution #${execution.execution}`,
+          `已切换到 Run #${execution.execution}`,
           'info',
           execution.report_path,
         )
@@ -2610,7 +2610,7 @@ export function BackportPage() {
                 disabled={running || restoringRun}
               >
                 <SelectTrigger className="h-8 w-[150px] bg-white text-xs">
-                  <SelectValue placeholder="选择执行记录" />
+                  <SelectValue placeholder="选择 Run" />
                 </SelectTrigger>
                 <SelectContent>
                   {executionHistory.map(execution => (
@@ -2619,7 +2619,7 @@ export function BackportPage() {
                       value={String(execution.execution)}
                       disabled={!execution.report_path}
                     >
-                      Execution #{execution.execution} · {execution.status}
+                      Run #{execution.execution} · {execution.status}
                     </SelectItem>
                   ))}
                 </SelectContent>

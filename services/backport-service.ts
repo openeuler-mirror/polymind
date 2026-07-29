@@ -134,7 +134,7 @@ class BackportService {
   }
 
   public async listRuns(): Promise<BackportRunListResponse> {
-    return httpClient.get<BackportRunListResponse>('/backport/runs', { timeout: 30000 })
+    return httpClient.get<BackportRunListResponse>('/backport/tasks', { timeout: 30000 })
   }
 
   public async listCaseAttempts(
@@ -149,7 +149,7 @@ class BackportService {
 
   public async listExecutions(runId: string): Promise<BackportExecutionListResponse> {
     return httpClient.get<BackportExecutionListResponse>(
-      `/backport/runs/${encodeURIComponent(runId)}/executions`,
+      `/backport/tasks/${encodeURIComponent(runId)}/runs`,
       { timeout: 30000 },
     )
   }
