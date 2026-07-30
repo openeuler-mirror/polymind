@@ -82,7 +82,7 @@ const MessageItem = memo(function MessageItem({
 
   // 派生状态：当前消息是否有等待回答的提问（此时不显示"生成回复中"加载态）
   const hasPendingQuestion =
-    !isUser && !!message.question?.length && (message.questionStatus ?? 'pending') === 'pending'
+    !isUser && !!message.question?.length && message.questionStatus === 'pending'
 
   const hasProcessModules =
     !isUser &&

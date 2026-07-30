@@ -33,8 +33,6 @@ interface ChatInputProps {
   presetPrompts?: PromptSuggestion[]
   onRemovePresetPrompt?: (promptId: string) => void
   onClearPresetPrompts?: () => void
-  /** 当 questionMode 为 true 时，仅显示占位界面，由父组件渲染 QuestionFlow */
-  questionMode?: boolean
 }
 
 export function ChatInput({
@@ -42,7 +40,6 @@ export function ChatInput({
   presetPrompts = [],
   onRemovePresetPrompt,
   onClearPresetPrompts,
-  questionMode,
 }: ChatInputProps) {
   const { toast } = useToast()
   const [skills, setSkills] = useState<AgentSkill[]>([])
@@ -272,19 +269,6 @@ export function ChatInput({
 
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index))
-  }
-
-  // 当处于问题模式时，渲染占位界面
-  if (questionMode) {
-    return (
-      <div className="mx-auto max-w-4xl">
-        <div className="relative rounded-2xl border border-border bg-card opacity-60">
-          <div className="flex min-h-[60px] items-center justify-center px-4 py-3">
-            <span className="text-sm text-muted-foreground">请先回答问题...</span>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   // 普通聊天输入模式

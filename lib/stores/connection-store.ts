@@ -71,11 +71,26 @@ export const createConnectionSlice: StateCreator<StoreState, [], [], ConnectionS
     }
   },
 
-  replyQuestion: (agentId: string, sessionId: string, requestId: string, answers: string[][]) => {
-    return messageService.replyQuestion(agentId, sessionId, requestId, answers)
+  replyQuestion: async (
+    agentId: string,
+    sessionId: string,
+    requestId: string,
+    answers: string[][]
+  ) => {
+    try {
+      return await messageService.replyQuestion(agentId, sessionId, requestId, answers)
+    } catch (error) {
+      console.error('Error replying to question:', error)
+      throw error
+    }
   },
 
-  rejectQuestion: (agentId: string, sessionId: string, requestId: string) => {
-    return messageService.rejectQuestion(agentId, sessionId, requestId)
+  rejectQuestion: async (agentId: string, sessionId: string, requestId: string) => {
+    try {
+      return await messageService.rejectQuestion(agentId, sessionId, requestId)
+    } catch (error) {
+      console.error('Error rejecting question:', error)
+      throw error
+    }
   },
 })

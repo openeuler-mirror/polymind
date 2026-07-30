@@ -274,8 +274,6 @@ export function applyStreamError(m: Message): Partial<Message> {
   }
 }
 
-export { formatToolOutput as formatOutput } from './format-utils'
-
 export function formatDisplayText(payload: any): string {
   if (payload.display_text) {
     return payload.display_text

@@ -32,7 +32,7 @@ export function useQuestionFlow(): QuestionFlowResult {
           m.role === 'assistant' &&
           !!m.question?.length &&
           !!m.questionId &&
-          (m.questionStatus ?? 'pending') === 'pending'
+          m.questionStatus === 'pending'
       ) ?? null,
     [messages]
   )
@@ -58,6 +58,7 @@ export function useQuestionFlow(): QuestionFlowResult {
           resolveQuestion(m, 'replied', answers)
         )
       } catch (err: any) {
+        console.error('Failed to submit answers:', err)
         const msg = err?.message || '提交失败，请重试'
         setSubmitError(msg)
       } finally {
@@ -81,6 +82,7 @@ export function useQuestionFlow(): QuestionFlowResult {
       // 乐观更新：消息标记为已跳过并留痕（与流上的 question.rejected 事件幂等）
       store.updateMessage(currentConversation.id, messageId, m => resolveQuestion(m, 'rejected'))
     } catch (err: any) {
+      console.error('Failed to skip questions:', err)
       const msg = err?.message || '操作失败，请重试'
       setSubmitError(msg)
     } finally {

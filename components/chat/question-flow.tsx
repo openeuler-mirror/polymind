@@ -272,8 +272,19 @@ export function QuestionFlow({
   const isFirstStep = state.questionStep === 0
 
   const hasCurrentAnswer =
-    state.currentSelected.size > 0 ||
+    [...state.currentSelected].filter(s => s !== OTHER_LABEL).length > 0 ||
     (state.currentSelected.has(OTHER_LABEL) && state.currentOtherText.trim().length > 0)
+
+  // 跟踪是否由用户点击选项触发（而非导航还原），避免返回上一题时自动跳回。
+  // 此 effect 必须声明在自动前进 effect 之前，确保导航时 ref 先被置 true。
+  const justNavigatedRef = useRef(false)
+  const prevQuestionStepRef = useRef(state.questionStep)
+  useEffect(() => {
+    if (prevQuestionStepRef.current !== state.questionStep) {
+      justNavigatedRef.current = true
+      prevQuestionStepRef.current = state.questionStep
+    }
+  }, [state.questionStep])
 
   // 单选题自动前进（排除"其他"选项，因为需要先填写文本）
   useEffect(() => {
@@ -290,6 +301,11 @@ export function QuestionFlow({
     }
 
     const timer = setTimeout(() => {
+      // 二次检查：避免 setTimeout 回调执行时 tracking effect 已设置 ref
+      if (justNavigatedRef.current) {
+        justNavigatedRef.current = false
+        return
+      }
       dispatch({ type: 'RECORD_AND_ADVANCE', totalQuestions })
     }, 150)
 
@@ -298,16 +314,6 @@ export function QuestionFlow({
 
   const isMultipleRef = useRef(isMultiple)
   isMultipleRef.current = isMultiple
-
-  // 跟踪是否由用户点击选项触发（而非导航还原），避免返回上一题时自动跳回
-  const justNavigatedRef = useRef(false)
-  const prevQuestionStepRef = useRef(state.questionStep)
-  useEffect(() => {
-    if (prevQuestionStepRef.current !== state.questionStep) {
-      justNavigatedRef.current = true
-      prevQuestionStepRef.current = state.questionStep
-    }
-  }, [state.questionStep])
 
   const handleToggleOptionWithFlag = useCallback((label: string) => {
     justNavigatedRef.current = false
