@@ -1,6 +1,7 @@
 import { httpClient } from '@/lib/http-client'
 import {
   BackportApplyRowRequest,
+  BackportAttemptListResponse,
   BackportAsyncRunResponse,
   BackportBrowseResponse,
   BackportCommitMessagePreview,
@@ -8,6 +9,7 @@ import {
   BackportConfig,
   BackportConfigUpdateResponse,
   BackportContinueReportRequest,
+  BackportExecutionListResponse,
   BackportExecuteRequest,
   BackportGenerateReportRequest,
   BackportLoadGitLogRequest,
@@ -26,6 +28,7 @@ import {
   BackportRunAllLifecycle,
   BackportRunAllRequest,
   BackportRunProgress,
+  BackportRunListResponse,
   BackportRunResponse,
   BackportToolSnapshot,
   BackportTryResolveRequest,
@@ -123,6 +126,34 @@ class BackportService {
     )
   }
 
+  public async getRun(runId: string): Promise<BackportAsyncRunResponse> {
+    return httpClient.get<BackportAsyncRunResponse>(
+      `/backport/runs/${encodeURIComponent(runId)}`,
+      { timeout: 30000 },
+    )
+  }
+
+  public async listRuns(): Promise<BackportRunListResponse> {
+    return httpClient.get<BackportRunListResponse>('/backport/tasks', { timeout: 30000 })
+  }
+
+  public async listCaseAttempts(
+    runId: string,
+    rowKey: string,
+  ): Promise<BackportAttemptListResponse> {
+    return httpClient.get<BackportAttemptListResponse>(
+      `/backport/runs/${encodeURIComponent(runId)}/cases/${encodeURIComponent(rowKey)}/attempts`,
+      { timeout: 30000 },
+    )
+  }
+
+  public async listExecutions(runId: string): Promise<BackportExecutionListResponse> {
+    return httpClient.get<BackportExecutionListResponse>(
+      `/backport/tasks/${encodeURIComponent(runId)}/runs`,
+      { timeout: 30000 },
+    )
+  }
+
   public async loadPatchPreview(
     request: BackportLoadPatchPreviewRequest,
     onEvent?: (event: any) => void,
@@ -173,6 +204,7 @@ class BackportService {
   public async generateReport(
     request: BackportGenerateReportRequest,
     onEvent?: (event: any) => void,
+    lifecycle?: BackportRunAllLifecycle,
   ): Promise<BackportRunResponse> {
     onEvent?.({ type: 'message.started', payload: {} })
 
@@ -181,6 +213,7 @@ class BackportService {
       payload: {
         config: request.config,
         excel_path: request.excelPath,
+        run_id: request.runId,
       },
     }
     const created = await httpClient.post<BackportAsyncRunResponse>(
@@ -188,18 +221,49 @@ class BackportService {
       runRequest,
       { timeout: 30000 },
     )
+    lifecycle?.onRunCreated?.({
+      runId: created.run_id,
+      pause: () => this.pauseRun(created.run_id),
+    })
+    lifecycle?.onRunUpdated?.(created)
 
     let current = created
     while (current.status === 'running') {
       await new Promise((resolve) => setTimeout(resolve, 15000))
-      current = await httpClient.get<BackportAsyncRunResponse>(
-        `/backport/runs/${encodeURIComponent(created.run_id)}`,
-        { timeout: 30000 },
-      )
+      current = await this.getRun(created.run_id)
+      lifecycle?.onRunUpdated?.(current)
     }
 
     if (current.status === 'failed') {
       throw new Error(current.error || '生成配置与报告失败')
+    }
+    if (
+      !current.result &&
+      (current.status === 'paused' || current.status === 'interrupted')
+    ) {
+      const reportPath = current.progress?.current_report_path
+      current = {
+        ...current,
+        result: {
+          agentId: '',
+          agentName: '',
+          sessionId: '',
+          assistantText: current.error || '任务已暂停，当前进度已保存',
+          parsedResult: {
+            operation: current.action,
+            status: 'success',
+            stage: 'paused',
+            summary: current.error || '任务已暂停，当前进度已保存',
+            artifacts: reportPath
+              ? {
+                  report_path: reportPath,
+                  base_report_path: reportPath,
+                }
+              : undefined,
+          },
+          toolSnapshots: [],
+        },
+      }
     }
     if (!current.result) {
       throw new Error('生成配置与报告未返回结果')
@@ -242,6 +306,7 @@ class BackportService {
         excel_path: request.excelPath,
         base_report_path: request.baseReportPath,
         working_report_path: request.workingReportPath,
+        run_id: request.runId,
       },
     }
     const created = await httpClient.post<BackportAsyncRunResponse>(
@@ -264,10 +329,7 @@ class BackportService {
     }
     while (current.status === 'running') {
       await new Promise((resolve) => setTimeout(resolve, 2000))
-      current = await httpClient.get<BackportAsyncRunResponse>(
-        `/backport/runs/${encodeURIComponent(created.run_id)}`,
-        { timeout: 30000 },
-      )
+      current = await this.getRun(created.run_id)
       lifecycle?.onRunUpdated?.(current)
       if (current.progress) {
         const progressText = JSON.stringify(current.progress)
@@ -285,6 +347,34 @@ class BackportService {
     if (current.status === 'failed') {
       throw new Error(current.error || '一键运行失败')
     }
+    if (
+      !current.result &&
+      (current.status === 'paused' || current.status === 'interrupted')
+    ) {
+      const reportPath = current.progress?.current_report_path
+      current = {
+        ...current,
+        result: {
+          agentId: '',
+          agentName: '',
+          sessionId: '',
+          assistantText: current.error || '任务已暂停，当前进度已保存',
+          parsedResult: {
+            operation: current.action,
+            status: 'success',
+            stage: 'paused',
+            summary: current.error || '任务已暂停，当前进度已保存',
+            artifacts: reportPath
+              ? {
+                  report_path: reportPath,
+                  base_report_path: reportPath,
+                }
+              : undefined,
+          },
+          toolSnapshots: [],
+        },
+      }
+    }
     if (!current.result) {
       throw new Error('一键运行未返回结果')
     }
@@ -299,6 +389,33 @@ class BackportService {
     })
 
     return current.result
+  }
+
+  public async resumeRun(
+    runId: string,
+    onProgress?: (progress: BackportRunProgress) => void,
+    lifecycle?: BackportRunAllLifecycle,
+  ): Promise<BackportAsyncRunResponse> {
+    let current = await this.getRun(runId)
+    lifecycle?.onRunUpdated?.(current)
+    let lastProgressText = ''
+    if (current.progress) {
+      lastProgressText = JSON.stringify(current.progress)
+      onProgress?.(current.progress)
+    }
+    while (current.status === 'running') {
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      current = await this.getRun(runId)
+      lifecycle?.onRunUpdated?.(current)
+      if (current.progress) {
+        const progressText = JSON.stringify(current.progress)
+        if (progressText !== lastProgressText) {
+          lastProgressText = progressText
+          onProgress?.(current.progress)
+        }
+      }
+    }
+    return current
   }
 
   public async loadGitLog(

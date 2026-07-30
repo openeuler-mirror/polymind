@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, RefreshCw, RotateCcw, Save, Wrench } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, RefreshCw, RotateCcw, Save, Wrench } from 'lucide-react'
 
 import { CommitTable } from '@/components/tool-panel/backport/commit-table'
 import {
@@ -60,9 +60,11 @@ import { handleAgentStreamEvent } from '@/lib/agent-stream-events'
 import { parseUnifiedDiff } from '@/lib/patch-utils'
 import {
   BackportBrowseEntry,
+  BackportAttemptSummary,
   BackportCommitItem,
   BackportCommitRow,
   BackportConfig,
+  BackportExecutionSummary,
   BackportGitLogEntry,
   BackportOperationResultData,
   BackportPatchResource,
@@ -72,6 +74,7 @@ import {
   BackportRuntimeStatus,
   BackportRunAllControl,
   BackportRunProgress,
+  BackportRunSummary,
   BackportStage,
   BackportTimelineEntry,
   resetRunAllStateForGeneratedReport,
@@ -86,6 +89,7 @@ import { generateUUID } from '@/lib/utils'
 
 const BACKPORT_COMMIT_PAGE_SIZE = 5
 const BACKPORT_MODEL_EMPTY_VALUE = '__none__'
+const BACKPORT_ACTIVE_RUN_STORAGE_KEY = 'polymind.backport.activeRunId'
 const BACKPORT_SUPPORTED_PROVIDERS = new Set([
   'openai',
   'deepseek',
@@ -248,6 +252,11 @@ export function BackportPage() {
   const [runAllControl, setRunAllControl] = useState<BackportRunAllControl | null>(null)
   const [runAllPauseState, setRunAllPauseState] = useState<'idle' | 'running' | 'pause_requested' | 'paused'>('idle')
   const [runAllStatusCardVisible, setRunAllStatusCardVisible] = useState(false)
+  const [activeRunId, setActiveRunId] = useState('')
+  const [runHistory, setRunHistory] = useState<BackportRunSummary[]>([])
+  const [executionHistory, setExecutionHistory] = useState<BackportExecutionSummary[]>([])
+  const [selectedExecution, setSelectedExecution] = useState('')
+  const [restoringRun, setRestoringRun] = useState(false)
   const [analyzingConflictRowId, setAnalyzingConflictRowId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [excelPath, setExcelPath] = useState('')
@@ -296,6 +305,9 @@ export function BackportPage() {
   const [manualPatchResult, setManualPatchResult] = useState<BackportOperationResultData | null>(
     null
   )
+  const [attemptHistory, setAttemptHistory] = useState<BackportAttemptSummary[]>([])
+  const [attemptHistoryLoading, setAttemptHistoryLoading] = useState(false)
+  const [attemptHistoryVersion, setAttemptHistoryVersion] = useState(0)
   const [commitMessagePreviewLoadingRowId, setCommitMessagePreviewLoadingRowId] = useState<
     string | null
   >(null)
@@ -579,6 +591,36 @@ export function BackportPage() {
     })
   }
 
+  const rememberActiveRun = (runId: string) => {
+    const normalized = runId.trim()
+    if (!normalized) return
+    setActiveRunId(normalized)
+    window.localStorage.setItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY, normalized)
+  }
+
+  const refreshRunHistory = async () => {
+    try {
+      const response = await backportService.listRuns()
+      setRunHistory(response.runs)
+      return response.runs
+    } catch (cause) {
+      console.warn('Failed to load Backport task history:', cause)
+      return []
+    }
+  }
+
+  const refreshExecutionHistory = async (runId: string) => {
+    try {
+      const response = await backportService.listExecutions(runId)
+      setExecutionHistory(response.executions)
+      return response.executions
+    } catch (cause) {
+      console.warn('Failed to load Backport Run history:', cause)
+      setExecutionHistory([])
+      return []
+    }
+  }
+
   const getRunAllRowKey = (row: BackportCommitRow) =>
     stringifyValue(
       row.data.row_id || row.data.commit || row.data.input_commit || row.rowId
@@ -670,6 +712,15 @@ export function BackportPage() {
 
     if (result.artifacts?.config_path) {
       setConfigPath(result.artifacts.config_path)
+    }
+
+    if (result.artifacts?.run_id) {
+      rememberActiveRun(result.artifacts.run_id)
+      void refreshRunHistory()
+      void refreshExecutionHistory(result.artifacts.run_id)
+    }
+    if (result.artifacts?.attempt_dir) {
+      setAttemptHistoryVersion(version => version + 1)
     }
 
     if (result.artifacts?.report_path || result.artifacts?.base_report_path) {
@@ -812,6 +863,102 @@ export function BackportPage() {
     }
   }
 
+  const restoreRun = async (
+    runId: string,
+    restoreConfig: BackportConfig,
+    knownSummary?: BackportRunSummary,
+  ) => {
+    const normalizedRunId = runId.trim()
+    if (!normalizedRunId) return
+    setRestoringRun(true)
+    rememberActiveRun(normalizedRunId)
+    if (knownSummary?.excel_path) {
+      setExcelPath(knownSummary.excel_path)
+      setConfig(prev => ({ ...prev, current_excel_path: knownSummary.excel_path }))
+    }
+    try {
+      const executions = await refreshExecutionHistory(normalizedRunId)
+      const preferredExecution = knownSummary?.current_execution
+      const selected =
+        executions.find(item => item.execution === preferredExecution) ||
+        executions[0]
+      setSelectedExecution(selected ? String(selected.execution) : '')
+      let current = await backportService.getRun(normalizedRunId)
+      if (current.progress) {
+        handleRunAllProgress(current.progress)
+      }
+      if (current.status === 'running') {
+        setRunning(true)
+        setRunningLabel('恢复运行')
+        setRunAllPauseState('running')
+        setRunAllStatusCardVisible(Boolean(current.progress))
+        if (current.action === 'run_all') {
+          setRunAllControl({
+            runId: normalizedRunId,
+            pause: () => backportService.pauseRun(normalizedRunId),
+          })
+        }
+        addTimeline('已重新连接正在运行的任务', 'info', normalizedRunId)
+        current = await backportService.resumeRun(
+          normalizedRunId,
+          handleRunAllProgress,
+          {
+            onRunUpdated: run => {
+              setRunAllStatusCardVisible(currentVisible =>
+                currentVisible || Boolean(run.progress)
+              )
+              if (run.pause_requested && run.status === 'running') {
+                setRunAllPauseState('pause_requested')
+              }
+            },
+          },
+        )
+      }
+
+      if (current.result?.parsedResult) {
+        applyOperationResult(current.result.parsedResult)
+      } else {
+        const reportPath =
+          current.progress?.current_report_path ||
+          knownSummary?.current_report_path ||
+          restoreConfig.current_report_path ||
+          ''
+        if (reportPath) {
+          const loaded = await backportService.loadReport({
+            config: restoreConfig,
+            baseReportPath: reportPath,
+          })
+          applyOperationResult(loaded.parsedResult)
+        }
+      }
+
+      if (current.status === 'interrupted') {
+        setStage('paused')
+        setRunAllPauseState('paused')
+        setError('后端运行曾被中断，已恢复最后保存的报告，可继续执行。')
+        addTimeline('运行已中断', 'error', '已恢复最后保存的 report，没有重新导入 Excel。')
+      } else if (current.status === 'paused') {
+        setRunAllPauseState('paused')
+      } else if (current.status === 'failed') {
+        setStage('failed')
+        setError(current.error || 'Backport 运行失败')
+      }
+    } catch (cause) {
+      console.warn('Failed to restore Backport run:', cause)
+      addTimeline(
+        '恢复运行失败',
+        'error',
+        cause instanceof Error ? cause.message : '无法读取已保存的运行',
+      )
+    } finally {
+      setRunning(false)
+      setRunningLabel('')
+      setRunAllControl(null)
+      setRestoringRun(false)
+      void refreshRunHistory()
+    }
+  }
+
   const runOperation = async (
     label: string,
     runner: () => Promise<Awaited<ReturnType<typeof backportService.generateReport>>>
@@ -914,6 +1061,24 @@ export function BackportPage() {
       if (sanitizedConfig.current_report_path.trim()) {
         addTimeline('已恢复当前 report 路径', 'info', sanitizedConfig.current_report_path.trim())
       }
+      try {
+        const runs = await refreshRunHistory()
+        const storedRunId = window.localStorage.getItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY) || ''
+        const selectedRun =
+          runs.find(run => run.run_id === storedRunId) ||
+          runs[0]
+        if (selectedRun) {
+          await restoreRun(selectedRun.run_id, sanitizedConfig, selectedRun)
+        } else if (sanitizedConfig.current_report_path.trim()) {
+          const loaded = await backportService.loadReport({
+            config: sanitizedConfig,
+            baseReportPath: sanitizedConfig.current_report_path.trim(),
+          })
+          applyOperationResult(loaded.parsedResult)
+        }
+      } catch (restoreError) {
+        console.warn('Failed to restore Backport history:', restoreError)
+      }
     } catch (cause) {
       console.error('Failed to load Backport page:', cause)
       toast({
@@ -935,7 +1100,18 @@ export function BackportPage() {
     setManualPatchText('')
     setManualPatchResult(null)
     setManualPatchLoading(null)
-  }, [inspectedRowId])
+    setAttemptHistory([])
+    if (!inspectedRowId || !activeRunId) return
+    setAttemptHistoryLoading(true)
+    void backportService
+      .listCaseAttempts(activeRunId, inspectedRowId)
+      .then(response => setAttemptHistory(response.attempts))
+      .catch(cause => {
+        console.warn('Failed to load Backport attempt history:', cause)
+        setAttemptHistory([])
+      })
+      .finally(() => setAttemptHistoryLoading(false))
+  }, [inspectedRowId, activeRunId, attemptHistoryVersion])
 
   useEffect(() => {
     if (inspectorTab !== 'compare' || !inspectedRow) return
@@ -1443,15 +1619,22 @@ export function BackportPage() {
         {
           config,
           excelPath: excelPath.trim(),
+          runId: activeRunId || undefined,
         },
-        handleAgentEvent
+        handleAgentEvent,
+        {
+          onRunCreated: control => {
+            rememberActiveRun(control.runId)
+            void refreshRunHistory()
+          },
+        },
       )
     )
   }
 
   const handleRunAll = async () => {
     const normalizedExcelPath = excelPath.trim()
-    const normalizedBaseReportPath = baseReportPath.trim()
+    let normalizedBaseReportPath = baseReportPath.trim()
     if (!normalizedExcelPath && !normalizedBaseReportPath) {
       toast({
         title: '提示',
@@ -1465,6 +1648,36 @@ export function BackportPage() {
       ...config,
       current_excel_path: normalizedExcelPath,
     })
+    if (stage === 'completed' && activeRunId) {
+      try {
+        const regenerated = await runOperation('重新生成执行报告', async () => {
+          const response = await backportService.generateReport(
+            {
+              config: runConfig,
+              excelPath: normalizedExcelPath,
+              runId: activeRunId,
+            },
+            handleAgentEvent,
+            {
+              onRunCreated: control => rememberActiveRun(control.runId),
+            },
+          )
+          if (
+            !response.parsedResult?.artifacts?.base_report_path &&
+            !response.parsedResult?.artifacts?.report_path
+          ) {
+            throw new Error('重新执行未生成可用 report')
+          }
+          return response
+        })
+        normalizedBaseReportPath =
+          regenerated.parsedResult?.artifacts?.base_report_path ||
+          regenerated.parsedResult?.artifacts?.report_path ||
+          ''
+      } catch {
+        return
+      }
+    }
     configRef.current = runConfig
     setConfig(runConfig)
     setExcelPath(normalizedExcelPath)
@@ -1484,6 +1697,7 @@ export function BackportPage() {
           {
             config: runConfig,
             excelPath: normalizedExcelPath,
+            runId: activeRunId || undefined,
             baseReportPath: normalizedBaseReportPath,
             workingReportPath: filteredReportPath.trim() || normalizedBaseReportPath,
           },
@@ -1491,8 +1705,10 @@ export function BackportPage() {
           handleRunAllProgress,
           {
             onRunCreated: (control) => {
+              rememberActiveRun(control.runId)
               setRunAllControl(control)
               setRunAllPauseState('running')
+              void refreshRunHistory()
             },
             onRunUpdated: (run) => {
               if (run.pause_requested && run.status === 'running') {
@@ -2092,6 +2308,47 @@ export function BackportPage() {
     setInspectorTab('details')
     setActivePatchKey(null)
     setPatchPreviews({})
+    setExecutionHistory([])
+    setSelectedExecution('')
+  }
+
+  const handleNewTask = () => {
+    handleResetAll()
+    setActiveRunId('')
+    window.localStorage.removeItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY)
+    addTimeline('已新建 Backport 任务', 'info', '导入 Excel 后会创建新的运行归档。')
+  }
+
+  const handleSelectRun = (runId: string) => {
+    const selected = runHistory.find(run => run.run_id === runId)
+    void restoreRun(runId, configRef.current, selected)
+  }
+
+  const handleSelectExecution = (value: string) => {
+    const execution = executionHistory.find(item => String(item.execution) === value)
+    if (!execution?.report_path) return
+    setSelectedExecution(value)
+    void backportService
+      .loadReport({
+        config: configRef.current,
+        baseReportPath: execution.report_path,
+      })
+      .then(response => {
+        applyOperationResult(response.parsedResult)
+        setStage(execution.status === 'success' ? 'completed' : 'interactive_editing')
+        addTimeline(
+          `已切换到 Run #${execution.execution}`,
+          'info',
+          execution.report_path,
+        )
+      })
+      .catch(cause => {
+        toast({
+          title: '历史执行加载失败',
+          description: cause instanceof Error ? cause.message : '无法读取历史 report',
+          variant: 'destructive',
+        })
+      })
   }
 
   const toggleRowSelection = (rowId: string, checked: boolean) => {
@@ -2328,6 +2585,55 @@ export function BackportPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {runHistory.length > 0 ? (
+              <Select
+                value={activeRunId || undefined}
+                onValueChange={handleSelectRun}
+                disabled={running || restoringRun}
+              >
+                <SelectTrigger className="h-8 w-[220px] bg-white text-xs">
+                  <SelectValue placeholder="选择历史任务" />
+                </SelectTrigger>
+                <SelectContent>
+                  {runHistory.map(run => (
+                    <SelectItem key={run.run_id} value={run.run_id}>
+                      {run.display_name} · {run.status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            {executionHistory.length > 0 ? (
+              <Select
+                value={selectedExecution || undefined}
+                onValueChange={handleSelectExecution}
+                disabled={running || restoringRun}
+              >
+                <SelectTrigger className="h-8 w-[150px] bg-white text-xs">
+                  <SelectValue placeholder="选择 Run" />
+                </SelectTrigger>
+                <SelectContent>
+                  {executionHistory.map(execution => (
+                    <SelectItem
+                      key={execution.execution}
+                      value={String(execution.execution)}
+                      disabled={!execution.report_path}
+                    >
+                      Run #{execution.execution} · {execution.status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNewTask}
+              disabled={running || restoringRun}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              新建任务
+            </Button>
             <Badge
               variant="outline"
               className={cn(
@@ -2849,7 +3155,9 @@ export function BackportPage() {
           canContinueReport={canContinueReport}
           onOpenPathBrowser={openPathBrowser}
           onGenerateReport={handleGenerateReport}
+          generateReportLabel={activeRunId ? '导入 Excel 新版本' : '导入 Excel 并生成报告'}
           onRunAll={handleRunAll}
+          runAllIdleLabel={stage === 'completed' ? '基于当前仓库重新执行' : '一键运行'}
           onPauseRunAll={handlePauseRunAll}
           onContinueReport={handleContinueReport}
           onExecuteSelected={handleExecuteSelected}
@@ -2917,6 +3225,8 @@ export function BackportPage() {
         }}
         manualPatchLoading={manualPatchLoading}
         manualPatchResult={manualPatchResult}
+        attemptHistory={attemptHistory}
+        attemptHistoryLoading={attemptHistoryLoading}
         onCheckManualPatch={() => void handleCheckManualPatch()}
         onApplyManualPatch={() => void handleApplyManualPatch()}
         onUpdateMergedInTarget={updateMergedInTarget}
