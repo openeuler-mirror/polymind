@@ -164,6 +164,50 @@ export interface BackportTimelineEntry {
   details?: string
 }
 
+export type BackportRunStageState =
+  | 'not_started'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'not_needed'
+
+export interface BackportRunSummaryCase {
+  id: string
+  row: number
+  commit: string
+  title: string
+  detection: {
+    state: BackportRunStageState
+    result: '' | 'clean_apply' | 'conflict' | 'equivalent_exists' | 'already_present' | 'failed'
+  }
+  handling: {
+    state: BackportRunStageState
+    result: '' | 'direct_apply' | 'backport_generated' | 'equivalent_exists' | 'failed'
+    engine: string
+    report: string
+  }
+  final: {
+    state: BackportRunStageState
+    result: '' | 'applied' | 'skipped' | 'ready_to_apply' | 'failed'
+    applied_commit: string
+  }
+}
+
+export interface BackportExecutionRunSummary {
+  path: string
+  status: string
+  counts: {
+    total: number
+    applied: number
+    direct_applied: number
+    equivalent_exists: number
+    conflict_resolved: number
+    failed: number
+    unprocessed: number
+  }
+  cases: BackportRunSummaryCase[]
+}
+
 export type BackportSaveSource = 'selected' | 'filtered' | 'all'
 
 export interface BackportToolSnapshot {
@@ -239,6 +283,7 @@ export interface BackportRunResponse {
 
 export interface BackportRunProgress {
   phase?: string
+  phase_state?: 'running' | 'completed' | 'failed'
   message?: string
   current_report_path?: string
   current_index?: number
@@ -270,6 +315,7 @@ export interface BackportAsyncRunResponse {
   result: BackportRunResponse | null
   error: string
   progress?: BackportRunProgress | null
+  execution_summary?: BackportExecutionRunSummary | null
   pause_requested?: boolean
   paused_at?: number | null
 }
@@ -330,6 +376,7 @@ export interface BackportExecutionSummary {
   created_at: string
   updated_at: string
   report_path: string
+  execution_summary: BackportExecutionRunSummary | null
   target: Record<string, unknown>
   excel_version: number
 }
