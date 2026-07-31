@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, RefreshCw, RotateCcw, Save, Wrench } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, RefreshCw, RotateCcw, Save, Wrench } from 'lucide-react'
 
 import { CommitTable } from '@/components/tool-panel/backport/commit-table'
 import {
@@ -9,6 +9,7 @@ import {
   type InspectorTab,
   type PatchLoadState,
 } from '@/components/tool-panel/backport/inspector-sheet'
+import { RepositoryAccessPanel } from '@/components/tool-panel/backport/repository-access-panel'
 import { SupportPanel } from '@/components/tool-panel/backport/support-panel'
 import {
   DEFAULT_BACKPORT_CONFIG,
@@ -34,7 +35,7 @@ import {
 } from '@/components/tool-panel/backport/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
 import {
   Dialog,
   DialogContent,
@@ -52,41 +53,210 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { handleAgentStreamEvent } from '@/lib/agent-stream-events'
 import { parseUnifiedDiff } from '@/lib/patch-utils'
 import {
   BackportBrowseEntry,
+  BackportAttemptSummary,
   BackportCommitItem,
   BackportCommitRow,
   BackportConfig,
+  BackportExecutionSummary,
   BackportGitLogEntry,
   BackportOperationResultData,
   BackportPatchResource,
+  BackportRepositoryInfo,
+  BackportRepositoryPrepareResponse,
+  BackportRepositoryRole,
+  BackportRuntimeStatus,
+  BackportRunAllControl,
+  BackportRunProgress,
+  BackportRunSummary,
   BackportStage,
   BackportTimelineEntry,
+  resetRunAllStateForGeneratedReport,
 } from '@/lib/backport-types'
 import { useChatStore } from '@/lib/store'
-import type { Message } from '@/lib/types'
+import type { Message, ModelConfig } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { backportService } from '@/services/backport-service'
+import { modelService } from '@/services/model-service'
 import { patchflowAgentService } from '@/services/patchflow-agent-service'
 import { generateUUID } from '@/lib/utils'
 
 const BACKPORT_COMMIT_PAGE_SIZE = 5
+const BACKPORT_MODEL_EMPTY_VALUE = '__none__'
+const BACKPORT_ACTIVE_RUN_STORAGE_KEY = 'polymind.backport.activeRunId'
+const BACKPORT_SUPPORTED_PROVIDERS = new Set([
+  'openai',
+  'deepseek',
+  'siliconflow',
+  'minimax',
+  'local',
+  'moonshotai',
+  'zhipuai',
+  'xai',
+  'alibaba',
+])
+
+const isBackportCompatibleModel = (model: ModelConfig): boolean => {
+  const provider = String(model.provider || '').trim().toLowerCase()
+  if (!model.enabled) return false
+  if (provider === 'custom') return model.compatibility === 'openai'
+  return BACKPORT_SUPPORTED_PROVIDERS.has(provider)
+}
+
+const formatBackportModelLabel = (model: ModelConfig): string => {
+  const provider = String(model.provider || '').trim()
+  return provider ? `${model.name} · ${formatProviderLabel(provider)}` : model.name
+}
+
+const formatProviderLabel = (provider: string): string => {
+  const normalized = provider.trim().toLowerCase()
+  if (normalized === 'custom') return '自定义'
+  if (normalized === 'local') return '本地'
+  return provider.trim()
+}
+
+const toRunAllNumber = (value: number | undefined): number => {
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? numericValue : 0
+}
+
+const hasRunAllNumber = (value: number | undefined): value is number => {
+  return Number.isFinite(Number(value))
+}
+
+const conflictReportStatusLabel = (status: string): string => {
+  const normalized = status.trim().toLowerCase()
+  const labels: Record<string, string> = {
+    success: '成功',
+    failed: '失败',
+    skipped: '跳过',
+    pending: '等待中',
+  }
+  return labels[normalized] || status || '未知'
+}
+
+const buildConflictReportText = (rows: BackportCommitRow[]): string => {
+  const sections = rows
+    .map((row) => {
+      const summary = row.data.conflict_summary
+      if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return ''
+
+      const summaryData = summary as Record<string, unknown>
+      const status = stringifyValue(summaryData.status).trim()
+      const normalizedStatus = status.toLowerCase()
+      const score = stringifyValue(summaryData.score).trim()
+      const reason = stringifyValue(summaryData.reason).trim()
+      const error = stringifyValue(summaryData.error).trim()
+      const commit = stringifyValue(row.data.commit || row.data.input_commit).trim()
+      const shortCommit = commit ? commit.slice(0, 12) : '未知 commit'
+      const title = resolveCommitTitle(row.data)
+      const heading = `${shortCommit}${title ? ` ${title}` : ''}`
+
+      if (normalizedStatus === 'success') {
+        return [
+          heading,
+          '',
+          `评分：${score || '-'}`,
+          '',
+          '原因：',
+          reason || '未返回原因',
+        ].join('\n')
+      }
+
+      const lines = [
+        heading,
+        '',
+        `状态：${conflictReportStatusLabel(status)}`,
+      ]
+
+      if (error || normalizedStatus === 'failed') {
+        lines.push('', `错误：${error || '未返回错误信息'}`)
+      }
+      if (reason) {
+        lines.push('', '原因：', reason)
+      }
+      return lines.join('\n')
+    })
+    .filter(Boolean)
+
+  return sections.map((section, index) => `## ${index + 1}. ${section}`).join('\n\n')
+}
+
+const buildLegacyRepositoryInfo = (
+  role: BackportRepositoryRole,
+  localPath: string,
+  branch: string,
+  sourceUrl = '',
+): BackportRepositoryInfo | null => {
+  const normalizedPath = localPath.trim()
+  if (!normalizedPath) return null
+  const name = normalizedPath.split('/').filter(Boolean).pop() || normalizedPath
+  return {
+    role,
+    input: sourceUrl || normalizedPath,
+    input_type: sourceUrl ? 'remote' : 'local',
+    display_name: name,
+    source_url: sourceUrl,
+    local_path: normalizedPath,
+    default_branch: branch,
+    selected_branch: branch,
+    current_branch: branch,
+    head: '',
+    short_head: '',
+    local_branches: branch ? [branch] : [],
+    remote_branches: [],
+    status_clean: true,
+    operation_in_progress: false,
+    writable: role === 'target',
+    can_read: true,
+    can_write: true,
+    warnings: [],
+    cache_dir: '',
+    updated_at: 0,
+  }
+}
+
+const isRemoteRepositoryInput = (input: string): boolean =>
+  /^(https?:\/\/|ssh:\/\/|git:\/\/|[^@\s]+@[^:\s]+:)/.test(input.trim())
 
 export function BackportPage() {
   const { toast } = useToast()
   const patchAnchorRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const workingCommitsRef = useRef<BackportCommitRow[]>([])
+  const configRef = useRef<BackportConfig>(DEFAULT_BACKPORT_CONFIG)
+  const runAllRowStartedAtRef = useRef<Record<string, number>>({})
+  const runAllLastProcessedCountRef = useRef(0)
+  const runAllReportRefreshInFlightRef = useRef(false)
+  const runAllPendingReportRefreshPathRef = useRef<string | null>(null)
 
   const [config, setConfig] = useState<BackportConfig>(DEFAULT_BACKPORT_CONFIG)
   const [loadingConfig, setLoadingConfig] = useState(false)
+  const [backportModels, setBackportModels] = useState<ModelConfig[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
+  const [runtimeStatus, setRuntimeStatus] = useState<BackportRuntimeStatus | null>(null)
+  const [loadingRuntimeStatus, setLoadingRuntimeStatus] = useState(false)
+  const [runtimeModelSelectorOpen, setRuntimeModelSelectorOpen] = useState(false)
+  const [signerEditorOpen, setSignerEditorOpen] = useState(false)
   const [savingConfig, setSavingConfig] = useState(false)
-  const [configExpanded, setConfigExpanded] = useState(false)
+  const [configExpanded, setConfigExpanded] = useState(true)
   const [stage, setStage] = useState<BackportStage>('idle')
   const [running, setRunning] = useState(false)
   const [runningLabel, setRunningLabel] = useState('')
+  const [runAllProgress, setRunAllProgress] = useState<BackportRunProgress | null>(null)
+  const [runAllControl, setRunAllControl] = useState<BackportRunAllControl | null>(null)
+  const [runAllPauseState, setRunAllPauseState] = useState<'idle' | 'running' | 'pause_requested' | 'paused'>('idle')
+  const [runAllStatusCardVisible, setRunAllStatusCardVisible] = useState(false)
+  const [activeRunId, setActiveRunId] = useState('')
+  const [runHistory, setRunHistory] = useState<BackportRunSummary[]>([])
+  const [executionHistory, setExecutionHistory] = useState<BackportExecutionSummary[]>([])
+  const [selectedExecution, setSelectedExecution] = useState('')
+  const [restoringRun, setRestoringRun] = useState(false)
   const [analyzingConflictRowId, setAnalyzingConflictRowId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [excelPath, setExcelPath] = useState('')
@@ -105,7 +275,7 @@ export function BackportPage() {
   const [commitPage, setCommitPage] = useState(1)
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([])
   const [timeline, setTimeline] = useState<BackportTimelineEntry[]>([])
-  const [supportTab, setSupportTab] = useState<'timeline' | 'git'>('timeline')
+  const [supportTab, setSupportTab] = useState<'timeline' | 'git' | 'conflict-report'>('timeline')
   const [gitLogEntries, setGitLogEntries] = useState<BackportGitLogEntry[]>([])
   const [gitLogLoading, setGitLogLoading] = useState(false)
   const [selectedGitRevision, setSelectedGitRevision] = useState<string | null>(null)
@@ -117,6 +287,14 @@ export function BackportPage() {
   const [browseEntries, setBrowseEntries] = useState<BackportBrowseEntry[]>([])
   const [browseParentPath, setBrowseParentPath] = useState<string | null>(null)
   const [browseLoading, setBrowseLoading] = useState(false)
+  const [recentRepositories, setRecentRepositories] = useState<BackportRepositoryInfo[]>([])
+  const [repositoryDialogRole, setRepositoryDialogRole] = useState<BackportRepositoryRole | null>(null)
+  const [repositoryInput, setRepositoryInput] = useState('')
+  const [repositoryPrepareTask, setRepositoryPrepareTask] =
+    useState<BackportRepositoryPrepareResponse | null>(null)
+  const [repositoryPreparingRole, setRepositoryPreparingRole] =
+    useState<BackportRepositoryRole | null>(null)
+  const [repositoryMode, setRepositoryMode] = useState<'add' | 'recent'>('add')
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('details')
   const [inspectedRowId, setInspectedRowId] = useState<string | null>(null)
@@ -127,12 +305,37 @@ export function BackportPage() {
   const [manualPatchResult, setManualPatchResult] = useState<BackportOperationResultData | null>(
     null
   )
+  const [attemptHistory, setAttemptHistory] = useState<BackportAttemptSummary[]>([])
+  const [attemptHistoryLoading, setAttemptHistoryLoading] = useState(false)
+  const [attemptHistoryVersion, setAttemptHistoryVersion] = useState(0)
   const [commitMessagePreviewLoadingRowId, setCommitMessagePreviewLoadingRowId] = useState<
     string | null
   >(null)
   const [lastSavedCommitMessageTemplate, setLastSavedCommitMessageTemplate] = useState(
     DEFAULT_BACKPORT_CONFIG.commit_message_template
   )
+
+  const resetRunAllGeneratedReportState = () => {
+    const nextState = resetRunAllStateForGeneratedReport({
+      pauseState: runAllPauseState,
+      progress: runAllProgress,
+      control: runAllControl,
+      rowStartedAt: runAllRowStartedAtRef.current,
+      lastProcessedCount: runAllLastProcessedCountRef.current,
+      reportRefreshInFlight: runAllReportRefreshInFlightRef.current,
+      pendingReportRefreshPath: runAllPendingReportRefreshPathRef.current,
+      statusCardVisible: runAllStatusCardVisible,
+    })
+
+    setRunAllPauseState(nextState.pauseState)
+    setRunAllProgress(nextState.progress)
+    setRunAllControl(nextState.control)
+    runAllRowStartedAtRef.current = nextState.rowStartedAt
+    runAllLastProcessedCountRef.current = nextState.lastProcessedCount
+    runAllReportRefreshInFlightRef.current = nextState.reportRefreshInFlight
+    runAllPendingReportRefreshPathRef.current = nextState.pendingReportRefreshPath
+    setRunAllStatusCardVisible(nextState.statusCardVisible)
+  }
 
   const titleCandidates = useMemo(() => {
     const uniqueTitles = new Set<string>()
@@ -143,6 +346,39 @@ export function BackportPage() {
     }
     return [...uniqueTitles].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')).slice(0, 80)
   }, [workingCommits])
+
+  const compatibleBackportModels = useMemo(
+    () => backportModels.filter(isBackportCompatibleModel),
+    [backportModels]
+  )
+
+  const selectedBackportModel = useMemo(
+    () => compatibleBackportModels.find(model => model.id === config.backport_model_id) || null,
+    [compatibleBackportModels, config.backport_model_id]
+  )
+
+  const openModelSettings = () => {
+    const store = useChatStore.getState()
+    store.setSettingsActiveSection('model')
+    if (!store.rightPanelTabs.some(tab => tab.id === 'settings')) {
+      store.addRightPanelTab({ id: 'settings', name: '设置', color: 'text-gray-500' })
+    }
+    store.setActiveRightPanelTab('settings')
+  }
+
+  const sourceRepository = useMemo(
+    () =>
+      config.source_repo_state ||
+      buildLegacyRepositoryInfo('source', config.project_dir, config.source_branch, config.project_url),
+    [config.project_dir, config.project_url, config.source_branch, config.source_repo_state],
+  )
+
+  const targetRepository = useMemo(
+    () =>
+      config.target_repo_state ||
+      buildLegacyRepositoryInfo('target', config.target_path, config.target_release),
+    [config.target_path, config.target_release, config.target_repo_state],
+  )
 
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim()
@@ -269,15 +505,21 @@ export function BackportPage() {
     [paginatedRows, selectedRowSet]
   )
   const firstBlockingConflictRow = useMemo(
-    () => workingCommits.find((row) => Boolean(row.data.has_conflict) && !isSkippedRow(row.data)) || null,
-    [workingCommits],
+    () =>
+      workingCommits.find(row => Boolean(row.data.has_conflict) && !isSkippedRow(row.data)) || null,
+    [workingCommits]
   )
   const firstBlockingConflictRowId = firstBlockingConflictRow?.rowId || null
   const hasPendingRows = useMemo(
-    () => workingCommits.some((row) => stringifyValue(row.data.status).trim().toLowerCase() === 'pending'),
-    [workingCommits],
+    () =>
+      workingCommits.some(
+        row => stringifyValue(row.data.status).trim().toLowerCase() === 'pending'
+      ),
+    [workingCommits]
   )
-  const canContinueReport = Boolean(baseReportPath.trim()) && hasPendingRows && !firstBlockingConflictRow
+  const canContinueReport =
+    Boolean(baseReportPath.trim()) && hasPendingRows && !firstBlockingConflictRow
+
   const selectedGitEntry = useMemo(
     () =>
       gitLogEntries.find(
@@ -321,6 +563,14 @@ export function BackportPage() {
     setCommitPage(prev => Math.min(Math.max(prev, 1), totalCommitPages))
   }, [totalCommitPages])
 
+  useEffect(() => {
+    workingCommitsRef.current = workingCommits
+  }, [workingCommits])
+
+  useEffect(() => {
+    configRef.current = config
+  }, [config])
+
   const addTimeline = (
     title: string,
     level: BackportTimelineEntry['level'] = 'info',
@@ -339,6 +589,89 @@ export function BackportPage() {
       ]
       return next.slice(0, 200)
     })
+  }
+
+  const rememberActiveRun = (runId: string) => {
+    const normalized = runId.trim()
+    if (!normalized) return
+    setActiveRunId(normalized)
+    window.localStorage.setItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY, normalized)
+  }
+
+  const refreshRunHistory = async () => {
+    try {
+      const response = await backportService.listRuns()
+      setRunHistory(response.runs)
+      return response.runs
+    } catch (cause) {
+      console.warn('Failed to load Backport task history:', cause)
+      return []
+    }
+  }
+
+  const refreshExecutionHistory = async (runId: string) => {
+    try {
+      const response = await backportService.listExecutions(runId)
+      setExecutionHistory(response.executions)
+      return response.executions
+    } catch (cause) {
+      console.warn('Failed to load Backport Run history:', cause)
+      setExecutionHistory([])
+      return []
+    }
+  }
+
+  const getRunAllRowKey = (row: BackportCommitRow) =>
+    stringifyValue(
+      row.data.row_id || row.data.commit || row.data.input_commit || row.rowId
+    ).trim() || row.rowId
+
+  const formatRunAllRowState = (data: BackportCommitItem | undefined) => {
+    if (!data) return '未知'
+    const status = resolveStatusMeta(data).label
+    const conflict = resolveConflictMeta(data).label
+    return `${status} / ${conflict}`
+  }
+
+  const formatRunAllDuration = (startedAt: number | undefined) => {
+    if (!startedAt) return '耗时 --'
+    const elapsedSeconds = Math.max(0, (Date.now() - startedAt) / 1000)
+    return elapsedSeconds >= 60
+      ? `耗时 ${(elapsedSeconds / 60).toFixed(1)} 分钟`
+      : `耗时 ${elapsedSeconds.toFixed(1)} 秒`
+  }
+
+  const refreshRunAllReportSnapshot = async (reportPath: string) => {
+    const normalizedPath = reportPath.trim()
+    if (!normalizedPath) return
+
+    if (runAllReportRefreshInFlightRef.current) {
+      runAllPendingReportRefreshPathRef.current = normalizedPath
+      return
+    }
+
+    runAllReportRefreshInFlightRef.current = true
+    try {
+      const response = await backportService.loadReport({
+        config: configRef.current,
+        baseReportPath: normalizedPath,
+      })
+      const commits = response.parsedResult?.report?.commits
+      if (Array.isArray(commits)) {
+        const nextRows = normalizeCommitRows(commits)
+        setOriginalCommits(nextRows)
+        setWorkingCommits(nextRows)
+      }
+    } catch (cause) {
+      console.warn('Failed to refresh Backport report snapshot:', cause)
+    } finally {
+      runAllReportRefreshInFlightRef.current = false
+      const pendingPath = runAllPendingReportRefreshPathRef.current
+      runAllPendingReportRefreshPathRef.current = null
+      if (pendingPath) {
+        void refreshRunAllReportSnapshot(pendingPath)
+      }
+    }
   }
 
   const applyOperationResult = (result: BackportOperationResultData | null) => {
@@ -363,7 +696,7 @@ export function BackportPage() {
       }
     }
 
-    if (result.operation === 'generate_report') {
+    if (result.operation === 'generate_report' || result.operation === 'run_all') {
       setFilteredReportPath('')
       setConfig(prev => ({ ...prev, current_filtered_report_path: '' }))
       setPatchPreviews({})
@@ -373,8 +706,21 @@ export function BackportPage() {
       setInspectorOpen(false)
     }
 
+    if (result.operation === 'generate_report') {
+      resetRunAllGeneratedReportState()
+    }
+
     if (result.artifacts?.config_path) {
       setConfigPath(result.artifacts.config_path)
+    }
+
+    if (result.artifacts?.run_id) {
+      rememberActiveRun(result.artifacts.run_id)
+      void refreshRunHistory()
+      void refreshExecutionHistory(result.artifacts.run_id)
+    }
+    if (result.artifacts?.attempt_dir) {
+      setAttemptHistoryVersion(version => version + 1)
     }
 
     if (result.artifacts?.report_path || result.artifacts?.base_report_path) {
@@ -395,7 +741,11 @@ export function BackportPage() {
 
     if (Array.isArray(result.report?.commits)) {
       const nextRows = normalizeCommitRows(result.report.commits)
-      if (result.operation === 'generate_report' || result.operation === 'continue_report') {
+      if (
+        result.operation === 'generate_report' ||
+        result.operation === 'continue_report' ||
+        result.operation === 'run_all'
+      ) {
         setOriginalCommits(nextRows)
         setWorkingCommits(nextRows)
       } else {
@@ -456,6 +806,159 @@ export function BackportPage() {
     }
   }
 
+  const handleRunAllProgress = (progress: BackportRunProgress) => {
+    setRunAllStatusCardVisible(true)
+    setRunAllProgress(progress)
+    const progressRowId = stringifyValue(progress.current_row_id).trim()
+    if (progressRowId && !runAllRowStartedAtRef.current[progressRowId]) {
+      runAllRowStartedAtRef.current[progressRowId] = Date.now()
+    }
+
+    const nextProcessedCount = toRunAllNumber(progress.processed_count)
+    const shouldRecordCompletedRows = nextProcessedCount > runAllLastProcessedCountRef.current
+    if (shouldRecordCompletedRows) {
+      const previousRows = workingCommitsRef.current
+      const previousRowsById = new Map(previousRows.map(row => [getRunAllRowKey(row), row]))
+      const updatedRows = normalizeCommitRows(progress.updated_commits || [])
+      for (const row of updatedRows) {
+        const rowKey = getRunAllRowKey(row)
+        const previousRow = previousRowsById.get(rowKey)
+        const commit = stringifyValue(row.data.commit || row.data.input_commit || rowKey).slice(
+          0,
+          12
+        )
+        const title = resolveCommitTitle(row.data)
+        const previousState = formatRunAllRowState(previousRow?.data)
+        const nextState = formatRunAllRowState(row.data)
+        const duration = formatRunAllDuration(
+          runAllRowStartedAtRef.current[rowKey] || runAllRowStartedAtRef.current[progressRowId]
+        )
+        const failed = resolveStatusMeta(row.data).kind === 'failed'
+        addTimeline(
+          `Commit ${commit} 运行完成`,
+          failed ? 'error' : 'success',
+          [
+            title ? `标题: ${title}` : '',
+            `状态: ${previousState} -> ${nextState}`,
+            duration,
+            progress.message ? `说明: ${progress.message}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n')
+        )
+        delete runAllRowStartedAtRef.current[rowKey]
+      }
+      runAllLastProcessedCountRef.current = nextProcessedCount
+      setSupportTab('timeline')
+    }
+
+    if (Array.isArray(progress.updated_commits) && progress.updated_commits.length > 0) {
+      setWorkingCommits(prev => mergeCommitRows(prev, progress.updated_commits || []))
+      setOriginalCommits(prev => mergeCommitRows(prev, progress.updated_commits || []))
+    }
+    if (progress.current_report_path) {
+      setBaseReportPath(progress.current_report_path)
+      setConfig(prev => ({ ...prev, current_report_path: progress.current_report_path || '' }))
+      void refreshRunAllReportSnapshot(progress.current_report_path)
+    }
+  }
+
+  const restoreRun = async (
+    runId: string,
+    restoreConfig: BackportConfig,
+    knownSummary?: BackportRunSummary,
+  ) => {
+    const normalizedRunId = runId.trim()
+    if (!normalizedRunId) return
+    setRestoringRun(true)
+    rememberActiveRun(normalizedRunId)
+    if (knownSummary?.excel_path) {
+      setExcelPath(knownSummary.excel_path)
+      setConfig(prev => ({ ...prev, current_excel_path: knownSummary.excel_path }))
+    }
+    try {
+      const executions = await refreshExecutionHistory(normalizedRunId)
+      const preferredExecution = knownSummary?.current_execution
+      const selected =
+        executions.find(item => item.execution === preferredExecution) ||
+        executions[0]
+      setSelectedExecution(selected ? String(selected.execution) : '')
+      let current = await backportService.getRun(normalizedRunId)
+      if (current.progress) {
+        handleRunAllProgress(current.progress)
+      }
+      if (current.status === 'running') {
+        setRunning(true)
+        setRunningLabel('恢复运行')
+        setRunAllPauseState('running')
+        setRunAllStatusCardVisible(Boolean(current.progress))
+        if (current.action === 'run_all') {
+          setRunAllControl({
+            runId: normalizedRunId,
+            pause: () => backportService.pauseRun(normalizedRunId),
+          })
+        }
+        addTimeline('已重新连接正在运行的任务', 'info', normalizedRunId)
+        current = await backportService.resumeRun(
+          normalizedRunId,
+          handleRunAllProgress,
+          {
+            onRunUpdated: run => {
+              setRunAllStatusCardVisible(currentVisible =>
+                currentVisible || Boolean(run.progress)
+              )
+              if (run.pause_requested && run.status === 'running') {
+                setRunAllPauseState('pause_requested')
+              }
+            },
+          },
+        )
+      }
+
+      if (current.result?.parsedResult) {
+        applyOperationResult(current.result.parsedResult)
+      } else {
+        const reportPath =
+          current.progress?.current_report_path ||
+          knownSummary?.current_report_path ||
+          restoreConfig.current_report_path ||
+          ''
+        if (reportPath) {
+          const loaded = await backportService.loadReport({
+            config: restoreConfig,
+            baseReportPath: reportPath,
+          })
+          applyOperationResult(loaded.parsedResult)
+        }
+      }
+
+      if (current.status === 'interrupted') {
+        setStage('paused')
+        setRunAllPauseState('paused')
+        setError('后端运行曾被中断，已恢复最后保存的报告，可继续执行。')
+        addTimeline('运行已中断', 'error', '已恢复最后保存的 report，没有重新导入 Excel。')
+      } else if (current.status === 'paused') {
+        setRunAllPauseState('paused')
+      } else if (current.status === 'failed') {
+        setStage('failed')
+        setError(current.error || 'Backport 运行失败')
+      }
+    } catch (cause) {
+      console.warn('Failed to restore Backport run:', cause)
+      addTimeline(
+        '恢复运行失败',
+        'error',
+        cause instanceof Error ? cause.message : '无法读取已保存的运行',
+      )
+    } finally {
+      setRunning(false)
+      setRunningLabel('')
+      setRunAllControl(null)
+      setRestoringRun(false)
+      void refreshRunHistory()
+    }
+  }
+
   const runOperation = async (
     label: string,
     runner: () => Promise<Awaited<ReturnType<typeof backportService.generateReport>>>
@@ -487,18 +990,94 @@ export function BackportPage() {
     }
   }
 
+  const loadRuntimeStatus = async (nextConfig: BackportConfig) => {
+    setLoadingRuntimeStatus(true)
+    try {
+      const status = await backportService.getRuntimeStatus(nextConfig)
+      setRuntimeStatus(status)
+    } catch (cause) {
+      console.error('Failed to load Backport runtime status:', cause)
+      setRuntimeStatus({
+        ok: false,
+        model_configured: false,
+        model_name: '',
+        model_provider: '',
+        api_key_available: false,
+        cvekit_available: false,
+        cvekit_path: '',
+        errors: [cause instanceof Error ? cause.message : '加载运行环境状态失败'],
+      })
+    } finally {
+      setLoadingRuntimeStatus(false)
+    }
+  }
+
+  const loadRecentRepositories = async () => {
+    try {
+      const response = await backportService.getRecentRepositories()
+      setRecentRepositories(response.repositories || [])
+    } catch (cause) {
+      console.warn('Failed to load Backport recent repositories:', cause)
+    }
+  }
+
   const loadPage = async () => {
     setLoadingConfig(true)
+    setLoadingModels(true)
     try {
       const nextConfig = await backportService.getConfig()
-      const sanitizedConfig = normalizeBackportConfig(nextConfig)
+      let sanitizedConfig = normalizeBackportConfig(nextConfig)
+      try {
+        const models = await modelService.getModels()
+        setBackportModels(models)
+        const compatibleModels = models.filter(isBackportCompatibleModel)
+        if (!sanitizedConfig.backport_model_id) {
+          const defaultModel =
+            compatibleModels.find(model => model.isDefault) ||
+            (compatibleModels.length === 1 ? compatibleModels[0] : null)
+          if (defaultModel) {
+            sanitizedConfig = {
+              ...sanitizedConfig,
+              backport_model_id: defaultModel.id,
+            }
+          }
+        }
+      } catch (modelError) {
+        console.error('Failed to load Backport model list:', modelError)
+        toast({
+          title: '提示',
+          description: '加载运行模型列表失败',
+          variant: 'destructive',
+        })
+      }
       setConfig(sanitizedConfig)
       setExcelPath(sanitizedConfig.current_excel_path || '')
       setBaseReportPath(sanitizedConfig.current_report_path || '')
       setFilteredReportPath(sanitizedConfig.current_filtered_report_path || '')
       setLastSavedCommitMessageTemplate(sanitizedConfig.commit_message_template)
+      void loadRuntimeStatus(sanitizedConfig)
+      void loadRecentRepositories()
+      void hydrateConfiguredRepositories(sanitizedConfig)
       if (sanitizedConfig.current_report_path.trim()) {
         addTimeline('已恢复当前 report 路径', 'info', sanitizedConfig.current_report_path.trim())
+      }
+      try {
+        const runs = await refreshRunHistory()
+        const storedRunId = window.localStorage.getItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY) || ''
+        const selectedRun =
+          runs.find(run => run.run_id === storedRunId) ||
+          runs[0]
+        if (selectedRun) {
+          await restoreRun(selectedRun.run_id, sanitizedConfig, selectedRun)
+        } else if (sanitizedConfig.current_report_path.trim()) {
+          const loaded = await backportService.loadReport({
+            config: sanitizedConfig,
+            baseReportPath: sanitizedConfig.current_report_path.trim(),
+          })
+          applyOperationResult(loaded.parsedResult)
+        }
+      } catch (restoreError) {
+        console.warn('Failed to restore Backport history:', restoreError)
       }
     } catch (cause) {
       console.error('Failed to load Backport page:', cause)
@@ -509,6 +1088,7 @@ export function BackportPage() {
       })
     } finally {
       setLoadingConfig(false)
+      setLoadingModels(false)
     }
   }
 
@@ -520,7 +1100,18 @@ export function BackportPage() {
     setManualPatchText('')
     setManualPatchResult(null)
     setManualPatchLoading(null)
-  }, [inspectedRowId])
+    setAttemptHistory([])
+    if (!inspectedRowId || !activeRunId) return
+    setAttemptHistoryLoading(true)
+    void backportService
+      .listCaseAttempts(activeRunId, inspectedRowId)
+      .then(response => setAttemptHistory(response.attempts))
+      .catch(cause => {
+        console.warn('Failed to load Backport attempt history:', cause)
+        setAttemptHistory([])
+      })
+      .finally(() => setAttemptHistoryLoading(false))
+  }, [inspectedRowId, activeRunId, attemptHistoryVersion])
 
   useEffect(() => {
     if (inspectorTab !== 'compare' || !inspectedRow) return
@@ -535,15 +1126,16 @@ export function BackportPage() {
     }
   }, [inspectorTab, inspectedRow, compareLeftResource, compareRightResource])
 
-  const handleSaveConfig = async (silent = false) => {
+  const handleSaveConfig = async (silent = false, configOverride?: BackportConfig) => {
     setSavingConfig(true)
     try {
-      const persistedConfig = normalizeBackportConfig(config)
+      const persistedConfig = normalizeBackportConfig(configOverride || config)
       const templateChanged =
         persistedConfig.commit_message_template !== lastSavedCommitMessageTemplate
       const response = await backportService.updateConfig(persistedConfig)
       setConfig(persistedConfig)
       setLastSavedCommitMessageTemplate(persistedConfig.commit_message_template)
+      void loadRuntimeStatus(persistedConfig)
       if (templateChanged) {
         setWorkingCommits(prev =>
           prev.map(row =>
@@ -580,6 +1172,378 @@ export function BackportPage() {
     } finally {
       setSavingConfig(false)
     }
+  }
+
+  const buildConfigWithRepository = (
+    previousConfig: BackportConfig,
+    role: BackportRepositoryRole,
+    repository: BackportRepositoryInfo,
+  ): BackportConfig => {
+    if (role === 'source') {
+      return {
+        ...previousConfig,
+        project_url: repository.source_url || '',
+        project_dir: repository.local_path,
+        source_branch: repository.selected_branch || repository.default_branch || previousConfig.source_branch,
+        source_repo_input: repository.input,
+        source_repo_state: repository,
+      }
+    }
+    return {
+      ...previousConfig,
+      target_path: repository.local_path,
+      target_release: repository.selected_branch || repository.default_branch || previousConfig.target_release,
+      target_repo_input: repository.input,
+      target_repo_state: repository,
+    }
+  }
+
+  const shouldHydrateRepository = (
+    repository: BackportRepositoryInfo | null | undefined,
+    localPath: string,
+  ) => {
+    if (!localPath.trim()) return false
+    if (!repository) return true
+    if (!repository.short_head.trim()) return true
+    if ((repository.local_branches || []).length <= 1 && (repository.remote_branches || []).length === 0) {
+      return true
+    }
+    return false
+  }
+
+  const hydrateConfiguredRepositories = async (baseConfig: BackportConfig) => {
+    let nextConfig = baseConfig
+    let changed = false
+
+    if (shouldHydrateRepository(baseConfig.source_repo_state, baseConfig.project_dir)) {
+      try {
+        const refreshedSource = await backportService.refreshRepository({
+          role: 'source',
+          localPath: baseConfig.project_dir,
+          sourceUrl: baseConfig.source_repo_state?.source_url || '',
+          selectedBranch: baseConfig.source_branch,
+        })
+        nextConfig = buildConfigWithRepository(nextConfig, 'source', refreshedSource)
+        changed = true
+      } catch (cause) {
+        console.warn('Failed to hydrate Backport source repository:', cause)
+      }
+    }
+
+    if (shouldHydrateRepository(baseConfig.target_repo_state, baseConfig.target_path)) {
+      try {
+        const refreshedTarget = await backportService.refreshRepository({
+          role: 'target',
+          localPath: baseConfig.target_path,
+          sourceUrl: baseConfig.target_repo_state?.source_url || '',
+          selectedBranch: baseConfig.target_release,
+        })
+        nextConfig = buildConfigWithRepository(nextConfig, 'target', refreshedTarget)
+        changed = true
+      } catch (cause) {
+        console.warn('Failed to hydrate Backport target repository:', cause)
+      }
+    }
+
+    if (!changed) return
+    setConfig(nextConfig)
+    await handleSaveConfig(true, nextConfig)
+  }
+
+  const openRepositoryDialog = (role: BackportRepositoryRole, mode: 'add' | 'recent' = 'add') => {
+    setRepositoryDialogRole(role)
+    setRepositoryMode(mode)
+    setRepositoryPrepareTask(null)
+    setRepositoryInput('')
+    if (mode === 'recent') {
+      void loadRecentRepositories()
+    }
+  }
+
+  const closeRepositoryDialog = () => {
+    if (repositoryPrepareTask?.status === 'running') return
+    setRepositoryDialogRole(null)
+    setRepositoryInput('')
+    setRepositoryPrepareTask(null)
+    setRepositoryPreparingRole(null)
+  }
+
+  const applyPreparedRepository = async (
+    role: BackportRepositoryRole,
+    repository: BackportRepositoryInfo,
+  ) => {
+    const nextConfig = buildConfigWithRepository(configRef.current, role, repository)
+    setConfig(nextConfig)
+    await handleSaveConfig(true, nextConfig)
+    await loadRecentRepositories()
+    addTimeline(`${role === 'source' ? '源仓库' : '目标仓库'}已准备`, 'success', repository.local_path)
+  }
+
+  const pollRepositoryPrepareTask = async (
+    role: BackportRepositoryRole,
+    taskId: string,
+  ): Promise<BackportRepositoryPrepareResponse> => {
+    let current = await backportService.getRepositoryPrepareTask(taskId)
+    setRepositoryPrepareTask(current)
+    while (current.status === 'running') {
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      current = await backportService.getRepositoryPrepareTask(taskId)
+      setRepositoryPrepareTask(current)
+    }
+    if (current.status === 'failed') {
+      throw new Error(current.error || '仓库准备失败')
+    }
+    if (!current.result) {
+      throw new Error('仓库准备未返回结果')
+    }
+    await applyPreparedRepository(role, current.result)
+    return current
+  }
+
+  const handlePrepareRepository = async () => {
+    const role = repositoryDialogRole
+    const input = repositoryInput.trim()
+    if (!role || !input) {
+      toast({
+        title: '提示',
+        description: '请粘贴 Git URL 或服务器本地仓库路径',
+      })
+      return
+    }
+
+    setRepositoryPreparingRole(role)
+    const preferredBranch = role === 'source' ? config.source_branch : config.target_release
+
+    if (!isRemoteRepositoryInput(input)) {
+      setRepositoryPrepareTask({
+        task_id: `refresh-${role}`,
+        status: 'running',
+        role,
+        input,
+        progress: 35,
+        steps: [
+          {
+            title: '解析本地路径',
+            status: 'running',
+            detail: input,
+          },
+          {
+            title: '确认 Git 仓库并读取当前提交',
+            status: 'running',
+            detail: 'git rev-parse --is-inside-work-tree / git rev-parse HEAD',
+          },
+          {
+            title: '读取分支和工作区状态',
+            status: 'running',
+            detail: role === 'target' ? '目标仓库会检查未提交修改和可写状态' : '源仓库只做轻量读取',
+          },
+        ],
+        result: null,
+        error: '',
+      })
+      try {
+        const refreshed = await backportService.refreshRepository({
+          role,
+          localPath: input,
+          selectedBranch: preferredBranch,
+        })
+        setRepositoryPrepareTask(prev => ({
+          task_id: prev?.task_id || `refresh-${role}`,
+          status: 'success',
+          role,
+          input,
+          progress: 100,
+          steps: [
+            ...(prev?.steps || []),
+            {
+              title: '本地仓库已读取完成',
+              status: 'success',
+              detail: refreshed.short_head
+                ? `${refreshed.selected_branch || '当前提交'} @ ${refreshed.short_head}`
+                : refreshed.local_path,
+            },
+          ],
+          result: refreshed,
+          error: '',
+        }))
+        await applyPreparedRepository(role, refreshed)
+        toast({
+          title: '仓库已就绪',
+          description: refreshed.display_name || input,
+        })
+        setRepositoryDialogRole(null)
+        setRepositoryInput('')
+        setRepositoryPrepareTask(null)
+        setRepositoryPreparingRole(null)
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : '本地仓库检查失败'
+        setRepositoryPrepareTask(prev => ({
+          task_id: prev?.task_id || `refresh-${role}`,
+          status: 'failed',
+          role,
+          input,
+          progress: 100,
+          steps: prev?.steps || [],
+          result: null,
+          error: message,
+        }))
+        toast({
+          title: '本地仓库检查失败',
+          description: message,
+          variant: 'destructive',
+        })
+        setRepositoryPreparingRole(null)
+      }
+      return
+    }
+
+    setRepositoryPrepareTask({
+      task_id: `prepare-${role}`,
+      status: 'running',
+      role,
+      input,
+      progress: 8,
+      steps: [
+        {
+          title: '提交仓库准备请求',
+          status: 'running',
+          detail: 'POST /backport/repositories/prepare',
+        },
+        {
+          title: '等待后端检测仓库类型',
+          status: 'running',
+          detail: input,
+        },
+      ],
+      result: null,
+      error: '',
+    })
+    try {
+      const created = await backportService.prepareRepository({
+        role,
+        input,
+        preferredBranch,
+      })
+      setRepositoryPrepareTask(created)
+      const completed = await pollRepositoryPrepareTask(role, created.task_id)
+      toast({
+        title: '仓库已就绪',
+        description: completed.result?.display_name || input,
+      })
+      setRepositoryDialogRole(null)
+      setRepositoryInput('')
+      setRepositoryPrepareTask(null)
+      setRepositoryPreparingRole(null)
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : '仓库准备失败'
+      setRepositoryPrepareTask(prev => ({
+        task_id: prev?.task_id || '',
+        status: 'failed',
+        role,
+        input,
+        progress: 100,
+        steps: prev?.steps || [],
+        result: null,
+        error: message,
+      }))
+      toast({
+        title: '仓库准备失败',
+        description: message,
+        variant: 'destructive',
+      })
+      setRepositoryPreparingRole(null)
+    }
+  }
+
+  const handleSelectRecentRepository = async (repository: BackportRepositoryInfo) => {
+    const role = repositoryDialogRole || repository.role
+    await applyPreparedRepository(role, { ...repository, role })
+    closeRepositoryDialog()
+  }
+
+  const handleRefreshRepository = async (role: BackportRepositoryRole) => {
+    const repository = role === 'source' ? sourceRepository : targetRepository
+    if (!repository) return
+    setRepositoryPreparingRole(role)
+    setRepositoryPrepareTask({
+      task_id: `refresh-${role}`,
+      status: 'running',
+      role,
+      input: repository.input || repository.local_path,
+      progress: 45,
+      steps: [
+        {
+          title: '读取当前提交',
+          status: 'running',
+          detail: `git -C ${repository.local_path} rev-parse HEAD`,
+        },
+        {
+          title: '读取本地分支和远程分支',
+          status: 'running',
+          detail: 'git branch --format=... / git branch -r --format=...',
+        },
+        {
+          title: '检查工作区是否干净',
+          status: 'running',
+          detail: 'git status --porcelain=v1 -uall',
+        },
+        {
+          title: '读取 origin 地址',
+          status: 'running',
+          detail: 'git remote get-url origin',
+        },
+      ],
+      result: null,
+      error: '',
+    })
+    try {
+      const refreshed = await backportService.refreshRepository({
+        role,
+        localPath: repository.local_path,
+        sourceUrl: repository.source_url,
+        selectedBranch: repository.selected_branch,
+      })
+      await applyPreparedRepository(role, refreshed)
+      toast({
+        title: '仓库状态已刷新',
+        description: refreshed.display_name,
+      })
+      setRepositoryPrepareTask(null)
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : '刷新仓库失败'
+      setRepositoryPrepareTask({
+        task_id: `refresh-${role}`,
+        status: 'failed',
+        role,
+        input: repository.input || repository.local_path,
+        progress: 100,
+        steps: [],
+        result: null,
+        error: message,
+      })
+      toast({
+        title: '刷新仓库失败',
+        description: message,
+        variant: 'destructive',
+      })
+    } finally {
+      setRepositoryPreparingRole(null)
+    }
+  }
+
+  const handleRepositoryBranchChange = (
+    role: BackportRepositoryRole,
+    branch: string,
+  ) => {
+    const repository = role === 'source' ? sourceRepository : targetRepository
+    if (!repository) return
+    const nextRepository = {
+      ...repository,
+      selected_branch: branch,
+    }
+    const nextConfig = buildConfigWithRepository(configRef.current, role, nextRepository)
+    setConfig(nextConfig)
+    void handleSaveConfig(true, nextConfig)
   }
 
   const handleRefreshCommitMessagePreview = async (row: BackportCommitRow) => {
@@ -655,10 +1619,160 @@ export function BackportPage() {
         {
           config,
           excelPath: excelPath.trim(),
+          runId: activeRunId || undefined,
         },
-        handleAgentEvent
+        handleAgentEvent,
+        {
+          onRunCreated: control => {
+            rememberActiveRun(control.runId)
+            void refreshRunHistory()
+          },
+        },
       )
     )
+  }
+
+  const handleRunAll = async () => {
+    const normalizedExcelPath = excelPath.trim()
+    let normalizedBaseReportPath = baseReportPath.trim()
+    if (!normalizedExcelPath && !normalizedBaseReportPath) {
+      toast({
+        title: '提示',
+        description: '请先填写 Excel 路径或生成可继续的 report',
+      })
+      return
+    }
+
+    await handleSaveConfig(true)
+    const runConfig = normalizeBackportConfig({
+      ...config,
+      current_excel_path: normalizedExcelPath,
+    })
+    if (stage === 'completed' && activeRunId) {
+      try {
+        const regenerated = await runOperation('重新生成执行报告', async () => {
+          const response = await backportService.generateReport(
+            {
+              config: runConfig,
+              excelPath: normalizedExcelPath,
+              runId: activeRunId,
+            },
+            handleAgentEvent,
+            {
+              onRunCreated: control => rememberActiveRun(control.runId),
+            },
+          )
+          if (
+            !response.parsedResult?.artifacts?.base_report_path &&
+            !response.parsedResult?.artifacts?.report_path
+          ) {
+            throw new Error('重新执行未生成可用 report')
+          }
+          return response
+        })
+        normalizedBaseReportPath =
+          regenerated.parsedResult?.artifacts?.base_report_path ||
+          regenerated.parsedResult?.artifacts?.report_path ||
+          ''
+      } catch {
+        return
+      }
+    }
+    configRef.current = runConfig
+    setConfig(runConfig)
+    setExcelPath(normalizedExcelPath)
+    setRunAllProgress(null)
+    setRunAllControl(null)
+    setRunAllPauseState('running')
+    setRunAllStatusCardVisible(true)
+    runAllRowStartedAtRef.current = {}
+    runAllLastProcessedCountRef.current = 0
+    runAllReportRefreshInFlightRef.current = false
+    runAllPendingReportRefreshPathRef.current = null
+
+    let response: Awaited<ReturnType<typeof backportService.runAll>>
+    try {
+      response = await runOperation('一键运行', () =>
+        backportService.runAll(
+          {
+            config: runConfig,
+            excelPath: normalizedExcelPath,
+            runId: activeRunId || undefined,
+            baseReportPath: normalizedBaseReportPath,
+            workingReportPath: filteredReportPath.trim() || normalizedBaseReportPath,
+          },
+          handleAgentEvent,
+          handleRunAllProgress,
+          {
+            onRunCreated: (control) => {
+              rememberActiveRun(control.runId)
+              setRunAllControl(control)
+              setRunAllPauseState('running')
+              void refreshRunHistory()
+            },
+            onRunUpdated: (run) => {
+              if (run.pause_requested && run.status === 'running') {
+                setRunAllPauseState('pause_requested')
+              }
+            },
+          },
+        )
+      )
+    } catch (cause) {
+      setRunAllControl(null)
+      setRunAllPauseState('idle')
+      setRunAllProgress(null)
+      setRunAllStatusCardVisible(false)
+      runAllRowStartedAtRef.current = {}
+      runAllLastProcessedCountRef.current = 0
+      runAllReportRefreshInFlightRef.current = false
+      runAllPendingReportRefreshPathRef.current = null
+      throw cause
+    }
+    setRunAllControl(null)
+    if (response.parsedResult?.stage === 'paused') {
+      setRunAllPauseState('paused')
+      toast({
+        title: '已暂停',
+        description: response.parsedResult.summary || '当前 report 已保存，可继续一键运行',
+      })
+      return
+    }
+    setRunAllPauseState('idle')
+    if (response.parsedResult?.stage === 'completed') {
+      toast({
+        title: '完成',
+        description: 'Backport 已完成一键运行',
+      })
+    } else if (response.parsedResult?.stage === 'interactive_editing') {
+      toast({
+        title: '已暂停',
+        description: response.parsedResult.summary || '需要人工处理后继续',
+      })
+    }
+  }
+
+  const handlePauseRunAll = async () => {
+    if (!runAllControl || runAllPauseState !== 'running') return
+    const previousProgress = runAllProgress
+    setRunAllPauseState('pause_requested')
+    setRunAllProgress((current) => ({
+      ...(current || {}),
+      phase: 'pause_requested',
+      message: '正在完成当前 commit，完成后暂停并保存 report',
+    }))
+    try {
+      await runAllControl.pause()
+    } catch (cause) {
+      console.error('Failed to pause Backport run_all:', cause)
+      setRunAllPauseState('running')
+      setRunAllProgress(previousProgress)
+      toast({
+        title: '暂停失败',
+        description: cause instanceof Error ? cause.message : '无法请求暂停一键运行',
+        variant: 'destructive',
+      })
+    }
   }
 
   const handleContinueReport = async () => {
@@ -937,11 +2051,13 @@ export function BackportPage() {
   }
 
   const canResolveConflictRow = (row: BackportCommitRow): boolean => {
-    return !running
-      && row.rowId === firstBlockingConflictRowId
-      && Boolean(row.data.has_conflict)
-      && !isSkippedRow(row.data)
-      && baseReportPath.trim().length > 0
+    return (
+      !running &&
+      row.rowId === firstBlockingConflictRowId &&
+      Boolean(row.data.has_conflict) &&
+      !isSkippedRow(row.data) &&
+      baseReportPath.trim().length > 0
+    )
   }
 
   const handleResolveConflictRow = async (row: BackportCommitRow) => {
@@ -954,17 +2070,19 @@ export function BackportPage() {
           workingReportPath: filteredReportPath || baseReportPath,
           row: deepClone(row.data),
         },
-        handleAgentEvent,
-      ),
+        handleAgentEvent
+      )
     )
   }
 
   const canRecheckConflictRow = (row: BackportCommitRow): boolean => {
-    return !running
-      && row.rowId === firstBlockingConflictRowId
-      && Boolean(row.data.has_conflict)
-      && !isSkippedRow(row.data)
-      && baseReportPath.trim().length > 0
+    return (
+      !running &&
+      row.rowId === firstBlockingConflictRowId &&
+      Boolean(row.data.has_conflict) &&
+      !isSkippedRow(row.data) &&
+      baseReportPath.trim().length > 0
+    )
   }
 
   const handleRecheckConflictRow = async (row: BackportCommitRow) => {
@@ -1190,6 +2308,47 @@ export function BackportPage() {
     setInspectorTab('details')
     setActivePatchKey(null)
     setPatchPreviews({})
+    setExecutionHistory([])
+    setSelectedExecution('')
+  }
+
+  const handleNewTask = () => {
+    handleResetAll()
+    setActiveRunId('')
+    window.localStorage.removeItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY)
+    addTimeline('已新建 Backport 任务', 'info', '导入 Excel 后会创建新的运行归档。')
+  }
+
+  const handleSelectRun = (runId: string) => {
+    const selected = runHistory.find(run => run.run_id === runId)
+    void restoreRun(runId, configRef.current, selected)
+  }
+
+  const handleSelectExecution = (value: string) => {
+    const execution = executionHistory.find(item => String(item.execution) === value)
+    if (!execution?.report_path) return
+    setSelectedExecution(value)
+    void backportService
+      .loadReport({
+        config: configRef.current,
+        baseReportPath: execution.report_path,
+      })
+      .then(response => {
+        applyOperationResult(response.parsedResult)
+        setStage(execution.status === 'success' ? 'completed' : 'interactive_editing')
+        addTimeline(
+          `已切换到 Run #${execution.execution}`,
+          'info',
+          execution.report_path,
+        )
+      })
+      .catch(cause => {
+        toast({
+          title: '历史执行加载失败',
+          description: cause instanceof Error ? cause.message : '无法读取历史 report',
+          variant: 'destructive',
+        })
+      })
   }
 
   const toggleRowSelection = (rowId: string, checked: boolean) => {
@@ -1344,6 +2503,71 @@ export function BackportPage() {
     }
   }, [workingCommits])
 
+  const conflictReportText = useMemo(
+    () => buildConflictReportText(workingCommits),
+    [workingCommits],
+  )
+
+  const runAllPhaseLabel = useMemo(() => {
+    if (!runAllProgress?.phase) return ''
+    const labels: Record<string, string> = {
+      initializing: '初始化',
+      checking: '检查',
+      applying: '应用',
+      resolving: '解冲突',
+      skipped: '跳过',
+      failed: '失败',
+      completed: '完成',
+      pause_requested: '暂停中',
+      paused: '已暂停',
+    }
+    return labels[runAllProgress.phase] || runAllProgress.phase
+  }, [runAllProgress])
+
+  const runAllDisplayLabel = useMemo(() => {
+    if (runAllPauseState === 'paused') return '已暂停'
+    if (runAllPauseState === 'pause_requested') return '暂停中'
+    return runAllPhaseLabel || '运行中'
+  }, [runAllPauseState, runAllPhaseLabel])
+
+  const runAllDisplayMessage = useMemo(() => {
+    if (runAllPauseState === 'pause_requested') return '正在完成当前 commit，完成后暂停并保存 report'
+    if (runAllPauseState === 'paused') return '已暂停，report 已保存，可继续'
+    return runAllProgress?.message || '正在处理 Backport 任务'
+  }, [runAllPauseState, runAllProgress?.message])
+
+  const runAllProgressPercent = useMemo(() => {
+    const current = toRunAllNumber(runAllProgress?.current_index)
+    const total = toRunAllNumber(runAllProgress?.total)
+    if (total <= 0) return 0
+    return Math.min(100, Math.max(0, Math.round((current / total) * 100)))
+  }, [runAllProgress])
+
+  const hasRunAllIndex =
+    hasRunAllNumber(runAllProgress?.current_index) && hasRunAllNumber(runAllProgress?.total)
+
+  const sourceConfigSummary = sourceRepository
+    ? `${sourceRepository.display_name} ${
+        sourceRepository.selected_branch || sourceRepository.current_branch || sourceRepository.default_branch || '未选分支'
+      }`
+    : '源仓库未配置'
+  const targetConfigSummary = targetRepository
+    ? `${targetRepository.display_name} ${
+        targetRepository.selected_branch || targetRepository.current_branch || targetRepository.default_branch || '未选分支'
+      }`
+    : '目标仓库未配置'
+  const signerConfigSummary =
+    config.signer_name.trim() && config.signer_email.trim() ? '提交身份已设置' : '提交身份待设置'
+  const runtimeConfigSummary = loadingRuntimeStatus
+    ? '环境检查中'
+    : runtimeStatus?.ok
+      ? '环境检查完成'
+      : '环境待配置'
+  const overallConfigSummary =
+    sourceRepository && targetRepository && config.signer_name.trim() && config.signer_email.trim() && runtimeStatus?.ok
+      ? '配置已就绪'
+      : '配置待完善'
+
   return (
     <div className="h-full w-full overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_36%),linear-gradient(180deg,rgba(248,250,252,0.95),rgba(255,255,255,1))]">
       <div className="mx-auto max-w-7xl space-y-4 p-4">
@@ -1361,6 +2585,55 @@ export function BackportPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {runHistory.length > 0 ? (
+              <Select
+                value={activeRunId || undefined}
+                onValueChange={handleSelectRun}
+                disabled={running || restoringRun}
+              >
+                <SelectTrigger className="h-8 w-[220px] bg-white text-xs">
+                  <SelectValue placeholder="选择历史任务" />
+                </SelectTrigger>
+                <SelectContent>
+                  {runHistory.map(run => (
+                    <SelectItem key={run.run_id} value={run.run_id}>
+                      {run.display_name} · {run.status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            {executionHistory.length > 0 ? (
+              <Select
+                value={selectedExecution || undefined}
+                onValueChange={handleSelectExecution}
+                disabled={running || restoringRun}
+              >
+                <SelectTrigger className="h-8 w-[150px] bg-white text-xs">
+                  <SelectValue placeholder="选择 Run" />
+                </SelectTrigger>
+                <SelectContent>
+                  {executionHistory.map(execution => (
+                    <SelectItem
+                      key={execution.execution}
+                      value={String(execution.execution)}
+                      disabled={!execution.report_path}
+                    >
+                      Run #{execution.execution} · {execution.status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNewTask}
+              disabled={running || restoringRun}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              新建任务
+            </Button>
             <Badge
               variant="outline"
               className={cn(
@@ -1393,263 +2666,465 @@ export function BackportPage() {
               重置页面
             </Button>
           </div>
-        </div>
-
-        <Card>
-          <CardHeader className={cn(configExpanded ? 'pb-2' : 'py-3')}>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle>执行配置</CardTitle>
-                <CardDescription>配置 Backport 所需的仓库、分支和 signer 参数</CardDescription>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleSaveConfig()}
-                  disabled={savingConfig || running || loadingConfig}
-                >
-                  <Save className="mr-1 h-4 w-4" />
-                  {savingConfig ? '保存中...' : '保存'}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setConfigExpanded(prev => !prev)}>
-                  {configExpanded ? (
-                    <>
-                      <ChevronUp className="mr-1 h-4 w-4" />
-                      收起
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="mr-1 h-4 w-4" />
-                      展开
-                    </>
-                  )}
-                </Button>
+          {runAllStatusCardVisible && runAllProgress ? (
+            <div className="xl:basis-full">
+              <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-blue-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-white text-blue-700">
+                      <RefreshCw
+                        className={cn(
+                          'h-3.5 w-3.5',
+                          runAllPauseState !== 'paused' && 'animate-spin'
+                        )}
+                      />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                        <span>一键运行 · {runAllDisplayLabel}</span>
+                        {hasRunAllIndex ? (
+                          <span className="rounded-md border border-blue-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-blue-700">
+                            {runAllProgress.current_index}/{runAllProgress.total}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-1 line-clamp-2 text-xs leading-5 text-blue-700">
+                        {runAllDisplayMessage}
+                        {runAllProgress.current_title ? (
+                          <span className="ml-2 font-mono text-blue-800">
+                            {runAllProgress.current_title}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2 text-xs text-blue-700">
+                    <span>已处理 {toRunAllNumber(runAllProgress.processed_count)}</span>
+                    <span>失败 {toRunAllNumber(runAllProgress.failed_count)}</span>
+                    <span className="font-mono">{runAllProgressPercent}%</span>
+                  </div>
+                </div>
+                <Progress
+                  value={runAllProgressPercent}
+                  className="mt-3 h-1.5 bg-blue-100 [&>div]:bg-blue-600"
+                />
               </div>
             </div>
-          </CardHeader>
+          ) : null}
+        </div>
 
-          {configExpanded ? (
-            <CardContent className="grid gap-4 pt-0 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-              <div className="rounded-2xl border border-slate-200/80 bg-[linear-gradient(180deg,rgba(248,250,252,0.95),rgba(255,255,255,0.98))] p-4 shadow-sm">
-                <div className="mb-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    Repository Setup
-                  </p>
-                  <h4 className="mt-1 text-sm font-semibold text-foreground">基础仓库配置</h4>
+        <RepositoryAccessPanel
+          sourceRepository={sourceRepository}
+          targetRepository={targetRepository}
+          preparingRole={repositoryPreparingRole}
+          prepareTask={repositoryPrepareTask}
+          running={running}
+          expanded={configExpanded}
+          headerAction={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleSaveConfig()}
+                disabled={savingConfig || running || loadingConfig}
+              >
+                <Save className="mr-1 h-4 w-4" />
+                {savingConfig ? '保存中...' : '保存为模板'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfigExpanded(prev => !prev)}>
+                {configExpanded ? (
+                  <>
+                    <ChevronUp className="mr-1 h-4 w-4" />
+                    收起配置
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="mr-1 h-4 w-4" />
+                    展开配置
+                  </>
+                )}
+              </Button>
+            </div>
+          }
+          collapsedSummary={
+            <>
+              <span className="font-medium text-slate-950">{overallConfigSummary}：</span>
+              <span>{sourceConfigSummary}</span>
+              <span className="px-1.5 text-slate-400">-&gt;</span>
+              <span>{targetConfigSummary}</span>
+              <span className="px-1.5 text-slate-300">·</span>
+              <span>{signerConfigSummary}</span>
+              <span className="px-1.5 text-slate-300">·</span>
+              <span>{runtimeConfigSummary}</span>
+            </>
+          }
+          summary={
+            <div className="space-y-3 text-sm">
+              <div className="grid gap-3 border-t border-slate-100 pt-3 lg:grid-cols-2">
+                <div
+                  className={cn(
+                    'min-w-0',
+                    config.signer_name.trim() && config.signer_email.trim()
+                      ? 'text-slate-700'
+                      : 'text-amber-800'
+                  )}
+                >
+                  <span className="text-slate-500">提交身份：</span>
+                  {config.signer_name.trim() && config.signer_email.trim() ? (
+                    <span className="font-mono text-slate-950">
+                      {config.signer_name.trim()} &lt;{config.signer_email.trim()}&gt;
+                    </span>
+                  ) : (
+                    <span>需要设置提交人姓名和邮箱</span>
+                  )}
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="ml-2 h-auto px-0 py-0 text-sm"
+                    onClick={() => setSignerEditorOpen(prev => !prev)}
+                  >
+                    {signerEditorOpen
+                      ? '收起'
+                      : config.signer_name.trim() && config.signer_email.trim()
+                        ? '修改'
+                        : '设置'}
+                  </Button>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="space-y-1 md:col-span-2">
-                    <p className="text-xs text-muted-foreground">项目地址 (project_url)</p>
-                    <Input
-                      value={config.project_url}
-                      onChange={e => setConfig(prev => ({ ...prev, project_url: e.target.value }))}
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">源仓目录 (project_dir)</p>
-                    <Input
-                      value={config.project_dir}
-                      onChange={e => setConfig(prev => ({ ...prev, project_dir: e.target.value }))}
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">源分支 (source_branch)</p>
-                    <Input
-                      value={config.source_branch}
-                      onChange={e =>
-                        setConfig(prev => ({ ...prev, source_branch: e.target.value }))
-                      }
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">目标仓目录 (target_path)</p>
-                    <Input
-                      value={config.target_path}
-                      onChange={e => setConfig(prev => ({ ...prev, target_path: e.target.value }))}
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">目标分支 (target_release)</p>
-                    <Input
-                      value={config.target_release}
-                      onChange={e =>
-                        setConfig(prev => ({ ...prev, target_release: e.target.value }))
-                      }
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1 md:col-span-2">
-                    <p className="text-xs text-muted-foreground">
-                      补丁数据集目录 (patch_dataset_dir)
-                    </p>
-                    <Input
-                      value={config.patch_dataset_dir}
-                      onChange={e =>
-                        setConfig(prev => ({ ...prev, patch_dataset_dir: e.target.value }))
-                      }
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1 md:col-span-2">
-                    <p className="text-xs text-muted-foreground">
-                      Linux 验证仓库 (linux_repo_path)
-                    </p>
-                    <Input
-                      value={config.linux_repo_path}
-                      onChange={e =>
-                        setConfig(prev => ({ ...prev, linux_repo_path: e.target.value }))
-                      }
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] p-4 shadow-sm">
-                <div className="mb-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    Commit Identity
-                  </p>
-                  <h4 className="mt-1 text-sm font-semibold text-foreground">提交身份设置</h4>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    执行回移植补丁应用时传给 agent 的 signer 信息
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">提交人姓名 (signer_name)</p>
-                    <Input
-                      value={config.signer_name}
-                      onChange={e => setConfig(prev => ({ ...prev, signer_name: e.target.value }))}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">提交人邮箱 (signer_email)</p>
-                    <Input
-                      type="email"
-                      value={config.signer_email}
-                      onChange={e => setConfig(prev => ({ ...prev, signer_email: e.target.value }))}
-                      className="text-xs"
-                    />
-                  </div>
-                  <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      当前 report
-                    </div>
-                    <div className="mt-1 break-all font-mono text-[12px] text-slate-900">
-                      {baseReportPath || '--'}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      过滤后 report
-                    </div>
-                    <div className="mt-1 break-all font-mono text-[12px] text-slate-900">
-                      {filteredReportPath || '--'}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      生成配置路径
-                    </div>
-                    <div className="mt-1 break-all font-mono text-[12px] text-slate-900">
-                      {configPath || '--'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm xl:col-span-2">
-                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">
-                      Message Template
-                    </p>
-                    <h4 className="mt-1 text-sm font-semibold text-foreground">
-                      目标仓库提交信息模板
-                    </h4>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-2 text-xs text-muted-foreground">
-                      <span>可用变量：</span>
-                      <span>{'{{subject}}'}、</span>
-                      <span>{'{{commit_id}}'}、</span>
-                      <span>{'{{source}}'} =</span>
-                      <Select
-                        value={config.commit_message_source}
-                        onValueChange={value =>
-                          setConfig(prev => ({
-                            ...prev,
-                            commit_message_source:
-                              value === 'openEuler' || value === 'upstream' ? value : 'auto',
-                          }))
-                        }
-                        disabled={running || loadingConfig}
-                      >
-                        <SelectTrigger className="h-7 w-[156px] bg-white px-2 text-xs" size="sm">
-                          <SelectValue placeholder="自动判断" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="auto">自动判断</SelectItem>
-                          <SelectItem value="openEuler">全部使用 openEuler</SelectItem>
-                          <SelectItem value="upstream">全部使用 upstream</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <span>
-                        、{'{{body}}'}、{'{{trailers}}'}
+                <div
+                  className={cn(
+                    'min-w-0 lg:justify-self-start',
+                    loadingRuntimeStatus
+                      ? 'text-slate-600'
+                      : runtimeStatus?.ok
+                        ? 'text-slate-700'
+                        : 'text-amber-800'
+                  )}
+                >
+                  <span className="text-slate-500">环境状态：</span>
+                  {loadingRuntimeStatus ? (
+                    <span>正在检查...</span>
+                  ) : runtimeStatus?.ok ? (
+                    <>
+                      <span className="mx-1 inline-block h-1.5 w-1.5 rounded-full bg-slate-950 align-middle" />
+                      <span>检查完成</span>
+                      <span className="ml-2 text-xs text-slate-500">
+                        模型 {runtimeStatus.model_name || selectedBackportModel?.name || '已配置'}，cvekit 已找到
                       </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-end gap-3">
+                    </>
+                  ) : (
+                    <span>{runtimeStatus?.errors[0] || '请先配置可用模型、密钥，并确认 cvekit 可用。'}</span>
+                  )}
+
+                  {runtimeStatus?.ok ? (
+
                     <Button
-                      variant="outline"
+                      type="button"
+                      variant="link"
                       size="sm"
-                      onClick={() =>
+                      className="ml-2 h-auto px-0 py-0 text-sm"
+                      onClick={() => setRuntimeModelSelectorOpen(prev => !prev)}
+                    >
+                      {runtimeModelSelectorOpen ? '收起' : '切换模型'}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="ml-2 h-auto px-0 py-0 text-sm"
+                      onClick={openModelSettings}
+                    >
+                      去模型设置
+                    </Button>
+                  )}
+                  {!runtimeStatus?.ok && !loadingRuntimeStatus ? (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="ml-2 h-auto px-0 py-0 text-sm"
+                      onClick={() => void loadRuntimeStatus(config)}
+                      disabled={loadingRuntimeStatus}
+                    >
+                      重新检测
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+
+              {signerEditorOpen ? (
+                <div className="grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2">
+                  <Input
+                    value={config.signer_name}
+                    onChange={e => setConfig(prev => ({ ...prev, signer_name: e.target.value }))}
+                    placeholder="提交人姓名"
+                    className="h-8 bg-white text-xs"
+                    disabled={running || loadingConfig}
+                  />
+                  <Input
+                    type="email"
+                    value={config.signer_email}
+                    onChange={e => setConfig(prev => ({ ...prev, signer_email: e.target.value }))}
+                    placeholder="提交人邮箱"
+                    className="h-8 bg-white text-xs"
+                    disabled={running || loadingConfig}
+                  />
+                </div>
+              ) : null}
+
+              {runtimeModelSelectorOpen ? (
+                <div className="grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-[280px_minmax(0,1fr)] sm:items-center">
+                  <Select
+                    value={config.backport_model_id || BACKPORT_MODEL_EMPTY_VALUE}
+                    onValueChange={value => {
+                      const nextModelId = value === BACKPORT_MODEL_EMPTY_VALUE ? '' : value
+                      const nextConfig = {
+                        ...config,
+                        backport_model_id: nextModelId,
+                      }
+                      setConfig(nextConfig)
+                      void handleSaveConfig(true, nextConfig)
+                      void loadRuntimeStatus(nextConfig)
+                    }}
+                    disabled={
+                      running ||
+                      loadingConfig ||
+                      loadingModels ||
+                      compatibleBackportModels.length === 0
+                    }
+                  >
+                    <SelectTrigger className="h-8 bg-white text-xs text-slate-900">
+                      <SelectValue placeholder={loadingModels ? '加载模型中...' : '选择运行模型'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={BACKPORT_MODEL_EMPTY_VALUE}>未选择</SelectItem>
+                      {compatibleBackportModels.map(model => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {formatBackportModelLabel(model)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="truncate text-xs text-slate-500">
+                    {selectedBackportModel?.apiBaseUrl || '将使用 cvekit 对应模型服务的默认地址。'}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          }
+          onAddRepository={(role) => openRepositoryDialog(role, 'add')}
+          onSelectRecentRepository={(role) => openRepositoryDialog(role, 'recent')}
+          onRefreshRepository={(role) => void handleRefreshRepository(role)}
+          onBranchChange={handleRepositoryBranchChange}
+        >
+          <div className="space-y-0">
+            <section className="grid gap-3 py-4 lg:grid-cols-[140px_minmax(0,1fr)]">
+              <div>
+                <h4 className="text-sm font-medium text-slate-900">提交信息来源</h4>
+                <p className="mt-1 text-xs text-muted-foreground">决定模板里的 {'{{source}}'}。</p>
+              </div>
+              <div className="space-y-2">
+                <div className="grid gap-3 lg:grid-cols-[180px_minmax(0,1fr)]">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">来源规则</p>
+                    <Select
+                      value={config.commit_message_source}
+                      onValueChange={value =>
                         setConfig(prev => ({
                           ...prev,
-                          commit_message_template: DEFAULT_COMMIT_MESSAGE_TEMPLATE,
+                          commit_message_source:
+                            value === 'openEuler' || value === 'upstream' ? value : 'auto',
                         }))
                       }
                       disabled={running || loadingConfig}
                     >
-                      <RotateCcw className="mr-1 h-4 w-4" />
-                      恢复默认模板
-                    </Button>
+                      <SelectTrigger className="h-9 bg-white text-xs">
+                        <SelectValue placeholder="自动判断" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">自动判断</SelectItem>
+                        <SelectItem value="openEuler">全部使用 openEuler</SelectItem>
+                        <SelectItem value="upstream">全部使用 upstream</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {config.commit_message_source === 'auto' ? (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Linux 上游仓库</p>
+                      <Input
+                        value={config.linux_repo_path}
+                        onChange={e =>
+                          setConfig(prev => ({ ...prev, linux_repo_path: e.target.value }))
+                        }
+                        className="font-mono text-xs"
+                        placeholder="例如 ~/Image/linux"
+                        disabled={running || loadingConfig}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex min-h-9 items-end pb-1 text-xs leading-5 text-muted-foreground">
+                      当前会直接写入 {config.commit_message_source}，不需要配置 Linux 上游仓库。
+                    </div>
+                  )}
+                </div>
+                {config.commit_message_source === 'auto' ? (
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    自动判断时会在 Linux 上游仓库中搜索原始提交；找到则使用 upstream，否则使用 openEuler。
+                  </p>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="grid gap-3 border-t border-slate-100 py-4 lg:grid-cols-[140px_minmax(0,1fr)]">
+              <div>
+                <h4 className="text-sm font-medium text-slate-900">目标配置布局</h4>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  仅目标仓需要拆分配置文件时调整。
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">布局类型</p>
+                    <Select
+                      value={config.target_config_layout}
+                      onValueChange={value =>
+                        setConfig(prev => ({
+                          ...prev,
+                          target_config_layout: value === 'anolis' ? 'anolis' : 'none',
+                        }))
+                      }
+                      disabled={running || loadingConfig}
+                    >
+                      <SelectTrigger className="h-9 bg-white text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">不启用</SelectItem>
+                        <SelectItem value="anolis">Anolis 拆分配置</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">新建配置默认 Level</p>
+                    <Select
+                      value={config.target_config_layout_opts.default_level}
+                      onValueChange={value =>
+                        setConfig(prev => ({
+                          ...prev,
+                          target_config_layout_opts: {
+                            ...prev.target_config_layout_opts,
+                            default_level:
+                              value === 'L0-MANDATORY' || value === 'L2-OPTIONAL'
+                                ? value
+                                : 'L1-RECOMMEND',
+                          },
+                        }))
+                      }
+                      disabled={running || loadingConfig || config.target_config_layout !== 'anolis'}
+                    >
+                      <SelectTrigger className="h-9 bg-white text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="L0-MANDATORY">L0-MANDATORY</SelectItem>
+                        <SelectItem value="L1-RECOMMEND">L1-RECOMMEND（默认）</SelectItem>
+                        <SelectItem value="L2-OPTIONAL">L2-OPTIONAL</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                <Textarea
-                  value={config.commit_message_template}
-                  onChange={event =>
-                    setConfig(prev => ({ ...prev, commit_message_template: event.target.value }))
-                  }
-                  onBlur={() =>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  启用 Anolis 后，defconfig 中的 CONFIG_* 变更会映射到目标仓的独立配置文件。
+                </p>
+              </div>
+            </section>
+
+            <section className="space-y-3 border-t border-slate-100 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-medium text-slate-900">提交信息模板</h4>
+                  <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                    {['{{subject}}', '{{commit_id}}', '{{source}}', '{{body}}', '{{trailers}}'].map(item => (
+                      <span key={item} className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[11px]">
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
                     setConfig(prev => ({
                       ...prev,
-                      commit_message_template: prev.commit_message_template.trim()
-                        ? prev.commit_message_template
-                        : DEFAULT_COMMIT_MESSAGE_TEMPLATE,
+                      commit_message_template: DEFAULT_COMMIT_MESSAGE_TEMPLATE,
                     }))
                   }
-                  className="min-h-[220px] resize-y font-mono text-xs leading-5"
-                  spellCheck={false}
+                  disabled={running || loadingConfig}
+                >
+                  <RotateCcw className="mr-1 h-4 w-4" />
+                  恢复默认模板
+                </Button>
+              </div>
+              <Textarea
+                value={config.commit_message_template}
+                onChange={event =>
+                  setConfig(prev => ({ ...prev, commit_message_template: event.target.value }))
+                }
+                onBlur={() =>
+                  setConfig(prev => ({
+                    ...prev,
+                    commit_message_template: prev.commit_message_template.trim()
+                      ? prev.commit_message_template
+                      : DEFAULT_COMMIT_MESSAGE_TEMPLATE,
+                  }))
+                }
+                className="min-h-[160px] resize-y font-mono text-xs leading-5"
+                spellCheck={false}
+              />
+            </section>
+
+            <section className="grid gap-3 border-t border-slate-100 py-4 lg:grid-cols-[140px_minmax(0,1fr)]">
+              <div>
+                <h4 className="text-sm font-medium text-slate-900">执行选项</h4>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-slate-900">执行时生成冲突报告</div>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    对解冲突补丁进行 AI 评分，会增加执行耗时。
+                  </p>
+                </div>
+                <Switch
+                  checked={Boolean(config.cvekit_options.enable_conflict_summary)}
+                  onCheckedChange={checked =>
+                    setConfig(prev => ({
+                      ...prev,
+                      cvekit_options: {
+                        ...prev.cvekit_options,
+                        enable_conflict_summary: checked,
+                      },
+                    }))
+                  }
+                  disabled={running || loadingConfig}
+                  aria-label="执行时生成冲突报告"
                 />
               </div>
-            </CardContent>
-          ) : null}
-        </Card>
+            </section>
+
+          </div>
+        </RepositoryAccessPanel>
 
         <CommitTable
           excelPath={excelPath}
           onExcelPathChange={setExcelPath}
           running={running}
           runningLabel={runningLabel}
+          canPauseRunAll={Boolean(runAllControl) && runAllPauseState === 'running'}
+          runAllPauseState={runAllPauseState}
           baseReportPath={baseReportPath}
           filteredRows={filteredRows}
           paginatedRows={paginatedRows}
@@ -1680,6 +3155,10 @@ export function BackportPage() {
           canContinueReport={canContinueReport}
           onOpenPathBrowser={openPathBrowser}
           onGenerateReport={handleGenerateReport}
+          generateReportLabel={activeRunId ? '导入 Excel 新版本' : '导入 Excel 并生成报告'}
+          onRunAll={handleRunAll}
+          runAllIdleLabel={stage === 'completed' ? '基于当前仓库重新执行' : '一键运行'}
+          onPauseRunAll={handlePauseRunAll}
           onContinueReport={handleContinueReport}
           onExecuteSelected={handleExecuteSelected}
           onDeleteSelectedRows={handleDeleteSelectedRows}
@@ -1688,10 +3167,10 @@ export function BackportPage() {
           onCopyText={handleCopyText}
           onLoadPatchPreview={(row, resource) => void loadPatchPreview(row, resource)}
           canAnalyzeConflictRow={canAnalyzeConflictRow}
-          onAnalyzeConflictRow={(row) => void handleAnalyzeConflictRow(row)}
+          onAnalyzeConflictRow={row => void handleAnalyzeConflictRow(row)}
           firstBlockingConflictRowId={firstBlockingConflictRowId}
           canRecheckConflictRow={canRecheckConflictRow}
-          onRecheckConflictRow={(row) => void handleRecheckConflictRow(row)}
+          onRecheckConflictRow={row => void handleRecheckConflictRow(row)}
           canApplyRow={canApplyRow}
           canResolveConflictRow={canResolveConflictRow}
           onApplyRow={row => void handleApplyRow(row)}
@@ -1711,6 +3190,7 @@ export function BackportPage() {
             targetPath={config.target_path}
             running={running}
             timeline={timeline}
+            conflictReportText={conflictReportText}
             gitLogEntries={gitLogEntries}
             gitLogLoading={gitLogLoading}
             gitShowLoading={gitShowLoading}
@@ -1745,6 +3225,8 @@ export function BackportPage() {
         }}
         manualPatchLoading={manualPatchLoading}
         manualPatchResult={manualPatchResult}
+        attemptHistory={attemptHistory}
+        attemptHistoryLoading={attemptHistoryLoading}
         onCheckManualPatch={() => void handleCheckManualPatch()}
         onApplyManualPatch={() => void handleApplyManualPatch()}
         onUpdateMergedInTarget={updateMergedInTarget}
@@ -1754,6 +3236,146 @@ export function BackportPage() {
         commitMessagePreviewLoading={commitMessagePreviewLoadingRowId === inspectedRow?.rowId}
         onRefreshCommitMessagePreview={row => void handleRefreshCommitMessagePreview(row)}
       />
+
+      <Dialog open={repositoryDialogRole !== null} onOpenChange={(open) => !open && closeRepositoryDialog()}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {repositoryMode === 'recent'
+                ? `选择已有${repositoryDialogRole === 'source' ? '源仓库' : '目标仓库'}`
+                : `添加${repositoryDialogRole === 'source' ? '源仓库' : '目标仓库'}`}
+            </DialogTitle>
+            <DialogDescription>
+              {repositoryMode === 'recent'
+                ? '选择系统之前准备过的仓库，分支仍可在卡片中重新选择。'
+                : '粘贴 Git URL 或服务器上的本地仓库路径，系统会检测并准备成可用状态。'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {repositoryMode === 'recent' ? (
+            <div className="max-h-[420px] overflow-auto rounded-lg border border-slate-200">
+              {recentRepositories.filter(item => item.role === repositoryDialogRole).length === 0 ? (
+                <div className="px-3 py-10 text-center text-sm text-slate-500">
+                  暂无最近使用的{repositoryDialogRole === 'source' ? '源仓库' : '目标仓库'}
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {recentRepositories
+                    .filter(item => item.role === repositoryDialogRole)
+                    .map((repository) => (
+                      <button
+                        key={`${repository.role}-${repository.local_path}-${repository.source_url}`}
+                        className="flex w-full items-start justify-between gap-3 px-3 py-3 text-left hover:bg-slate-50"
+                        onClick={() => void handleSelectRecentRepository(repository)}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-slate-950">
+                            {repository.display_name}
+                          </div>
+                          <div className="mt-1 truncate font-mono text-[11px] text-slate-500">
+                            {repository.source_url || repository.local_path}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {repository.selected_branch || repository.default_branch || '未设置分支'}
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="shrink-0 text-[10px]">
+                          {repository.input_type === 'remote' ? '远程' : '本地'}
+                        </Badge>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Input
+                  value={repositoryInput}
+                  onChange={(event) => setRepositoryInput(event.target.value)}
+                  placeholder="https://gitcode.com/openeuler/kernel.git 或 ~/Image/kernel"
+                  className="font-mono text-xs"
+                  disabled={repositoryPrepareTask?.status === 'running'}
+                />
+                <div className="text-xs text-slate-500">
+                  {repositoryInput.trim()
+                    ? /^(https?:\/\/|ssh:\/\/|git:\/\/|[^@\s]+@[^:\s]+:)/.test(repositoryInput.trim())
+                      ? '已识别：远程 Git 仓库'
+                      : '已识别：服务器本地路径'
+                    : '支持 HTTPS、SSH Git 地址，也支持 /home/... 或 ~/... 本地路径。'}
+                </div>
+              </div>
+
+              {repositoryPrepareTask ? (
+                <div
+                  className={cn(
+                    'rounded-lg border px-3 py-3',
+                    repositoryPrepareTask.status === 'failed'
+                      ? 'border-red-200 bg-red-50'
+                      : repositoryPrepareTask.status === 'success'
+                        ? 'border-emerald-200 bg-emerald-50'
+                        : 'border-blue-200 bg-blue-50',
+                  )}
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    {repositoryPrepareTask.status === 'running' ? (
+                      <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
+                    ) : null}
+                    <span>
+                      {repositoryPrepareTask.status === 'failed'
+                        ? '准备失败'
+                        : repositoryPrepareTask.status === 'success'
+                          ? '准备完成'
+                          : '正在准备仓库'}
+                    </span>
+                    <span className="ml-auto font-mono text-xs">
+                      {repositoryPrepareTask.progress}%
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/80">
+                    <div className="h-full bg-blue-600 transition-all" style={{ width: `${repositoryPrepareTask.progress || 8}%` }} />
+                  </div>
+                  {repositoryPrepareTask.error ? (
+                    <div className="mt-2 text-xs leading-5 text-red-700">{repositoryPrepareTask.error}</div>
+                  ) : null}
+                  {repositoryPrepareTask.steps.length > 0 ? (
+                    <div className="mt-2 space-y-1 text-xs text-slate-600">
+                      {repositoryPrepareTask.steps.slice(-5).map((step, index) => (
+                        <div key={`${step.title}-${index}`}>
+                          <div>{step.title}</div>
+                          {step.detail ? (
+                            <div className="truncate font-mono text-[11px] text-slate-500">
+                              {step.detail}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeRepositoryDialog} disabled={repositoryPrepareTask?.status === 'running'}>
+              关闭
+            </Button>
+            {repositoryMode === 'add' ? (
+              <Button
+                type="button"
+                onClick={() => void handlePrepareRepository()}
+                disabled={!repositoryInput.trim() || repositoryPrepareTask?.status === 'running'}
+              >
+                {repositoryPrepareTask?.status === 'running' ? (
+                  <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
+                ) : null}
+                检测并准备
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={pathBrowserOpen} onOpenChange={setPathBrowserOpen}>
         <DialogContent className="max-w-3xl">

@@ -6,13 +6,25 @@ export type BackportStage =
   | 'executing'
   | 'completed'
   | 'failed'
+  | 'paused'
+
+export type BackportTargetConfigLayout = 'none' | 'anolis'
+
+export type BackportTargetConfigDefaultLevel = 'L0-MANDATORY' | 'L1-RECOMMEND' | 'L2-OPTIONAL'
+
+export interface BackportTargetConfigLayoutOptions {
+  default_level: BackportTargetConfigDefaultLevel
+}
 
 export interface BackportConfig {
   project_url: string
+  backport_model_id: string
   project_dir: string
   source_branch: string
   target_path: string
   target_release: string
+  target_config_layout: BackportTargetConfigLayout
+  target_config_layout_opts: BackportTargetConfigLayoutOptions
   patch_dataset_dir: string
   signer_name: string
   signer_email: string
@@ -23,11 +35,68 @@ export interface BackportConfig {
   current_excel_path: string
   current_report_path: string
   current_filtered_report_path: string
+  source_repo_input?: string
+  target_repo_input?: string
+  source_repo_state?: BackportRepositoryInfo | null
+  target_repo_state?: BackportRepositoryInfo | null
+  cvekit_options: Record<string, unknown>
 }
 
 export interface BackportConfigUpdateResponse {
   ok: boolean
   config_path?: string
+}
+
+export interface BackportRuntimeStatus {
+  ok: boolean
+  model_configured: boolean
+  model_name: string
+  model_provider: string
+  api_key_available: boolean
+  cvekit_available: boolean
+  cvekit_path: string
+  errors: string[]
+}
+
+export type BackportRepositoryRole = 'source' | 'target'
+
+export interface BackportRepositoryInfo {
+  role: BackportRepositoryRole
+  input: string
+  input_type: 'remote' | 'local'
+  display_name: string
+  source_url: string
+  local_path: string
+  default_branch: string
+  selected_branch: string
+  current_branch: string
+  head: string
+  short_head: string
+  local_branches: string[]
+  remote_branches: string[]
+  status_clean: boolean
+  operation_in_progress: boolean
+  writable: boolean
+  can_read: boolean
+  can_write: boolean
+  warnings: string[]
+  cache_dir: string
+  updated_at: number
+}
+
+export interface BackportRepositoryPrepareResponse {
+  task_id: string
+  status: 'running' | 'success' | 'failed'
+  role: BackportRepositoryRole
+  input: string
+  progress: number
+  steps: Array<{ title: string; status: string; detail?: string }>
+  result: BackportRepositoryInfo | null
+  error: string
+}
+
+export interface BackportRecentRepositoriesResponse {
+  repositories: BackportRepositoryInfo[]
 }
 
 export interface BackportBrowseEntry {
@@ -105,12 +174,17 @@ export interface BackportToolSnapshot {
 }
 
 export interface BackportOperationArtifacts {
+  run_id?: string
   run_dir?: string
   config_path?: string
   base_config_path?: string
   report_path?: string
   base_report_path?: string
   filtered_report_path?: string
+  latest_report_path?: string
+  execution_dir?: string
+  attempt_dir?: string
+  case_dir?: string
 }
 
 export interface BackportOperationDiagnostics {
@@ -163,9 +237,162 @@ export interface BackportRunResponse {
   toolSnapshots: BackportToolSnapshot[]
 }
 
+export interface BackportRunProgress {
+  phase?: string
+  message?: string
+  current_report_path?: string
+  current_index?: number
+  total?: number
+  current_commit?: string
+  current_title?: string
+  current_row_id?: string
+  processed_count?: number
+  failed_count?: number
+  updated_commits?: BackportCommitItem[]
+  conflict_report_summary?: Record<string, unknown>
+}
+
+export interface BackportAsyncRunResponse {
+  run_id: string
+  action: string
+  status:
+    | 'generating'
+    | 'ready'
+    | 'generation_failed'
+    | 'pending'
+    | 'running'
+    | 'paused'
+    | 'success'
+    | 'completed'
+    | 'completed_with_failures'
+    | 'failed'
+    | 'interrupted'
+  result: BackportRunResponse | null
+  error: string
+  progress?: BackportRunProgress | null
+  pause_requested?: boolean
+  paused_at?: number | null
+}
+
+export interface BackportRunSummary extends BackportAsyncRunResponse {
+  display_name: string
+  created_at: string
+  updated_at: string
+  current_report_path: string
+  excel_path: string
+  commit_count: number
+  current_excel_version: number
+  current_execution: number
+  run_dir: string
+  target?: {
+    repository?: string
+    branch?: string
+    head?: string
+  }
+  summary?: {
+    total?: number
+    success?: number
+    failed?: number
+  }
+}
+
+export interface BackportRunListResponse {
+  runs: BackportRunSummary[]
+}
+
+export interface BackportAttemptPatch {
+  kind: string
+  source: string
+  archive: string
+}
+
+export interface BackportAttemptSummary {
+  execution: number
+  attempt_number: number
+  attempt_dir: string
+  updated_at: string
+  report_path: string
+  stdout_path: string
+  stderr_path: string
+  rows: BackportCommitItem[]
+  patches: BackportAttemptPatch[]
+  conflict_report: Record<string, unknown> | null
+}
+
+export interface BackportAttemptListResponse {
+  attempts: BackportAttemptSummary[]
+}
+
+export interface BackportExecutionSummary {
+  execution: number
+  status: string
+  action: string
+  created_at: string
+  updated_at: string
+  report_path: string
+  target: Record<string, unknown>
+  excel_version: number
+}
+
+export interface BackportExecutionListResponse {
+  executions: BackportExecutionSummary[]
+}
+
+export interface BackportRunAllControl {
+  runId: string
+  pause: () => Promise<BackportAsyncRunResponse>
+}
+
+export interface BackportRunAllLifecycle {
+  onRunCreated?: (control: BackportRunAllControl) => void
+  onRunUpdated?: (run: BackportAsyncRunResponse) => void
+}
+
+export type BackportRunAllPauseState = 'idle' | 'running' | 'pause_requested' | 'paused'
+
+export interface BackportRunAllUiState {
+  pauseState: BackportRunAllPauseState
+  progress: BackportRunProgress | null
+  control: BackportRunAllControl | null
+  rowStartedAt: Record<string, number>
+  lastProcessedCount: number
+  reportRefreshInFlight: boolean
+  pendingReportRefreshPath: string | null
+  statusCardVisible: boolean
+}
+
+export function resetRunAllStateForGeneratedReport(
+  _state: BackportRunAllUiState
+): BackportRunAllUiState {
+  return {
+    pauseState: 'idle',
+    progress: null,
+    control: null,
+    rowStartedAt: {},
+    lastProcessedCount: 0,
+    reportRefreshInFlight: false,
+    pendingReportRefreshPath: null,
+    statusCardVisible: false,
+  }
+}
+
 export interface BackportGenerateReportRequest {
   config: BackportConfig
   excelPath: string
+  runId?: string
+}
+
+export interface BackportLoadReportRequest {
+  config: BackportConfig
+  baseReportPath: string
+}
+
+export interface BackportRunAllRequest {
+  config: BackportConfig
+  excelPath: string
+  runId?: string
+  baseReportPath?: string
+  workingReportPath?: string
 }
 
 export interface BackportLoadGitLogRequest {

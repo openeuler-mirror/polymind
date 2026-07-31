@@ -39,6 +39,7 @@ export const PUBLIC_ENV_KEYS = [
   'NEXT_PUBLIC_DEBUG',
   'NEXT_PUBLIC_AUTH_TOKEN',
   'NEXT_PUBLIC_USE_MOCK_DATA',
+  'NEXT_WITTYHUB_API_URL',
 ] as const
 
 /**
@@ -62,6 +63,9 @@ export interface AppConfig {
     maxReconnectInterval: number
     heartbeatInterval: number
     heartbeatTimeout: number
+  }
+  marketplace: {
+    wittyhubApiUrl: string
   }
   // 应用配置
   app: {
@@ -107,6 +111,11 @@ export const appConfig: AppConfig = {
     },
     get heartbeatTimeout() {
       return Number(getConfigValue('NEXT_PUBLIC_RECONNECT_INTERVAL')) || 5000
+    },
+  },
+  marketplace: {
+    get wittyhubApiUrl() {
+      return getConfigValue('NEXT_WITTYHUB_API_URL') || 'http://127.0.0.1:8081'
     },
   },
   app: {

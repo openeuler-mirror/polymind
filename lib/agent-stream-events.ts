@@ -2,6 +2,7 @@ import type { ChatState } from '@/lib/store'
 import type { Message } from '@/lib/types'
 import { MessageStatus } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
+import { extractQuestions, clearQuestionFields } from '@/lib/stream-event-handler'
 
 type AgentStreamStore = Pick<
   ChatState,
@@ -124,11 +125,14 @@ export function handleAgentStreamEvent({
       break
     case 'message.completed':
     case 'turn.completed':
+      const completedText =
+        eventData.type === 'message.completed' ? eventData.payload?.text : undefined
+      const currentText = currentMessage.content ?? ''
       store.updateMessage(conversationId, nextAssistantMessageId, {
         content:
-          eventData.type === 'message.completed'
-            ? (eventData.payload?.text ?? currentMessage.content ?? '')
-            : (currentMessage.content ?? ''),
+          typeof completedText === 'string' && completedText.length > currentText.length
+            ? completedText
+            : currentText,
         isStreaming: false,
         toolCalls: currentMessage.toolCalls?.map(toolCall =>
           toolCall.status === 'running'
@@ -201,17 +205,17 @@ export function handleAgentStreamEvent({
       }
       break
     case 'tool.call.response':
-      if (eventData.payload?.name) {
+      if (eventData.payload?.name || eventData.payload?.tool_name) {
         const existingToolCall = currentMessage.toolCalls?.find(
           item =>
             (eventData.payload.tool_call_id && item.id === eventData.payload.tool_call_id) ||
             (!eventData.payload.tool_call_id &&
-              item.name === eventData.payload.name &&
+              item.name === (eventData.payload.name || eventData.payload.tool_name) &&
               item.status === 'running')
         )
         const toolCall = {
           id: eventData.payload.tool_call_id || existingToolCall?.id || generateUUID(),
-          name: eventData.payload.name,
+          name: eventData.payload.name || eventData.payload.tool_name,
           status: eventData.payload.is_error ? ('error' as const) : ('completed' as const),
           input: eventData.payload.arguments || existingToolCall?.input,
           output: eventData.payload.content,
@@ -248,6 +252,30 @@ export function handleAgentStreamEvent({
           },
         })
       }
+      break
+    case 'question.asked': {
+      const { questions, questionId } = extractQuestions(eventData.payload)
+      store.updateMessage(conversationId, nextAssistantMessageId, {
+        question: questions,
+        questionId,
+        events: [
+          ...(currentMessage.events || []),
+          {
+            type: 'question.asked',
+            content: questions?.[0]?.question || 'AI 提出了一个问题',
+            timestamp: eventData.ts_ms || Date.now(),
+          },
+        ],
+      })
+      break
+    }
+    case 'question.replied':
+    case 'question.rejected':
+      store.updateMessage(
+        conversationId,
+        nextAssistantMessageId,
+        clearQuestionFields(currentMessage.events)
+      )
       break
     case 'stream.error':
     case 'client.error':

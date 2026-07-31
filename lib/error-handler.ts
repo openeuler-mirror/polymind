@@ -59,6 +59,66 @@ export class AuthError extends ApiError {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function extractMessageFromPayload(payload: unknown): string | null {
+  if (!isRecord(payload)) {
+    return null
+  }
+
+  const nestedDetails = payload.details
+  if (isRecord(nestedDetails)) {
+    const nestedDetailsMessage = extractMessageFromPayload(nestedDetails)
+    if (nestedDetailsMessage) {
+      return nestedDetailsMessage
+    }
+  }
+
+  const directKeys = ['error', 'reason', 'upstream_error_message', 'message'] as const
+  for (const key of directKeys) {
+    const value = payload[key]
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
+  }
+
+  const nestedError = payload.error
+  if (isRecord(nestedError)) {
+    const nestedErrorMessage = extractMessageFromPayload(nestedError)
+    if (nestedErrorMessage) {
+      return nestedErrorMessage
+    }
+  }
+
+  const nestedUpstreamDetails = payload.upstream_error_details
+  if (isRecord(nestedUpstreamDetails)) {
+    return extractMessageFromPayload(nestedUpstreamDetails)
+  }
+
+  return null
+}
+
+export function extractApiErrorMessage(
+  error: unknown,
+  fallback: string = '发生未知错误，请稍后重试。'
+): string {
+  if (error instanceof ApiError) {
+    const payloadMessage = extractMessageFromPayload(error.details)
+    if (payloadMessage) {
+      return payloadMessage
+    }
+    return ErrorHandler.getErrorMessage(error)
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim()
+  }
+
+  return fallback
+}
+
 // 错误处理工具类
 class ErrorHandler {
   /**
@@ -167,7 +227,7 @@ class ErrorHandler {
       // 清除认证信息
       localStorage.removeItem('polymind_auth_token')
       localStorage.removeItem('polymind_refresh_token')
-      
+
       // 重定向到登录页
       window.location.href = '/login'
     }

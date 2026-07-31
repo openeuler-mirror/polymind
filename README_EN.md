@@ -148,6 +148,7 @@ PolyMind uses `~/.polymind/.env` as the global configuration file, which is auto
 | `NEXT_PUBLIC_AUTH_TOKEN` | API access token | `dev-token` |
 | `NEXT_PUBLIC_APP_NAME` | Application name | `PolyMind` |
 | `NEXT_PUBLIC_DEBUG` | Debug mode | `false` |
+| `NEXT_WITTYHUB_API_URL` | WittyHub skill marketplace API URL | `http://127.0.0.1:8081` |
 
 ### Connection and Retry
 

@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { ConversationSidebar, ChatArea, RightPanel } from '@/components/chat'
 import { useChatStore } from '@/lib/store'
+import { AgentStatus } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
@@ -20,7 +21,7 @@ export default function Home() {
         const state = useChatStore.getState()
         const urlAgentId = new URLSearchParams(window.location.search).get('agent')
         if (!state.currentAgentId && !urlAgentId) {
-          const firstAgent = state.agents.find(a => a.status !== 'deleted')
+          const firstAgent = state.agents.find(a => a.status !== AgentStatus.DELETED)
           if (firstAgent) {
             state.setCurrentAgent(firstAgent.id)
           }

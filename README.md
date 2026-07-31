@@ -149,6 +149,7 @@ PolyMind 使用 `~/.polymind/.env` 作为全局配置文件，首次运行时自
 | `NEXT_PUBLIC_AUTH_TOKEN` | API 访问认证 Token | `dev-token` |
 | `NEXT_PUBLIC_APP_NAME` | 应用名称 | `PolyMind` |
 | `NEXT_PUBLIC_DEBUG` | 调试模式 | `false` |
+| `NEXT_WITTYHUB_API_URL` | WittyHub 技能广场 API 地址 | `http://127.0.0.1:8081` |
 
 ### 连接与重试配置
 

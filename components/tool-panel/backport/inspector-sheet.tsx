@@ -1,6 +1,6 @@
 'use client'
 
-import { CheckCircle2, Copy, Download, Eye, FileCode2, RefreshCw } from 'lucide-react'
+import { CheckCircle2, Copy, Download, Eye, FileCode2, History, RefreshCw } from 'lucide-react'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
@@ -23,13 +23,14 @@ import { classifyPatchLine, getLightPatchLineClass, type ParsedPatchSummary } fr
 import type {
   BackportCommitRow,
   BackportConfig,
+  BackportAttemptSummary,
   BackportOperationResultData,
   BackportPatchPreviewResponse,
   BackportPatchResource,
 } from '@/lib/backport-types'
 import { cn } from '@/lib/utils'
 
-export type InspectorTab = 'details' | 'patch' | 'compare' | 'manual' | 'yaml'
+export type InspectorTab = 'details' | 'history' | 'patch' | 'compare' | 'manual' | 'yaml'
 
 export type PatchLoadState =
   | { status: 'loading'; resource: BackportPatchResource }
@@ -61,6 +62,8 @@ interface InspectorSheetProps {
   onManualPatchTextChange: (value: string) => void
   manualPatchLoading: 'check' | 'apply' | null
   manualPatchResult: BackportOperationResultData | null
+  attemptHistory: BackportAttemptSummary[]
+  attemptHistoryLoading: boolean
   onCheckManualPatch: () => void
   onApplyManualPatch: () => void
   onUpdateMergedInTarget: (rowId: string, value: boolean | null) => void
@@ -110,6 +113,8 @@ export function InspectorSheet({
   onManualPatchTextChange,
   manualPatchLoading,
   manualPatchResult,
+  attemptHistory,
+  attemptHistoryLoading,
   onCheckManualPatch,
   onApplyManualPatch,
   onUpdateMergedInTarget,
@@ -141,8 +146,9 @@ export function InspectorSheet({
               <Tabs value={inspectorTab} onValueChange={(value) => onInspectorTabChange(value as InspectorTab)} className="flex h-full flex-col">
                 <div className="border-b border-slate-200/80 px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <TabsList className="grid w-full max-w-[580px] grid-cols-5">
+                    <TabsList className="grid w-full max-w-[680px] grid-cols-6">
                       <TabsTrigger value="details">详情</TabsTrigger>
+                      <TabsTrigger value="history">历史</TabsTrigger>
                       <TabsTrigger value="patch">Patch</TabsTrigger>
                       <TabsTrigger value="compare">对比</TabsTrigger>
                       <TabsTrigger value="manual">手动 Patch</TabsTrigger>
@@ -366,6 +372,83 @@ export function InspectorSheet({
                       </AccordionItem>
                     </Accordion>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="history" className="mt-0 flex-1 overflow-auto px-4 py-4">
+                  {attemptHistoryLoading ? (
+                    <div className="flex h-48 items-center justify-center gap-2 text-sm text-slate-500">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      正在读取检查历史...
+                    </div>
+                  ) : attemptHistory.length === 0 ? (
+                    <div className="flex h-48 items-center justify-center text-sm text-slate-500">
+                      当前 commit 暂无已归档的检查记录。
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {attemptHistory.map(attempt => {
+                        const attemptRow = attempt.rows[0] || {}
+                        const conflictText = attempt.conflict_report
+                          ? JSON.stringify(attempt.conflict_report, null, 2)
+                          : ''
+                        return (
+                          <section
+                            key={`${attempt.attempt_dir}:${attempt.attempt_number}`}
+                            className="rounded-md border border-slate-200 bg-white p-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <History className="h-4 w-4 text-blue-600" />
+                                <h4 className="text-sm font-semibold text-slate-950">
+                                  {attempt.execution > 0
+                                    ? `Run #${attempt.execution} · `
+                                    : ''}
+                                  Case 记录
+                                </h4>
+                                <Badge variant="outline">
+                                  {stringifyValue(attemptRow.status) || '未知状态'}
+                                </Badge>
+                              </div>
+                              <span className="text-xs text-slate-500">
+                                {attempt.updated_at || '--'}
+                              </span>
+                            </div>
+
+                            {conflictText ? (
+                              <div className="mt-4">
+                                <div className="text-xs font-medium text-slate-700">OpenCode 冲突报告</div>
+                                <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-50 p-3 font-mono text-[11px] leading-5 text-slate-800">
+                                  {conflictText}
+                                </pre>
+                              </div>
+                            ) : null}
+
+                            {attempt.patches.length > 0 ? (
+                              <div className="mt-4">
+                                <div className="text-xs font-medium text-slate-700">归档 Patch</div>
+                                <div className="mt-2 space-y-1">
+                                  {attempt.patches.map(patch => (
+                                    <div
+                                      key={`${attempt.attempt_number}:${patch.archive}`}
+                                      className="break-all font-mono text-[11px] text-slate-600"
+                                    >
+                                      {patch.kind}: {patch.archive}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <div className="mt-4 grid gap-1 font-mono text-[11px] text-slate-500">
+                              {attempt.report_path ? <div>report: {attempt.report_path}</div> : null}
+                              {attempt.stdout_path ? <div>stdout: {attempt.stdout_path}</div> : null}
+                              {attempt.stderr_path ? <div>stderr: {attempt.stderr_path}</div> : null}
+                            </div>
+                          </section>
+                        )
+                      })}
+                    </div>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="patch" className="mt-0 flex-1 overflow-hidden">

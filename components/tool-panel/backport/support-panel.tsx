@@ -4,11 +4,12 @@ import { FileCode2, GitBranch, RefreshCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Textarea } from '@/components/ui/textarea'
 import { formatGitDate } from '@/components/tool-panel/backport/utils'
 import type { BackportGitLogEntry, BackportTimelineEntry } from '@/lib/backport-types'
 import { cn } from '@/lib/utils'
 
-type SupportTab = 'timeline' | 'git'
+type SupportTab = 'timeline' | 'git' | 'conflict-report'
 
 interface SupportPanelProps {
   supportTab: SupportTab
@@ -16,6 +17,7 @@ interface SupportPanelProps {
   targetPath: string
   running: boolean
   timeline: BackportTimelineEntry[]
+  conflictReportText: string
   gitLogEntries: BackportGitLogEntry[]
   gitLogLoading: boolean
   gitShowLoading: boolean
@@ -33,6 +35,7 @@ export function SupportPanel({
   targetPath,
   running,
   timeline,
+  conflictReportText,
   gitLogEntries,
   gitLogLoading,
   gitShowLoading,
@@ -50,7 +53,11 @@ export function SupportPanel({
           <div className="min-w-0">
             <CardTitle className="text-base">辅助信息</CardTitle>
             <CardDescription className="truncate">
-              {supportTab === 'timeline' ? '记录操作轨迹与报错信息' : `目标仓目录：${targetPath || '--'}`}
+              {supportTab === 'timeline'
+                ? '记录操作轨迹与报错信息'
+                : supportTab === 'conflict-report'
+                  ? '汇总当前 report 中已生成的冲突报告'
+                  : `目标仓目录：${targetPath || '--'}`}
             </CardDescription>
           </div>
 
@@ -63,6 +70,14 @@ export function SupportPanel({
                 onClick={() => onSupportTabChange('timeline')}
               >
                 执行记录
+              </Button>
+              <Button
+                variant={supportTab === 'conflict-report' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 px-3"
+                onClick={() => onSupportTabChange('conflict-report')}
+              >
+                冲突报告
               </Button>
               <Button
                 variant={supportTab === 'git' ? 'secondary' : 'ghost'}
@@ -135,6 +150,20 @@ export function SupportPanel({
                   ) : null}
                 </div>
               ))
+            )}
+          </div>
+        ) : supportTab === 'conflict-report' ? (
+          <div className="max-h-[360px] overflow-auto rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm">
+            {conflictReportText ? (
+              <Textarea
+                readOnly
+                value={conflictReportText}
+                className="min-h-[320px] resize-none border-slate-200 bg-slate-50/70 font-mono text-[12px] leading-6 text-slate-800 shadow-none focus-visible:ring-0"
+              />
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-10 text-center text-xs text-slate-500">
+                当前 report 暂无冲突报告
+              </div>
             )}
           </div>
         ) : (

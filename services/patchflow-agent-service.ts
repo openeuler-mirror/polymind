@@ -1,5 +1,6 @@
 import { Agent, AdapterType, SandboxType } from '@/lib/types'
 import { agentService } from '@/services/agent-service'
+import { modelService } from '@/services/model-service'
 
 const PATCHFLOW_AGENT_NAME = 'Patchflow-Agent'
 const PATCHFLOW_AGENT_STORAGE_KEY = 'polymind:patchflow-agent-id'
@@ -9,6 +10,13 @@ class PatchflowAgentService {
   private rememberedPatchflowAgentId: string | null = null
 
   public async getOrCreatePatchflowAgent(): Promise<string> {
+    const models = await modelService.getModels()
+    const selectedModel = models.find((model) => model.enabled && model.isDefault)
+      ?? models.find((model) => model.enabled)
+    if (!selectedModel) {
+      throw new Error('没有可用的模型配置，请先在设置中创建并启用模型')
+    }
+
     let agents: Agent[] = []
     try {
       agents = await agentService.getAgents()
@@ -17,30 +25,31 @@ class PatchflowAgentService {
     }
 
     const running = agents
-      .filter((agent) => this.isReusablePatchflowAgent(agent))
+      .filter((agent) => this.isReusablePatchflowAgent(agent, selectedModel.id))
       .sort((l, r) => Date.parse(r.updatedAt) - Date.parse(l.updatedAt))
 
     const rememberedId = this.getRememberedPatchflowAgentId()
     const remembered = rememberedId ? running.find((agent) => agent.id === rememberedId) : undefined
     if (remembered) {
       this.rememberPatchflowAgent(remembered.id)
-      await this.cleanupStalePatchflowAgents(agents, remembered.id)
+      await this.cleanupStalePatchflowAgents(agents, selectedModel.id, remembered.id)
       return remembered.id
     }
 
     const reusable = running[0]
     if (reusable) {
       this.rememberPatchflowAgent(reusable.id)
-      await this.cleanupStalePatchflowAgents(agents, reusable.id)
+      await this.cleanupStalePatchflowAgents(agents, selectedModel.id, reusable.id)
       return reusable.id
     }
 
-    await this.cleanupStalePatchflowAgents(agents)
+    await this.cleanupStalePatchflowAgents(agents, selectedModel.id)
     const newAgent = await agentService.createAgent({
       name: PATCHFLOW_AGENT_NAME,
       adapterType: AdapterType.OPENCLAW,
       sandboxType: SandboxType.LOCAL_PROCESS,
       idleTimeoutSeconds: 1800,
+      modelId: selectedModel.id,
     })
     this.rememberPatchflowAgent(newAgent.id)
     return newAgent.id
@@ -52,15 +61,18 @@ class PatchflowAgentService {
       && String(agent.sandboxType) === SandboxType.LOCAL_PROCESS
   }
 
-  private isReusablePatchflowAgent(agent: Agent): boolean {
+  private isReusablePatchflowAgent(agent: Agent, modelId: string): boolean {
     return this.isPatchflowAgent(agent)
       && String(agent.status).toLowerCase() === 'running'
       && Number(agent.processPort || 0) > 0
+      && agent.modelId === modelId
   }
 
-  private async cleanupStalePatchflowAgents(agents: Agent[], keepAgentId?: string) {
+  private async cleanupStalePatchflowAgents(agents: Agent[], modelId: string, keepAgentId?: string) {
     const staleAgents = agents.filter(
-      (agent) => this.isPatchflowAgent(agent) && agent.id !== keepAgentId && !this.isReusablePatchflowAgent(agent),
+      (agent) => this.isPatchflowAgent(agent)
+        && agent.id !== keepAgentId
+        && !this.isReusablePatchflowAgent(agent, modelId),
     )
 
     for (const agent of staleAgents) {
