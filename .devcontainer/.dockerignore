@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+**/node_modules
+
+# Build outputs
+.next/
+**/.next
+out/
+build/
+dist/
+
+# Coverage & test
+coverage/
+.nyc_output/
+
+# Git
+.git/
+.gitignore
+.github/
+.gitlab-ci.yml
+
+# Environment (keep .env.example)
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+.pnpm-debug.log*
+
+# Temp
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Archives
+*.zip
+*.tar*
+*.gz
+*.rar
