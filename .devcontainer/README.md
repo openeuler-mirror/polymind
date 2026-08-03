@@ -9,7 +9,7 @@
 - [Docker](https://docs.docker.com/get-docker/) (Docker Desktop 或 Docker Engine)
 - [VS Code](https://code.visualstudio.com/) + [Dev Containers 扩展](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
-## 两种模式
+## 模式
 
 打开项目后，VS Code 会提示选择开发容器模式：
 
@@ -19,15 +19,7 @@
 
 - 🟢 **适用场景**：前端开发、UI 调整、组件开发
 - 📦 **包含**：Node.js 24、pnpm 11、ESLint/Prettier/Tailwind CSS 扩展
-- 🔗 **外部依赖**：agentd 和 witty-service 后端需要宿主机单独运行（或在 Compose 模式中启动）
-
-### 模式 2：PolyMind (Full Stack + agentd + witty-service) — 进阶
-
-**Docker Compose 方案**，编排前端 + 后端全栈服务。
-
-- 🟡 **适用场景**：全栈调试、后端 API 联调
-- 📦 **包含**：模式 1 所有内容 + agentd + witty-service 容器
-- ⚠️ **前置条件**：需要 agentd 和 witty-service 仓库在本地同级目录
+- 🔗 **外部依赖**：agentd 和 witty-service 后端需要宿主机单独运行
 
 ## 快速开始
 
@@ -43,10 +35,11 @@ code .
 #    选择 "PolyMind (Frontend)" 模式
 ```
 
-容器首次构建约需 1-2 分钟（后续启动使用缓存，秒级完成）。`postCreateCommand` 自动完成以下操作：
-- 创建 `.env` 配置文件（基于 `.env.example` 模板）
+容器首次构建约需 1-2 分钟（后续启动使用缓存，秒级完成）。`onCreateCommand` 自动完成以下操作：
+- 修复工作区文件权限（Linux 宿主机）
+- 清理残留的 `.next/` 构建缓存
+- 基于 `.env.example` 模板创建 `.env` 配置文件
 - 执行 `pnpm install` 安装依赖
-- 安装 Git Hooks（husky + commitlint）
 - 显示 Node.js 和 pnpm 版本信息
 
 启动开发服务器：
@@ -61,9 +54,9 @@ pnpm dev   # → http://localhost:3000
 |------|------|------|
 | 3000 | PolyMind Dev Server | `pnpm dev` 开发服务器（自动转发） |
 | 3001 | PolyMind Production | `node bin/start.js` 生产模式 |
-| 8000 | agentd API | 后端 API（模式 1 为宿主机服务，模式 2 为容器服务） |
-| 8081 | witty-service | 技能市场后端（同上） |
-| 18080 | agentd WebSocket | 后端 WebSocket（同上） |
+| 8000 | agentd API | 后端 API（宿主机服务） |
+| 8081 | witty-service | 技能市场后端（宿主机服务） |
+| 8000 | agentd WebSocket | 后端 WebSocket（宿主机服务） |
 
 ## 环境变量
 
@@ -110,11 +103,9 @@ docker volume rm polymind_pnpm_store polymind_node_modules
 
 ### 后端服务不可用
 
-模式 1 中，后端服务运行在宿主机上。确保：
+确保后端服务运行在宿主机上：
 - agentd 监听在 `127.0.0.1:8000`
 - witty-service 监听在 `127.0.0.1:8081`
-
-或使用模式 2（Docker Compose）启动完整后端服务。
 
 ### 国内网络加速
 

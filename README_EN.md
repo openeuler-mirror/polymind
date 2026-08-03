@@ -212,7 +212,7 @@ pnpm run start
 
 ### Dev Container Setup (Recommended)
 
-The project includes [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers) configuration for a one-click development experience. See [.devcontainer/README.md](.devcontainer/README.md) for details.
+The project includes [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers) configuration for a one-click development experience. See [.devcontainer/README_EN.md](.devcontainer/README_EN.md) for details.
 
 **Quick Start:**
 

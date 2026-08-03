@@ -9,7 +9,7 @@ VS Code [Dev Containers](https://code.visualstudio.com/docs/devcontainers/contai
 - [Docker](https://docs.docker.com/get-docker/) (Docker Desktop or Docker Engine)
 - [VS Code](https://code.visualstudio.com/) + [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
-## Two Modes
+## Mode
 
 After opening the project, VS Code prompts you to choose a dev container mode:
 
@@ -20,14 +20,6 @@ After opening the project, VS Code prompts you to choose a dev container mode:
 - 🟢 **Best for**: Frontend development, UI work, component building
 - 📦 **Includes**: Node.js 24, pnpm 11, ESLint/Prettier/Tailwind CSS extensions
 - 🔗 **Architecture**: Uses `--network host` so the container shares the host network stack. Backend services (agentd, witty-service) running on the host are directly reachable at `127.0.0.1`.
-
-### Mode 2: PolyMind (Full Stack + agentd + witty-service) — Advanced
-
-**Docker Compose setup** orchestrating the full stack.
-
-- 🟡 **Best for**: Full-stack debugging, backend API integration
-- 📦 **Includes**: Everything in Mode 1 + agentd + witty-service containers
-- ⚠️ **Prerequisite**: agentd and witty-service repos checked out as sibling directories
 
 ## Quick Start
 
@@ -46,9 +38,9 @@ code .
 The first build takes ~1–2 minutes (subsequent starts use cached layers). The `onCreateCommand` automatically:
 - Fixes file ownership for Linux hosts (`updateRemoteUserUID`)
 - Cleans stale `.next/` build cache
-- Creates `.env` from template (if absent)
+- Creates `.env` from `.env.example` template (if absent)
 - Runs `pnpm install`
-- Installs Git hooks (husky + commitlint)
+- Displays Node.js and pnpm version info
 
 Start the dev server:
 
@@ -58,7 +50,7 @@ pnpm dev   # → http://localhost:3000
 
 ## Networking
 
-Mode 1 uses `--network host` (`"runArgs": ["--network", "host"]` in `devcontainer.json`). This means:
+The dev container uses `--network host` (`"runArgs": ["--network", "host"]` in `devcontainer.json`). This means:
 
 ```
 Container shares the host's network stack:
@@ -77,7 +69,7 @@ The `.env` uses `127.0.0.1` for all backend URLs — this works correctly both f
 | 3001 | PolyMind Production | `node bin/start.js` |
 | 8000 | agentd API | Backend (host service) |
 | 8081 | witty-service | Backend (host service) |
-| 18080 | agentd WebSocket | Backend (host service) |
+| 8000 | agentd WebSocket | Backend (host service) |
 
 ## Environment Variables
 
