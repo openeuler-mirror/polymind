@@ -178,6 +178,7 @@ export function BackportPage() {
   const runAllLastProcessedCountRef = useRef(0)
   const runAllReportRefreshInFlightRef = useRef(false)
   const runAllPendingReportRefreshPathRef = useRef<string | null>(null)
+  const runAllLastLockEventRef = useRef('')
 
   const [config, setConfig] = useState<BackportConfig>(DEFAULT_BACKPORT_CONFIG)
   const [loadingConfig, setLoadingConfig] = useState(false)
@@ -478,6 +479,10 @@ export function BackportPage() {
     () => workingCommits.find(row => row.rowId === inspectedRowId) || null,
     [workingCommits, inspectedRowId]
   )
+  const inspectedRowNumber = stringifyValue(inspectedRow?.data.row_number).trim()
+  const inspectedLegacyRowId = stringifyValue(inspectedRow?.data.row_id).trim()
+  const inspectedCaseRowKey =
+    inspectedRowNumber || (/^\d+$/.test(inspectedLegacyRowId) ? inspectedLegacyRowId : '')
   const inspectedPatchResources = useMemo(() => {
     if (!inspectedRow) return []
     return buildPatchResources(inspectedRow.data, inspectedRow.rowId).filter(
@@ -757,6 +762,35 @@ export function BackportPage() {
   const handleRunAllProgress = (progress: BackportRunProgress) => {
     setRunAllStatusCardVisible(true)
     setRunAllProgress(progress)
+    const lockEvent = stringifyValue(progress.lock_event).trim()
+    if (lockEvent && lockEvent !== runAllLastLockEventRef.current) {
+      const lockOwner = [
+        progress.lock_owner_task_id ? `占用任务: ${progress.lock_owner_task_id}` : '',
+        progress.lock_owner_operation ? `操作: ${progress.lock_owner_operation}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+      if (lockEvent === 'repository_lock_waiting') {
+        addTimeline(
+          '等待目标仓库可用',
+          'info',
+          [progress.message || '', lockOwner].filter(Boolean).join('\n')
+        )
+      } else if (lockEvent === 'repository_lock_acquired') {
+        addTimeline(
+          '已获得目标仓库锁',
+          'success',
+          progress.message || '继续当前任务。'
+        )
+      } else if (lockEvent === 'repository_lock_timeout') {
+        addTimeline(
+          '等待目标仓库超时',
+          'error',
+          progress.message || '目标仓库仍被其他任务占用，可稍后重试。'
+        )
+      }
+      runAllLastLockEventRef.current = lockEvent
+    }
     const progressRowId = stringifyValue(progress.current_row_id).trim()
     if (progressRowId && !runAllRowStartedAtRef.current[progressRowId]) {
       runAllRowStartedAtRef.current[progressRowId] = Date.now()
@@ -1049,17 +1083,17 @@ export function BackportPage() {
     setManualPatchResult(null)
     setManualPatchLoading(null)
     setAttemptHistory([])
-    if (!inspectedRowId || !activeRunId) return
+    if (!inspectedCaseRowKey || !activeRunId) return
     setAttemptHistoryLoading(true)
     void backportService
-      .listCaseAttempts(activeRunId, inspectedRowId)
+      .listCaseAttempts(activeRunId, inspectedCaseRowKey)
       .then(response => setAttemptHistory(response.attempts))
       .catch(cause => {
         console.warn('Failed to load Backport attempt history:', cause)
         setAttemptHistory([])
       })
       .finally(() => setAttemptHistoryLoading(false))
-  }, [inspectedRowId, activeRunId, attemptHistoryVersion])
+  }, [inspectedCaseRowKey, activeRunId, attemptHistoryVersion])
 
   useEffect(() => {
     if (inspectorTab !== 'compare' || !inspectedRow) return
@@ -1638,6 +1672,7 @@ export function BackportPage() {
     runAllLastProcessedCountRef.current = 0
     runAllReportRefreshInFlightRef.current = false
     runAllPendingReportRefreshPathRef.current = null
+    runAllLastLockEventRef.current = ''
 
     let response: Awaited<ReturnType<typeof backportService.runAll>>
     try {
@@ -1677,6 +1712,7 @@ export function BackportPage() {
       runAllLastProcessedCountRef.current = 0
       runAllReportRefreshInFlightRef.current = false
       runAllPendingReportRefreshPathRef.current = null
+      runAllLastLockEventRef.current = ''
       throw cause
     }
     setRunAllControl(null)
@@ -2470,6 +2506,7 @@ export function BackportPage() {
       checking: '检查',
       applying: '应用',
       resolving: '解冲突',
+      waiting_for_repository: '等待目标仓库',
       skipped: '跳过',
       failed: '失败',
       completed: '完成',

@@ -285,6 +285,11 @@ export interface BackportRunProgress {
   phase?: string
   phase_state?: 'running' | 'completed' | 'failed'
   message?: string
+  lock_event?: string
+  lock_wait_seconds?: number
+  lock_timeout_seconds?: number
+  lock_owner_task_id?: string
+  lock_owner_operation?: string
   current_report_path?: string
   current_index?: number
   total?: number

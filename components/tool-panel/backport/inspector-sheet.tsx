@@ -393,7 +393,7 @@ export function InspectorSheet({
                           : ''
                         return (
                           <section
-                            key={`${attempt.attempt_dir}:${attempt.attempt_number}`}
+                            key={`${attempt.attempt_dir}:${attempt.execution}:${attempt.attempt_number}`}
                             className="rounded-md border border-slate-200 bg-white p-4"
                           >
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -402,7 +402,7 @@ export function InspectorSheet({
                                 <h4 className="text-sm font-semibold text-slate-950">
                                   {attempt.execution > 0
                                     ? `Run #${attempt.execution} · `
-                                    : ''}
+                                    : `Interaction #${attempt.attempt_number} · `}
                                   Case 记录
                                 </h4>
                                 <Badge variant="outline">
