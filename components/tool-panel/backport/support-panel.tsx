@@ -5,11 +5,19 @@ import { FileCode2, GitBranch, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
-import { formatGitDate } from '@/components/tool-panel/backport/utils'
-import type { BackportGitLogEntry, BackportTimelineEntry } from '@/lib/backport-types'
+import {
+  formatGitDate,
+  resolveRunSummaryDetectionText,
+  resolveRunSummaryFinalText,
+} from '@/components/tool-panel/backport/utils'
+import type {
+  BackportExecutionRunSummary,
+  BackportGitLogEntry,
+  BackportTimelineEntry,
+} from '@/lib/backport-types'
 import { cn } from '@/lib/utils'
 
-type SupportTab = 'timeline' | 'git' | 'conflict-report'
+type SupportTab = 'timeline' | 'summary' | 'git' | 'conflict-report'
 
 interface SupportPanelProps {
   supportTab: SupportTab
@@ -17,6 +25,7 @@ interface SupportPanelProps {
   targetPath: string
   running: boolean
   timeline: BackportTimelineEntry[]
+  executionSummary: BackportExecutionRunSummary | null
   conflictReportText: string
   gitLogEntries: BackportGitLogEntry[]
   gitLogLoading: boolean
@@ -35,6 +44,7 @@ export function SupportPanel({
   targetPath,
   running,
   timeline,
+  executionSummary,
   conflictReportText,
   gitLogEntries,
   gitLogLoading,
@@ -55,6 +65,8 @@ export function SupportPanel({
             <CardDescription className="truncate">
               {supportTab === 'timeline'
                 ? '记录操作轨迹与报错信息'
+                : supportTab === 'summary'
+                  ? '按 Commit 汇总检测、处理和最终结果'
                 : supportTab === 'conflict-report'
                   ? '汇总当前 report 中已生成的冲突报告'
                   : `目标仓目录：${targetPath || '--'}`}
@@ -70,6 +82,14 @@ export function SupportPanel({
                 onClick={() => onSupportTabChange('timeline')}
               >
                 执行记录
+              </Button>
+              <Button
+                variant={supportTab === 'summary' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 px-3"
+                onClick={() => onSupportTabChange('summary')}
+              >
+                运行总览
               </Button>
               <Button
                 variant={supportTab === 'conflict-report' ? 'secondary' : 'ghost'}
@@ -115,7 +135,7 @@ export function SupportPanel({
                 还没有执行记录
               </div>
             ) : (
-              timeline.map((entry) => (
+              timeline.map(entry => (
                 <div
                   key={entry.id}
                   className={cn(
@@ -150,6 +170,120 @@ export function SupportPanel({
                   ) : null}
                 </div>
               ))
+            )}
+          </div>
+        ) : supportTab === 'summary' ? (
+          <div className="max-h-[460px] space-y-3 overflow-auto pr-2">
+            {!executionSummary ? (
+              <div className="rounded-md border border-dashed px-3 py-10 text-center text-xs text-muted-foreground">
+                暂无一键运行总览
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  <span>
+                    Commit <strong className="text-slate-900">{executionSummary.counts.total}</strong>
+                  </span>
+                  <span>
+                    已应用 <strong className="text-slate-900">{executionSummary.counts.applied}</strong>
+                  </span>
+                  <span>
+                    直接应用{' '}
+                    <strong className="text-slate-900">
+                      {executionSummary.counts.direct_applied}
+                    </strong>
+                  </span>
+                  <span>
+                    解冲突后应用{' '}
+                    <strong className="text-slate-900">
+                      {executionSummary.counts.conflict_resolved}
+                    </strong>
+                  </span>
+                  <span>
+                    等价存在{' '}
+                    <strong className="text-slate-900">
+                      {executionSummary.counts.equivalent_exists}
+                    </strong>
+                  </span>
+                  <span>
+                    失败 <strong className="text-red-700">{executionSummary.counts.failed}</strong>
+                  </span>
+                  <span>
+                    未处理{' '}
+                    <strong className="text-slate-900">
+                      {executionSummary.counts.unprocessed}
+                    </strong>
+                  </span>
+                  <span className="min-w-0 basis-full truncate font-mono text-[10px] text-slate-500">
+                    {executionSummary.path}
+                  </span>
+                </div>
+
+                {executionSummary.cases.map(item => {
+                  const unchecked =
+                    item.detection.state === 'not_started' ||
+                    item.detection.state === 'running'
+                  return (
+                    <div key={item.id} className="overflow-hidden rounded-md border bg-white">
+                      <div className="flex min-h-10 items-center gap-2 border-b bg-slate-50 px-3 py-2 text-xs">
+                        <span className="font-mono text-slate-500">#{item.row}</span>
+                        <span className="font-mono font-semibold text-blue-700">
+                          {item.commit.slice(0, 12)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate font-medium text-slate-900">
+                          {item.title}
+                        </span>
+                      </div>
+                      <div className="px-3 py-2 text-xs">
+                        <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 py-1.5">
+                          <span className="text-slate-500">
+                            {unchecked ? '检测状态' : '检测结论'}
+                          </span>
+                          <span
+                            className={cn(
+                              'font-medium',
+                              item.detection.result === 'conflict'
+                                ? 'text-amber-700'
+                                : item.detection.result === 'failed'
+                                  ? 'text-red-700'
+                                  : unchecked
+                                    ? 'text-slate-600'
+                                    : 'text-emerald-700',
+                            )}
+                          >
+                            {resolveRunSummaryDetectionText(item)}
+                          </span>
+                        </div>
+                        {!unchecked ? (
+                          <>
+                            <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 border-t border-dashed py-1.5">
+                              <span className="text-slate-500">最终结果</span>
+                              <span
+                                className={cn(
+                                  'font-medium',
+                                  item.final.result === 'failed'
+                                    ? 'text-red-700'
+                                    : item.final.result === 'applied'
+                                      ? 'text-emerald-700'
+                                      : 'text-slate-700',
+                                )}
+                              >
+                                {resolveRunSummaryFinalText(item)}
+                              </span>
+                            </div>
+                            {item.handling.report ? (
+                              <div className="mt-1 border-l-2 border-slate-300 bg-slate-50 px-2.5 py-2 text-[11px] leading-5 text-slate-600">
+                                <span className="font-medium text-slate-700">解冲突报告：</span>
+                                {item.handling.report}
+                              </div>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  )
+                })}
+              </>
             )}
           </div>
         ) : supportTab === 'conflict-report' ? (

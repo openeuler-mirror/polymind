@@ -46,9 +46,9 @@ export function ChatInput({
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
-  const [isComposing, setIsComposing] = useState(false) // 检测中文输入法状态
+  const [isComposing, setIsComposing] = useState(false)
   const [showSkillSelector, setShowSkillSelector] = useState(false)
-  const [selectedSkillIndex, setSelectedSkillIndex] = useState(0) // 手动记录选中的技能索引
+  const [selectedSkillIndex, setSelectedSkillIndex] = useState(0)
 
   const { currentConversationId, conversations, stopStreaming, currentAgentId } = useChatStore()
 
@@ -179,17 +179,13 @@ export function ChatInput({
     if (showSkillSelector) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        if (filteredSkills.length === 0) {
-          return
-        }
+        if (filteredSkills.length === 0) return
         setSelectedSkillIndex(prev => Math.min(prev + 1, filteredSkills.length - 1))
         return
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
-        if (filteredSkills.length === 0) {
-          return
-        }
+        if (filteredSkills.length === 0) return
         setSelectedSkillIndex(prev => Math.max(prev - 1, 0))
         return
       }
@@ -275,6 +271,7 @@ export function ChatInput({
     setAttachments(prev => prev.filter((_, i) => i !== index))
   }
 
+  // 普通聊天输入模式
   return (
     <div className="mx-auto max-w-4xl">
       {/* Attachments Preview */}

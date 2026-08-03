@@ -329,7 +329,7 @@ export function CommitTable({
                     <option value="conflict">冲突</option>
                     <option value="unmatched">未匹配</option>
                     <option value="failed">失败</option>
-                    <option value="noop">无需移植</option>
+                    <option value="noop">无需处理</option>
                     <option value="pending">待检查</option>
                     <option value="skipped">跳过</option>
                   </select>
