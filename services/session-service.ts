@@ -117,6 +117,12 @@ class SessionService {
       status: msg.status,
       toolCalls: (msg.toolCalls || msg.tool_calls || []).map(normalizeToolCallStatus),
       thinking: msg.thinking,
+      question: msg.question ?? null,
+      questionId: msg.questionId ?? msg.question_id ?? null,
+      questionStatus: (msg.questionStatus ?? msg.question_status ?? undefined) as
+        | Message['questionStatus']
+        | undefined,
+      questionAnswers: msg.questionAnswers ?? msg.question_answers ?? null,
       events: (msg.events || [])
         .filter((evt: any) => {
           // 非生成中的消息（completed / interrupted / error）：过滤掉 delta 事件
@@ -136,6 +142,7 @@ class SessionService {
                 ? new Date(evt.timestamp).getTime()
                 : Date.now(),
           toolCall: normalizeToolCallStatus(evt.toolCall),
+          payload: evt.payload,
         })),
       usage: msg.usage,
     }

@@ -18,7 +18,9 @@ export enum MessageStatus {
 export interface EventItem {
   type:
     | 'thinking'
+    | 'thinking.delta'
     | 'tool.call.started'
+    | 'tool.call.delta'
     | 'tool.call.response'
     | 'message.delta'
     | 'message.completed'
@@ -88,6 +90,10 @@ export interface Message {
   events?: EventItem[]
   question?: QuestionInfo[] | null
   questionId?: string | null
+  /** 提问状态：pending 等待回答 / replied 已回答 / rejected 已跳过 */
+  questionStatus?: 'pending' | 'replied' | 'rejected'
+  /** 用户对提问的回答（与 question 数组按下标对应） */
+  questionAnswers?: string[][] | null
   usage?: {
     inputTokens?: number
     outputTokens?: number
@@ -103,6 +109,8 @@ export interface ToolCall {
   name: string
   status: 'pending' | 'running' | 'completed' | 'error'
   input?: Record<string, unknown>
+  /** tool.call.delta 流式累积的原始内容（参数/输出片段） */
+  inputRaw?: string
   output?: unknown
   error?: string
   duration?: number
