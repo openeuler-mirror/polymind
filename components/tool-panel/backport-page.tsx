@@ -849,9 +849,9 @@ export function BackportPage() {
     runId: string,
     restoreConfig: BackportConfig,
     knownSummary?: BackportRunSummary,
-  ) => {
+  ): Promise<boolean> => {
     const normalizedRunId = runId.trim()
-    if (!normalizedRunId) return
+    if (!normalizedRunId) return false
     setRestoringRun(true)
     setExecutionSummary(null)
     rememberActiveRun(normalizedRunId)
@@ -903,11 +903,21 @@ export function BackportPage() {
       if (current.result?.parsedResult) {
         applyOperationResult(current.result.parsedResult)
       } else {
-        const reportPath =
+        let reportPath =
           current.progress?.current_report_path ||
           knownSummary?.current_report_path ||
           restoreConfig.current_report_path ||
           ''
+        // 任务不在列表且后端为持久化恢复记录时,result/progress 可能不含
+        // report 路径:从 task manifest 补充定位信息,避免只恢复任务 ID 无内容
+        if (!reportPath) {
+          try {
+            const task = await backportService.getTask(normalizedRunId)
+            reportPath = task?.current_report_path || ''
+          } catch (taskError) {
+            console.warn('Failed to load saved task manifest for report path:', taskError)
+          }
+        }
         if (reportPath) {
           const loaded = await backportService.loadReport({
             config: restoreConfig,
@@ -928,6 +938,7 @@ export function BackportPage() {
         setStage('failed')
         setError(current.error || 'Backport 运行失败')
       }
+      return true
     } catch (cause) {
       console.warn('Failed to restore Backport run:', cause)
       addTimeline(
@@ -935,6 +946,7 @@ export function BackportPage() {
         'error',
         cause instanceof Error ? cause.message : '无法读取已保存的运行',
       )
+      return false
     } finally {
       setRunning(false)
       setRunningLabel('')
@@ -1060,8 +1072,9 @@ export function BackportPage() {
           try {
             const probe = await backportService.getRun(storedRunId)
             if (probe) {
-              await restoreRun(storedRunId, sanitizedConfig, savedRun)
-              restored = true
+              // restoreRun 内部失败(执行历史/状态/report 加载)时返回 false,
+              // 由外层提示并回退最新任务
+              restored = await restoreRun(storedRunId, sanitizedConfig, savedRun)
             }
           } catch (probeError) {
             console.warn('Saved Backport task unavailable, falling back to latest:', probeError)

@@ -137,6 +137,13 @@ class BackportService {
     return httpClient.get<BackportRunListResponse>('/backport/tasks', { timeout: 30000 })
   }
 
+  public async getTask(taskId: string): Promise<BackportTaskManifest> {
+    return httpClient.get<BackportTaskManifest>(
+      `/backport/tasks/${encodeURIComponent(taskId)}`,
+      { timeout: 30000 },
+    )
+  }
+
   public async listCaseAttempts(
     runId: string,
     rowKey: string,
