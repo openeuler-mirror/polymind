@@ -1065,8 +1065,15 @@ export function BackportPage() {
       void loadRecentRepositories()
       void hydrateConfiguredRepositories(sanitizedConfig)
       try {
+        // 旧 key(activeRunId)迁移到新 key(activeTaskId.v3):删除前若新 key
+        // 为空且旧 key 有值则迁移,避免升级后首次打开丢失上次任务
+        const legacyRunId = window.localStorage.getItem('polymind.backport.activeRunId')
+        let storedRunId = window.localStorage.getItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY) || ''
+        if (!storedRunId && legacyRunId) {
+          window.localStorage.setItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY, legacyRunId)
+          storedRunId = legacyRunId
+        }
         window.localStorage.removeItem('polymind.backport.activeRunId')
-        const storedRunId = window.localStorage.getItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY) || ''
         const runs = await refreshRunHistory()
         if (storedRunId) {
           // 优先直接恢复 localStorage 中保存的任务(不依赖任务列表包含它);
