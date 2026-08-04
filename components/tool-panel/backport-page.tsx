@@ -1050,11 +1050,32 @@ export function BackportPage() {
       void hydrateConfiguredRepositories(sanitizedConfig)
       try {
         window.localStorage.removeItem('polymind.backport.activeRunId')
-        const runs = await refreshRunHistory()
         const storedRunId = window.localStorage.getItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY) || ''
-        const selectedRun =
-          runs.find(run => run.run_id === storedRunId) ||
-          runs[0]
+        const runs = await refreshRunHistory()
+        if (storedRunId) {
+          // 优先直接恢复 localStorage 中保存的任务(不依赖任务列表包含它);
+          // 单任务恢复失败(任务已清理/过期)时提示用户,再回退最新任务
+          const savedRun = runs.find(run => run.run_id === storedRunId)
+          let restored = false
+          try {
+            const probe = await backportService.getRun(storedRunId)
+            if (probe) {
+              await restoreRun(storedRunId, sanitizedConfig, savedRun)
+              restored = true
+            }
+          } catch (probeError) {
+            console.warn('Saved Backport task unavailable, falling back to latest:', probeError)
+          }
+          if (restored) {
+            return
+          }
+          toast({
+            title: '提示',
+            description: '上次的 Backport 任务已不可用,已切换到最新任务',
+          })
+        }
+        // 无保存 ID 或保存 ID 恢复失败:回退到任务列表最新任务
+        const selectedRun = runs[0]
         if (selectedRun) {
           await restoreRun(selectedRun.run_id, sanitizedConfig, selectedRun)
         }
