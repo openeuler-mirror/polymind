@@ -924,6 +924,10 @@ export function BackportPage() {
             baseReportPath: reportPath,
           })
           applyOperationResult(loaded.parsedResult)
+        } else if (current.status !== 'running') {
+          // 非运行中任务必须能加载到 report,否则视为恢复失败
+          // (running 任务无 report 属正常,继续轮询即可)
+          throw new Error('无法定位已保存的 report 内容')
         }
       }
 

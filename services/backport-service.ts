@@ -30,6 +30,7 @@ import {
   BackportRunProgress,
   BackportRunListResponse,
   BackportRunResponse,
+  BackportTaskManifest,
   BackportToolSnapshot,
   BackportTryResolveRequest,
 } from '@/lib/backport-types'
