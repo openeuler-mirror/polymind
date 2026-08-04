@@ -116,3 +116,7 @@ b_1zHo8NziV9v-1774333260224.zip
 # Plans directory (if it contains temporary files)
 plans/*.tmp
 plans/*.temp
+
+.pnpm-store/
+
+.claude

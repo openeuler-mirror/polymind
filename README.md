@@ -212,14 +212,26 @@ pnpm run start
 
 ## 本地开发
 
-### 环境搭建
+### Dev Container 开发环境（推荐）
+
+项目已配置 [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers)，实现"克隆即开发"的一键式体验。详见 [.devcontainer/README.md](.devcontainer/README.md)。
+
+**快速开始：**
+
+1. 安装 [Docker](https://docs.docker.com/get-docker/) 和 VS Code [Dev Containers 扩展](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+2. 用 VS Code 打开项目，点击 "Reopen in Container"
+3. 容器启动后自动安装依赖，运行 `pnpm dev` 即可开发
+
+容器环境包含：Node.js 24、pnpm 11、ESLint/Prettier/Tailwind CSS 等 VS Code 扩展，与 CI 环境完全一致。
+
+### 传统环境搭建
 
 ```bash
 # 1. 克隆仓库
 git clone https://atomgit.com/openeuler/polymind.git
 cd polymind
 
-# 2. 安装依赖
+# 2. 安装依赖（需要 Node.js >= 22）
 pnpm install
 
 # 3. 根据需要修改 .env 中的配置

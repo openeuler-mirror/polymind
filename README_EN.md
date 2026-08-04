@@ -210,14 +210,26 @@ pnpm run start
 
 ## Local Development
 
-### Environment Setup
+### Dev Container Setup (Recommended)
+
+The project includes [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers) configuration for a one-click development experience. See [.devcontainer/README_EN.md](.devcontainer/README_EN.md) for details.
+
+**Quick Start:**
+
+1. Install [Docker](https://docs.docker.com/get-docker/) and VS Code [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+2. Open the project in VS Code and click "Reopen in Container"
+3. Dependencies install automatically. Run `pnpm dev` to start developing
+
+The container includes: Node.js 24, pnpm 11, VS Code extensions (ESLint, Prettier, Tailwind CSS), matching the CI environment exactly.
+
+### Traditional Environment Setup
 
 ```bash
 # 1. Clone repository
 git clone https://atomgit.com/openeuler/polymind.git
 cd polymind
 
-# 2. Install dependencies
+# 2. Install dependencies (requires Node.js >= 22)
 pnpm install
 
 # 3. Modify .env configuration if needed
