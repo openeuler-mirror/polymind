@@ -49,5 +49,18 @@ echo "--- Toolchain versions ---"
 node --version
 pnpm --version
 
+# 6. Register local Git hooks via pre-commit (best-effort; needs Python).
+#    `pnpm install` above already runs `prepare` (pre-commit install), so this
+#    is a fallback for containers created before the switch.
+if command -v python3 >/dev/null 2>&1; then
+  python3 -m pip install --user pre-commit >/dev/null 2>&1 || \
+    python3 -m pip install --user --break-system-packages pre-commit >/dev/null 2>&1 || true
+  export PATH="$HOME/.local/bin:$PATH"
+  # 从旧版 husky 迁移时清除 hooksPath，避免与 pre-commit 的 .git/hooks 冲突
+  git config --unset-all core.hooksPath >/dev/null 2>&1 || true
+  command -v pre-commit >/dev/null 2>&1 && \
+    pre-commit install --hook-type pre-commit --hook-type commit-msg || true
+fi
+
 echo ""
 echo "PolyMind devcontainer ready. Run:  pnpm dev"

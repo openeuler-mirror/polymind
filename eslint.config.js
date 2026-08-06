@@ -2,6 +2,8 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
 import prettierConfig from 'eslint-config-prettier'
+import react from 'eslint-plugin-react'
+import reactHooks from 'eslint-plugin-react-hooks'
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -22,7 +24,14 @@ const eslintConfig = defineConfig([
     '**/*.yaml',
   ]),
   {
+    // 显式注册插件：flat config 中规则与插件需在同一配置对象（或可合并解析），
+    // 且 pnpm 非提升布局下必须作为直接依赖导入。
+    plugins: {
+      react,
+      'react-hooks': reactHooks,
+    },
     rules: {
+      // 存量项目策略：先 warn 不阻断，历史问题分批治理后逐步转 error
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-require-imports': 'warn',

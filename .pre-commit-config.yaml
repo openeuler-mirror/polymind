@@ -1,0 +1,75 @@
+# pre-commit unified configuration for local commits and PR gates.
+# Docs: https://pre-commit.com
+minimum_pre_commit_version: "4.2.0"
+
+repos:
+  # Official generic hooks
+  - repo: https://gitcode.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^pnpm-lock\.yaml$
+      - id: end-of-file-fixer
+        exclude: ^pnpm-lock\.yaml$
+      - id: check-yaml
+      - id: check-json
+        # devcontainer.json is JSONC (contains comments)
+        exclude: ^\.devcontainer/
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        # allow existing icon assets (~1 MB); still guards against accidental large files
+        args: [--maxkb=2048]
+      - id: detect-private-key
+
+  # Secret scanning (community gate: sensitive info protection)
+  - repo: https://gitcode.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+
+  # Spelling check (recommended in the JS/TS guide)
+  - repo: https://gitcode.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        args:
+          - --skip=pnpm-lock.yaml,*.lock,*.tsbuildinfo,.next,coverage,node_modules,public/icon.svg,public/icon.png,public/icon.ico
+          - --ignore-words-list=ans
+        exclude: ^(\.agents/|components/ui/|bin/|packaging/)
+
+  # Project-local hooks (JS/TS toolchain + commit message + gate binaries)
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        entry: pnpm exec prettier --write
+        language: system
+        files: \.(js|jsx|ts|tsx|json|css|scss|less|html)$
+        exclude: ^(components/ui/|packaging/|\.agents/|bin/)
+
+      - id: eslint
+        name: eslint
+        entry: pnpm exec eslint --fix
+        language: system
+        files: \.(js|jsx|ts|tsx)$
+        exclude: ^(components/ui/|packaging/|\.agents/|bin/)
+
+      - id: commitlint
+        name: commitlint
+        entry: npx --no -- commitlint --edit
+        language: system
+        stages: [commit-msg]
+
+      - id: typecheck
+        name: typecheck
+        entry: pnpm typecheck
+        language: system
+        pass_filenames: false
+        stages: [manual]
+
+      - id: forbid-binaries
+        name: forbid gate binaries (.pyc/.jar/.ko/.o)
+        entry: bash scripts/forbid-binaries.sh
+        language: system
+        files: \.(pyc|jar|ko|o)$
