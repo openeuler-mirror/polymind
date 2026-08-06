@@ -2,11 +2,22 @@
 
 import { CheckCircle2, Copy, Download, Eye, FileCode2, History, RefreshCw } from 'lucide-react'
 
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -19,7 +30,11 @@ import {
   resolveStatusMeta,
   stringifyValue,
 } from '@/components/tool-panel/backport/utils'
-import { classifyPatchLine, getLightPatchLineClass, type ParsedPatchSummary } from '@/lib/patch-utils'
+import {
+  classifyPatchLine,
+  getLightPatchLineClass,
+  type ParsedPatchSummary,
+} from '@/lib/patch-utils'
 import type {
   BackportCommitRow,
   BackportConfig,
@@ -89,8 +104,12 @@ function DetailField({
 }) {
   return (
     <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</div>
-      <div className={cn('mt-1 text-sm text-slate-900', mono && 'break-all font-mono text-[12px]')}>{value || '--'}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        {label}
+      </div>
+      <div className={cn('mt-1 text-sm text-slate-900', mono && 'break-all font-mono text-[12px]')}>
+        {value || '--'}
+      </div>
     </div>
   )
 }
@@ -128,13 +147,17 @@ export function InspectorSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[98vw] gap-0 sm:w-[94vw] sm:max-w-none xl:w-[88vw] 2xl:w-[84vw]">
+      <SheetContent
+        side="right"
+        className="w-[98vw] gap-0 sm:w-[94vw] sm:max-w-none xl:w-[88vw] 2xl:w-[84vw]"
+      >
         {row ? (
           <>
             <SheetHeader className="border-b border-slate-200/80 bg-slate-50/70">
               <div className="pr-8">
                 <SheetTitle className="text-left text-base text-slate-950">
-                  {stringifyValue(row.data.commit || row.data.input_commit).slice(0, 12)} · {resolveCommitTitle(row.data) || '未命名提交'}
+                  {stringifyValue(row.data.commit || row.data.input_commit).slice(0, 12)} ·{' '}
+                  {resolveCommitTitle(row.data) || '未命名提交'}
                 </SheetTitle>
                 <SheetDescription className="mt-1 text-left">
                   “详情预览”展示这一行 commit 的完整信息。
@@ -143,7 +166,11 @@ export function InspectorSheet({
             </SheetHeader>
 
             <div className="flex-1 overflow-hidden">
-              <Tabs value={inspectorTab} onValueChange={(value) => onInspectorTabChange(value as InspectorTab)} className="flex h-full flex-col">
+              <Tabs
+                value={inspectorTab}
+                onValueChange={value => onInspectorTabChange(value as InspectorTab)}
+                className="flex h-full flex-col"
+              >
                 <div className="border-b border-slate-200/80 px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <TabsList className="grid w-full max-w-[680px] grid-cols-6">
@@ -156,7 +183,7 @@ export function InspectorSheet({
                     </TabsList>
 
                     <div className="flex flex-wrap gap-1.5">
-                      {patchResources.map((resource) => (
+                      {patchResources.map(resource => (
                         <Button
                           key={resource.fileId}
                           variant="outline"
@@ -184,11 +211,27 @@ export function InspectorSheet({
                         <h4 className="text-sm font-semibold text-slate-950">基本信息</h4>
                       </div>
                       <div className="grid gap-3 md:grid-cols-2">
-                        <DetailField label="完整 Commit" value={stringifyValue(row.data.commit || row.data.input_commit)} mono />
-                        <DetailField label="提交时间" value={formatGitDate(stringifyValue(row.data.committed_datetime))} />
-                        <DetailField label="排序标签" value={stringifyValue(row.data.git_describe) || '--'} mono />
+                        <DetailField
+                          label="完整 Commit"
+                          value={stringifyValue(row.data.commit || row.data.input_commit)}
+                          mono
+                        />
+                        <DetailField
+                          label="提交时间"
+                          value={formatGitDate(stringifyValue(row.data.committed_datetime))}
+                        />
+                        <DetailField
+                          label="排序标签"
+                          value={stringifyValue(row.data.git_describe) || '--'}
+                          mono
+                        />
                         <DetailField label="标题" value={resolveCommitTitle(row.data)} />
-                        <DetailField label="目标分支" value={stringifyValue(row.data.target_branch || config.target_release || '--')} />
+                        <DetailField
+                          label="目标分支"
+                          value={stringifyValue(
+                            row.data.target_branch || config.target_release || '--'
+                          )}
+                        />
                       </div>
                     </div>
 
@@ -198,39 +241,67 @@ export function InspectorSheet({
                           ? (row.data.source_detection as Record<string, unknown>)
                           : {}
                       const preview = stringifyValue(row.data.commit_message_preview).trim()
-                      const templateSnapshot = stringifyValue(row.data.commit_message_template_snapshot)
+                      const templateSnapshot = stringifyValue(
+                        row.data.commit_message_template_snapshot
+                      )
                       const previewStale =
                         Boolean(row.data.commit_message_preview_stale) ||
-                        Boolean(preview && templateSnapshot && templateSnapshot !== config.commit_message_template)
+                        Boolean(
+                          preview &&
+                          templateSnapshot &&
+                          templateSnapshot !== config.commit_message_template
+                        )
                       const warnings = Array.isArray(row.data.commit_message_warnings)
-                        ? row.data.commit_message_warnings.map((item) => stringifyValue(item)).filter(Boolean)
+                        ? row.data.commit_message_warnings
+                            .map(item => stringifyValue(item))
+                            .filter(Boolean)
                         : []
-                      if (!preview && Object.keys(sourceDetection).length === 0 && warnings.length === 0) return null
+                      if (
+                        !preview &&
+                        Object.keys(sourceDetection).length === 0 &&
+                        warnings.length === 0
+                      )
+                        return null
                       return (
                         <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
                           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <FileCode2 className="h-4 w-4 text-violet-600" />
-                              <h4 className="text-sm font-semibold text-slate-950">Commit Message 预览</h4>
+                              <h4 className="text-sm font-semibold text-slate-950">
+                                Commit Message 预览
+                              </h4>
                             </div>
                             <Button
                               variant="outline"
                               size="sm"
                               className={cn(
                                 'h-8 px-2 text-[11px]',
-                                previewStale && 'border-amber-200 bg-amber-50/70 text-amber-800 hover:bg-amber-100',
+                                previewStale &&
+                                  'border-amber-200 bg-amber-50/70 text-amber-800 hover:bg-amber-100'
                               )}
                               disabled={commitMessagePreviewLoading}
                               onClick={() => onRefreshCommitMessagePreview(row)}
                             >
-                              {commitMessagePreviewLoading ? <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                              {commitMessagePreviewLoading ? (
+                                <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" />
+                              ) : null}
                               刷新预览
                             </Button>
                           </div>
                           <div className="grid gap-3 md:grid-cols-3">
-                            <DetailField label="来源" value={stringifyValue(sourceDetection.source) || '--'} />
-                            <DetailField label="Commit ID" value={stringifyValue(sourceDetection.commit_id) || '--'} mono />
-                            <DetailField label="识别依据" value={stringifyValue(sourceDetection.method) || '--'} />
+                            <DetailField
+                              label="来源"
+                              value={stringifyValue(sourceDetection.source) || '--'}
+                            />
+                            <DetailField
+                              label="Commit ID"
+                              value={stringifyValue(sourceDetection.commit_id) || '--'}
+                              mono
+                            />
+                            <DetailField
+                              label="识别依据"
+                              value={stringifyValue(sourceDetection.method) || '--'}
+                            />
                           </div>
                           {warnings.length > 0 ? (
                             <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-900">
@@ -259,23 +330,54 @@ export function InspectorSheet({
                       <div className="grid gap-3 md:grid-cols-2">
                         <DetailField label="状态" value={resolveStatusMeta(row.data).label} />
                         <DetailField label="冲突结果" value={resolveConflictMeta(row.data).label} />
-                        <DetailField label="冲突检查方式" value={stringifyValue(row.data.conflict_check_method) || '--'} />
-                        <DetailField label="已应用 Commit" value={stringifyValue(row.data.applied_commit) || '--'} mono />
-                        <DetailField label="回移植进度" value={resolveBackportProgressText(row.data)} />
-                        <DetailField label="Merge Commit" value={Boolean(row.data.is_merge_commit) ? '是' : '否'} />
-                        <DetailField label="Empty Patch" value={Boolean(row.data.empty_patch) ? '是' : '否'} />
-                        <DetailField label="Equivalent Exists" value={Boolean(row.data.equivalent_exists) ? '是' : '否'} />
+                        <DetailField
+                          label="冲突检查方式"
+                          value={stringifyValue(row.data.conflict_check_method) || '--'}
+                        />
+                        <DetailField
+                          label="已应用 Commit"
+                          value={stringifyValue(row.data.applied_commit) || '--'}
+                          mono
+                        />
+                        <DetailField
+                          label="回移植进度"
+                          value={resolveBackportProgressText(row.data)}
+                        />
+                        <DetailField
+                          label="Merge Commit"
+                          value={Boolean(row.data.is_merge_commit) ? '是' : '否'}
+                        />
+                        <DetailField
+                          label="Empty Patch"
+                          value={Boolean(row.data.empty_patch) ? '是' : '否'}
+                        />
+                        <DetailField
+                          label="Equivalent Exists"
+                          value={Boolean(row.data.equivalent_exists) ? '是' : '否'}
+                        />
                         <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">目标分支结果</div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                            目标分支结果
+                          </div>
                           {isSkippedRow(row.data) ? (
                             <div className="mt-1 text-sm text-slate-700">已跳过</div>
                           ) : (
                             <select
-                              value={row.data.merged_in_target === true ? 'true' : row.data.merged_in_target === false ? 'false' : 'none'}
-                              onChange={(event) =>
+                              value={
+                                row.data.merged_in_target === true
+                                  ? 'true'
+                                  : row.data.merged_in_target === false
+                                    ? 'false'
+                                    : 'none'
+                              }
+                              onChange={event =>
                                 onUpdateMergedInTarget(
                                   row.rowId,
-                                  event.target.value === 'true' ? true : event.target.value === 'false' ? false : null,
+                                  event.target.value === 'true'
+                                    ? true
+                                    : event.target.value === 'false'
+                                      ? false
+                                      : null
                                 )
                               }
                               className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm"
@@ -290,7 +392,9 @@ export function InspectorSheet({
 
                       {stringifyValue(row.data.conflict_check_error).trim() ? (
                         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">Conflict Check Error</div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+                            Conflict Check Error
+                          </div>
                           <pre className="mt-2 whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-amber-900">
                             {stringifyValue(row.data.conflict_check_error)}
                           </pre>
@@ -299,7 +403,9 @@ export function InspectorSheet({
 
                       {stringifyValue(row.data.merged_check_error).trim() ? (
                         <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">Merged Check Detail</div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                            Merged Check Detail
+                          </div>
                           <pre className="mt-2 whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-slate-700">
                             {stringifyValue(row.data.merged_check_error)}
                           </pre>
@@ -308,7 +414,9 @@ export function InspectorSheet({
 
                       {stringifyValue(row.data.error).trim() ? (
                         <div className="mt-3 rounded-xl border border-red-200 bg-red-50/70 p-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-red-700">Error</div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-red-700">
+                            Error
+                          </div>
                           <pre className="mt-2 whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-red-900">
                             {stringifyValue(row.data.error)}
                           </pre>
@@ -323,10 +431,17 @@ export function InspectorSheet({
                       </div>
 
                       <div className="grid gap-3 md:grid-cols-2">
-                        {patchResources.map((resource) => (
-                          <div key={resource.fileId} className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3">
-                            <div className="text-sm font-medium text-slate-900">{resource.label}</div>
-                            <div className="mt-1 min-h-8 text-[11px] text-slate-500">{resource.fileName || `${resource.label} 暂无`}</div>
+                        {patchResources.map(resource => (
+                          <div
+                            key={resource.fileId}
+                            className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3"
+                          >
+                            <div className="text-sm font-medium text-slate-900">
+                              {resource.label}
+                            </div>
+                            <div className="mt-1 min-h-8 text-[11px] text-slate-500">
+                              {resource.fileName || `${resource.label} 暂无`}
+                            </div>
                             <div className="mt-3 flex gap-2">
                               <Button
                                 variant="outline"
@@ -361,9 +476,15 @@ export function InspectorSheet({
                       </div>
                     </div>
 
-                    <Accordion type="single" collapsible className="rounded-2xl border border-slate-200/80 bg-white px-4 shadow-sm">
+                    <Accordion
+                      type="single"
+                      collapsible
+                      className="rounded-2xl border border-slate-200/80 bg-white px-4 shadow-sm"
+                    >
                       <AccordionItem value="raw-yaml" className="border-0">
-                        <AccordionTrigger className="text-sm font-semibold text-slate-950">原始 YAML 字段</AccordionTrigger>
+                        <AccordionTrigger className="text-sm font-semibold text-slate-950">
+                          原始 YAML 字段
+                        </AccordionTrigger>
                         <AccordionContent>
                           <pre className="overflow-auto whitespace-pre-wrap break-all rounded-xl border border-slate-200 bg-white p-4 font-mono text-[11px] leading-5 text-slate-800 shadow-inner">
                             {JSON.stringify(row.data, null, 2)}
@@ -416,7 +537,9 @@ export function InspectorSheet({
 
                             {conflictText ? (
                               <div className="mt-4">
-                                <div className="text-xs font-medium text-slate-700">OpenCode 冲突报告</div>
+                                <div className="text-xs font-medium text-slate-700">
+                                  OpenCode 冲突报告
+                                </div>
                                 <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-50 p-3 font-mono text-[11px] leading-5 text-slate-800">
                                   {conflictText}
                                 </pre>
@@ -440,9 +563,15 @@ export function InspectorSheet({
                             ) : null}
 
                             <div className="mt-4 grid gap-1 font-mono text-[11px] text-slate-500">
-                              {attempt.report_path ? <div>report: {attempt.report_path}</div> : null}
-                              {attempt.stdout_path ? <div>stdout: {attempt.stdout_path}</div> : null}
-                              {attempt.stderr_path ? <div>stderr: {attempt.stderr_path}</div> : null}
+                              {attempt.report_path ? (
+                                <div>report: {attempt.report_path}</div>
+                              ) : null}
+                              {attempt.stdout_path ? (
+                                <div>stdout: {attempt.stdout_path}</div>
+                              ) : null}
+                              {attempt.stderr_path ? (
+                                <div>stderr: {attempt.stderr_path}</div>
+                              ) : null}
                             </div>
                           </section>
                         )
@@ -473,30 +602,55 @@ export function InspectorSheet({
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <div className="text-base font-semibold text-slate-950">
-                              {activePatchPreview.resource.label} · {stringifyValue(row.data.commit || row.data.input_commit).slice(0, 12)}
+                              {activePatchPreview.resource.label} ·{' '}
+                              {stringifyValue(row.data.commit || row.data.input_commit).slice(
+                                0,
+                                12
+                              )}
                             </div>
-                            <div className="mt-1 text-sm text-slate-500">{activePatchPreview.response.file_name}</div>
+                            <div className="mt-1 text-sm text-slate-500">
+                              {activePatchPreview.response.file_name}
+                            </div>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                            <Badge
+                              variant="outline"
+                              className="border-slate-200 bg-slate-50 text-slate-700"
+                            >
                               影响文件 {activePatchPreview.summary.files.length}
                             </Badge>
-                            <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                            <Badge
+                              variant="outline"
+                              className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                            >
                               +{activePatchPreview.summary.additions}
                             </Badge>
-                            <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                            <Badge
+                              variant="outline"
+                              className="border-red-200 bg-red-50 text-red-700"
+                            >
                               -{activePatchPreview.summary.deletions}
                             </Badge>
                             <Button
                               variant="outline"
                               size="sm"
                               className="h-8 px-2 text-[11px]"
-                              onClick={() => onCopyText(activePatchPreview.response.patch_text, activePatchPreview.resource.label)}
+                              onClick={() =>
+                                onCopyText(
+                                  activePatchPreview.response.patch_text,
+                                  activePatchPreview.resource.label
+                                )
+                              }
                             >
                               <Copy className="mr-1 h-3.5 w-3.5" />
                               复制 Patch
                             </Button>
-                            <Button variant="outline" size="sm" className="h-8 px-2 text-[11px]" onClick={() => onDownloadPatch(activePatchPreview)}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-2 text-[11px]"
+                              onClick={() => onDownloadPatch(activePatchPreview)}
+                            >
                               <Download className="mr-1 h-3.5 w-3.5" />
                               下载
                             </Button>
@@ -510,19 +664,35 @@ export function InspectorSheet({
                             <div className="text-sm font-semibold text-slate-950">文件列表</div>
                             <div className="mt-3 space-y-2">
                               {activePatchPreview.summary.files.length === 0 ? (
-                                <div className="text-sm text-slate-500">当前 Patch 没有解析出文件变更。</div>
+                                <div className="text-sm text-slate-500">
+                                  当前 Patch 没有解析出文件变更。
+                                </div>
                               ) : (
-                                activePatchPreview.summary.files.map((file) => (
-                                  <div key={file.id} className="rounded-xl border border-slate-200/70 bg-slate-50/70 px-3 py-2">
-                                    <div className="break-all font-mono text-[11px] text-slate-900">{file.path}</div>
+                                activePatchPreview.summary.files.map(file => (
+                                  <div
+                                    key={file.id}
+                                    className="rounded-xl border border-slate-200/70 bg-slate-50/70 px-3 py-2"
+                                  >
+                                    <div className="break-all font-mono text-[11px] text-slate-900">
+                                      {file.path}
+                                    </div>
                                     <div className="mt-2 flex items-center gap-2 text-[11px]">
-                                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                                      <Badge
+                                        variant="outline"
+                                        className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                                      >
                                         +{file.additions}
                                       </Badge>
-                                      <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                                      <Badge
+                                        variant="outline"
+                                        className="border-red-200 bg-red-50 text-red-700"
+                                      >
                                         -{file.deletions}
                                       </Badge>
-                                      <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
+                                      <Badge
+                                        variant="outline"
+                                        className="border-slate-200 bg-white text-slate-600"
+                                      >
                                         hunk {file.hunkIds.length}
                                       </Badge>
                                     </div>
@@ -545,7 +715,8 @@ export function InspectorSheet({
                                     size="sm"
                                     className="h-8 max-w-full px-2 text-[11px]"
                                     onClick={() => {
-                                      const ref = patchAnchorRefs.current[`${activePatchKey}:${hunk.id}`]
+                                      const ref =
+                                        patchAnchorRefs.current[`${activePatchKey}:${hunk.id}`]
                                       ref?.scrollIntoView({ behavior: 'smooth', block: 'center' })
                                     }}
                                   >
@@ -561,23 +732,33 @@ export function InspectorSheet({
                           <ScrollArea className="h-[calc(100vh-240px)] min-h-[520px] w-full">
                             <div className="min-w-0">
                               {activePatchPreview.summary.rawLines.map((line, index) => {
-                                const matchedHunk = activePatchPreview.summary.hunks.find((hunk) => hunk.lineIndex === index) || null
+                                const matchedHunk =
+                                  activePatchPreview.summary.hunks.find(
+                                    hunk => hunk.lineIndex === index
+                                  ) || null
                                 const lineType = classifyPatchLine(line)
 
                                 return (
                                   <div
                                     key={`${activePatchKey}:${index}`}
-                                    ref={(node) => {
+                                    ref={node => {
                                       if (matchedHunk) {
-                                        patchAnchorRefs.current[`${activePatchKey}:${matchedHunk.id}`] = node
+                                        patchAnchorRefs.current[
+                                          `${activePatchKey}:${matchedHunk.id}`
+                                        ] = node
                                       }
                                     }}
-                                    className={cn('flex border-b border-slate-100 font-mono text-[11px] leading-5', getLightPatchLineClass(lineType))}
+                                    className={cn(
+                                      'flex border-b border-slate-100 font-mono text-[11px] leading-5',
+                                      getLightPatchLineClass(lineType)
+                                    )}
                                   >
                                     <span className="w-14 shrink-0 border-r border-slate-200 bg-slate-50 px-2 py-0.5 text-right text-slate-400">
                                       {index + 1}
                                     </span>
-                                    <span className="flex-1 whitespace-pre-wrap break-all px-3 py-0.5">{line || ' '}</span>
+                                    <span className="flex-1 whitespace-pre-wrap break-all px-3 py-0.5">
+                                      {line || ' '}
+                                    </span>
                                   </div>
                                 )
                               })}
@@ -592,7 +773,8 @@ export function InspectorSheet({
                 <TabsContent value="compare" className="mt-0 flex-1 overflow-hidden">
                   {!compareLeftResource?.exists || !compareRightResource?.exists ? (
                     <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-500">
-                      当前条目缺少可对比的 Patch。建议至少保留“原始 Patch”和“待应用 Patch”再查看这里。
+                      当前条目缺少可对比的 Patch。建议至少保留“原始 Patch”和“待应用
+                      Patch”再查看这里。
                     </div>
                   ) : (
                     <div className="flex h-full flex-col">
@@ -600,17 +782,27 @@ export function InspectorSheet({
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <div className="text-base font-semibold text-slate-950">
-                              Patch 对比 · {stringifyValue(row.data.commit || row.data.input_commit).slice(0, 12)}
+                              Patch 对比 ·{' '}
+                              {stringifyValue(row.data.commit || row.data.input_commit).slice(
+                                0,
+                                12
+                              )}
                             </div>
                             <div className="mt-1 text-sm text-slate-500">
                               左侧是源提交生成的原始 patch，右侧是当前点击“尝试应用”会使用的 patch。
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2 text-[11px] text-slate-500">
-                            <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                            <Badge
+                              variant="outline"
+                              className="border-slate-200 bg-slate-50 text-slate-700"
+                            >
                               原始 Patch
                             </Badge>
-                            <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                            <Badge
+                              variant="outline"
+                              className="border-blue-200 bg-blue-50 text-blue-700"
+                            >
                               待应用 Patch
                             </Badge>
                           </div>
@@ -619,8 +811,16 @@ export function InspectorSheet({
 
                       <div className="grid min-h-0 flex-1 gap-4 p-4 xl:grid-cols-2">
                         {[
-                          { side: 'left', resource: compareLeftResource, preview: compareLeftPreview },
-                          { side: 'right', resource: compareRightResource, preview: compareRightPreview },
+                          {
+                            side: 'left',
+                            resource: compareLeftResource,
+                            preview: compareLeftPreview,
+                          },
+                          {
+                            side: 'right',
+                            resource: compareRightResource,
+                            preview: compareRightPreview,
+                          },
                         ].map(({ side, resource, preview }) => (
                           <div
                             key={side}
@@ -629,20 +829,33 @@ export function InspectorSheet({
                             <div className="border-b border-slate-200/80 px-4 py-3">
                               <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div>
-                                  <div className="text-sm font-semibold text-slate-950">{resource?.label || '--'}</div>
+                                  <div className="text-sm font-semibold text-slate-950">
+                                    {resource?.label || '--'}
+                                  </div>
                                   <div className="mt-1 text-[11px] text-slate-500">
-                                    {preview?.status === 'ready' ? preview.response.file_name : resource?.fileName || '未加载'}
+                                    {preview?.status === 'ready'
+                                      ? preview.response.file_name
+                                      : resource?.fileName || '未加载'}
                                   </div>
                                 </div>
                                 {preview?.status === 'ready' ? (
                                   <div className="flex flex-wrap gap-2">
-                                    <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                                    <Badge
+                                      variant="outline"
+                                      className="border-slate-200 bg-slate-50 text-slate-700"
+                                    >
                                       文件 {preview.summary.files.length}
                                     </Badge>
-                                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                                    <Badge
+                                      variant="outline"
+                                      className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                                    >
                                       +{preview.summary.additions}
                                     </Badge>
-                                    <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                                    <Badge
+                                      variant="outline"
+                                      className="border-red-200 bg-red-50 text-red-700"
+                                    >
                                       -{preview.summary.deletions}
                                     </Badge>
                                   </div>
@@ -665,19 +878,34 @@ export function InspectorSheet({
                               <div className="grid min-h-0 flex-1 gap-4 p-4 lg:grid-cols-[220px_minmax(0,1fr)]">
                                 <div className="space-y-4 lg:overflow-auto lg:pr-2">
                                   <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4">
-                                    <div className="text-sm font-semibold text-slate-950">文件列表</div>
+                                    <div className="text-sm font-semibold text-slate-950">
+                                      文件列表
+                                    </div>
                                     <div className="mt-3 space-y-2">
                                       {preview.summary.files.length === 0 ? (
-                                        <div className="text-sm text-slate-500">这个 Patch 没有解析出文件变更。</div>
+                                        <div className="text-sm text-slate-500">
+                                          这个 Patch 没有解析出文件变更。
+                                        </div>
                                       ) : (
-                                        preview.summary.files.map((file) => (
-                                          <div key={`${side}-${file.id}`} className="rounded-xl border border-slate-200/70 bg-white px-3 py-2">
-                                            <div className="break-all font-mono text-[11px] text-slate-900">{file.path}</div>
+                                        preview.summary.files.map(file => (
+                                          <div
+                                            key={`${side}-${file.id}`}
+                                            className="rounded-xl border border-slate-200/70 bg-white px-3 py-2"
+                                          >
+                                            <div className="break-all font-mono text-[11px] text-slate-900">
+                                              {file.path}
+                                            </div>
                                             <div className="mt-2 flex items-center gap-2 text-[11px]">
-                                              <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                                              <Badge
+                                                variant="outline"
+                                                className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                                              >
                                                 +{file.additions}
                                               </Badge>
-                                              <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                                              <Badge
+                                                variant="outline"
+                                                className="border-red-200 bg-red-50 text-red-700"
+                                              >
                                                 -{file.deletions}
                                               </Badge>
                                             </div>
@@ -696,12 +924,17 @@ export function InspectorSheet({
                                         return (
                                           <div
                                             key={`${side}:${index}`}
-                                            className={cn('flex border-b border-slate-100 font-mono text-[11px] leading-5', getLightPatchLineClass(lineType))}
+                                            className={cn(
+                                              'flex border-b border-slate-100 font-mono text-[11px] leading-5',
+                                              getLightPatchLineClass(lineType)
+                                            )}
                                           >
                                             <span className="w-14 shrink-0 border-r border-slate-200 bg-slate-50 px-2 py-0.5 text-right text-slate-400">
                                               {index + 1}
                                             </span>
-                                            <span className="flex-1 whitespace-pre-wrap break-all px-3 py-0.5">{line || ' '}</span>
+                                            <span className="flex-1 whitespace-pre-wrap break-all px-3 py-0.5">
+                                              {line || ' '}
+                                            </span>
                                           </div>
                                         )
                                       })}
@@ -723,32 +956,45 @@ export function InspectorSheet({
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
                           <h4 className="text-sm font-semibold text-slate-950">手动 Patch</h4>
-                          <p className="mt-1 text-xs text-slate-500">当前会在目标仓目录执行 git apply --check，通过后再执行 git apply。</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            当前会在目标仓目录执行 git apply --check，通过后再执行 git apply。
+                          </p>
                         </div>
-                        <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                        <Badge
+                          variant="outline"
+                          className="border-slate-200 bg-slate-50 text-slate-700"
+                        >
                           {config.target_path || '未配置目标仓'}
                         </Badge>
                       </div>
 
                       <Textarea
                         value={manualPatchText}
-                        onChange={(event) => onManualPatchTextChange(event.target.value)}
+                        onChange={event => onManualPatchTextChange(event.target.value)}
                         placeholder="把大模型修改后的 patch 粘贴到这里..."
                         className="min-h-[360px] resize-y font-mono text-[11px] leading-5"
                       />
 
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                         <div className="text-xs text-slate-500">
-                          {manualPatchText.trim() ? `当前输入 ${manualPatchText.length} 字符` : '粘贴 patch 后先检查是否能干净应用'}
+                          {manualPatchText.trim()
+                            ? `当前输入 ${manualPatchText.length} 字符`
+                            : '粘贴 patch 后先检查是否能干净应用'}
                         </div>
                         <div className="flex gap-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            disabled={manualPatchLoading !== null || !manualPatchText.trim() || !config.target_path.trim()}
+                            disabled={
+                              manualPatchLoading !== null ||
+                              !manualPatchText.trim() ||
+                              !config.target_path.trim()
+                            }
                             onClick={onCheckManualPatch}
                           >
-                            {manualPatchLoading === 'check' ? <RefreshCw className="mr-1 h-4 w-4 animate-spin" /> : null}
+                            {manualPatchLoading === 'check' ? (
+                              <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
+                            ) : null}
                             检查冲突
                           </Button>
                           <Button
@@ -762,7 +1008,9 @@ export function InspectorSheet({
                             }
                             onClick={onApplyManualPatch}
                           >
-                            {manualPatchLoading === 'apply' ? <RefreshCw className="mr-1 h-4 w-4 animate-spin" /> : null}
+                            {manualPatchLoading === 'apply' ? (
+                              <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
+                            ) : null}
                             应用到目标仓
                           </Button>
                         </div>
@@ -773,7 +1021,9 @@ export function InspectorSheet({
                       <div
                         className={cn(
                           'rounded-2xl border p-4 shadow-sm',
-                          manualPatchResult.status === 'success' ? 'border-emerald-200 bg-emerald-50/60' : 'border-red-200 bg-red-50/60',
+                          manualPatchResult.status === 'success'
+                            ? 'border-emerald-200 bg-emerald-50/60'
+                            : 'border-red-200 bg-red-50/60'
                         )}
                       >
                         <div className="flex flex-wrap items-center gap-2">
@@ -782,12 +1032,14 @@ export function InspectorSheet({
                             className={cn(
                               manualPatchResult.status === 'success'
                                 ? 'border-emerald-200 bg-white text-emerald-700'
-                                : 'border-red-200 bg-white text-red-700',
+                                : 'border-red-200 bg-white text-red-700'
                             )}
                           >
                             {manualPatchResult.status === 'success' ? '成功' : '失败'}
                           </Badge>
-                          <div className="text-sm font-semibold text-slate-950">{manualPatchResult.summary || '--'}</div>
+                          <div className="text-sm font-semibold text-slate-950">
+                            {manualPatchResult.summary || '--'}
+                          </div>
                         </div>
                         <pre className="mt-3 whitespace-pre-wrap break-all rounded-xl border border-slate-200 bg-white p-3 font-mono text-[11px] leading-5 text-slate-800">
                           {manualPatchResult.manual_patch?.stderr ||

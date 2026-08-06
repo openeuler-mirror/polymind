@@ -67,9 +67,9 @@ export function SupportPanel({
                 ? '记录操作轨迹与报错信息'
                 : supportTab === 'summary'
                   ? '按 Commit 汇总检测、处理和最终结果'
-                : supportTab === 'conflict-report'
-                  ? '汇总当前 report 中已生成的冲突报告'
-                  : `目标仓目录：${targetPath || '--'}`}
+                  : supportTab === 'conflict-report'
+                    ? '汇总当前 report 中已生成的冲突报告'
+                    : `目标仓目录：${targetPath || '--'}`}
             </CardDescription>
           </div>
 
@@ -144,7 +144,7 @@ export function SupportPanel({
                       ? 'border-red-200 bg-red-50/40'
                       : entry.level === 'success'
                         ? 'border-emerald-200 bg-emerald-50/40'
-                        : 'border-slate-200 bg-slate-50/40',
+                        : 'border-slate-200 bg-slate-50/40'
                   )}
                 >
                   <div className="flex items-center gap-2 text-xs">
@@ -155,7 +155,7 @@ export function SupportPanel({
                           ? 'bg-red-500'
                           : entry.level === 'success'
                             ? 'bg-emerald-500'
-                            : 'bg-slate-400',
+                            : 'bg-slate-400'
                       )}
                     />
                     <span className="font-medium">{entry.title}</span>
@@ -182,10 +182,12 @@ export function SupportPanel({
               <>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-slate-50 px-3 py-2 text-xs text-slate-600">
                   <span>
-                    Commit <strong className="text-slate-900">{executionSummary.counts.total}</strong>
+                    Commit{' '}
+                    <strong className="text-slate-900">{executionSummary.counts.total}</strong>
                   </span>
                   <span>
-                    已应用 <strong className="text-slate-900">{executionSummary.counts.applied}</strong>
+                    已应用{' '}
+                    <strong className="text-slate-900">{executionSummary.counts.applied}</strong>
                   </span>
                   <span>
                     直接应用{' '}
@@ -221,8 +223,7 @@ export function SupportPanel({
 
                 {executionSummary.cases.map(item => {
                   const unchecked =
-                    item.detection.state === 'not_started' ||
-                    item.detection.state === 'running'
+                    item.detection.state === 'not_started' || item.detection.state === 'running'
                   return (
                     <div key={item.id} className="overflow-hidden rounded-md border bg-white">
                       <div className="flex min-h-10 items-center gap-2 border-b bg-slate-50 px-3 py-2 text-xs">
@@ -248,7 +249,7 @@ export function SupportPanel({
                                   ? 'text-red-700'
                                   : unchecked
                                     ? 'text-slate-600'
-                                    : 'text-emerald-700',
+                                    : 'text-emerald-700'
                             )}
                           >
                             {resolveRunSummaryDetectionText(item)}
@@ -265,7 +266,7 @@ export function SupportPanel({
                                     ? 'text-red-700'
                                     : item.final.result === 'applied'
                                       ? 'text-emerald-700'
-                                      : 'text-slate-700',
+                                      : 'text-slate-700'
                                 )}
                               >
                                 {resolveRunSummaryFinalText(item)}
@@ -303,7 +304,9 @@ export function SupportPanel({
         ) : (
           <div className="space-y-3">
             {gitLogError ? (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{gitLogError}</div>
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {gitLogError}
+              </div>
             ) : null}
 
             <div className="grid gap-3 lg:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]">
@@ -321,14 +324,14 @@ export function SupportPanel({
                       {gitLogLoading ? '正在读取 git log...' : '暂无 git log 数据'}
                     </div>
                   ) : (
-                    gitLogEntries.map((entry) => (
+                    gitLogEntries.map(entry => (
                       <button
                         key={entry.hash}
                         className={cn(
                           'w-full border-b px-3 py-2.5 text-left transition-colors hover:bg-slate-50/80',
                           selectedGitRevision === entry.hash
                             ? 'bg-blue-50/50 shadow-[inset_3px_0_0_rgb(59,130,246)]'
-                            : 'bg-white',
+                            : 'bg-white'
                         )}
                         onClick={() => onLoadGitShow(entry.hash)}
                       >
@@ -336,14 +339,20 @@ export function SupportPanel({
                           <span
                             className={cn(
                               'font-mono font-semibold',
-                              selectedGitRevision === entry.hash ? 'text-blue-700' : 'text-slate-900',
+                              selectedGitRevision === entry.hash
+                                ? 'text-blue-700'
+                                : 'text-slate-900'
                             )}
                           >
                             {entry.shortHash}
                           </span>
-                          <span className="ml-auto font-mono text-slate-500">{formatGitDate(entry.committedAt)}</span>
+                          <span className="ml-auto font-mono text-slate-500">
+                            {formatGitDate(entry.committedAt)}
+                          </span>
                         </div>
-                        <div className="mt-1 line-clamp-2 text-xs font-medium text-slate-900">{entry.subject}</div>
+                        <div className="mt-1 line-clamp-2 text-xs font-medium text-slate-900">
+                          {entry.subject}
+                        </div>
                         {entry.refs ? (
                           <div className="mt-1 inline-flex max-w-full items-center gap-1 rounded-md bg-slate-50 px-1.5 py-0.5 font-mono text-[11px] text-emerald-700">
                             <GitBranch className="h-3 w-3 shrink-0" />
@@ -365,10 +374,16 @@ export function SupportPanel({
                   {selectedGitEntry ? (
                     <div className="mb-3 space-y-2 rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5">
                       <div className="flex items-center gap-2 text-[11px]">
-                        <span className="break-all font-mono font-semibold text-slate-900">{selectedGitEntry.hash}</span>
-                        <span className="ml-auto shrink-0 font-mono text-slate-500">{formatGitDate(selectedGitEntry.committedAt)}</span>
+                        <span className="break-all font-mono font-semibold text-slate-900">
+                          {selectedGitEntry.hash}
+                        </span>
+                        <span className="ml-auto shrink-0 font-mono text-slate-500">
+                          {formatGitDate(selectedGitEntry.committedAt)}
+                        </span>
                       </div>
-                      <p className="text-xs font-medium text-slate-900">{selectedGitEntry.subject}</p>
+                      <p className="text-xs font-medium text-slate-900">
+                        {selectedGitEntry.subject}
+                      </p>
                       {selectedGitEntry.refs ? (
                         <p className="inline-flex max-w-full items-center gap-1 rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] text-emerald-700">
                           <GitBranch className="h-3 w-3 shrink-0" />
@@ -379,13 +394,17 @@ export function SupportPanel({
                   ) : null}
 
                   {gitShowLoading ? (
-                    <div className="py-10 text-center text-xs text-muted-foreground">正在读取提交详情...</div>
+                    <div className="py-10 text-center text-xs text-muted-foreground">
+                      正在读取提交详情...
+                    </div>
                   ) : gitShowContent ? (
                     <pre className="whitespace-pre-wrap break-all rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] leading-5 text-slate-700">
                       {gitShowContent}
                     </pre>
                   ) : (
-                    <div className="py-10 text-center text-xs text-muted-foreground">请选择左侧提交查看详情</div>
+                    <div className="py-10 text-center text-xs text-muted-foreground">
+                      请选择左侧提交查看详情
+                    </div>
                   )}
                 </div>
               </div>

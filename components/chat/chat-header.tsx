@@ -27,12 +27,7 @@ import {
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { RightPanelToggle } from '../tool-panel'
 import type { Conversation } from '@/lib/types'
 
@@ -40,16 +35,9 @@ interface ChatHeaderProps {
   conversation?: Conversation
 }
 
-
-
 export function ChatHeader({ conversation }: ChatHeaderProps) {
   const { theme, setTheme } = useTheme()
-  const {
-    isSidebarOpen,
-    toggleSidebar,
-    currentConversationId,
-    deleteConversation,
-  } = useChatStore()
+  const { isSidebarOpen, toggleSidebar, currentConversationId, deleteConversation } = useChatStore()
 
   return (
     <header className="flex h-14 items-center justify-between px-4">
@@ -67,11 +55,8 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
           </TooltipProvider>
         )}
 
-
         <div className="flex flex-col">
-          <h1 className="text-sm font-semibold">
-            {conversation?.title || '新对话'}
-          </h1>
+          <h1 className="text-sm font-semibold">{conversation?.title || '新对话'}</h1>
           <span className="text-xs text-muted-foreground">
             {`${conversation?.messages.length || 0} 条消息`}
           </span>
@@ -89,7 +74,6 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
             </TooltipTrigger>
             <TooltipContent>分享对话</TooltipContent>
           </Tooltip>
-
         </TooltipProvider>
 
         {/* More Options */}
@@ -131,27 +115,39 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {
-                const { isRightPanelOpen, toggleRightPanel, addRightPanelTab, setActiveRightPanelTab, activeRightPanelTab, rightPanelTabs } = useChatStore.getState();
+                const {
+                  isRightPanelOpen,
+                  toggleRightPanel,
+                  addRightPanelTab,
+                  setActiveRightPanelTab,
+                  activeRightPanelTab,
+                  rightPanelTabs,
+                } = useChatStore.getState()
                 if (!isRightPanelOpen) {
-                  toggleRightPanel();
+                  toggleRightPanel()
                 }
                 // 保存当前活跃标签页
-                const otherTabs = rightPanelTabs.filter(tab => tab.id !== 'settings');
+                const otherTabs = rightPanelTabs.filter(tab => tab.id !== 'settings')
                 if (otherTabs.length > 0) {
                   // 这里可以通过状态管理来保存，或者在 right-panel.tsx 中通过 useEffect 处理
                 }
-                addRightPanelTab({ id: 'settings', name: '设置', icon: Settings, color: 'text-gray-500' });
-                setActiveRightPanelTab('settings');
+                addRightPanelTab({
+                  id: 'settings',
+                  name: '设置',
+                  icon: Settings,
+                  color: 'text-gray-500',
+                })
+                setActiveRightPanelTab('settings')
               }}
             >
               <Settings className="mr-2 h-4 w-4" />
               设置
             </DropdownMenuItem>
-            <DropdownMenuItem 
+            <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onClick={() => {
                 if (currentConversationId) {
-                  deleteConversation(currentConversationId);
+                  deleteConversation(currentConversationId)
                 }
               }}
             >
@@ -160,7 +156,7 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        
+
         <RightPanelToggle />
       </div>
     </header>

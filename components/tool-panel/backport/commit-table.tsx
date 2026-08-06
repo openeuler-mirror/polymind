@@ -205,11 +205,13 @@ export function CommitTable({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <CardTitle>Commit 表格</CardTitle>
-            <CardDescription>展示回移植任务列表，支持筛选状态、查看 Patch、应用提交和分析冲突</CardDescription>
+            <CardDescription>
+              展示回移植任务列表，支持筛选状态、查看 Patch、应用提交和分析冲突
+            </CardDescription>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Input
                 value={excelPath}
-                onChange={(e) => onExcelPathChange(e.target.value)}
+                onChange={e => onExcelPathChange(e.target.value)}
                 className="h-8 min-w-[260px] flex-1 font-mono text-xs"
                 placeholder="/path/to/backport.xlsx"
               />
@@ -223,7 +225,12 @@ export function CommitTable({
               >
                 <FolderOpen className="h-4 w-4" />
               </Button>
-              <Button size="sm" className="h-8" onClick={onGenerateReport} disabled={running || !excelPath.trim()}>
+              <Button
+                size="sm"
+                className="h-8"
+                onClick={onGenerateReport}
+                disabled={running || !excelPath.trim()}
+              >
                 {running && runningLabel === '生成配置与报告' ? (
                   <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
                 ) : (
@@ -247,7 +254,11 @@ export function CommitTable({
                 className="h-8"
                 onClick={onContinueReport}
                 disabled={running || !baseReportPath.trim() || !canContinueReport}
-                title={canContinueReport ? '从第一条待检查提交继续推进' : '需要无阻塞冲突且存在待检查提交'}
+                title={
+                  canContinueReport
+                    ? '从第一条待检查提交继续推进'
+                    : '需要无阻塞冲突且存在待检查提交'
+                }
               >
                 {running && runningLabel === '继续检查' ? (
                   <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
@@ -256,7 +267,13 @@ export function CommitTable({
                 )}
                 继续检查
               </Button>
-              <Button variant="outline" size="sm" className="h-8" onClick={onExecuteSelected} disabled={running || filteredRows.length === 0}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={onExecuteSelected}
+                disabled={running || filteredRows.length === 0}
+              >
                 <Play className="mr-1 h-4 w-4" />
                 执行当前结果集
               </Button>
@@ -264,11 +281,21 @@ export function CommitTable({
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onDeleteSelectedRows} disabled={running || selectedRowIds.length === 0}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDeleteSelectedRows}
+              disabled={running || selectedRowIds.length === 0}
+            >
               <Trash2 className="mr-1 h-4 w-4" />
               删除选中
             </Button>
-            <Button variant="outline" size="sm" onClick={onResetWorkingRows} disabled={running || originalCommitCount === 0}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onResetWorkingRows}
+              disabled={running || originalCommitCount === 0}
+            >
               <RotateCcw className="mr-1 h-4 w-4" />
               恢复列表
             </Button>
@@ -278,7 +305,7 @@ export function CommitTable({
 
       <CardContent className="space-y-3 pt-0">
         <datalist id="backport-title-candidates">
-          {titleCandidates.map((item) => (
+          {titleCandidates.map(item => (
             <option key={item} value={item} />
           ))}
         </datalist>
@@ -292,14 +319,14 @@ export function CommitTable({
                     type="checkbox"
                     className="h-3.5 w-3.5"
                     checked={allFilteredSelected}
-                    onChange={(e) => onToggleSelectAll(e.target.checked)}
+                    onChange={e => onToggleSelectAll(e.target.checked)}
                   />
                 </div>
                 <div className="min-w-0">
                   <div className="h-5 text-foreground">Commit</div>
                   <input
                     value={searchQuery}
-                    onChange={(e) => updateFilter(onSearchQueryChange, e.target.value)}
+                    onChange={e => updateFilter(onSearchQueryChange, e.target.value)}
                     placeholder="筛选commit"
                     className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] font-normal outline-none placeholder:text-muted-foreground/70 focus:border-primary"
                   />
@@ -307,11 +334,16 @@ export function CommitTable({
                 <div className="min-w-0">
                   <div className="flex h-5 items-center gap-1 text-foreground">
                     <span>标题</span>
-                    <ListFilter className={cn('h-3.5 w-3.5', titleFilter.trim() ? 'text-blue-600' : 'text-muted-foreground')} />
+                    <ListFilter
+                      className={cn(
+                        'h-3.5 w-3.5',
+                        titleFilter.trim() ? 'text-blue-600' : 'text-muted-foreground'
+                      )}
+                    />
                   </div>
                   <input
                     value={titleFilter}
-                    onChange={(e) => updateFilter(onTitleFilterChange, e.target.value)}
+                    onChange={e => updateFilter(onTitleFilterChange, e.target.value)}
                     placeholder="筛选标题"
                     list="backport-title-candidates"
                     className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] font-normal outline-none placeholder:text-muted-foreground/70 focus:border-primary"
@@ -321,7 +353,9 @@ export function CommitTable({
                   <div className="h-5 text-foreground">状态</div>
                   <select
                     value={statusFilter}
-                    onChange={(e) => updateFilter(onStatusFilterChange, e.target.value as StatusFilter)}
+                    onChange={e =>
+                      updateFilter(onStatusFilterChange, e.target.value as StatusFilter)
+                    }
                     className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] font-normal"
                   >
                     <option value="all">全部</option>
@@ -338,7 +372,9 @@ export function CommitTable({
                   <div className="h-5 text-foreground">冲突</div>
                   <select
                     value={conflictFilter}
-                    onChange={(e) => updateFilter(onConflictFilterChange, e.target.value as ConflictFilter)}
+                    onChange={e =>
+                      updateFilter(onConflictFilterChange, e.target.value as ConflictFilter)
+                    }
                     className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] font-normal"
                   >
                     <option value="all">全部</option>
@@ -353,7 +389,9 @@ export function CommitTable({
                   </div>
                   <select
                     value={mergedFilter}
-                    onChange={(e) => updateFilter(onMergedFilterChange, e.target.value as MergedFilter)}
+                    onChange={e =>
+                      updateFilter(onMergedFilterChange, e.target.value as MergedFilter)
+                    }
                     className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] font-normal"
                   >
                     <option value="all">全部</option>
@@ -375,9 +413,11 @@ export function CommitTable({
 
               <div className="overflow-auto">
                 {filteredRows.length === 0 ? (
-                  <div className="py-10 text-center text-sm text-muted-foreground">当前无可显示条目</div>
+                  <div className="py-10 text-center text-sm text-muted-foreground">
+                    当前无可显示条目
+                  </div>
                 ) : (
-                  paginatedRows.map((row) => {
+                  paginatedRows.map(row => {
                     const commit = stringifyValue(row.data.commit || row.data.input_commit)
                     const statusMeta = resolveStatusMeta(row.data)
                     const conflictMeta = resolveConflictMeta(row.data)
@@ -385,8 +425,10 @@ export function CommitTable({
                     const patchResources = buildDisplayPatchResources(row.data, row.rowId)
                     const isActive = row.rowId === inspectedRowId
                     const isAnalyzingConflictRow = analyzingConflictRowId === row.rowId
-                    const hasActionableConflict = Boolean(row.data.has_conflict) && !isSkippedRow(row.data)
-                    const canApplyBackportedPatch = hasActionableConflict && hasPatchResource(row.data, 'backported')
+                    const hasActionableConflict =
+                      Boolean(row.data.has_conflict) && !isSkippedRow(row.data)
+                    const canApplyBackportedPatch =
+                      hasActionableConflict && hasPatchResource(row.data, 'backported')
                     const isFirstBlockingConflict = row.rowId === firstBlockingConflictRowId
 
                     return (
@@ -396,10 +438,10 @@ export function CommitTable({
                         tabIndex={0}
                         className={cn(
                           'grid cursor-pointer grid-cols-[34px_132px_minmax(190px,1.7fr)_90px_118px_100px_126px_142px] items-start gap-2.5 border-b px-3 py-3 text-xs transition-colors hover:bg-slate-50/80',
-                          isActive && 'bg-blue-50/50',
+                          isActive && 'bg-blue-50/50'
                         )}
                         onClick={() => onOpenInspector(row, 'details')}
-                        onKeyDown={(e) => {
+                        onKeyDown={e => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()
                             onOpenInspector(row, 'details')
@@ -411,20 +453,23 @@ export function CommitTable({
                             type="checkbox"
                             className="h-3.5 w-3.5"
                             checked={selectedRowSet.has(row.rowId)}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => onToggleRowSelection(row.rowId, e.target.checked)}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => onToggleRowSelection(row.rowId, e.target.checked)}
                           />
                         </div>
 
                         <div className="space-y-1">
                           <div className="flex items-center gap-1">
-                            <span className="truncate font-mono text-[12px] font-semibold text-slate-900" title={commit}>
+                            <span
+                              className="truncate font-mono text-[12px] font-semibold text-slate-900"
+                              title={commit}
+                            >
                               {commit.slice(0, 12)}
                             </span>
                             <button
                               type="button"
                               className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                              onClick={(e) => {
+                              onClick={e => {
                                 e.stopPropagation()
                                 onCopyText(commit, 'Commit')
                               }}
@@ -433,11 +478,16 @@ export function CommitTable({
                               <Copy className="h-3.5 w-3.5" />
                             </button>
                           </div>
-                          <div className="font-mono text-[11px] text-slate-500">{formatGitDate(stringifyValue(row.data.committed_datetime))}</div>
+                          <div className="font-mono text-[11px] text-slate-500">
+                            {formatGitDate(stringifyValue(row.data.committed_datetime))}
+                          </div>
                         </div>
 
                         <div className="min-w-0 pr-2">
-                          <div className="line-clamp-2 text-[12px] font-medium leading-5 text-slate-900" title={resolveCommitTitle(row.data)}>
+                          <div
+                            className="line-clamp-2 text-[12px] font-medium leading-5 text-slate-900"
+                            title={resolveCommitTitle(row.data)}
+                          >
                             {resolveCommitTitle(row.data) || '--'}
                           </div>
                           {stringifyValue(row.data.applied_commit).trim() ? (
@@ -448,7 +498,10 @@ export function CommitTable({
                         </div>
 
                         <div>
-                          <Badge variant="outline" className={cn('justify-center', statusMeta.className)}>
+                          <Badge
+                            variant="outline"
+                            className={cn('justify-center', statusMeta.className)}
+                          >
                             {statusMeta.label}
                           </Badge>
                         </div>
@@ -456,31 +509,40 @@ export function CommitTable({
                         <div className="space-y-1">
                           <Badge
                             variant="outline"
-                            className={cn('max-w-full truncate justify-center', conflictMeta.className)}
+                            className={cn(
+                              'max-w-full truncate justify-center',
+                              conflictMeta.className
+                            )}
                           >
                             {conflictMeta.label}
                           </Badge>
-                          <div className="line-clamp-2 text-[11px] text-slate-500">{conflictMeta.detail}</div>
+                          <div className="line-clamp-2 text-[11px] text-slate-500">
+                            {conflictMeta.detail}
+                          </div>
                         </div>
 
                         <div>
-                          <Badge variant="outline" className={cn('justify-center', targetMeta.className)}>
+                          <Badge
+                            variant="outline"
+                            className={cn('justify-center', targetMeta.className)}
+                          >
                             {targetMeta.label}
                           </Badge>
                         </div>
 
                         <div className="flex flex-wrap gap-1.5">
-                          {patchResources.map((resource) => (
+                          {patchResources.map(resource => (
                             <Button
                               key={resource.fileId}
                               variant="outline"
                               size="sm"
                               className={cn(
                                 'h-7 min-w-[48px] border-slate-200 px-2 text-[11px] text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
-                                !resource.exists && 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400',
+                                !resource.exists &&
+                                  'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
                               )}
                               disabled={!resource.exists}
-                              onClick={(e) => {
+                              onClick={e => {
                                 e.stopPropagation()
                                 if (!resource.exists) return
                                 onLoadPatchPreview(row, resource)
@@ -497,7 +559,7 @@ export function CommitTable({
                             variant="outline"
                             size="sm"
                             className="h-7 border-slate-200 px-2 text-[11px] text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                            onClick={(e) => {
+                            onClick={e => {
                               e.stopPropagation()
                               onOpenInspector(row, 'details')
                             }}
@@ -511,7 +573,7 @@ export function CommitTable({
                                 size="sm"
                                 className="h-7 justify-start border-slate-200 bg-white px-2 text-[11px] text-slate-700 hover:border-amber-200 hover:bg-amber-50 hover:text-amber-800"
                                 disabled={!canRecheckConflictRow(row)}
-                                onClick={(e) => {
+                                onClick={e => {
                                   e.stopPropagation()
                                   onRecheckConflictRow(row)
                                 }}
@@ -527,8 +589,12 @@ export function CommitTable({
                               size="sm"
                               className="h-7 justify-start border-amber-200 bg-amber-50/70 px-2 text-[11px] text-amber-800 hover:bg-amber-100"
                               disabled={!canAnalyzeConflictRow(row)}
-                              title={baseReportPath.trim() ? '发送到 Patchflow-Agent 分析冲突' : '请先生成 report'}
-                              onClick={(e) => {
+                              title={
+                                baseReportPath.trim()
+                                  ? '发送到 Patchflow-Agent 分析冲突'
+                                  : '请先生成 report'
+                              }
+                              onClick={e => {
                                 e.stopPropagation()
                                 onAnalyzeConflictRow(row)
                               }}
@@ -549,10 +615,14 @@ export function CommitTable({
                                 'h-7 px-2 text-[11px]',
                                 canApplyBackportedPatch
                                   ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                                  : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100',
+                                  : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
                               )}
-                              disabled={canApplyBackportedPatch ? !canApplyRow(row) : !canResolveConflictRow(row)}
-                              onClick={(e) => {
+                              disabled={
+                                canApplyBackportedPatch
+                                  ? !canApplyRow(row)
+                                  : !canResolveConflictRow(row)
+                              }
+                              onClick={e => {
                                 e.stopPropagation()
                                 if (canApplyBackportedPatch) {
                                   onApplyRow(row)
@@ -569,7 +639,7 @@ export function CommitTable({
                               size="sm"
                               className="h-7 border-emerald-200 bg-emerald-50 px-2 text-[11px] text-emerald-700 hover:bg-emerald-100"
                               disabled={!canApplyRow(row)}
-                              onClick={(e) => {
+                              onClick={e => {
                                 e.stopPropagation()
                                 onApplyRow(row)
                               }}
@@ -585,8 +655,12 @@ export function CommitTable({
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-white px-3 py-3 text-xs text-slate-600">
                 <div className="flex items-center gap-3">
-                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-900">每页 5 条</span>
-                  <span className="whitespace-nowrap text-sm text-slate-700">总计: {filteredRows.length}</span>
+                  <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-900">
+                    每页 5 条
+                  </span>
+                  <span className="whitespace-nowrap text-sm text-slate-700">
+                    总计: {filteredRows.length}
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -595,12 +669,12 @@ export function CommitTable({
                     size="sm"
                     className="h-8 w-8 p-0 text-slate-700"
                     disabled={currentCommitPage <= 1}
-                    onClick={() => onCommitPageChange((prev) => Math.max(1, prev - 1))}
+                    onClick={() => onCommitPageChange(prev => Math.max(1, prev - 1))}
                     aria-label="上一页"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  {paginationItems.map((item) =>
+                  {paginationItems.map(item =>
                     typeof item === 'number' ? (
                       <Button
                         key={item}
@@ -608,7 +682,9 @@ export function CommitTable({
                         size="sm"
                         className={cn(
                           'h-8 min-w-8 px-2 text-sm',
-                          item === currentCommitPage ? 'bg-slate-950 text-white hover:bg-slate-900' : 'text-slate-700',
+                          item === currentCommitPage
+                            ? 'bg-slate-950 text-white hover:bg-slate-900'
+                            : 'text-slate-700'
                         )}
                         onClick={() => onCommitPageChange(item)}
                       >
@@ -618,14 +694,14 @@ export function CommitTable({
                       <span key={item} className="px-2 text-sm text-slate-500">
                         ...
                       </span>
-                    ),
+                    )
                   )}
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-8 w-8 p-0 text-slate-700"
                     disabled={currentCommitPage >= totalCommitPages}
-                    onClick={() => onCommitPageChange((prev) => Math.min(totalCommitPages, prev + 1))}
+                    onClick={() => onCommitPageChange(prev => Math.min(totalCommitPages, prev + 1))}
                     aria-label="下一页"
                   >
                     <ChevronRight className="h-4 w-4" />
