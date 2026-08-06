@@ -51,5 +51,11 @@ jobs:
         if: github.event_name != 'pull_request'
         run: pre-commit run --all-files
 
+      - name: Lint
+        run: pnpm lint
+
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Format check
+        run: pnpm format:check

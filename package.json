@@ -48,7 +48,7 @@
     "quality": "pnpm lint && pnpm format:check && pnpm typecheck",
     "test": "jest",
     "postinstall": "node scripts/postinstall.js",
-    "prepare": "pre-commit install --hook-type pre-commit --hook-type commit-msg || true",
+    "prepare": "git config --unset-all core.hooksPath || true && pre-commit install --hook-type pre-commit --hook-type commit-msg || echo '[pre-commit] 未安装或安装失败，本地提交不会自动执行检查，请先 pip install pre-commit'",
     "precommit": "pre-commit run --all-files",
     "release": "semantic-release",
     "release:dry-run": "semantic-release --dry-run"

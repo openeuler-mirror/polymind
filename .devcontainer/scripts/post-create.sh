@@ -56,6 +56,10 @@ if command -v python3 >/dev/null 2>&1; then
   python3 -m pip install --user pre-commit >/dev/null 2>&1 || \
     python3 -m pip install --user --break-system-packages pre-commit >/dev/null 2>&1 || true
   export PATH="$HOME/.local/bin:$PATH"
+  # 持久化 ~/.local/bin，保证交互终端与 git hooks 都能找到 pre-commit
+  if ! grep -qs 'local/bin' "$HOME/.bashrc" 2>/dev/null; then
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+  fi
   # 从旧版 husky 迁移时清除 hooksPath，避免与 pre-commit 的 .git/hooks 冲突
   git config --unset-all core.hooksPath >/dev/null 2>&1 || true
   command -v pre-commit >/dev/null 2>&1 && \

@@ -74,7 +74,7 @@ pnpm precommit        # 全量运行 pre-commit 检查（等价 pre-commit run -
 
 ### 5.3 接入 PR（CI）
 
-`.github/workflows/quality.yml` 在 PR 与 master 推送时运行 pre-commit（PR 增量 `--from-ref origin/master --to-ref HEAD`、master 全量 `--all-files`）+ `pnpm typecheck`，与本地同一份配置、同一批工具，保证本地与 CI 口径一致。
+`.github/workflows/quality.yml` 在 PR 与 master 推送时运行 pre-commit（PR 增量 `--from-ref origin/master --to-ref HEAD`、master 全量 `--all-files`）+ `pnpm lint`、`pnpm typecheck`、`pnpm format:check`，与本地同一份配置、同一批工具，保证本地与 CI 口径一致。
 
 ## 6. 历史问题治理策略
 
@@ -82,7 +82,7 @@ pnpm precommit        # 全量运行 pre-commit 检查（等价 pre-commit run -
 - 存量项目（本仓库）：不立即阻断历史问题——
   - 本地提交 pre-commit 只检查暂存文件，PR 门禁只检查变更文件，历史文件不动
   - ESLint 存量规则保持 `warn`，不设 `--max-warnings=0`
-  - 当前基线已绿：`pnpm format:check`、`pnpm typecheck` 全量通过
+  - 当前基线已绿：`pnpm lint`（0 error，存量 warn）、`pnpm format:check`、`pnpm typecheck` 全量通过
   - 历史问题分批治理：按目录/模块逐步把 `warn` 收敛为 `error`，每批独立 PR
 - 新规则先增量灰度：仅对变更文件生效，稳定后再全量开启
 

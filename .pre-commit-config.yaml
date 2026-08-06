@@ -45,14 +45,17 @@ repos:
         name: prettier
         entry: pnpm exec prettier --write
         language: system
-        files: \.(js|jsx|ts|tsx|json|css|scss|less|html)$
-        exclude: ^(components/ui/|packaging/|\.agents/|bin/)
+        # 与 `pnpm format:check`（prettier . --check）覆盖范围保持一致：
+        # 包含 mjs/cjs，且不排除 bin/（.prettierignore 未忽略 bin）
+        files: \.(js|jsx|ts|tsx|mjs|cjs|json|css|scss|less|html)$
+        exclude: ^(components/ui/|packaging/|\.agents/)
 
       - id: eslint
         name: eslint
         entry: pnpm exec eslint --fix
         language: system
-        files: \.(js|jsx|ts|tsx)$
+        # 与 `pnpm lint`（eslint .）覆盖范围保持一致，包含 mjs/cjs
+        files: \.(js|jsx|ts|tsx|mjs|cjs)$
         exclude: ^(components/ui/|packaging/|\.agents/|bin/)
 
       - id: commitlint

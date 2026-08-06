@@ -244,6 +244,8 @@ The project uses [pre-commit](https://pre-commit.com/) as the single entry for b
 
 ```bash
 pip install pre-commit
+# Clear the leftover hooksPath when migrating from husky, or hooks won't take effect
+git config --unset-all core.hooksPath || true
 pre-commit install --hook-type pre-commit --hook-type commit-msg
 ```
 

@@ -246,6 +246,8 @@ pnpm run dev
 
 ```bash
 pip install pre-commit
+# 从旧版 husky 迁移时需先清除 hooksPath，否则 hooks 不会生效
+git config --unset-all core.hooksPath || true
 pre-commit install --hook-type pre-commit --hook-type commit-msg
 ```
 
