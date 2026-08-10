@@ -45,7 +45,7 @@ jobs:
       # pre-commit 为本地与 CI 的统一入口（local hook 复用 package.json scripts 同款工具）
       - name: pre-commit (PR incremental)
         if: github.event_name == 'pull_request'
-        run: pre-commit run --from-ref origin/master --to-ref HEAD
+        run: pre-commit run --from-ref origin/${{ github.base_ref }} --to-ref HEAD
 
       - name: pre-commit (full)
         if: github.event_name != 'pull_request'
