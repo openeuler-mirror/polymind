@@ -98,7 +98,9 @@ class BackportService {
     })
   }
 
-  public async getRepositoryPrepareTask(taskId: string): Promise<BackportRepositoryPrepareResponse> {
+  public async getRepositoryPrepareTask(
+    taskId: string
+  ): Promise<BackportRepositoryPrepareResponse> {
     return httpClient.get<BackportRepositoryPrepareResponse>(
       `/backport/repositories/prepare/${encodeURIComponent(taskId)}`
     )
@@ -122,15 +124,14 @@ class BackportService {
     return httpClient.post<BackportAsyncRunResponse>(
       `/backport/runs/${encodeURIComponent(runId)}/pause`,
       {},
-      { timeout: 30000 },
+      { timeout: 30000 }
     )
   }
 
   public async getRun(runId: string): Promise<BackportAsyncRunResponse> {
-    return httpClient.get<BackportAsyncRunResponse>(
-      `/backport/runs/${encodeURIComponent(runId)}`,
-      { timeout: 30000 },
-    )
+    return httpClient.get<BackportAsyncRunResponse>(`/backport/runs/${encodeURIComponent(runId)}`, {
+      timeout: 30000,
+    })
   }
 
   public async listRuns(): Promise<BackportRunListResponse> {
@@ -139,24 +140,24 @@ class BackportService {
 
   public async listCaseAttempts(
     runId: string,
-    rowKey: string,
+    rowKey: string
   ): Promise<BackportAttemptListResponse> {
     return httpClient.get<BackportAttemptListResponse>(
       `/backport/runs/${encodeURIComponent(runId)}/cases/${encodeURIComponent(rowKey)}/attempts`,
-      { timeout: 30000 },
+      { timeout: 30000 }
     )
   }
 
   public async listExecutions(runId: string): Promise<BackportExecutionListResponse> {
     return httpClient.get<BackportExecutionListResponse>(
       `/backport/tasks/${encodeURIComponent(runId)}/runs`,
-      { timeout: 30000 },
+      { timeout: 30000 }
     )
   }
 
   public async loadPatchPreview(
     request: BackportLoadPatchPreviewRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportPatchPreviewResponse> {
     const response = await this.runAction(
       {
@@ -168,7 +169,7 @@ class BackportService {
           patch_kind: request.kind,
         },
       },
-      onEvent,
+      onEvent
     )
     const patch = response.parsedResult?.patch
     if (!patch) {
@@ -179,7 +180,7 @@ class BackportService {
 
   public async previewCommitMessage(
     request: BackportCommitMessagePreviewRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportCommitMessagePreview> {
     const response = await this.runAction(
       {
@@ -192,7 +193,7 @@ class BackportService {
           commit_message_template: request.commitMessageTemplate,
         },
       },
-      onEvent,
+      onEvent
     )
     const preview = response.parsedResult?.commit_message
     if (!preview) {
@@ -204,7 +205,7 @@ class BackportService {
   public async generateReport(
     request: BackportGenerateReportRequest,
     onEvent?: (event: any) => void,
-    lifecycle?: BackportRunAllLifecycle,
+    lifecycle?: BackportRunAllLifecycle
   ): Promise<BackportRunResponse> {
     onEvent?.({ type: 'message.started', payload: {} })
 
@@ -216,11 +217,9 @@ class BackportService {
         run_id: request.runId,
       },
     }
-    const created = await httpClient.post<BackportAsyncRunResponse>(
-      '/backport/runs',
-      runRequest,
-      { timeout: 30000 },
-    )
+    const created = await httpClient.post<BackportAsyncRunResponse>('/backport/runs', runRequest, {
+      timeout: 30000,
+    })
     lifecycle?.onRunCreated?.({
       runId: created.run_id,
       pause: () => this.pauseRun(created.run_id),
@@ -229,7 +228,7 @@ class BackportService {
 
     let current = created
     while (current.status === 'running') {
-      await new Promise((resolve) => setTimeout(resolve, 15000))
+      await new Promise(resolve => setTimeout(resolve, 15000))
       current = await this.getRun(created.run_id)
       lifecycle?.onRunUpdated?.(current)
     }
@@ -237,10 +236,7 @@ class BackportService {
     if (current.status === 'failed') {
       throw new Error(current.error || '生成配置与报告失败')
     }
-    if (
-      !current.result &&
-      (current.status === 'paused' || current.status === 'interrupted')
-    ) {
+    if (!current.result && (current.status === 'paused' || current.status === 'interrupted')) {
       const reportPath = current.progress?.current_report_path
       current = {
         ...current,
@@ -295,7 +291,7 @@ class BackportService {
     request: BackportRunAllRequest,
     onEvent?: (event: any) => void,
     onProgress?: (progress: BackportRunProgress) => void,
-    lifecycle?: BackportRunAllLifecycle,
+    lifecycle?: BackportRunAllLifecycle
   ): Promise<BackportRunResponse> {
     onEvent?.({ type: 'message.started', payload: {} })
 
@@ -309,11 +305,9 @@ class BackportService {
         run_id: request.runId,
       },
     }
-    const created = await httpClient.post<BackportAsyncRunResponse>(
-      '/backport/runs',
-      runRequest,
-      { timeout: 30000 },
-    )
+    const created = await httpClient.post<BackportAsyncRunResponse>('/backport/runs', runRequest, {
+      timeout: 30000,
+    })
     const control: BackportRunAllControl = {
       runId: created.run_id,
       pause: () => this.pauseRun(created.run_id),
@@ -328,7 +322,7 @@ class BackportService {
       onProgress?.(current.progress)
     }
     while (current.status === 'running') {
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await new Promise(resolve => setTimeout(resolve, 2000))
       current = await this.getRun(created.run_id)
       lifecycle?.onRunUpdated?.(current)
       if (current.progress) {
@@ -347,10 +341,7 @@ class BackportService {
     if (current.status === 'failed') {
       throw new Error(current.error || '一键运行失败')
     }
-    if (
-      !current.result &&
-      (current.status === 'paused' || current.status === 'interrupted')
-    ) {
+    if (!current.result && (current.status === 'paused' || current.status === 'interrupted')) {
       const reportPath = current.progress?.current_report_path
       current = {
         ...current,
@@ -394,7 +385,7 @@ class BackportService {
   public async resumeRun(
     runId: string,
     onProgress?: (progress: BackportRunProgress) => void,
-    lifecycle?: BackportRunAllLifecycle,
+    lifecycle?: BackportRunAllLifecycle
   ): Promise<BackportAsyncRunResponse> {
     let current = await this.getRun(runId)
     lifecycle?.onRunUpdated?.(current)
@@ -404,7 +395,7 @@ class BackportService {
       onProgress?.(current.progress)
     }
     while (current.status === 'running') {
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await new Promise(resolve => setTimeout(resolve, 2000))
       current = await this.getRun(runId)
       lifecycle?.onRunUpdated?.(current)
       if (current.progress) {
@@ -420,7 +411,7 @@ class BackportService {
 
   public async loadGitLog(
     request: BackportLoadGitLogRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportRunResponse> {
     return this.runAction(
       {
@@ -429,13 +420,13 @@ class BackportService {
           config: request.config,
         },
       },
-      onEvent,
+      onEvent
     )
   }
 
   public async continueReport(
     request: BackportContinueReportRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportRunResponse> {
     return this.runAction(
       {
@@ -445,13 +436,13 @@ class BackportService {
           base_report_path: request.baseReportPath,
         },
       },
-      onEvent,
+      onEvent
     )
   }
 
   public async recheckConflict(
     request: BackportRecheckConflictRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportRunResponse> {
     return this.runAction(
       {
@@ -463,13 +454,13 @@ class BackportService {
           row: request.row,
         },
       },
-      onEvent,
+      onEvent
     )
   }
 
   public async loadGitShow(
     request: BackportLoadGitShowRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportRunResponse> {
     return this.runAction(
       {
@@ -479,13 +470,13 @@ class BackportService {
           revision: request.revision,
         },
       },
-      onEvent,
+      onEvent
     )
   }
 
   public async executeSelected(
     request: BackportExecuteRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportRunResponse> {
     return this.runAction(
       {
@@ -498,13 +489,13 @@ class BackportService {
           save_source: request.source,
         },
       },
-      onEvent,
+      onEvent
     )
   }
 
   public async applyRow(
     request: BackportApplyRowRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportRunResponse> {
     return this.runAction(
       {
@@ -516,13 +507,13 @@ class BackportService {
           row: request.row,
         },
       },
-      onEvent,
+      onEvent
     )
   }
 
   public async tryResolve(
     request: BackportTryResolveRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportRunResponse> {
     return this.runAction(
       {
@@ -534,13 +525,13 @@ class BackportService {
           row: request.row,
         },
       },
-      onEvent,
+      onEvent
     )
   }
 
   public async checkManualPatch(
     request: BackportManualPatchRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportRunResponse> {
     return this.runAction(
       {
@@ -550,13 +541,13 @@ class BackportService {
           patch_text: request.patchText,
         },
       },
-      onEvent,
+      onEvent
     )
   }
 
   public async applyManualPatch(
     request: BackportManualPatchRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportRunResponse> {
     return this.runAction(
       {
@@ -566,21 +557,19 @@ class BackportService {
           patch_text: request.patchText,
         },
       },
-      onEvent,
+      onEvent
     )
   }
 
   private async runAction(
     request: BackportRunRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportRunResponse> {
     onEvent?.({ type: 'message.started', payload: {} })
 
-    const response = await httpClient.post<BackportRunResponse>(
-      '/backport/run',
-      request,
-      { timeout: 600000 },
-    )
+    const response = await httpClient.post<BackportRunResponse>('/backport/run', request, {
+      timeout: 600000,
+    })
     this.emitSyntheticToolEvents(response.toolSnapshots, onEvent)
 
     onEvent?.({
@@ -595,7 +584,7 @@ class BackportService {
 
   private emitSyntheticToolEvents(
     toolSnapshots: BackportToolSnapshot[],
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): void {
     if (!onEvent) return
 

@@ -56,7 +56,9 @@ next-env.d.ts
 .env.local
 
 # IDE files
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 .idea/
 *.swp
 *.swo

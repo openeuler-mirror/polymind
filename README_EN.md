@@ -220,7 +220,7 @@ The project includes [VS Code Dev Containers](https://code.visualstudio.com/docs
 2. Open the project in VS Code and click "Reopen in Container"
 3. Dependencies install automatically. Run `pnpm dev` to start developing
 
-The container includes: Node.js 24, pnpm 11, VS Code extensions (ESLint, Prettier, Tailwind CSS), matching the CI environment exactly.
+The container includes: Node.js 24, pnpm 11, pre-commit, VS Code extensions (ESLint, Prettier, Tailwind CSS), matching the CI environment exactly.
 
 ### Traditional Environment Setup
 
@@ -238,6 +238,19 @@ pnpm install
 pnpm run dev
 ```
 
+### Code Quality and Pre-commit Checks
+
+The project uses [pre-commit](https://pre-commit.com/) as the single entry for both local commits and CI gates: generic hygiene (trailing whitespace, EOF, YAML/JSON syntax, merge conflicts, large files, private keys), Gitleaks secret scanning, Codespell spelling checks, Prettier/ESLint (fix mode), and commitlint commit-message rules — see `.pre-commit-config.yaml` at the repo root. `pnpm install` registers the Git hooks automatically via the `prepare` script; to initialize manually:
+
+```bash
+pip install pre-commit
+# Clear the leftover hooksPath when migrating from husky, or hooks won't take effect
+git config --unset-all core.hooksPath || true
+pre-commit install --hook-type pre-commit --hook-type commit-msg
+```
+
+Staged files are checked automatically on commit; `pnpm run precommit` runs the full check and `pnpm run typecheck` runs the TypeScript type check. The community gate (openEuler/GitCode side) runs the same config incrementally via `scripts/ci-pre-commit-pr.sh`. See [docs/static-code-analysis.md](docs/static-code-analysis.md).
+
 ### Common Development Commands
 
 | Command | Description |
@@ -246,6 +259,9 @@ pnpm run dev
 | `pnpm run build` | Build production package |
 | `pnpm run start` | Start with built artifacts |
 | `pnpm run lint` | Run ESLint |
+| `pnpm run typecheck` | Run TypeScript type check |
+| `pnpm run precommit` | Run all pre-commit checks |
+| `pnpm run quality` | Full quality check (lint + format:check + typecheck) |
 | `pnpm run test` | Run Jest tests |
 
 ### Project Structure

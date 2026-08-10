@@ -1,10 +1,6 @@
 'use client'
 
-import {
-  ThemeProvider as NextThemesProvider,
-  type ThemeProviderProps,
-  useTheme,
-} from 'next-themes'
+import { ThemeProvider as NextThemesProvider, type ThemeProviderProps, useTheme } from 'next-themes'
 import * as React from 'react'
 import { useChatStore } from '@/lib/store'
 
@@ -35,4 +31,3 @@ export function useThemeWithStore() {
 
   return { theme: nextTheme, setTheme: setThemeWithStore }
 }
-
