@@ -46,7 +46,7 @@ export default function Home() {
 
       {/* Main Content Area - ChatArea always rendered in same position */}
       <ResizablePanelGroup direction="horizontal" className="flex-1">
-        <ResizablePanel id="main" order={1} defaultSize={isRightPanelOpen ? 30 : 100} minSize={20}>
+        <ResizablePanel id="main" order={1} defaultSize={isRightPanelOpen ? 50 : 100} minSize={20}>
           <div className="h-full flex flex-col">
             <ChatArea />
           </div>
@@ -55,7 +55,7 @@ export default function Home() {
         {isRightPanelOpen && (
           <>
             <ResizableHandle />
-            <ResizablePanel id="right-panel" order={2} defaultSize={70} minSize={40} maxSize={80}>
+            <ResizablePanel id="right-panel" order={2} defaultSize={50} minSize={40} maxSize={70}>
               <RightPanel />
             </ResizablePanel>
           </>
