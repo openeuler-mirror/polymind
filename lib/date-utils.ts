@@ -16,7 +16,7 @@ export function getRunTimeMs(run: {
   started_at?: string | null
   created_at?: string | null
 }): number {
-  return parseDateSafe(run.started_at ?? run.created_at)?.getTime() ?? 0
+  return parseDateSafe(run.started_at)?.getTime() ?? parseDateSafe(run.created_at)?.getTime() ?? 0
 }
 
 /** 取执行记录的开始时间（无则用创建时间兜底），缺失时返回 fallback。 */
@@ -24,7 +24,7 @@ export function getRunDate(
   run: { started_at?: string | null; created_at?: string | null },
   fallback: Date = new Date(0)
 ): Date {
-  return parseDateSafe(run.started_at ?? run.created_at) ?? fallback
+  return parseDateSafe(run.started_at) ?? parseDateSafe(run.created_at) ?? fallback
 }
 
 /** 将 ISO 时间格式化为 "yyyy-MM-dd HH:mm"，缺失/非法时返回占位符。 */

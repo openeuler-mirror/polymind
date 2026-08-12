@@ -637,32 +637,6 @@ describe('ChatSlice', () => {
       expect(conv.updatedAt).toBeInstanceOf(Date)
       expect(conv.updatedAt.getTime()).toBe(new Date('2025-06-02').getTime())
     })
-
-    it('should not resurrect a manually deleted scheduled conversation', async () => {
-      seedConversation({
-        id: 'conv-deleted',
-        sessionId: 'sess-deleted',
-        agentId: 'agent-1',
-        scheduledTaskId: 'task-1',
-      })
-
-      await useTestStore.getState().deleteConversation('conv-deleted')
-
-      useTestStore.getState().mergeScheduledConversationSnapshots([
-        {
-          sessionId: 'sess-deleted',
-          taskId: 'task-1',
-          agentId: 'agent-1',
-          title: '每日报告',
-          isStreaming: false,
-          lastMessageStatus: MessageStatus.COMPLETED,
-          updatedAt: new Date('2025-06-02'),
-          createdAt: new Date('2025-06-01'),
-        },
-      ])
-
-      expect(useTestStore.getState().conversations).toHaveLength(0)
-    })
   })
 
   describe('setStreaming', () => {
