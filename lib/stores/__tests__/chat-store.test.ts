@@ -71,6 +71,20 @@ function seedConversation(overrides: Record<string, any> = {}) {
   return conv
 }
 
+function makeConversation(id: string, scheduledTaskId?: string) {
+  return {
+    id,
+    title: 'Test Conversation',
+    messages: [] as any[],
+    createdAt: new Date('2025-01-01'),
+    updatedAt: new Date('2025-01-01'),
+    agentId: 'agent-1',
+    sessionId: `session-${id}`,
+    isStreaming: false,
+    ...(scheduledTaskId ? { scheduledTaskId } : {}),
+  }
+}
+
 describe('ChatSlice', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -113,6 +127,15 @@ describe('ChatSlice', () => {
       expect(state.currentConversationId).toBe(id)
     })
 
+    it('should attach an existing session when provided', () => {
+      const id = useTestStore.getState().createLocalConversation('agent-1', 'My Agent', 'sess-1')
+
+      const state = useTestStore.getState()
+      expect(state.conversations[0].id).toBe(id)
+      expect(state.conversations[0].sessionId).toBe('sess-1')
+      expect(state.currentConversationId).toBe(id)
+    })
+
     it('should prepend new conversation to existing ones', () => {
       seedConversation({ id: 'old-conv' })
       useTestStore.getState().createLocalConversation('agent-2')
@@ -120,6 +143,81 @@ describe('ChatSlice', () => {
       const state = useTestStore.getState()
       expect(state.conversations.length).toBe(2)
       expect(state.conversations[0].agentId).toBe('agent-2')
+    })
+  })
+
+  describe('markConversationScheduled', () => {
+    it('should attach the scheduled task id to the conversation', () => {
+      const id = useTestStore.getState().createLocalConversation('agent-1', 'My Agent')
+
+      useTestStore.getState().markConversationScheduled(id, 'task-1')
+
+      expect(useTestStore.getState().conversations[0].scheduledTaskId).toBe('task-1')
+    })
+
+    it('should be a noop for unknown conversation', () => {
+      seedConversation()
+      useTestStore.getState().markConversationScheduled('missing', 'task-1')
+
+      expect(useTestStore.getState().conversations[0].scheduledTaskId).toBeUndefined()
+    })
+  })
+
+  describe('purgeConversationsByScheduledTask', () => {
+    beforeEach(() => {
+      const { cacheDelete } = require('../../cache') as { cacheDelete: jest.Mock }
+      cacheDelete.mockClear()
+    })
+
+    it('should remove all conversations belonging to the task', () => {
+      useTestStore.setState({
+        conversations: [
+          makeConversation('sched-1', 'task-1'),
+          makeConversation('sched-2', 'task-1'),
+          makeConversation('regular-1'),
+        ],
+      })
+
+      useTestStore.getState().purgeConversationsByScheduledTask('task-1')
+
+      const conversations = useTestStore.getState().conversations
+      expect(conversations.map(c => c.id)).toEqual(['regular-1'])
+    })
+
+    it('should invalidate the conversations cache', () => {
+      const { cacheDelete } = require('../../cache') as { cacheDelete: jest.Mock }
+      useTestStore.setState({
+        conversations: [makeConversation('sched-1', 'task-1')],
+      })
+
+      useTestStore.getState().purgeConversationsByScheduledTask('task-1')
+
+      expect(cacheDelete).toHaveBeenCalledWith('conv_names')
+    })
+
+    it('should fall back to the next conversation when purging the current one', () => {
+      useTestStore.setState({
+        conversations: [makeConversation('sched-1', 'task-1'), makeConversation('regular-1')],
+        currentConversationId: 'sched-1',
+        currentAgentId: 'agent-1',
+      })
+
+      useTestStore.getState().purgeConversationsByScheduledTask('task-1')
+
+      const state = useTestStore.getState()
+      expect(state.currentConversationId).toBe('regular-1')
+      expect(state.conversations.map(c => c.id)).toEqual(['regular-1'])
+    })
+
+    it('should be a noop when no conversation matches', () => {
+      useTestStore.setState({
+        conversations: [makeConversation('regular-1')],
+        currentConversationId: 'regular-1',
+      })
+
+      useTestStore.getState().purgeConversationsByScheduledTask('task-1')
+
+      expect(useTestStore.getState().currentConversationId).toBe('regular-1')
     })
   })
 
@@ -384,6 +482,27 @@ describe('ChatSlice', () => {
       expect(conv.messages[0].content).toBe('old!')
       expect(conv.messages[0].isStreaming).toBe(false)
     })
+
+    it('should sync conversation status when message status changes', () => {
+      const msg = {
+        id: 'msg-1',
+        role: 'assistant' as const,
+        content: '',
+        isStreaming: true,
+        status: MessageStatus.GENERATING,
+        timestamp: new Date(),
+      }
+      seedConversation({ messages: [msg], isStreaming: true })
+
+      useTestStore
+        .getState()
+        .updateMessage('conv-1', 'msg-1', { isStreaming: false, status: MessageStatus.COMPLETED })
+
+      const conv = useTestStore.getState().conversations[0]
+      expect(conv.messages[0].status).toBe(MessageStatus.COMPLETED)
+      expect(conv.lastMessageStatus).toBe(MessageStatus.COMPLETED)
+      expect(conv.updatedAt.getTime()).toBeGreaterThan(new Date('2025-01-01').getTime())
+    })
   })
 
   describe('deleteMessage', () => {
@@ -397,6 +516,126 @@ describe('ChatSlice', () => {
       const conv = useTestStore.getState().conversations[0]
       expect(conv.messages.length).toBe(1)
       expect(conv.messages[0].id).toBe('msg-2')
+    })
+  })
+
+  describe('mergeScheduledConversationSnapshots', () => {
+    it('should create placeholder conversations for new scheduled runs', () => {
+      seedConversation({ id: 'conv-existing', sessionId: 'sess-existing' })
+
+      useTestStore.getState().mergeScheduledConversationSnapshots([
+        {
+          sessionId: 'sess-run',
+          taskId: 'task-1',
+          agentId: 'agent-1',
+          title: '每日报告',
+          isStreaming: true,
+          lastMessageStatus: MessageStatus.GENERATING,
+          updatedAt: new Date('2025-06-02'),
+          createdAt: new Date('2025-06-02'),
+        },
+      ])
+
+      const state = useTestStore.getState()
+      const runConv = state.conversations.find(c => c.sessionId === 'sess-run')
+      expect(runConv).toBeDefined()
+      expect(runConv?.scheduledTaskId).toBe('task-1')
+      expect(runConv?.agentName).toBe('定时')
+      expect(runConv?.isStreaming).toBe(true)
+      expect(runConv?.lastMessageStatus).toBe(MessageStatus.GENERATING)
+      // 不切换当前会话
+      expect(state.currentConversationId).toBeNull()
+    })
+
+    it('should refresh metadata of an existing conversation by sessionId', () => {
+      const existingMsg = {
+        id: 'msg-1',
+        role: 'user' as const,
+        content: 'hi',
+        timestamp: new Date(),
+      }
+      seedConversation({ sessionId: 'sess-run', messages: [existingMsg], isStreaming: true })
+      useTestStore.setState({ currentConversationId: 'conv-1' })
+
+      useTestStore.getState().mergeScheduledConversationSnapshots([
+        {
+          sessionId: 'sess-run',
+          taskId: 'task-1',
+          agentId: 'agent-1',
+          title: '每日报告',
+          isStreaming: false,
+          lastMessageStatus: MessageStatus.COMPLETED,
+          updatedAt: new Date('2025-06-02'),
+          createdAt: new Date('2025-06-01'),
+        },
+      ])
+
+      const conv = useTestStore.getState().conversations[0]
+      expect(conv.id).toBe('conv-1')
+      expect(conv.scheduledTaskId).toBe('task-1')
+      expect(conv.isStreaming).toBe(false)
+      expect(conv.lastMessageStatus).toBe(MessageStatus.COMPLETED)
+      // 本地消息不被覆盖
+      expect(conv.messages).toHaveLength(1)
+      expect(useTestStore.getState().currentConversationId).toBe('conv-1')
+    })
+
+    it('should finalize streaming assistant messages when the run finishes', () => {
+      const assistantMsg = {
+        id: 'msg-1',
+        role: 'assistant' as const,
+        content: 'partial...',
+        isStreaming: true,
+        status: MessageStatus.GENERATING,
+        timestamp: new Date(),
+      }
+      seedConversation({ sessionId: 'sess-run', messages: [assistantMsg], isStreaming: true })
+
+      useTestStore.getState().mergeScheduledConversationSnapshots([
+        {
+          sessionId: 'sess-run',
+          taskId: 'task-1',
+          agentId: 'agent-1',
+          title: '每日报告',
+          isStreaming: false,
+          lastMessageStatus: MessageStatus.COMPLETED,
+          updatedAt: new Date('2025-06-02'),
+          createdAt: new Date('2025-06-01'),
+        },
+      ])
+
+      const conv = useTestStore.getState().conversations[0]
+      expect(conv.isStreaming).toBe(false)
+      expect(conv.messages[0].isStreaming).toBe(false)
+      expect(conv.messages[0].status).toBe(MessageStatus.COMPLETED)
+    })
+
+    it('should tolerate string updatedAt from sessionStorage cache', () => {
+      // sessionStorage 恢复的会话 updatedAt 是字符串，合并时不能调用 getTime 崩溃。
+      seedConversation({
+        id: 'conv-cached',
+        sessionId: 'sess-cached',
+        updatedAt: '2025-05-01T00:00:00.000Z',
+      })
+
+      expect(() =>
+        useTestStore.getState().mergeScheduledConversationSnapshots([
+          {
+            sessionId: 'sess-cached',
+            taskId: 'task-1',
+            agentId: 'agent-1',
+            title: '每日报告',
+            isStreaming: false,
+            lastMessageStatus: MessageStatus.COMPLETED,
+            updatedAt: new Date('2025-06-02'),
+            createdAt: new Date('2025-06-01'),
+          },
+        ])
+      ).not.toThrow()
+
+      const conv = useTestStore.getState().conversations[0]
+      expect(conv.updatedAt).toBeInstanceOf(Date)
+      expect(conv.updatedAt.getTime()).toBe(new Date('2025-06-02').getTime())
     })
   })
 
@@ -701,6 +940,54 @@ describe('ChatSlice', () => {
 
       // No crash
       expect(useTestStore.getState().conversations.length).toBe(0)
+    })
+
+    it('should keep streaming when backend has not persisted messages yet', async () => {
+      seedConversation({ sessionId: 'sess-1', title: '旧标题' })
+      useTestStore.setState({ currentConversationId: 'conv-1', currentAgentId: 'agent-1' })
+      useTestStore.setState(state => ({
+        conversations: state.conversations.map(c =>
+          c.id === 'conv-1' ? { ...c, isStreaming: true } : c
+        ),
+      }))
+      const detail = {
+        title: '新标题',
+        messages: [],
+        has_more: false,
+        updated_at: '2025-06-01T00:00:00Z',
+      }
+      ;(sessionService.getConversation as jest.Mock).mockResolvedValue(detail)
+      ;(sessionService.transformMessage as jest.Mock).mockReturnValue(null)
+
+      await useTestStore.getState().refreshConversation('agent-1', 'sess-1')
+
+      const state = useTestStore.getState()
+      expect(state.conversations[0].title).toBe('新标题')
+      expect(state.conversations[0].messages).toHaveLength(0)
+      expect(state.conversations[0].isStreaming).toBe(true)
+      expect(state.currentConversationId).toBe('conv-1')
+      expect(state.currentAgentId).toBe('agent-1')
+    })
+
+    it('should attach scheduled task meta to the placeholder conversation', async () => {
+      const detail = {
+        title: '每日报告',
+        messages: [],
+        has_more: false,
+        created_at: '2025-06-01T00:00:00Z',
+        updated_at: '2025-06-01T00:00:00Z',
+      }
+      ;(sessionService.getConversation as jest.Mock).mockResolvedValue(detail)
+      ;(sessionService.transformMessage as jest.Mock).mockReturnValue(null)
+
+      await useTestStore.getState().refreshConversation('agent-1', 'sess-remote', {
+        scheduledTaskId: 'task-1',
+        lastMessageStatus: MessageStatus.COMPLETED,
+      })
+
+      const conv = useTestStore.getState().conversations[0]
+      expect(conv.scheduledTaskId).toBe('task-1')
+      expect(conv.lastMessageStatus).toBe(MessageStatus.COMPLETED)
     })
   })
 

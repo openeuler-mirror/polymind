@@ -143,6 +143,7 @@ export interface Conversation {
   agentId?: string // 创建该会话的 agent ID
   agentName?: string // 创建该会话的 agent 名称
   sessionId?: string // 该会话对应的后端 session ID
+  scheduledTaskId?: string // 该会话所属的定时任务 ID（定时任务执行记录）
   isStreaming?: boolean // 该会话是否正在生成消息
   skipReconnect?: boolean // 当前会话的流由专题页面主动消费，不由 ChatArea 自动重连
   hasMore?: boolean // 是否有更早的历史消息可加载

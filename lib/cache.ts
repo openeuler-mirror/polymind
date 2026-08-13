@@ -51,6 +51,7 @@ export function cacheDelete(key: string): void {
 export const CACHE_KEYS = {
   AGENTS: 'agents',
   CONVERSATIONS_WITH_NAMES: 'conv_names',
+  SCHEDULED_SIDEBAR: 'scheduled_sidebar',
 }
 
 export interface CachedData {
