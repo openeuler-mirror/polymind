@@ -18,7 +18,6 @@ class AgentService {
       sandbox_type: request.sandboxType,
       idle_timeout_seconds: request.idleTimeoutSeconds,
       sandbox_id: request.sandboxId,
-      has_scheduled_tasks: request.hasScheduledTasks,
     }
 
     if (request.modelId) {
@@ -190,7 +189,6 @@ class AgentService {
       sandboxId: agent.sandbox_id || agent.sandboxId,
       workspacePath: agent.workspace_path || agent.workspacePath,
       idleTimeoutSeconds: agent.idle_timeout_seconds ?? agent.idleTimeoutSeconds ?? 300,
-      hasScheduledTasks: agent.has_scheduled_tasks ?? agent.hasScheduledTasks ?? false,
       defaultSessionId: agent.default_session_id || agent.defaultSessionId,
       processPort: agent.process_port || agent.processPort,
       modelId: agent.model_id || agent.modelId,
@@ -232,7 +230,6 @@ class AgentFactory {
       status: AgentStatus.RUNNING,
       sandboxId: config.sandboxId,
       idleTimeoutSeconds: config.idleTimeoutSeconds || 300,
-      hasScheduledTasks: config.hasScheduledTasks ?? false,
       defaultSessionId: undefined,
       processPort: undefined,
       skills: [],
