@@ -828,7 +828,6 @@ describe('ChatSlice', () => {
             sandboxType: 'docker',
             status: 'running',
             idleTimeoutSeconds: 300,
-            hasScheduledTasks: false,
             createdAt: '2025-01-01',
             updatedAt: '2025-01-01',
           },

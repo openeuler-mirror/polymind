@@ -375,7 +375,6 @@ export interface Agent {
   sandboxId?: string | null
   workspacePath?: string
   idleTimeoutSeconds: number
-  hasScheduledTasks: boolean
   defaultSessionId?: string | null
   processPort?: number | null
   modelId?: string | null
@@ -453,7 +452,6 @@ export interface CreateAgentRequest {
   adapterType: AdapterType | string
   idleTimeoutSeconds: number
   sandboxId?: string
-  hasScheduledTasks?: boolean
   modelId?: string
   mcpServerName?: string
   mcpServerConfig?: MCPServerConfig
