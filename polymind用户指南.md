@@ -177,29 +177,61 @@ yarn global add polymind
 
 ### 3.4 安装后验证
 
-无论采用哪种方式，安装完成后都应验证组件是否就绪：
+无论采用哪种方式，安装完成后都应验证组件是否就绪（预期输出版本号因时点而异）：
+
+#### 验证前端
 
 ```bash
-# 验证前端（预期输出版本号因时点而异）
-$ polymind --version
+polymind --version
+```
+
+#### 预期输出
+
+```bash
 1.1.4
+```
 
-# 验证后端（一键脚本方式）
-$ witty-service --version
+#### 验证后端（一键脚本方式）
+
+```bash
+witty-service --version
+```
+
+#### 预期输出
+
+```bash
 witty-service 0.9.1
+```
 
-# 验证 Agent 运行时（一键脚本方式）
-$ openclaw --version
+#### 验证 Agent 运行时（一键脚本方式）
+
+```bash
+openclaw --version
+```
+
+#### 预期输出
+
+```bash
 2026.6.10
+```
 
-# 验证反向代理
-$ nginx -v
+#### 验证反向代理
+
+```bash
+nginx -v
+```
+
+#### 预期输出
+
+```bash
 nginx version: nginx/1.24.0
 ```
 
 > [!TIP]验证提示
 > 若使用一键脚本安装，需先激活隔离环境再验证：
+> ```bash
 > source ~/.polymind/.profile
+> ```
 
 ### 3.5 配置项说明
 
