@@ -4,7 +4,6 @@ import {
   PanelLeftOpen,
   Share2,
   MoreHorizontal,
-  Trash2,
   Moon,
   Sun,
   Monitor,
@@ -37,7 +36,7 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ conversation }: ChatHeaderProps) {
   const { theme, setTheme } = useTheme()
-  const { isSidebarOpen, toggleSidebar, currentConversationId, deleteConversation } = useChatStore()
+  const { isSidebarOpen, toggleSidebar } = useChatStore()
 
   return (
     <header className="flex h-14 items-center justify-between px-4">
@@ -142,17 +141,6 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
             >
               <Settings className="mr-2 h-4 w-4" />
               设置
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => {
-                if (currentConversationId) {
-                  deleteConversation(currentConversationId)
-                }
-              }}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              删除对话
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

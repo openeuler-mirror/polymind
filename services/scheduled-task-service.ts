@@ -40,6 +40,21 @@ export interface ScheduledTask {
   updated_at: string
   /** 列表接口传入 include_runs=N 时返回每个任务最近 N 条执行记录；否则为空列表。 */
   recent_runs: ScheduledTaskRun[]
+  /** 列表接口返回：该任务的执行会话摘要（侧栏会话中心化渲染数据源）。 */
+  conversations: ScheduledTaskConversation[]
+  /** 列表接口返回：是否存在 running 状态的 run（删除保护用）。 */
+  has_running_run: boolean
+}
+
+/** 定时任务执行会话摘要：会话主体 + 关联 run 状态注脚（run↔session 一对一）。 */
+export interface ScheduledTaskConversation {
+  id: string
+  task_id: string
+  title: string | null
+  created_at: string
+  updated_at: string
+  /** run 被 max_run_records 裁剪后为 null，前端兜底显示为已完成。 */
+  last_run_status: ScheduledTaskRunStatus | null
 }
 
 export interface ScheduledTaskRun {

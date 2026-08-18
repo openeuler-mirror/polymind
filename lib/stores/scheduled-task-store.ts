@@ -6,6 +6,7 @@ import {
   scheduledTaskService,
   SCHEDULED_RUNS_PER_TASK,
   type ScheduledTask,
+  type ScheduledTaskConversation,
   type ScheduledTaskRun,
 } from '@/services/scheduled-task-service'
 import { cacheGet, cacheSet, CACHE_KEYS } from '@/lib/cache'
@@ -13,7 +14,7 @@ import { useChatStore } from '@/lib/store'
 import { createLatestRunner } from '@/lib/stores/latest-runner'
 import { abortScheduledTaskRuns } from '@/lib/stores/scheduled-run-controller'
 
-/** 全局唯一轮询间隔：侧栏与执行记录页共享同一定时器，避免重复请求。 */
+/** 全局唯一轮询间隔：侧栏、执行记录页共享同一定时器，避免重复请求。 */
 const POLL_INTERVAL_MS = 10000
 /** 侧栏会话缓存 TTL。 */
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
@@ -21,6 +22,8 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 interface ScheduledSidebarCache {
   tasks: ScheduledTask[]
   runsByTask: Record<string, ScheduledTaskRun[]>
+  /** 旧缓存无此字段，反序列化时 ?? {} 兜底。 */
+  conversationsByTask?: Record<string, ScheduledTaskConversation[]>
 }
 
 // 模块级单例轮询状态：不放入 store state，避免无关渲染。
@@ -32,6 +35,8 @@ const fetchLatest = createLatestRunner()
 interface ScheduledTaskSlice {
   tasks: ScheduledTask[]
   runsByTask: Record<string, ScheduledTaskRun[]>
+  /** 按任务归组的执行会话摘要（侧栏会话中心化渲染数据源）。 */
+  conversationsByTask: Record<string, ScheduledTaskConversation[]>
   loading: boolean
   error: string
   /** 触发一次拉取（防并发叠加）。 */
@@ -47,8 +52,14 @@ interface ScheduledTaskSlice {
 const cached = cacheGet<ScheduledSidebarCache>(CACHE_KEYS.SCHEDULED_SIDEBAR)
 
 export const useScheduledTaskStore = create<ScheduledTaskSlice>((set, get) => ({
-  tasks: cached?.tasks ?? [],
+  // 兼容引入 has_running_run 之前的旧缓存：缺字段时兜底为 false，
+  // 避免任务级“执行中删除保护”因旧缓存而静默失效。
+  tasks: (cached?.tasks ?? []).map(task => ({
+    ...task,
+    has_running_run: task.has_running_run ?? false,
+  })),
   runsByTask: cached?.runsByTask ?? {},
+  conversationsByTask: cached?.conversationsByTask ?? {},
   loading: !cached,
   error: '',
 
@@ -63,11 +74,22 @@ export const useScheduledTaskStore = create<ScheduledTaskSlice>((set, get) => ({
         // 已有更新的请求在途时，丢弃本次过期结果，避免旧响应覆盖新数据。
         if (!isLatest()) return
         const grouped: Record<string, ScheduledTaskRun[]> = {}
+        const groupedConversations: Record<string, ScheduledTaskConversation[]> = {}
         for (const task of data) {
           grouped[task.id] = task.recent_runs ?? []
+          groupedConversations[task.id] = task.conversations ?? []
         }
-        set({ tasks: data, runsByTask: grouped, error: '' })
-        cacheSet(CACHE_KEYS.SCHEDULED_SIDEBAR, { tasks: data, runsByTask: grouped }, CACHE_TTL_MS)
+        set({
+          tasks: data,
+          runsByTask: grouped,
+          conversationsByTask: groupedConversations,
+          error: '',
+        })
+        cacheSet(
+          CACHE_KEYS.SCHEDULED_SIDEBAR,
+          { tasks: data, runsByTask: grouped, conversationsByTask: groupedConversations },
+          CACHE_TTL_MS
+        )
       } catch (error) {
         if (!isLatest()) return
         console.error('Failed to load scheduled tasks:', error)
@@ -114,3 +136,14 @@ export const useScheduledTaskStore = create<ScheduledTaskSlice>((set, get) => ({
     }
   },
 }))
+
+/**
+ * 删除定时会话后强制刷新任务列表（侧栏会话删除、聊天头部删除共用）。
+ */
+export function refreshScheduledAfterConversationDelete(
+  conversation?: { scheduledTaskId?: string } | null
+): void {
+  if (conversation?.scheduledTaskId) {
+    void useScheduledTaskStore.getState().refresh(true)
+  }
+}
