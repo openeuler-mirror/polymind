@@ -1,7 +1,7 @@
 ---
 # PolyMind 用户指南
 
-> **文档更新时间**：2026-08-14
+> **文档更新时间**：2026-08-18
 >
 > **目标读者**：运维工程师、系统管理员、自托管 AI Agent 平台使用者
 
@@ -13,7 +13,7 @@
 
 PolyMind 是一个原生集成 agentd 服务的自托管 AI Agent 交互平台。它将 AI 对话、Agent 工作流编排与多模型管理融为一体，通过 agentd 服务统一调度 LLM、MCP 服务与 Agent，实现多模态认知协作与自主决策。你可以将 PolyMind 视为一个"AI Agent 的控制台"：创建 Agent → 在隔离沙箱中运行 → 通过对话交互 → 管理其生命周期。
 
-本指南将带你完成从安装、配置、启动到核心功能使用与故障排查的全流程。若只需快速跑通，请参见 [第 4 章 启动与首次使用](#4-启动与首次使用)。
+本指南将带你完成从安装、配置、启动到核心功能使用与故障排查的全流程。若只需快速跑通，请参见 [第 3 章 安装 PolyMind](#3-安装-polymind)。
 
 ### 1.2 核心特性
 
@@ -53,8 +53,8 @@ nginx（端口 3000，反向代理）
 | 项目 | 最低要求 | 推荐配置 |
 |------|----------|----------|
 | 内存 | 4 GB | 8 GB 及以上 |
-| 磁盘 | 20 GB | 100 GB（含 Agent 沙箱工作区） |
-| 网络 | 可访问外网（下载依赖） | 100 Mbps 及以上 |
+| 磁盘 | 20 GB | 50 GB 及以上（含 Agent 沙箱工作区） |
+| 网络 | 稳定网络即可；安装时可访问依赖镜像源（pnpm/pip/nvm，默认使用国内镜像），运行时按需访问模型 API |  100 Mbps 及以上 |
 | 架构 | AArch64 或 x86_64 | 与业务服务器一致 |
 
 ### 2.2 软件与系统要求
@@ -177,26 +177,54 @@ yarn global add polymind
 
 ### 3.4 安装后验证
 
-无论采用哪种方式，安装完成后都应验证组件是否就绪：
+无论采用哪种方式，安装完成后都应验证组件是否就绪（预期输出版本号因时点而异）：
+
+#### 验证前端
 
 ```bash
-# 验证前端
 polymind --version
+```
 
-# 验证后端（一键脚本方式）
+#### 预期输出
+
+```bash
+1.1.4
+```
+
+#### 验证后端（一键脚本方式）
+
+```bash
 witty-service --version
+```
 
-# 验证 Agent 运行时（一键脚本方式）
+#### 预期输出
+
+```bash
+witty-service 0.9.1
+```
+
+#### 验证 Agent 运行时（一键脚本方式）
+
+```bash
 openclaw --version
+```
 
-# 验证反向代理
+#### 预期输出
+
+```bash
+2026.6.10
+```
+
+#### 验证反向代理
+
+```bash
 nginx -v
+```
 
-# 预期输出（版本号因时点而异）：
-# 1.2.0
-# witty-service 1.0.0
-# 2026.6.10
-# nginx version: nginx/1.24.0
+#### 预期输出
+
+```bash
+nginx version: nginx/1.24.0
 ```
 
 > [!TIP]验证提示
@@ -294,7 +322,7 @@ polymind --host 0.0.0.0 --port 8080
 ```
 
 > [!WARNING]安全提示
-> 使用 `--host 0.0.0.0` 时，服务将监听所有网络接口。生产环境务必先修改 `NEXT_PUBLIC_AUTH_TOKEN`，并建议在 PolyMind 前部署 Nginx 反向代理配置 HTTPS。
+> 生产环境务必先修改 `NEXT_PUBLIC_AUTH_TOKEN`，并建议在 PolyMind 前部署 Nginx 反向代理配置 HTTPS。
 
 ### 4.3 访问 Web 界面
 
@@ -642,38 +670,9 @@ NEXT_PUBLIC_DEBUG=false
 | `~/.polymind/runtime.pid` | 运行进程 PID 记录 |
 | `~/.polymind/nginx/nginx.conf` | nginx 反向代理配置（自动生成） |
 
-### 8.3 项目结构
 
-```text
-polymind/
-├── app/                    # Next.js App Router 页面
-│   ├── config/             # 应用配置管理
-│   ├── layout.tsx          # 根布局
-│   └── page.tsx            # 主页面
-├── bin/                    # CLI 入口（start.js）
-├── components/             # React 组件
-│   ├── chat/               # 对话相关组件
-│   ├── settings/           # 设置页面组件
-│   ├── tool-panel/         # 工具面板（Agent、CVE、Backport）
-│   └── ui/                 # shadcn/ui 基础组件
-├── docs/                   # 设计文档与 API 规范
-├── hooks/                  # 自定义 React Hooks
-├── lib/                    # 工具函数与类型定义
-├── services/               # API 服务层
-│   ├── agent-service.ts    # Agent 管理
-│   ├── session-service.ts  # 会话管理
-│   ├── message-service.ts  # 消息服务
-│   ├── skill-service.ts    # 技能管理
-│   ├── model-service.ts    # 模型管理
-│   ├── cve-service.ts      # CVE 漏洞服务
-│   └── patchflow-agent-service.ts  # Patchflow Agent
-├── scripts/                # 构建/安装辅助脚本
-├── install-local.sh        # 一键安装脚本
-├── start.sh                # 一键启动脚本
-└── packaging/              # 打包发布脚本
-```
 
-### 8.4 支持与反馈
+### 8.3 下一步
 
 | 场景 | 路径 |
 |------|------|
@@ -683,4 +682,4 @@ polymind/
 | 遇到问题 | → [GitCode Issues](https://gitcode.com/openeuler/polymind/issues) |
 | 提交建议 | → [提交Issue](https://atomgit.com/openeuler/community/issues) |
 
-> **最后更新日期**：2026-08-14
+> **最后更新日期**：2026-08-18
