@@ -43,6 +43,7 @@ export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   target_repo_input: '',
   source_repo_state: null,
   target_repo_state: null,
+  enable_prerequisite_scan: false,
   cvekit_options: {},
 }
 

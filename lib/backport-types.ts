@@ -39,7 +39,45 @@ export interface BackportConfig {
   target_repo_input?: string
   source_repo_state?: BackportRepositoryInfo | null
   target_repo_state?: BackportRepositoryInfo | null
+  enable_prerequisite_scan?: boolean
   cvekit_options: Record<string, unknown>
+}
+
+export interface BackportPrerequisiteCandidate {
+  unit_kind: string
+  commit: string
+  mainline_parent: number
+  title: string
+  origin: string
+  default_selected: boolean
+  required_by: string[]
+  capabilities: string[]
+  evidence: unknown[]
+}
+
+export interface BackportPrerequisiteReview {
+  excel_sha256: string
+  input_digest: string
+  source_repo: string
+  source_branch: string
+  target_repo: string
+  target_release: string
+  target_ref: string
+  review_version: string
+}
+
+export interface BackportPrerequisiteManifest {
+  status: string
+  input_digest: string
+  source_repo: string
+  target_repo: string
+  target_ref: string
+  original_units: unknown[]
+  candidates: BackportPrerequisiteCandidate[]
+  decision_tasks: unknown[]
+  coverage: unknown
+  diagnostics: unknown[]
+  review?: BackportPrerequisiteReview
 }
 
 export interface BackportConfigUpdateResponse {
@@ -232,6 +270,7 @@ export interface BackportOperationArtifacts {
 }
 
 export interface BackportOperationDiagnostics {
+  code?: string
   error_text?: string
   last_tool?: BackportToolSnapshot | null
 }
@@ -269,6 +308,8 @@ export interface BackportOperationResultData {
   patch?: BackportPatchPreviewResponse
   commit_message?: BackportCommitMessagePreview
   manual_patch?: BackportManualPatchResult
+  manifest?: BackportPrerequisiteManifest
+  original_commits?: BackportCommitItem[]
   diagnostics?: BackportOperationDiagnostics
 }
 
@@ -443,6 +484,13 @@ export interface BackportGenerateReportRequest {
   config: BackportConfig
   excelPath: string
   runId?: string
+  prerequisite_commits?: BackportPrerequisiteCandidate[]
+  prerequisite_review?: BackportPrerequisiteReview
+}
+
+export interface BackportPrerequisiteCommitsRequest {
+  config: BackportConfig
+  excelPath: string
 }
 
 export interface BackportLoadReportRequest {

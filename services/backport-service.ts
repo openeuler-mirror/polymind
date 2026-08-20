@@ -18,6 +18,7 @@ import {
   BackportLoadReportRequest,
   BackportManualPatchRequest,
   BackportPatchPreviewResponse,
+  BackportPrerequisiteCommitsRequest,
   BackportRecentRepositoriesResponse,
   BackportRepositoryInfo,
   BackportRepositoryPrepareResponse,
@@ -45,6 +46,7 @@ type BackportAction =
   | 'load_git_show'
   | 'load_patch_preview'
   | 'preview_commit_message'
+  | 'prerequisite_commits'
   | 'execute_selected'
   | 'apply_row'
   | 'try_resolve'
@@ -223,6 +225,8 @@ class BackportService {
         config: request.config,
         excel_path: request.excelPath,
         run_id: request.runId,
+        prerequisite_commits: request.prerequisite_commits,
+        prerequisite_review: request.prerequisite_review,
       },
     }
     const created = await httpClient.post<BackportAsyncRunResponse>('/backport/runs', runRequest, {
@@ -242,7 +246,11 @@ class BackportService {
     }
 
     if (current.status === 'failed') {
-      throw new Error(current.error || '生成配置与报告失败')
+      const error = new Error(current.error || '生成配置与报告失败') as Error & {
+        code?: string
+      }
+      error.code = current.result?.parsedResult?.diagnostics?.code
+      throw error
     }
     if (!current.result && (current.status === 'paused' || current.status === 'interrupted')) {
       const reportPath = current.progress?.current_report_path
@@ -283,6 +291,58 @@ class BackportService {
     })
 
     return current.result
+  }
+
+  public async findPrerequisiteCommits(
+    request: BackportPrerequisiteCommitsRequest,
+    onEvent?: (event: any) => void,
+  ): Promise<BackportRunResponse> {
+    onEvent?.({ type: 'message.started', payload: {} })
+
+    const runRequest: BackportRunRequest = {
+      action: 'prerequisite_commits',
+      payload: {
+        config: request.config,
+        excel_path: request.excelPath,
+      },
+    }
+
+    // 扫描记录只存在后端内存；后端热重载后记录会丢失，自动重新发起扫描。
+    const maxAttempts = 3
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const created = await httpClient.post<BackportAsyncRunResponse>(
+        '/backport/runs',
+        runRequest,
+        { timeout: 30000 },
+      )
+      let current = created
+
+      try {
+        while (current.status === 'running') {
+          await new Promise(resolve => setTimeout(resolve, 15000))
+          current = await this.getRun(created.run_id)
+        }
+      } catch (cause) {
+        console.warn('前置提交扫描任务失效，重新发起：', cause)
+        continue
+      }
+
+      if (current.status === 'failed') {
+        throw new Error(current.error || '前置提交查找失败')
+      }
+      if (!current.result) {
+        throw new Error('前置提交查找未返回结果')
+      }
+
+      this.emitSyntheticToolEvents(current.result.toolSnapshots, onEvent)
+      onEvent?.({
+        type: 'message.completed',
+        payload: { text: current.result.assistantText },
+      })
+      return current.result
+    }
+
+    throw new Error('前置提交查找失败：扫描任务多次失效，请重新点击导入。')
   }
 
   public async loadReport(request: BackportLoadReportRequest): Promise<BackportRunResponse> {
