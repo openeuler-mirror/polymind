@@ -6,20 +6,14 @@ import { cacheDelete, CACHE_KEYS } from '../cache'
 import { appConfig } from '@/app/config'
 import { sessionService } from '@/services/session-service'
 import { messageService } from '@/services/message-service'
+import { abortScheduledRunForSession } from './scheduled-run-controller'
+import {
+  isSessionPendingDelete,
+  markSessionPendingDelete,
+  retryPendingSessionDeletes,
+} from './pending-session-deletes'
 import { syncUrlParams, getUrlParam } from './utils'
 import type { StoreState } from './index'
-
-/** 定时任务轮询同步到会话列表的最小快照（由 scheduled-task-store 轮询产生）。 */
-export interface ScheduledConversationSnapshot {
-  sessionId: string
-  taskId: string
-  agentId: string
-  title: string
-  isStreaming: boolean
-  lastMessageStatus?: MessageStatus
-  updatedAt: Date
-  createdAt: Date
-}
 
 /** 计算移除某会话后的 state 变化并同步 URL：若删除的是当前会话，则回退到下一个会话（或清空）。 */
 function computeRemovalState(
@@ -64,8 +58,6 @@ export interface ChatSlice {
     messageId: string,
     updates: Partial<Message> | ((message: Message) => Partial<Message>)
   ) => void
-  /** 将定时任务轮询得到的执行记录快照合并进会话列表（不切换当前会话）。 */
-  mergeScheduledConversationSnapshots: (snapshots: ScheduledConversationSnapshot[]) => void
   deleteMessage: (conversationId: string, messageId: string) => void
   setStreaming: (conversationId: string | null, streaming: boolean) => void
   stopStreaming: () => void
@@ -75,7 +67,12 @@ export interface ChatSlice {
   refreshConversation: (
     agentId: string,
     sessionId: string,
-    meta?: { scheduledTaskId?: string; lastMessageStatus?: MessageStatus }
+    meta?: {
+      scheduledTaskId?: string
+      lastMessageStatus?: MessageStatus
+      /** 刷新后是否把该会话切换为当前会话；默认 true，后台回填时应传 false。 */
+      activate?: boolean
+    }
   ) => Promise<void>
   loadMoreMessages: (agentId: string, sessionId: string, before: string) => Promise<void>
 }
@@ -135,11 +132,12 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
         }
       } catch (error) {
         console.error('Failed to delete session:', error)
+        // 删除请求本身失败时才需要本地暂时隐藏，并在后续列表刷新时补删。
+        if (conversation.sessionId) {
+          markSessionPendingDelete(conversation.sessionId)
+        }
       }
     }
-    // 定时任务执行会话由任务管理统一生命周期（删除任务时级联清理），
-    // 不提供单条删除入口，因此无需在此做轮询重建拦截。
-
     cacheDelete(CACHE_KEYS.CONVERSATIONS_WITH_NAMES)
 
     const prevState = get()
@@ -233,66 +231,6 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
     }))
   },
 
-  mergeScheduledConversationSnapshots: snapshots => {
-    if (snapshots.length === 0) return
-    set(state => {
-      const conversations = [...state.conversations]
-      for (const snap of snapshots) {
-        const idx = conversations.findIndex(c => c.sessionId === snap.sessionId)
-        if (idx >= 0) {
-          const existing = conversations[idx]
-          // run 已结束时，把本地仍标记为流式/生成中的最后一条助手消息一并收尾，
-          // 避免轮询把侧栏状态纠正后，打开会话消息区仍显示转圈。
-          const messages = snap.isStreaming
-            ? existing.messages
-            : existing.messages.map(m =>
-                m.role === 'assistant' && m.isStreaming
-                  ? {
-                      ...m,
-                      isStreaming: false,
-                      status: snap.lastMessageStatus ?? m.status,
-                    }
-                  : m
-              )
-          conversations[idx] = {
-            ...existing,
-            messages,
-            // 已存在的会话保留更具体的内容标题（如手动执行时由首条消息生成），
-            // 只有仍为默认标题时才回退为任务名。
-            title: existing.title && existing.title !== '新对话' ? existing.title : snap.title,
-            // updatedAt 可能来自 sessionStorage 缓存（字符串），统一归一化为 Date。
-            updatedAt: new Date(
-              Math.max(new Date(snap.updatedAt).getTime(), new Date(existing.updatedAt).getTime())
-            ),
-            agentId: snap.agentId || existing.agentId,
-            agentName: existing.agentName || '定时',
-            scheduledTaskId: snap.taskId,
-            isStreaming: snap.isStreaming,
-            lastMessageStatus: snap.lastMessageStatus,
-          }
-        } else {
-          conversations.unshift({
-            id: generateUUID(),
-            title: snap.title,
-            messages: [],
-            createdAt: new Date(snap.createdAt),
-            updatedAt: new Date(snap.updatedAt),
-            agentId: snap.agentId,
-            agentName: '定时',
-            sessionId: snap.sessionId,
-            scheduledTaskId: snap.taskId,
-            isStreaming: snap.isStreaming,
-            lastMessageStatus: snap.lastMessageStatus,
-          })
-        }
-      }
-      conversations.sort(
-        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      )
-      return { conversations }
-    })
-  },
-
   setStreaming: (conversationId, streaming) => {
     // conversationId may be null in error paths (connection-store.ts,
     // stream-event-handler.ts) where the current conversation has already
@@ -317,6 +255,11 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
     const agentId = conversation?.agentId || state.currentAgentId
     if (agentId) {
       set({ _stoppingInProgress: true })
+      // 定时任务执行流的本地挂流由 scheduled-run-controller 管理，
+      // 需要单独中止；messageService.abortMessage 会继续向后端发 abort。
+      if (conversation?.scheduledTaskId && conversation.sessionId) {
+        abortScheduledRunForSession(conversation.sessionId)
+      }
       messageService.abortMessage(agentId, conversation?.sessionId)
     }
 
@@ -419,13 +362,21 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
       const conversations = summaries.map((s: any) =>
         sessionService.transformConversationSummary(s, agent?.name)
       )
+      retryPendingSessionDeletes(
+        conversations
+          .map((c: Conversation) => (c.sessionId ? { agentId, sessionId: c.sessionId } : null))
+          .filter((item): item is { agentId: string; sessionId: string } => item !== null)
+      )
       set(state => {
         const existingIds = new Set(state.conversations.map(c => c.id))
         const existingSessionIds = new Set(
           state.conversations.map(c => c.sessionId).filter(Boolean)
         )
         const newConversations = conversations.filter(
-          (c: Conversation) => !existingIds.has(c.id) && !existingSessionIds.has(c.sessionId)
+          (c: Conversation) =>
+            !existingIds.has(c.id) &&
+            !existingSessionIds.has(c.sessionId) &&
+            !isSessionPendingDelete(c.sessionId)
         )
         return {
           conversations: [...newConversations, ...state.conversations],
@@ -446,6 +397,7 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
       const lastMessageStatus =
         meta?.lastMessageStatus ??
         [...messages].reverse().find((m: Message) => m.role === 'assistant' && m.status)?.status
+      const activate = meta?.activate !== false
       set(state => {
         const existing = state.conversations.find(c => c.sessionId === sessionId)
         if (existing) {
@@ -459,17 +411,20 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
                     updatedAt: new Date(detail.updated_at),
                     title: detail.title || c.title,
                     lastMessageStatus,
-                    scheduledTaskId: meta?.scheduledTaskId ?? c.scheduledTaskId,
+                    scheduledTaskId:
+                      detail.scheduled_task_id ?? meta?.scheduledTaskId ?? c.scheduledTaskId,
                     // 会话当前正在生成且后端尚未返回任何消息（如刚建会话任务仍在执行）时，
                     // 保留 isStreaming，避免空消息把占位会话的流式状态误覆盖为 false。
                     isStreaming: hasStreaming || (c.isStreaming && messages.length === 0),
                   }
                 : c
             ),
-            currentConversationId: existing.id,
-            currentAgentId: agentId,
+            ...(activate ? { currentConversationId: existing.id, currentAgentId: agentId } : {}),
           }
         }
+        // 后台回填（activate: false）时本地已无该会话（如刚随任务删除被清理），
+        // 不得新建占位会话，避免复活为无人认领的孤儿条目。
+        if (!activate) return state
         const placeholder: Conversation = {
           id: generateUUID(),
           title: detail.title || '新对话',
@@ -479,15 +434,14 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
           pinned: detail.pinned,
           agentId,
           sessionId,
-          scheduledTaskId: meta?.scheduledTaskId,
+          scheduledTaskId: detail.scheduled_task_id ?? meta?.scheduledTaskId,
           isStreaming: hasStreaming,
           lastMessageStatus,
           hasMore: detail.has_more ?? false,
         }
         return {
           conversations: [placeholder, ...state.conversations],
-          currentConversationId: placeholder.id,
-          currentAgentId: agentId,
+          ...(activate ? { currentConversationId: placeholder.id, currentAgentId: agentId } : {}),
         }
       })
     } catch (error) {

@@ -43,6 +43,12 @@ import { createUISlice, type UISlice } from '../ui-store'
 import { MessageStatus, SessionStatus } from '../../types'
 import { sessionService } from '@/services/session-service'
 import { messageService } from '@/services/message-service'
+import { CACHE_KEYS, cacheDelete } from '../../cache'
+import {
+  clearSessionPendingDelete,
+  isSessionPendingDelete,
+  markSessionPendingDelete,
+} from '../pending-session-deletes'
 
 type TestState = ChatSlice & AgentSlice & ConnectionSlice & SettingsSlice & UISlice
 
@@ -519,126 +525,6 @@ describe('ChatSlice', () => {
     })
   })
 
-  describe('mergeScheduledConversationSnapshots', () => {
-    it('should create placeholder conversations for new scheduled runs', () => {
-      seedConversation({ id: 'conv-existing', sessionId: 'sess-existing' })
-
-      useTestStore.getState().mergeScheduledConversationSnapshots([
-        {
-          sessionId: 'sess-run',
-          taskId: 'task-1',
-          agentId: 'agent-1',
-          title: '每日报告',
-          isStreaming: true,
-          lastMessageStatus: MessageStatus.GENERATING,
-          updatedAt: new Date('2025-06-02'),
-          createdAt: new Date('2025-06-02'),
-        },
-      ])
-
-      const state = useTestStore.getState()
-      const runConv = state.conversations.find(c => c.sessionId === 'sess-run')
-      expect(runConv).toBeDefined()
-      expect(runConv?.scheduledTaskId).toBe('task-1')
-      expect(runConv?.agentName).toBe('定时')
-      expect(runConv?.isStreaming).toBe(true)
-      expect(runConv?.lastMessageStatus).toBe(MessageStatus.GENERATING)
-      // 不切换当前会话
-      expect(state.currentConversationId).toBeNull()
-    })
-
-    it('should refresh metadata of an existing conversation by sessionId', () => {
-      const existingMsg = {
-        id: 'msg-1',
-        role: 'user' as const,
-        content: 'hi',
-        timestamp: new Date(),
-      }
-      seedConversation({ sessionId: 'sess-run', messages: [existingMsg], isStreaming: true })
-      useTestStore.setState({ currentConversationId: 'conv-1' })
-
-      useTestStore.getState().mergeScheduledConversationSnapshots([
-        {
-          sessionId: 'sess-run',
-          taskId: 'task-1',
-          agentId: 'agent-1',
-          title: '每日报告',
-          isStreaming: false,
-          lastMessageStatus: MessageStatus.COMPLETED,
-          updatedAt: new Date('2025-06-02'),
-          createdAt: new Date('2025-06-01'),
-        },
-      ])
-
-      const conv = useTestStore.getState().conversations[0]
-      expect(conv.id).toBe('conv-1')
-      expect(conv.scheduledTaskId).toBe('task-1')
-      expect(conv.isStreaming).toBe(false)
-      expect(conv.lastMessageStatus).toBe(MessageStatus.COMPLETED)
-      // 本地消息不被覆盖
-      expect(conv.messages).toHaveLength(1)
-      expect(useTestStore.getState().currentConversationId).toBe('conv-1')
-    })
-
-    it('should finalize streaming assistant messages when the run finishes', () => {
-      const assistantMsg = {
-        id: 'msg-1',
-        role: 'assistant' as const,
-        content: 'partial...',
-        isStreaming: true,
-        status: MessageStatus.GENERATING,
-        timestamp: new Date(),
-      }
-      seedConversation({ sessionId: 'sess-run', messages: [assistantMsg], isStreaming: true })
-
-      useTestStore.getState().mergeScheduledConversationSnapshots([
-        {
-          sessionId: 'sess-run',
-          taskId: 'task-1',
-          agentId: 'agent-1',
-          title: '每日报告',
-          isStreaming: false,
-          lastMessageStatus: MessageStatus.COMPLETED,
-          updatedAt: new Date('2025-06-02'),
-          createdAt: new Date('2025-06-01'),
-        },
-      ])
-
-      const conv = useTestStore.getState().conversations[0]
-      expect(conv.isStreaming).toBe(false)
-      expect(conv.messages[0].isStreaming).toBe(false)
-      expect(conv.messages[0].status).toBe(MessageStatus.COMPLETED)
-    })
-
-    it('should tolerate string updatedAt from sessionStorage cache', () => {
-      // sessionStorage 恢复的会话 updatedAt 是字符串，合并时不能调用 getTime 崩溃。
-      seedConversation({
-        id: 'conv-cached',
-        sessionId: 'sess-cached',
-        updatedAt: '2025-05-01T00:00:00.000Z',
-      })
-
-      expect(() =>
-        useTestStore.getState().mergeScheduledConversationSnapshots([
-          {
-            sessionId: 'sess-cached',
-            taskId: 'task-1',
-            agentId: 'agent-1',
-            title: '每日报告',
-            isStreaming: false,
-            lastMessageStatus: MessageStatus.COMPLETED,
-            updatedAt: new Date('2025-06-02'),
-            createdAt: new Date('2025-06-01'),
-          },
-        ])
-      ).not.toThrow()
-
-      const conv = useTestStore.getState().conversations[0]
-      expect(conv.updatedAt).toBeInstanceOf(Date)
-      expect(conv.updatedAt.getTime()).toBe(new Date('2025-06-02').getTime())
-    })
-  })
-
   describe('setStreaming', () => {
     it('should set isStreaming on a conversation', () => {
       seedConversation({ isStreaming: false })
@@ -884,6 +770,100 @@ describe('ChatSlice', () => {
       // State unchanged, no crash
       expect(useTestStore.getState().conversations.length).toBe(0)
     })
+
+    it('should skip sessions pending deletion', async () => {
+      markSessionPendingDelete('sess-deleted')
+      ;(sessionService.getConversations as jest.Mock).mockResolvedValue([
+        {
+          id: 'sess-deleted',
+          title: '已删除会话',
+          agent_id: 'agent-1',
+          created_at: '2025-06-01T00:00:00Z',
+          updated_at: '2025-06-01T00:00:00Z',
+        },
+      ])
+      ;(sessionService.transformConversationSummary as jest.Mock).mockImplementation(
+        (summary: any) => ({
+          id: summary.id,
+          title: summary.title,
+          messages: [],
+          createdAt: new Date(summary.created_at),
+          updatedAt: new Date(summary.updated_at),
+          agentId: summary.agent_id,
+          sessionId: summary.id,
+        })
+      )
+
+      await useTestStore.getState().fetchConversations('agent-1')
+
+      expect(useTestStore.getState().conversations).toHaveLength(0)
+      clearSessionPendingDelete('sess-deleted')
+    })
+
+    it('should retry pending deletion and clear it on success', async () => {
+      markSessionPendingDelete('sess-deleted')
+      ;(sessionService.getConversations as jest.Mock).mockResolvedValue([
+        {
+          id: 'sess-deleted',
+          title: '泄漏会话',
+          agent_id: 'agent-1',
+          created_at: '2025-06-01T00:00:00Z',
+          updated_at: '2025-06-01T00:00:00Z',
+        },
+      ])
+      ;(sessionService.transformConversationSummary as jest.Mock).mockImplementation(
+        (summary: any) => ({
+          id: summary.id,
+          title: summary.title,
+          messages: [],
+          createdAt: new Date(summary.created_at),
+          updatedAt: new Date(summary.updated_at),
+          agentId: summary.agent_id,
+          sessionId: summary.id,
+        })
+      )
+      ;(sessionService.deleteSession as jest.Mock).mockResolvedValue(undefined)
+
+      await useTestStore.getState().fetchConversations('agent-1')
+      await Promise.resolve()
+
+      expect(sessionService.deleteSession).toHaveBeenCalledWith('agent-1', 'sess-deleted')
+      expect(isSessionPendingDelete('sess-deleted')).toBe(false)
+      expect(useTestStore.getState().conversations).toHaveLength(0)
+    })
+
+    it('should keep the pending marker when retry deletion fails', async () => {
+      markSessionPendingDelete('sess-deleted')
+      ;(sessionService.getConversations as jest.Mock).mockResolvedValue([
+        {
+          id: 'sess-deleted',
+          title: '泄漏会话',
+          agent_id: 'agent-1',
+          created_at: '2025-06-01T00:00:00Z',
+          updated_at: '2025-06-01T00:00:00Z',
+        },
+      ])
+      ;(sessionService.transformConversationSummary as jest.Mock).mockImplementation(
+        (summary: any) => ({
+          id: summary.id,
+          title: summary.title,
+          messages: [],
+          createdAt: new Date(summary.created_at),
+          updatedAt: new Date(summary.updated_at),
+          agentId: summary.agent_id,
+          sessionId: summary.id,
+        })
+      )
+      ;(sessionService.deleteSession as jest.Mock).mockRejectedValue(new Error('Network error'))
+
+      await useTestStore.getState().fetchConversations('agent-1')
+      await Promise.resolve()
+
+      expect(sessionService.deleteSession).toHaveBeenCalledWith('agent-1', 'sess-deleted')
+      expect(isSessionPendingDelete('sess-deleted')).toBe(true)
+      expect(useTestStore.getState().conversations).toHaveLength(0)
+      clearSessionPendingDelete('sess-deleted')
+    })
   })
 
   describe('refreshConversation', () => {
@@ -987,6 +967,54 @@ describe('ChatSlice', () => {
       const conv = useTestStore.getState().conversations[0]
       expect(conv.scheduledTaskId).toBe('task-1')
       expect(conv.lastMessageStatus).toBe(MessageStatus.COMPLETED)
+    })
+
+    it('should update messages without switching current conversation when activate is false', async () => {
+      seedConversation({ sessionId: 'sess-1', title: '旧标题' })
+      useTestStore.setState({ currentConversationId: 'other-conv', currentAgentId: 'agent-other' })
+      const detail = {
+        title: '新标题',
+        messages: [{ id: 'msg-1' }],
+        has_more: false,
+        updated_at: '2025-06-01T00:00:00Z',
+      }
+      ;(sessionService.getConversation as jest.Mock).mockResolvedValue(detail)
+      ;(sessionService.transformMessage as jest.Mock).mockReturnValue({
+        id: 'msg-1',
+        role: 'assistant',
+        content: 'hi',
+        timestamp: new Date(),
+      })
+
+      await useTestStore.getState().refreshConversation('agent-1', 'sess-1', { activate: false })
+
+      const state = useTestStore.getState()
+      expect(state.conversations.find(c => c.sessionId === 'sess-1')?.messages).toHaveLength(1)
+      expect(state.currentConversationId).toBe('other-conv')
+      expect(state.currentAgentId).toBe('agent-other')
+    })
+
+    it('should not create a placeholder for background backfill when the conversation is missing', async () => {
+      useTestStore.setState({ currentConversationId: 'other-conv', currentAgentId: 'agent-other' })
+      const detail = {
+        title: '远程会话',
+        messages: [],
+        has_more: false,
+        created_at: '2025-06-01T00:00:00Z',
+        updated_at: '2025-06-01T00:00:00Z',
+      }
+      ;(sessionService.getConversation as jest.Mock).mockResolvedValue(detail)
+      ;(sessionService.transformMessage as jest.Mock).mockReturnValue(null)
+
+      await useTestStore
+        .getState()
+        .refreshConversation('agent-1', 'sess-remote', { activate: false })
+
+      // 后台回填时本地已无该会话（如刚随任务删除被清理），不得新建占位会话。
+      const state = useTestStore.getState()
+      expect(state.conversations.some(c => c.sessionId === 'sess-remote')).toBe(false)
+      expect(state.currentConversationId).toBe('other-conv')
+      expect(state.currentAgentId).toBe('agent-other')
     })
   })
 

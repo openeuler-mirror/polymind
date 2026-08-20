@@ -7,6 +7,7 @@ import { generateUUID } from '../utils'
 import { cacheDelete, cacheSetAll, cacheGetAll, CACHE_KEYS } from '../cache'
 import { appConfig } from '@/app/config'
 import { syncUrlParams, getUrlParam } from './utils'
+import { isSessionPendingDelete, retryPendingSessionDeletes } from './pending-session-deletes'
 import type { StoreState } from './index'
 
 export interface AgentSlice {
@@ -167,7 +168,10 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
           )
           const patched = patchAgentNames(state.conversations, cached.sessionAgentNames)
           const freshConvs = cached.conversations.filter(
-            c => !existingIds.has(c.id) && !existingSessionIds.has(c.sessionId)
+            c =>
+              !existingIds.has(c.id) &&
+              !existingSessionIds.has(c.sessionId) &&
+              !isSessionPendingDelete(c.sessionId)
           )
           return {
             agents: cached.agents,
@@ -184,21 +188,26 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
           const agentIds = new Set(agents.map(a => a.id))
           const allConversations: Conversation[] = []
           const sessionAgentNames: [string, string][] = []
+          const pendingRetry: Array<{ agentId: string; sessionId: string }> = []
 
           for (const item of enriched) {
             const agentName = item.name
             for (const summary of item.conversations || []) {
               const sessId: string = summary.id
+              if (isSessionPendingDelete(sessId)) {
+                pendingRetry.push({ agentId: item.id, sessionId: sessId })
+                continue
+              }
               sessionAgentNames.push([sessId, agentName])
               allConversations.push(sessionService.transformConversationSummary(summary, agentName))
             }
           }
 
-          const newConversations = deduplicateConversations(get().conversations, allConversations)
-
           cacheSetAll({ agents, conversations: allConversations, sessionAgentNames }, 2 * 60 * 1000)
+          retryPendingSessionDeletes(pendingRetry)
 
           set(state => {
+            const newConversations = deduplicateConversations(state.conversations, allConversations)
             const patched = patchAgentNames(state.conversations, sessionAgentNames).filter(
               c => !c.agentId || agentIds.has(c.agentId)
             )
