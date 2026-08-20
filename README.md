@@ -222,7 +222,7 @@ pnpm run start
 2. 用 VS Code 打开项目，点击 "Reopen in Container"
 3. 容器启动后自动安装依赖，运行 `pnpm dev` 即可开发
 
-容器环境包含：Node.js 24、pnpm 11、ESLint/Prettier/Tailwind CSS 等 VS Code 扩展，与 CI 环境完全一致。
+容器环境包含：Node.js 24、pnpm 11、pre-commit、ESLint/Prettier/Tailwind CSS 等 VS Code 扩展，与 CI 环境完全一致。
 
 ### 传统环境搭建
 
@@ -240,6 +240,19 @@ pnpm install
 pnpm run dev
 ```
 
+### 代码质量与提交前检查
+
+项目通过 [pre-commit](https://pre-commit.com/) 统一管理本地提交与 CI 门禁：通用 hygiene（行尾空白、EOF、YAML/JSON 语法、合并冲突、大文件、私钥）、Gitleaks 密钥扫描、Codespell 拼写检查、Prettier/ESLint（修复模式）与 commitlint 提交规范，配置见根目录 `.pre-commit-config.yaml`。`pnpm install` 自动注册 Git hooks（`prepare` 脚本）；手动初始化：
+
+```bash
+pip install pre-commit
+# 从旧版 husky 迁移时需先清除 hooksPath，否则 hooks 不会生效
+git config --unset-all core.hooksPath || true
+pre-commit install --hook-type pre-commit --hook-type commit-msg
+```
+
+提交时自动检查暂存区文件；`pnpm run precommit` 全量运行检查，`pnpm run typecheck` 单独执行类型检查。社区门禁（openEuler/GitCode 侧）由 `scripts/ci-pre-commit-pr.sh` 以同一份配置增量运行。详见 [docs/static-code-analysis.md](docs/static-code-analysis.md)。
+
 ### 常用开发命令
 
 | 命令 | 说明 |
@@ -248,6 +261,9 @@ pnpm run dev
 | `pnpm run build` | 构建生产包 |
 | `pnpm run start` | 使用构建产物启动服务 |
 | `pnpm run lint` | 运行 ESLint 代码检查 |
+| `pnpm run typecheck` | 运行 TypeScript 类型检查 |
+| `pnpm run precommit` | 全量运行 pre-commit 检查 |
+| `pnpm run quality` | 全量质量检查（lint + format:check + typecheck） |
 | `pnpm run test` | 运行 Jest 测试 |
 
 ### 项目结构

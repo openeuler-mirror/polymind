@@ -35,7 +35,7 @@ class WebSocketClient {
           resolve()
         }
 
-        this.ws.onmessage = (event) => {
+        this.ws.onmessage = event => {
           try {
             const data = JSON.parse(event.data)
             this.emit('message', data)
@@ -44,9 +44,9 @@ class WebSocketClient {
           }
         }
 
-        this.ws.onclose = (event) => {
+        this.ws.onclose = event => {
           this.stopHeartbeat()
-          
+
           if (!this.isManualClose) {
             if (this.reconnectAttempts < this.maxReconnectAttempts) {
               this.reconnectAttempts++
@@ -67,11 +67,11 @@ class WebSocketClient {
               this.emit('error', new Error('Max reconnection attempts reached'))
             }
           }
-          
+
           this.emit('close', event)
         }
 
-        this.ws.onerror = (error) => {
+        this.ws.onerror = error => {
           this.emit('error', error)
           reject(error)
         }
@@ -143,11 +143,11 @@ class WebSocketClient {
     // 检测环境，使用相应的API
     const setIntervalFn = typeof window !== 'undefined' ? window.setInterval : setInterval
     const setTimeoutFn = typeof window !== 'undefined' ? window.setTimeout : setTimeout
-    
+
     this.heartbeatInterval = setIntervalFn(() => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'ping' }))
-        
+
         // 设置心跳超时
         this.heartbeatTimeout = setTimeoutFn(() => {
           if (this.ws) {

@@ -1,7 +1,13 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export const PAGE_SIZE_OPTIONS = [12, 24, 48] as const
 
@@ -28,12 +34,12 @@ export function SkillPaginationBar({
         共 {total} 条，当前第 {currentPage} / {totalPages} 页
       </p>
       <div className="flex items-center gap-2">
-        <Select value={String(pageSize)} onValueChange={(value) => onPageSizeChange(Number(value))}>
+        <Select value={String(pageSize)} onValueChange={value => onPageSizeChange(Number(value))}>
           <SelectTrigger className="h-8 w-28">
             <SelectValue placeholder="每页条数" />
           </SelectTrigger>
           <SelectContent>
-            {PAGE_SIZE_OPTIONS.map((size) => (
+            {PAGE_SIZE_OPTIONS.map(size => (
               <SelectItem key={size} value={String(size)}>
                 每页 {size}
               </SelectItem>

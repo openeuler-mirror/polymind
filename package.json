@@ -44,20 +44,14 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
+    "typecheck": "tsc --noEmit",
+    "quality": "pnpm lint && pnpm format:check && pnpm typecheck",
     "test": "jest",
     "postinstall": "node scripts/postinstall.js",
-    "prepare": "husky",
+    "prepare": "git config --unset-all core.hooksPath || true && pre-commit install --hook-type pre-commit --hook-type commit-msg || echo '[pre-commit] 未安装或安装失败，本地提交不会自动执行检查，请先 pip install pre-commit'",
+    "precommit": "pre-commit run --all-files",
     "release": "semantic-release",
     "release:dry-run": "semantic-release --dry-run"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{json,css,scss,less,html}": [
-      "prettier --write"
-    ]
   },
   "publishConfig": {
     "access": "public",
@@ -96,6 +90,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.1.1",
+    "cronstrue": "^3.24.0",
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
     "input-otp": "1.4.1",
@@ -140,9 +135,9 @@
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.7",
     "eslint-config-prettier": "^10.1.8",
-    "husky": "^9.1.7",
+    "eslint-plugin-react": "^7.37.0",
+    "eslint-plugin-react-hooks": "^7.0.0",
     "jest": "^30.3.0",
-    "lint-staged": "^17.0.7",
     "postcss": "^8.5",
     "prettier": "^3.8.3",
     "semantic-release": "^25.0.3",

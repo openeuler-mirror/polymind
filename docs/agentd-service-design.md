@@ -55,7 +55,7 @@ flowchart TB
         direction TB
         Adapter["Adapter\n(opencode/openclaw/claudecode)"]
         AgentRuntime["Agent Runtime"]
-        
+
         Adapter <--> AgentRuntime
     end
 
@@ -633,10 +633,10 @@ stateDiagram-v2
     [*] --> CREATING: 创建
     CREATING --> RUNNING: 沙箱就绪
     CREATING --> ERROR: 启动失败
-    
+
     RUNNING --> PAUSED: 空闲超时
     PAUSED --> RUNNING: 收到消息
-    
+
     ERROR --> RUNNING: 重试成功
 ```
 
@@ -657,16 +657,16 @@ stateDiagram-v2
 flowchart TD
     Start["接收消息"] --> Validate["Token 校验"]
     Validate --> CheckAgent{"Agent 存在?"}
-    
+
     CheckAgent -->|否| Error1["404 Not Found"]
     CheckAgent -->|是| CheckStatus{"Agent 状态?"}
-    
+
     CheckStatus -->|PAUSED| Resume["恢复沙箱"]
     Resume --> Forward
     CheckStatus -->|RUNNING| Forward
-    
+
     CheckStatus -->|其他| Error2["400 Bad Request"]
-    
+
     Forward["转发消息到沙箱"] --> Process["Adapter 处理\n(自己读取 memory)"]
     Process --> Write["追加消息到 memory"]
     Process --> Stream["流式返回事件"]
@@ -685,16 +685,16 @@ flowchart TD
 flowchart TD
     Start["定时检查"] --> CheckAll["遍历所有 RUNNING Agent"]
     CheckAll --> HasNext{"还有 Agent?"}
-    
+
     HasNext -->|否| Wait["等待下次检查"]
     Wait --> Start
-    
+
     HasNext -->|是| CheckAgent["检查 Agent"]
     CheckAgent --> HasTask{"有定时任务?"}
-    
+
     HasTask -->|是| HasNext
     HasTask -->|否| IsIdle{"空闲超时?"}
-    
+
     IsIdle -->|否| HasNext
     IsIdle -->|是| Pause["保存状态"]
     Pause --> StopSandbox["停止沙箱"]
@@ -753,31 +753,31 @@ witty-service/openhands/
 ```python
 class StorageBackend(ABC):
     """存储后端抽象接口"""
-    
+
     async def init_workspace(self, agent_id: str) -> WorkspaceMount:
         """初始化工作空间"""
         pass
-    
+
     async def save_state(self, agent_id: str, state: dict) -> None:
         """保存 Agent 状态"""
         pass
-    
+
     async def load_state(self, agent_id: str) -> dict | None:
         """加载 Agent 状态"""
         pass
-    
+
     async def save_memory(
         self, agent_id: str, session_id: str, data: list[Message]
     ) -> None:
         """保存会话记忆"""
         pass
-    
+
     async def load_memory(
         self, agent_id: str, session_id: str
     ) -> list[Message]:
         """加载会话记忆"""
         pass
-    
+
     async def cleanup(self, agent_id: str) -> None:
         """清理工作空间"""
         pass
@@ -790,23 +790,23 @@ class StorageBackend(ABC):
 ```python
 class AgentAdapter(ABC):
     """Agent 适配器抽象接口（运行在沙箱内）"""
-    
+
     async def start(self, config: AgentConfig, workspace_path: str) -> None:
         """启动 Adapter 和 Agent
-        
+
         Args:
             config: Agent 配置
             workspace_path: workspace 挂载路径（如 /workspace）
         """
         pass
-    
+
     async def stop(self) -> None:
         """停止 Adapter 和 Agent"""
         pass
-    
+
     async def send_message(self, content: str, session_id: str) -> AsyncIterator[AgentEvent]:
         """发送消息给 Agent
-        
+
         Adapter 职责：
         1. 从 workspace/.agent/ 读取 memory 和上下文
         2. 将上下文注入给 Agent
@@ -814,39 +814,39 @@ class AgentAdapter(ABC):
         4. 将响应保存回 workspace/.agent/
         """
         pass
-    
+
     async def restore_from_workspace(self) -> None:
         """从 workspace 恢复 Agent 状态
-        
+
         Adapter 从 workspace/.agent/ 读取状态，恢复 Agent
         """
         pass
-    
+
     async def create_session(self, session_id: str) -> dict:
         """创建新 Session
-        
+
         在 workspace/.agent/memory/ 目录下创建 session 文件
         每个 Session 有独立的 memory 文件用于存储对话历史
-        
+
         Args:
             session_id: 唯一 Session ID
-            
+
         Returns:
             Session 信息字典，包含 id 和 created_at
-            
+
         Raises:
             ValueError: Session 已存在
         """
         pass
-    
+
     async def close_session(self, session_id: str) -> None:
         """关闭 Session
-        
+
         清理 workspace/.agent/memory/{session_id}.json 文件
-        
+
         Args:
             session_id: 要关闭的 Session ID
-            
+
         Raises:
             ValueError: Session 不存在
         """
@@ -858,23 +858,23 @@ class AgentAdapter(ABC):
 ```python
 class SessionManager:
     """Session 生命周期管理"""
-    
+
     async def create_session(self, agent_id: str) -> Session:
         """创建新 Session"""
         pass
-    
+
     async def get_session(self, agent_id: str, session_id: str) -> Session | None:
         """获取 Session 信息"""
         pass
-    
+
     async def list_sessions(self, agent_id: str) -> list[Session]:
         """列出所有 Session"""
         pass
-    
+
     async def delete_session(self, agent_id: str, session_id: str) -> None:
         """删除 Session"""
         pass
-    
+
     async def validate_session(self, session_id: str) -> bool:
         """验证 Session 是否有效"""
         pass
@@ -885,9 +885,9 @@ class SessionManager:
 ```python
 class SandboxBackend(ABC):
     """沙箱后端抽象接口"""
-    
+
     async def start(
-        self, 
+        self,
         sandbox_type: str,
         workspace_mount: WorkspaceMount,
         adapter_config: dict,
@@ -895,15 +895,15 @@ class SandboxBackend(ABC):
     ) -> SandboxInfo:
         """启动沙箱（在沙箱内启动 Adapter）"""
         pass
-    
+
     async def stop(self, sandbox_id: str) -> None:
         """停止沙箱"""
         pass
-    
+
     async def pause(self, sandbox_id: str) -> None:
         """暂停沙箱（不常用，简化为 stop）"""
         pass
-    
+
     async def resume(self, sandbox_id: str) -> None:
         """恢复沙箱"""
         pass
@@ -940,7 +940,7 @@ flowchart TB
     AgentManager --> SandboxBackend
     SandboxBackend -->|HTTP REST + WS| AdapterLocal
     SandboxBackend -->|HTTP REST + WS| AdapterRemote
-    
+
     style Middleware fill:#e1f5fe
     style LocalSandbox fill:#c8e6c9
     style RemoteSandbox fill:#ffe0b2
@@ -1229,7 +1229,7 @@ sequenceDiagram
     AgentAPI->>AgentManager: 建立 WebSocket 通道
     AgentManager->>Sandbox: 建立 WebSocket 通道
     Sandbox->>Adapter: WS /api/v1/agent/ws
-    
+
     Note over Client,Adapter: 消息流双向通道建立
 
     Client->>AgentAPI: 发送消息
@@ -1317,27 +1317,27 @@ flowchart TB
         subgraph Ingress["Ingress"]
             Nginx["Nginx Ingress"]
         end
-        
+
         subgraph API["API Pods"]
             AgentService1["Agent Service Pod"]
             AgentService2["Agent Service Pod"]
         end
-        
+
         subgraph Storage["存储"]
             NFS["NFS 持久化存储\n/data/agent-workspaces"]
         end
-        
+
         subgraph Compute["计算节点"]
             DockerHost1["Docker Host 1"]
             DockerHost2["Docker Host 2"]
         end
-        
+
         subgraph Sandbox1["沙箱 1"]
             Container1["Container"]
             Adapter1["Adapter"]
             Agent1["Agent Runtime"]
         end
-        
+
         subgraph Sandbox2["沙箱 2"]
             Container2["Container"]
             Adapter2["Adapter"]
@@ -1348,17 +1348,17 @@ flowchart TB
     Client["客户端"] --> Nginx
     Nginx --> AgentService1
     Nginx --> AgentService2
-    
+
     AgentService1 --> NFS
     AgentService2 --> NFS
-    
+
     AgentService1 -.->|启动沙箱| DockerHost1
     AgentService2 -.->|启动沙箱| DockerHost2
-    
+
     DockerHost1 --> Container1
     Container1 --> Adapter1
     Adapter1 --> Agent1
-    
+
     DockerHost2 --> Container2
     Container2 --> Adapter2
     Adapter2 --> Agent2
@@ -1379,19 +1379,19 @@ flowchart TB
             Adapter["Adapter 进程\n(opencode/openclaw)"]
             AgentRuntime["Agent 运行时"]
         end
-        
+
         subgraph Volumes["挂载卷"]
             Workspace["/workspace\n(代码目录)"]
             Memory["/memory\n(Session 历史)"]
         end
-        
+
         Adapter <--> AgentRuntime
         Adapter --> Workspace
         Adapter --> Memory
     end
-    
+
     AgentManager["Agent Manager\n(外部)"] <-->|消息转发| Adapter
-    
+
     style Sandbox fill:#e8f5e8
     style Runtime fill:#fff3e0
 ```
@@ -2431,13 +2431,13 @@ Token 校验通过 API Middleware 实现，内嵌于 API 服务中：
 @app.middleware("http")
 async def token_validation(request: Request, call_next):
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    
+
     if not token:
         return JSONResponse(
             status_code=401,
             content={"error": {"code": "UNAUTHORIZED", "message": "Token required"}}
         )
-    
+
     # 校验 Token 有效性
     user = await validate_token(token)
     if not user:
@@ -2445,7 +2445,7 @@ async def token_validation(request: Request, call_next):
             status_code=401,
             content={"error": {"code": "INVALID_TOKEN", "message": "Invalid token"}}
         )
-    
+
     # 将用户信息注入到请求中
     request.state.user = user
     return await call_next(request)
@@ -2481,10 +2481,10 @@ async def token_validation(request: Request, call_next):
 ```python
 class LocalStorageBackend(StorageBackend):
     """本地文件系统存储后端"""
-    
+
     def __init__(self, base_path: str = "/data/agent-workspaces"):
         self.base_path = Path(base_path)
-    
+
     async def init_workspace(self, agent_id: str) -> WorkspaceMount:
         """创建 Workspace 目录结构"""
         workspace = self.base_path / agent_id
@@ -2493,24 +2493,24 @@ class LocalStorageBackend(StorageBackend):
         (workspace / "workspace" / "input").mkdir(exist_ok=True)
         (workspace / "workspace" / "output").mkdir(exist_ok=True)
         (workspace / "logs").mkdir(exist_ok=True)
-        
+
         return WorkspaceMount(
             host_path=str(workspace),
             guest_path="/workspace"
         )
-    
+
     async def save_state(self, agent_id: str, state: dict) -> None:
         """保存 Agent 元数据"""
         path = self.base_path / agent_id / "metadata.json"
         await self._write_json(path, state)
-    
+
     async def load_state(self, agent_id: str) -> dict | None:
         """加载 Agent 元数据"""
         path = self.base_path / agent_id / "metadata.json"
         if not path.exists():
             return None
         return await self._read_json(path)
-    
+
     async def cleanup(self, agent_id: str) -> None:
         """清理 Workspace"""
         import shutil
@@ -2524,21 +2524,21 @@ class LocalStorageBackend(StorageBackend):
 ```python
 class SessionManager:
     """Session 生命周期管理"""
-    
+
     async def create_session(self, agent_id: str) -> Session:
         """创建新 Session"""
         session_id = str(uuid.uuid4())
         # Session 信息由 Agent 自己在 .agent/ 中管理
         # 这里只记录 Session ID 列表
         await self._add_session_id(agent_id, session_id)
-        
+
         return Session(
             id=session_id,
             agent_id=agent_id,
             status=SessionStatus.ACTIVE,
             created_at=datetime.utcnow()
         )
-    
+
     async def list_sessions(self, agent_id: str) -> list[Session]:
         """列出所有 Session"""
         session_ids = await self._get_session_ids(agent_id)
@@ -2546,7 +2546,7 @@ class SessionManager:
             Session(id=sid, agent_id=agent_id, status=SessionStatus.ACTIVE)
             for sid in session_ids
         ]
-    
+
     async def validate_session(self, session_id: str) -> bool:
         """验证 Session 是否有效"""
         # Session 有效性由 Agent 验证
@@ -2561,23 +2561,23 @@ class SessionManager:
 ```python
 class OpenCodeAdapter(AgentAdapter):
     """OpenCode Adapter"""
-    
+
     async def send_message(self, content: str, session_id: str):
         # 1. 从 workspace/.agent/memory/ 读取 memory
         memory_data = await self._read_memory(workspace_path, session_id)
-        
+
         # 2. 准备上下文，调用 OpenCode Agent
         response = await self._call_agent(content, memory_data)
-        
+
         # 3. 将响应保存回 workspace/.agent/memory/
         await self._write_memory(workspace_path, session_id, response)
-        
+
         # 4. 返回事件流
         yield response
 
 class OpenClawAdapter(AgentAdapter):
     """OpenClaw Adapter"""
-    
+
     async def send_message(self, content: str, session_id: str):
         # 类似逻辑，从 workspace/.agent/ 读取，写回
         pass
@@ -2665,4 +2665,3 @@ Adapter → 读取 .agent/memory/ → 准备上下文 → 调用 Agent → 写�
 1. **监控指标**: 需要暴露哪些 metrics？
 2. **日志规范**: 日志格式和级别定义？
 3. **定时任务检测**: 如何检测 Agent 是否有定时任务？
-

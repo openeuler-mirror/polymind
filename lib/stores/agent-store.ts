@@ -140,7 +140,6 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
           status: AgentStatus.RUNNING,
           sandboxId: undefined,
           defaultSessionId: undefined,
-          hasScheduledTasks: false,
           idleTimeoutSeconds: config.idleTimeoutSeconds ?? 300,
           createdAt: now,
           updatedAt: now,

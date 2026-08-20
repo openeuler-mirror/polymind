@@ -171,14 +171,11 @@ function conflictReportStatusLabel(status: string): string {
   return labels[normalized] || status || '未知'
 }
 
-export function buildConflictReportText(
-  rows: BackportCommitRow[],
-  enabled: boolean,
-): string {
+export function buildConflictReportText(rows: BackportCommitRow[], enabled: boolean): string {
   if (!enabled) return ''
 
   const sections = rows
-    .map((row) => {
+    .map(row => {
       const commit = stringifyValue(row.data.commit || row.data.input_commit).trim()
       const shortCommit = commit ? commit.slice(0, 12) : '未知 commit'
       const title = resolveCommitTitle(row.data)
@@ -214,14 +211,9 @@ export function buildConflictReportText(
       const error = stringifyValue(summaryData.error).trim()
 
       if (normalizedStatus === 'success') {
-        return [
-          heading,
-          '',
-          `评分：${score || '-'}`,
-          '',
-          '原因：',
-          reason || '未返回原因',
-        ].join('\n')
+        return [heading, '', `评分：${score || '-'}`, '', '原因：', reason || '未返回原因'].join(
+          '\n'
+        )
       }
 
       const lines = [heading, '', `状态：${conflictReportStatusLabel(status)}`]

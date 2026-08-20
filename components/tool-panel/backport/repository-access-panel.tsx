@@ -55,7 +55,11 @@ const branchOptions = (repository: BackportRepositoryInfo | null): string[] => {
     const branch = item.trim()
     if (branch) options.add(branch)
   }
-  for (const item of [repository.selected_branch, repository.current_branch, repository.default_branch]) {
+  for (const item of [
+    repository.selected_branch,
+    repository.current_branch,
+    repository.default_branch,
+  ]) {
     const branch = item.trim()
     if (branch && (localBranches.has(branch) || options.size === 0)) options.add(branch)
   }
@@ -121,7 +125,8 @@ function RepositoryCard({
   const warnings = repository?.warnings || []
   const ready = Boolean(repository)
   const canUse = role === 'source' ? repository?.can_read : repository?.can_write
-  const configuredBranch = repository?.selected_branch || repository?.current_branch || repository?.default_branch || ''
+  const configuredBranch =
+    repository?.selected_branch || repository?.current_branch || repository?.default_branch || ''
   const selectedBranch = options.includes(configuredBranch) ? configuredBranch : options[0] || ''
   const remoteBranchCount = repository?.remote_branches?.length || 0
   const localBranchCount = repository?.local_branches?.length || 0
@@ -168,11 +173,17 @@ function RepositoryCard({
             正在准备{roleLabel(role)}
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-blue-100">
-            <div className="h-full bg-blue-600 transition-all" style={{ width: `${prepareTask?.progress || 8}%` }} />
+            <div
+              className="h-full bg-blue-600 transition-all"
+              style={{ width: `${prepareTask?.progress || 8}%` }}
+            />
           </div>
           <div className="space-y-1.5">
             {(prepareTask?.steps || []).slice(-4).map((step, index) => (
-              <div key={`${step.title}-${index}`} className="flex items-start gap-2 text-xs text-slate-600">
+              <div
+                key={`${step.title}-${index}`}
+                className="flex items-start gap-2 text-xs text-slate-600"
+              >
                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
                 <span className="min-w-0">
                   <span>{step.title}</span>
@@ -189,7 +200,9 @@ function RepositoryCard({
       ) : ready && repository ? (
         <div className="mt-5 space-y-5">
           <div className="min-w-0 space-y-1">
-            <div className="truncate text-sm font-semibold text-slate-950">{repository.display_name}</div>
+            <div className="truncate text-sm font-semibold text-slate-950">
+              {repository.display_name}
+            </div>
             <div className="truncate font-mono text-xs text-slate-600">
               {repository.source_url || repository.input || repository.local_path}
             </div>
@@ -205,14 +218,14 @@ function RepositoryCard({
             </div>
             <Select
               value={selectedBranch}
-              onValueChange={(value) => onBranchChange(role, value)}
+              onValueChange={value => onBranchChange(role, value)}
               disabled={running || options.length === 0}
             >
               <SelectTrigger className="h-8 w-fit min-w-[132px] max-w-full bg-white px-2 text-xs">
                 <SelectValue placeholder="选择本地分支" />
               </SelectTrigger>
               <SelectContent>
-                {options.map((branch) => (
+                {options.map(branch => (
                   <SelectItem key={branch} value={branch}>
                     {branch}
                   </SelectItem>
@@ -224,15 +237,24 @@ function RepositoryCard({
               <GitCommit className="h-3.5 w-3.5" />
               提交
             </div>
-            <div className="truncate font-mono text-sm text-slate-950">{repository.short_head || '--'}</div>
+            <div className="truncate font-mono text-sm text-slate-950">
+              {repository.short_head || '--'}
+            </div>
           </div>
 
           <div className="space-y-2">
-            <StatusLine label="本地分支" value={`${localBranchCount} 个`} ok={localBranchCount > 0} />
+            <StatusLine
+              label="本地分支"
+              value={`${localBranchCount} 个`}
+              ok={localBranchCount > 0}
+            />
             {role === 'target' ? (
               <>
                 <StatusLine label="写入权限" ok={Boolean(repository.writable)} />
-                <StatusLine label={repository.status_clean ? '工作区干净' : '存在未提交修改'} ok={repository.status_clean} />
+                <StatusLine
+                  label={repository.status_clean ? '工作区干净' : '存在未提交修改'}
+                  ok={repository.status_clean}
+                />
                 {repository.operation_in_progress ? (
                   <StatusLine label="存在未完成 Git 操作" ok={false} />
                 ) : null}
@@ -240,7 +262,12 @@ function RepositoryCard({
             ) : (
               <>
                 <StatusLine label="读取权限" ok={repository.can_read} />
-                <StatusLine label="远程分支" value={`${remoteBranchCount} 个`} ok muted={remoteBranchCount === 0} />
+                <StatusLine
+                  label="远程分支"
+                  value={`${remoteBranchCount} 个`}
+                  ok
+                  muted={remoteBranchCount === 0}
+                />
               </>
             )}
           </div>
@@ -253,10 +280,22 @@ function RepositoryCard({
           ) : null}
 
           <div className="flex gap-2 pt-1">
-            <Button variant="outline" size="sm" className="h-8" onClick={() => onAddRepository(role)} disabled={running}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              onClick={() => onAddRepository(role)}
+              disabled={running}
+            >
               更换仓库
             </Button>
-            <Button variant="ghost" size="sm" className="h-8" onClick={() => onSelectRecentRepository(role)} disabled={running}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8"
+              onClick={() => onSelectRecentRepository(role)}
+              disabled={running}
+            >
               选择已有
             </Button>
           </div>
@@ -276,10 +315,21 @@ function RepositoryCard({
             ) : null}
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button size="sm" className="h-8" onClick={() => onAddRepository(role)} disabled={running}>
+            <Button
+              size="sm"
+              className="h-8"
+              onClick={() => onAddRepository(role)}
+              disabled={running}
+            >
               添加新仓库
             </Button>
-            <Button variant="outline" size="sm" className="h-8" onClick={() => onSelectRecentRepository(role)} disabled={running}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              onClick={() => onSelectRecentRepository(role)}
+              disabled={running}
+            >
               <Search className="mr-1 h-4 w-4" />
               选择已有仓库
             </Button>
@@ -311,9 +361,7 @@ export function RepositoryAccessPanel(props: RepositoryAccessPanelProps) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <h3 className="text-base font-semibold text-slate-950">回移配置</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              选择源仓库提交，并回移到目标仓库。
-            </p>
+            <p className="mt-1 text-sm text-slate-500">选择源仓库提交，并回移到目标仓库。</p>
           </div>
           {props.headerAction ? <div className="shrink-0">{props.headerAction}</div> : null}
         </div>
@@ -327,7 +375,9 @@ export function RepositoryAccessPanel(props: RepositoryAccessPanelProps) {
         </div>
         <RepositoryCard role="target" repository={props.targetRepository} {...props} />
       </div>
-      {props.children ? <div className="border-t border-slate-200 px-4 py-4">{props.children}</div> : null}
+      {props.children ? (
+        <div className="border-t border-slate-200 px-4 py-4">{props.children}</div>
+      ) : null}
     </div>
   )
 }

@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     sudo \
     python3 \
+    python3-pip \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 

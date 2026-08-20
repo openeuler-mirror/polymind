@@ -90,6 +90,7 @@ class SessionService {
       agentId: summary.agent_id,
       agentName,
       sessionId: summary.id,
+      scheduledTaskId: summary.scheduled_task_id || undefined,
       lastMessageStatus: summary.last_message_status || undefined,
     }
   }

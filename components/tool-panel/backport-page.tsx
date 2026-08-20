@@ -105,7 +105,9 @@ const BACKPORT_SUPPORTED_PROVIDERS = new Set([
 ])
 
 const isBackportCompatibleModel = (model: ModelConfig): boolean => {
-  const provider = String(model.provider || '').trim().toLowerCase()
+  const provider = String(model.provider || '')
+    .trim()
+    .toLowerCase()
   if (!model.enabled) return false
   if (provider === 'custom') return model.compatibility === 'openai'
   return BACKPORT_SUPPORTED_PROVIDERS.has(provider)
@@ -136,7 +138,7 @@ const buildLegacyRepositoryInfo = (
   role: BackportRepositoryRole,
   localPath: string,
   branch: string,
-  sourceUrl = '',
+  sourceUrl = ''
 ): BackportRepositoryInfo | null => {
   const normalizedPath = localPath.trim()
   if (!normalizedPath) return null
@@ -195,7 +197,9 @@ export function BackportPage() {
   const [runningLabel, setRunningLabel] = useState('')
   const [runAllProgress, setRunAllProgress] = useState<BackportRunProgress | null>(null)
   const [runAllControl, setRunAllControl] = useState<BackportRunAllControl | null>(null)
-  const [runAllPauseState, setRunAllPauseState] = useState<'idle' | 'running' | 'pause_requested' | 'paused'>('idle')
+  const [runAllPauseState, setRunAllPauseState] = useState<
+    'idle' | 'running' | 'pause_requested' | 'paused'
+  >('idle')
   const [runAllStatusCardVisible, setRunAllStatusCardVisible] = useState(false)
   const [activeRunId, setActiveRunId] = useState('')
   const [runHistory, setRunHistory] = useState<BackportRunSummary[]>([])
@@ -220,10 +224,10 @@ export function BackportPage() {
   const [commitPage, setCommitPage] = useState(1)
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([])
   const [timeline, setTimeline] = useState<BackportTimelineEntry[]>([])
-  const [executionSummary, setExecutionSummary] =
-    useState<BackportExecutionRunSummary | null>(null)
-  const [supportTab, setSupportTab] =
-    useState<'timeline' | 'summary' | 'git' | 'conflict-report'>('timeline')
+  const [executionSummary, setExecutionSummary] = useState<BackportExecutionRunSummary | null>(null)
+  const [supportTab, setSupportTab] = useState<'timeline' | 'summary' | 'git' | 'conflict-report'>(
+    'timeline'
+  )
   const [gitLogEntries, setGitLogEntries] = useState<BackportGitLogEntry[]>([])
   const [gitLogLoading, setGitLogLoading] = useState(false)
   const [selectedGitRevision, setSelectedGitRevision] = useState<string | null>(null)
@@ -236,7 +240,9 @@ export function BackportPage() {
   const [browseParentPath, setBrowseParentPath] = useState<string | null>(null)
   const [browseLoading, setBrowseLoading] = useState(false)
   const [recentRepositories, setRecentRepositories] = useState<BackportRepositoryInfo[]>([])
-  const [repositoryDialogRole, setRepositoryDialogRole] = useState<BackportRepositoryRole | null>(null)
+  const [repositoryDialogRole, setRepositoryDialogRole] = useState<BackportRepositoryRole | null>(
+    null
+  )
   const [repositoryInput, setRepositoryInput] = useState('')
   const [repositoryPrepareTask, setRepositoryPrepareTask] =
     useState<BackportRepositoryPrepareResponse | null>(null)
@@ -317,15 +323,20 @@ export function BackportPage() {
   const sourceRepository = useMemo(
     () =>
       config.source_repo_state ||
-      buildLegacyRepositoryInfo('source', config.project_dir, config.source_branch, config.project_url),
-    [config.project_dir, config.project_url, config.source_branch, config.source_repo_state],
+      buildLegacyRepositoryInfo(
+        'source',
+        config.project_dir,
+        config.source_branch,
+        config.project_url
+      ),
+    [config.project_dir, config.project_url, config.source_branch, config.source_repo_state]
   )
 
   const targetRepository = useMemo(
     () =>
       config.target_repo_state ||
       buildLegacyRepositoryInfo('target', config.target_path, config.target_release),
-    [config.target_path, config.target_release, config.target_repo_state],
+    [config.target_path, config.target_release, config.target_repo_state]
   )
 
   const filteredRows = useMemo(() => {
@@ -777,11 +788,7 @@ export function BackportPage() {
           [progress.message || '', lockOwner].filter(Boolean).join('\n')
         )
       } else if (lockEvent === 'repository_lock_acquired') {
-        addTimeline(
-          '已获得目标仓库锁',
-          'success',
-          progress.message || '继续当前任务。'
-        )
+        addTimeline('已获得目标仓库锁', 'success', progress.message || '继续当前任务。')
       } else if (lockEvent === 'repository_lock_timeout') {
         addTimeline(
           '等待目标仓库超时',
@@ -848,7 +855,7 @@ export function BackportPage() {
   const restoreRun = async (
     runId: string,
     restoreConfig: BackportConfig,
-    knownSummary?: BackportRunSummary,
+    knownSummary?: BackportRunSummary
   ): Promise<boolean> => {
     const normalizedRunId = runId.trim()
     if (!normalizedRunId) return false
@@ -863,8 +870,7 @@ export function BackportPage() {
       const executions = await refreshExecutionHistory(normalizedRunId)
       const preferredExecution = knownSummary?.current_execution
       const selected =
-        executions.find(item => item.execution === preferredExecution) ||
-        executions[0]
+        executions.find(item => item.execution === preferredExecution) || executions[0]
       setSelectedExecution(selected ? String(selected.execution) : '')
       let current = await backportService.getRun(normalizedRunId)
       setExecutionSummary(current.execution_summary || null)
@@ -883,21 +889,15 @@ export function BackportPage() {
           })
         }
         addTimeline('已重新连接正在运行的任务', 'info', normalizedRunId)
-        current = await backportService.resumeRun(
-          normalizedRunId,
-          handleRunAllProgress,
-          {
-            onRunUpdated: run => {
-              setExecutionSummary(run.execution_summary || null)
-              setRunAllStatusCardVisible(currentVisible =>
-                currentVisible || Boolean(run.progress)
-              )
-              if (run.pause_requested && run.status === 'running') {
-                setRunAllPauseState('pause_requested')
-              }
-            },
+        current = await backportService.resumeRun(normalizedRunId, handleRunAllProgress, {
+          onRunUpdated: run => {
+            setExecutionSummary(run.execution_summary || null)
+            setRunAllStatusCardVisible(currentVisible => currentVisible || Boolean(run.progress))
+            if (run.pause_requested && run.status === 'running') {
+              setRunAllPauseState('pause_requested')
+            }
           },
-        )
+        })
       }
 
       if (current.result?.parsedResult) {
@@ -948,7 +948,7 @@ export function BackportPage() {
       addTimeline(
         '恢复运行失败',
         'error',
-        cause instanceof Error ? cause.message : '无法读取已保存的运行',
+        cause instanceof Error ? cause.message : '无法读取已保存的运行'
       )
       return false
     } finally {
@@ -1204,14 +1204,15 @@ export function BackportPage() {
   const buildConfigWithRepository = (
     previousConfig: BackportConfig,
     role: BackportRepositoryRole,
-    repository: BackportRepositoryInfo,
+    repository: BackportRepositoryInfo
   ): BackportConfig => {
     if (role === 'source') {
       return {
         ...previousConfig,
         project_url: repository.source_url || '',
         project_dir: repository.local_path,
-        source_branch: repository.selected_branch || repository.default_branch || previousConfig.source_branch,
+        source_branch:
+          repository.selected_branch || repository.default_branch || previousConfig.source_branch,
         source_repo_input: repository.input,
         source_repo_state: repository,
       }
@@ -1219,7 +1220,8 @@ export function BackportPage() {
     return {
       ...previousConfig,
       target_path: repository.local_path,
-      target_release: repository.selected_branch || repository.default_branch || previousConfig.target_release,
+      target_release:
+        repository.selected_branch || repository.default_branch || previousConfig.target_release,
       target_repo_input: repository.input,
       target_repo_state: repository,
     }
@@ -1227,12 +1229,15 @@ export function BackportPage() {
 
   const shouldHydrateRepository = (
     repository: BackportRepositoryInfo | null | undefined,
-    localPath: string,
+    localPath: string
   ) => {
     if (!localPath.trim()) return false
     if (!repository) return true
     if (!repository.short_head.trim()) return true
-    if ((repository.local_branches || []).length <= 1 && (repository.remote_branches || []).length === 0) {
+    if (
+      (repository.local_branches || []).length <= 1 &&
+      (repository.remote_branches || []).length === 0
+    ) {
       return true
     }
     return false
@@ -1297,18 +1302,22 @@ export function BackportPage() {
 
   const applyPreparedRepository = async (
     role: BackportRepositoryRole,
-    repository: BackportRepositoryInfo,
+    repository: BackportRepositoryInfo
   ) => {
     const nextConfig = buildConfigWithRepository(configRef.current, role, repository)
     setConfig(nextConfig)
     await handleSaveConfig(true, nextConfig)
     await loadRecentRepositories()
-    addTimeline(`${role === 'source' ? '源仓库' : '目标仓库'}已准备`, 'success', repository.local_path)
+    addTimeline(
+      `${role === 'source' ? '源仓库' : '目标仓库'}已准备`,
+      'success',
+      repository.local_path
+    )
   }
 
   const pollRepositoryPrepareTask = async (
     role: BackportRepositoryRole,
-    taskId: string,
+    taskId: string
   ): Promise<BackportRepositoryPrepareResponse> => {
     let current = await backportService.getRepositoryPrepareTask(taskId)
     setRepositoryPrepareTask(current)
@@ -1558,10 +1567,7 @@ export function BackportPage() {
     }
   }
 
-  const handleRepositoryBranchChange = (
-    role: BackportRepositoryRole,
-    branch: string,
-  ) => {
+  const handleRepositoryBranchChange = (role: BackportRepositoryRole, branch: string) => {
     const repository = role === 'source' ? sourceRepository : targetRepository
     if (!repository) return
     const nextRepository = {
@@ -1654,7 +1660,7 @@ export function BackportPage() {
             rememberActiveRun(control.runId)
             void refreshRunHistory()
           },
-        },
+        }
       )
     )
   }
@@ -1687,7 +1693,7 @@ export function BackportPage() {
             handleAgentEvent,
             {
               onRunCreated: control => rememberActiveRun(control.runId),
-            },
+            }
           )
           if (
             !response.parsedResult?.artifacts?.base_report_path &&
@@ -1733,19 +1739,19 @@ export function BackportPage() {
           handleAgentEvent,
           handleRunAllProgress,
           {
-            onRunCreated: (control) => {
+            onRunCreated: control => {
               rememberActiveRun(control.runId)
               setRunAllControl(control)
               setRunAllPauseState('running')
               void refreshRunHistory()
             },
-            onRunUpdated: (run) => {
+            onRunUpdated: run => {
               setExecutionSummary(run.execution_summary || null)
               if (run.pause_requested && run.status === 'running') {
                 setRunAllPauseState('pause_requested')
               }
             },
-          },
+          }
         )
       )
     } catch (cause) {
@@ -1787,7 +1793,7 @@ export function BackportPage() {
     if (!runAllControl || runAllPauseState !== 'running') return
     const previousProgress = runAllProgress
     setRunAllPauseState('pause_requested')
-    setRunAllProgress((current) => ({
+    setRunAllProgress(current => ({
       ...(current || {}),
       phase: 'pause_requested',
       message: '正在完成当前 commit，完成后暂停并保存 report',
@@ -2368,11 +2374,7 @@ export function BackportPage() {
       .then(response => {
         applyOperationResult(response.parsedResult)
         setStage(execution.status === 'success' ? 'completed' : 'interactive_editing')
-        addTimeline(
-          `已切换到 Run #${execution.execution}`,
-          'info',
-          execution.report_path,
-        )
+        addTimeline(`已切换到 Run #${execution.execution}`, 'info', execution.report_path)
       })
       .catch(cause => {
         toast({
@@ -2539,9 +2541,9 @@ export function BackportPage() {
     () =>
       buildConflictReportText(
         workingCommits,
-        Boolean(config.cvekit_options.enable_conflict_summary),
+        Boolean(config.cvekit_options.enable_conflict_summary)
       ),
-    [workingCommits, config.cvekit_options.enable_conflict_summary],
+    [workingCommits, config.cvekit_options.enable_conflict_summary]
   )
 
   const runAllPhaseLabel = useMemo(() => {
@@ -2568,7 +2570,8 @@ export function BackportPage() {
   }, [runAllPauseState, runAllPhaseLabel])
 
   const runAllDisplayMessage = useMemo(() => {
-    if (runAllPauseState === 'pause_requested') return '正在完成当前 commit，完成后暂停并保存 report'
+    if (runAllPauseState === 'pause_requested')
+      return '正在完成当前 commit，完成后暂停并保存 report'
     if (runAllPauseState === 'paused') return '已暂停，report 已保存，可继续'
     return runAllProgress?.message || '正在处理 Backport 任务'
   }, [runAllPauseState, runAllProgress?.message])
@@ -2585,12 +2588,18 @@ export function BackportPage() {
 
   const sourceConfigSummary = sourceRepository
     ? `${sourceRepository.display_name} ${
-        sourceRepository.selected_branch || sourceRepository.current_branch || sourceRepository.default_branch || '未选分支'
+        sourceRepository.selected_branch ||
+        sourceRepository.current_branch ||
+        sourceRepository.default_branch ||
+        '未选分支'
       }`
     : '源仓库未配置'
   const targetConfigSummary = targetRepository
     ? `${targetRepository.display_name} ${
-        targetRepository.selected_branch || targetRepository.current_branch || targetRepository.default_branch || '未选分支'
+        targetRepository.selected_branch ||
+        targetRepository.current_branch ||
+        targetRepository.default_branch ||
+        '未选分支'
       }`
     : '目标仓库未配置'
   const signerConfigSummary =
@@ -2601,7 +2610,11 @@ export function BackportPage() {
       ? '环境检查完成'
       : '环境待配置'
   const overallConfigSummary =
-    sourceRepository && targetRepository && config.signer_name.trim() && config.signer_email.trim() && runtimeStatus?.ok
+    sourceRepository &&
+    targetRepository &&
+    config.signer_name.trim() &&
+    config.signer_email.trim() &&
+    runtimeStatus?.ok
       ? '配置已就绪'
       : '配置待完善'
 
@@ -2847,15 +2860,17 @@ export function BackportPage() {
                       <span className="mx-1 inline-block h-1.5 w-1.5 rounded-full bg-slate-950 align-middle" />
                       <span>检查完成</span>
                       <span className="ml-2 text-xs text-slate-500">
-                        模型 {runtimeStatus.model_name || selectedBackportModel?.name || '已配置'}，cvekit 已找到
+                        模型 {runtimeStatus.model_name || selectedBackportModel?.name || '已配置'}
+                        ，cvekit 已找到
                       </span>
                     </>
                   ) : (
-                    <span>{runtimeStatus?.errors[0] || '请先配置可用模型、密钥，并确认 cvekit 可用。'}</span>
+                    <span>
+                      {runtimeStatus?.errors[0] || '请先配置可用模型、密钥，并确认 cvekit 可用。'}
+                    </span>
                   )}
 
                   {runtimeStatus?.ok ? (
-
                     <Button
                       type="button"
                       variant="link"
@@ -2951,9 +2966,9 @@ export function BackportPage() {
               ) : null}
             </div>
           }
-          onAddRepository={(role) => openRepositoryDialog(role, 'add')}
-          onSelectRecentRepository={(role) => openRepositoryDialog(role, 'recent')}
-          onRefreshRepository={(role) => void handleRefreshRepository(role)}
+          onAddRepository={role => openRepositoryDialog(role, 'add')}
+          onSelectRecentRepository={role => openRepositoryDialog(role, 'recent')}
+          onRefreshRepository={role => void handleRefreshRepository(role)}
           onBranchChange={handleRepositoryBranchChange}
         >
           <div className="space-y-0">
@@ -3008,7 +3023,8 @@ export function BackportPage() {
                 </div>
                 {config.commit_message_source === 'auto' ? (
                   <p className="text-xs leading-5 text-muted-foreground">
-                    自动判断时会在 Linux 上游仓库中搜索原始提交；找到则使用 upstream，否则使用 openEuler。
+                    自动判断时会在 Linux 上游仓库中搜索原始提交；找到则使用 upstream，否则使用
+                    openEuler。
                   </p>
                 ) : null}
               </div>
@@ -3060,7 +3076,9 @@ export function BackportPage() {
                           },
                         }))
                       }
-                      disabled={running || loadingConfig || config.target_config_layout !== 'anolis'}
+                      disabled={
+                        running || loadingConfig || config.target_config_layout !== 'anolis'
+                      }
                     >
                       <SelectTrigger className="h-9 bg-white text-xs">
                         <SelectValue />
@@ -3084,11 +3102,16 @@ export function BackportPage() {
                 <div>
                   <h4 className="text-sm font-medium text-slate-900">提交信息模板</h4>
                   <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
-                    {['{{subject}}', '{{commit_id}}', '{{source}}', '{{body}}', '{{trailers}}'].map(item => (
-                      <span key={item} className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[11px]">
-                        {item}
-                      </span>
-                    ))}
+                    {['{{subject}}', '{{commit_id}}', '{{source}}', '{{body}}', '{{trailers}}'].map(
+                      item => (
+                        <span
+                          key={item}
+                          className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[11px]"
+                        >
+                          {item}
+                        </span>
+                      )
+                    )}
                   </div>
                 </div>
                 <Button
@@ -3152,7 +3175,6 @@ export function BackportPage() {
                 />
               </div>
             </section>
-
           </div>
         </RepositoryAccessPanel>
 
@@ -3276,7 +3298,10 @@ export function BackportPage() {
         onRefreshCommitMessagePreview={row => void handleRefreshCommitMessagePreview(row)}
       />
 
-      <Dialog open={repositoryDialogRole !== null} onOpenChange={(open) => !open && closeRepositoryDialog()}>
+      <Dialog
+        open={repositoryDialogRole !== null}
+        onOpenChange={open => !open && closeRepositoryDialog()}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
@@ -3293,7 +3318,8 @@ export function BackportPage() {
 
           {repositoryMode === 'recent' ? (
             <div className="max-h-[420px] overflow-auto rounded-lg border border-slate-200">
-              {recentRepositories.filter(item => item.role === repositoryDialogRole).length === 0 ? (
+              {recentRepositories.filter(item => item.role === repositoryDialogRole).length ===
+              0 ? (
                 <div className="px-3 py-10 text-center text-sm text-slate-500">
                   暂无最近使用的{repositoryDialogRole === 'source' ? '源仓库' : '目标仓库'}
                 </div>
@@ -3301,7 +3327,7 @@ export function BackportPage() {
                 <div className="divide-y">
                   {recentRepositories
                     .filter(item => item.role === repositoryDialogRole)
-                    .map((repository) => (
+                    .map(repository => (
                       <button
                         key={`${repository.role}-${repository.local_path}-${repository.source_url}`}
                         className="flex w-full items-start justify-between gap-3 px-3 py-3 text-left hover:bg-slate-50"
@@ -3315,7 +3341,9 @@ export function BackportPage() {
                             {repository.source_url || repository.local_path}
                           </div>
                           <div className="mt-1 text-xs text-slate-500">
-                            {repository.selected_branch || repository.default_branch || '未设置分支'}
+                            {repository.selected_branch ||
+                              repository.default_branch ||
+                              '未设置分支'}
                           </div>
                         </div>
                         <Badge variant="outline" className="shrink-0 text-[10px]">
@@ -3331,14 +3359,16 @@ export function BackportPage() {
               <div className="space-y-2">
                 <Input
                   value={repositoryInput}
-                  onChange={(event) => setRepositoryInput(event.target.value)}
+                  onChange={event => setRepositoryInput(event.target.value)}
                   placeholder="https://gitcode.com/openeuler/kernel.git 或 ~/Image/kernel"
                   className="font-mono text-xs"
                   disabled={repositoryPrepareTask?.status === 'running'}
                 />
                 <div className="text-xs text-slate-500">
                   {repositoryInput.trim()
-                    ? /^(https?:\/\/|ssh:\/\/|git:\/\/|[^@\s]+@[^:\s]+:)/.test(repositoryInput.trim())
+                    ? /^(https?:\/\/|ssh:\/\/|git:\/\/|[^@\s]+@[^:\s]+:)/.test(
+                        repositoryInput.trim()
+                      )
                       ? '已识别：远程 Git 仓库'
                       : '已识别：服务器本地路径'
                     : '支持 HTTPS、SSH Git 地址，也支持 /home/... 或 ~/... 本地路径。'}
@@ -3353,7 +3383,7 @@ export function BackportPage() {
                       ? 'border-red-200 bg-red-50'
                       : repositoryPrepareTask.status === 'success'
                         ? 'border-emerald-200 bg-emerald-50'
-                        : 'border-blue-200 bg-blue-50',
+                        : 'border-blue-200 bg-blue-50'
                   )}
                 >
                   <div className="flex items-center gap-2 text-sm font-medium">
@@ -3372,10 +3402,15 @@ export function BackportPage() {
                     </span>
                   </div>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/80">
-                    <div className="h-full bg-blue-600 transition-all" style={{ width: `${repositoryPrepareTask.progress || 8}%` }} />
+                    <div
+                      className="h-full bg-blue-600 transition-all"
+                      style={{ width: `${repositoryPrepareTask.progress || 8}%` }}
+                    />
                   </div>
                   {repositoryPrepareTask.error ? (
-                    <div className="mt-2 text-xs leading-5 text-red-700">{repositoryPrepareTask.error}</div>
+                    <div className="mt-2 text-xs leading-5 text-red-700">
+                      {repositoryPrepareTask.error}
+                    </div>
                   ) : null}
                   {repositoryPrepareTask.steps.length > 0 ? (
                     <div className="mt-2 space-y-1 text-xs text-slate-600">
@@ -3397,7 +3432,12 @@ export function BackportPage() {
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={closeRepositoryDialog} disabled={repositoryPrepareTask?.status === 'running'}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeRepositoryDialog}
+              disabled={repositoryPrepareTask?.status === 'running'}
+            >
               关闭
             </Button>
             {repositoryMode === 'add' ? (
