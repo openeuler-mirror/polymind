@@ -1,5 +1,6 @@
 'use client'
 
+import type { ComponentType } from 'react'
 import {
   X,
   Bot,
@@ -12,6 +13,7 @@ import {
   Sparkles,
   Cpu,
   Activity,
+  Clock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,6 +29,31 @@ import { AgentPage } from './agent-page'
 import { CvePage } from './cve-page'
 import { BackportPage } from './backport-page'
 import { InsightPage } from './insight-page'
+import { ScheduledTaskPage } from './scheduled-task'
+
+/** 右侧面板注册表：新增面板只需在这里注册一行，避免逐层嵌套三元。 */
+const PANEL_PAGES: Record<string, ComponentType> = {
+  settings: SettingsPage,
+  agent: AgentPage,
+  insight: InsightPage,
+  cve: CvePage,
+  backport: BackportPage,
+  'scheduled-tasks': ScheduledTaskPage,
+}
+
+function PanelContent({ tabId, tabName }: { tabId: string; tabName?: string }) {
+  const Page = PANEL_PAGES[tabId]
+  if (Page) return <Page />
+  return (
+    <div className="p-4">
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-sm text-muted-foreground">这里是 {tabName} 页面</p>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function RightPanel() {
   const {
@@ -45,6 +72,7 @@ export function RightPanel() {
     { id: 'insight', name: '监测系统', icon: Activity, color: 'text-emerald-500' },
     { id: 'cve', name: 'CVE', icon: Bug, color: 'text-rose-500' },
     { id: 'backport', name: 'Backport', icon: Wrench, color: 'text-blue-500' },
+    { id: 'scheduled-tasks', name: '定时任务', icon: Clock, color: 'text-violet-500' },
     {
       id: 'settings',
       name: '设置',
@@ -163,27 +191,10 @@ export function RightPanel() {
       {/* Content */}
       {activeRightPanelTab ? (
         <div className="flex-1 h-full min-h-0">
-          {activeRightPanelTab === 'settings' ? (
-            <SettingsPage />
-          ) : activeRightPanelTab === 'agent' ? (
-            <AgentPage />
-          ) : activeRightPanelTab === 'insight' ? (
-            <InsightPage />
-          ) : activeRightPanelTab === 'cve' ? (
-            <CvePage />
-          ) : activeRightPanelTab === 'backport' ? (
-            <BackportPage />
-          ) : (
-            <div className="p-4">
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">
-                    这里是 {rightPanelTabs.find(tab => tab.id === activeRightPanelTab)?.name} 页面
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          <PanelContent
+            tabId={activeRightPanelTab}
+            tabName={rightPanelTabs.find(tab => tab.id === activeRightPanelTab)?.name}
+          />
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center p-8">
