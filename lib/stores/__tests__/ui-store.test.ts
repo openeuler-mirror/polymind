@@ -17,6 +17,8 @@ describe('UISlice', () => {
       rightPanelTabs: [],
       activeRightPanelTab: null,
       settingsActiveSection: null,
+      sidebarSectionsCollapsed: { pinned: false, regular: false, scheduled: false },
+      scheduledTaskFoldersCollapsed: {},
     })
   })
 
@@ -130,6 +132,24 @@ describe('UISlice', () => {
       useTestStore.getState().setSettingsActiveSection('general')
       useTestStore.getState().setSettingsActiveSection(null)
       expect(useTestStore.getState().settingsActiveSection).toBeNull()
+    })
+  })
+
+  describe('Sidebar sections', () => {
+    it('should toggle a section collapse state', () => {
+      useTestStore.getState().toggleSidebarSection('scheduled')
+      expect(useTestStore.getState().sidebarSectionsCollapsed.scheduled).toBe(true)
+
+      useTestStore.getState().toggleSidebarSection('scheduled')
+      expect(useTestStore.getState().sidebarSectionsCollapsed.scheduled).toBe(false)
+    })
+
+    it('should toggle a scheduled task folder collapse state', () => {
+      useTestStore.getState().toggleScheduledTaskFolder('task-1')
+      expect(useTestStore.getState().scheduledTaskFoldersCollapsed['task-1']).toBe(true)
+
+      useTestStore.getState().toggleScheduledTaskFolder('task-1')
+      expect(useTestStore.getState().scheduledTaskFoldersCollapsed['task-1']).toBe(false)
     })
   })
 })

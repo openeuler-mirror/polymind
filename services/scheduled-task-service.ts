@@ -53,6 +53,19 @@ export interface ScheduledTaskRun {
   created_at: string
 }
 
+/** 跨任务聚合分页返回的执行记录：附带所属任务信息，供执行记录页直接展示。 */
+export interface ScheduledTaskRunWithTask extends ScheduledTaskRun {
+  task_name: string
+  agent_id: string
+}
+
+export interface ScheduledTaskRunsPage {
+  items: ScheduledTaskRunWithTask[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export interface CreateScheduledTaskRequest {
   name: string
   schedule_type: ScheduleType
@@ -131,6 +144,29 @@ class ScheduledTaskService {
       `/scheduled-tasks/${encodeURIComponent(taskId)}/runs?limit=${limit}`
     )
     return Array.isArray(response) ? response : []
+  }
+
+  /**
+   * 跨任务聚合分页查询全部执行记录（含 task_name/agent_id），
+   * 避免执行记录页按任务逐个请求造成 N+1。
+   */
+  public async listRunsPage(
+    params: { limit?: number; offset?: number; agentId?: string } = {}
+  ): Promise<ScheduledTaskRunsPage> {
+    const search = new URLSearchParams()
+    if (params.limit !== undefined) search.set('limit', String(params.limit))
+    if (params.offset !== undefined) search.set('offset', String(params.offset))
+    if (params.agentId) search.set('agent_id', params.agentId)
+    const query = search.toString()
+    const response = await httpClient.get<ScheduledTaskRunsPage>(
+      `/scheduled-tasks/runs${query ? `?${query}` : ''}`
+    )
+    return {
+      items: Array.isArray(response?.items) ? response.items : [],
+      total: typeof response?.total === 'number' ? response.total : 0,
+      limit: typeof response?.limit === 'number' ? response.limit : (params.limit ?? 20),
+      offset: typeof response?.offset === 'number' ? response.offset : (params.offset ?? 0),
+    }
   }
 
   /**

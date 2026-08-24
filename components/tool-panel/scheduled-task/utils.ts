@@ -60,14 +60,33 @@ export function formatSchedule(
 
 export interface RunStatusMeta {
   label: string
+  /** 执行记录页 Badge 的描边/底色样式。 */
   className: string
+  /** 侧栏文件夹中状态圆点的样式（单一真相源，勿在组件内另建映射）。 */
+  dot: string
 }
 
 export const RUN_STATUS_META: Record<ScheduledTaskRunStatus, RunStatusMeta> = {
-  running: { label: '执行中', className: 'border-blue-200 bg-blue-50 text-blue-700' },
-  succeeded: { label: '成功', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
-  failed: { label: '失败', className: 'border-red-200 bg-red-50 text-red-700' },
-  skipped: { label: '已跳过', className: 'border-slate-200 bg-slate-50 text-slate-500' },
+  running: {
+    label: '执行中',
+    className: 'border-blue-200 bg-blue-50 text-blue-700',
+    dot: 'bg-blue-500 animate-pulse',
+  },
+  succeeded: {
+    label: '成功',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    dot: 'bg-emerald-500',
+  },
+  failed: {
+    label: '失败',
+    className: 'border-red-200 bg-red-50 text-red-700',
+    dot: 'bg-red-500',
+  },
+  skipped: {
+    label: '已跳过',
+    className: 'border-slate-200 bg-slate-50 text-slate-500',
+    dot: 'bg-slate-400',
+  },
 }
 
 export function getRunStatusMeta(status: string): RunStatusMeta {
@@ -75,6 +94,7 @@ export function getRunStatusMeta(status: string): RunStatusMeta {
     RUN_STATUS_META[status as ScheduledTaskRunStatus] ?? {
       label: status || '未知',
       className: 'border-slate-200 bg-slate-50 text-slate-500',
+      dot: 'bg-slate-400',
     }
   )
 }
