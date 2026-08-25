@@ -351,6 +351,17 @@ export interface BackportRunListResponse {
   runs: BackportRunSummary[]
 }
 
+/** 后端 /backport/tasks/{task_id} 返回的 task manifest(仅声明前端使用的最小字段)。 */
+export interface BackportTaskManifest {
+  task_id?: string
+  current_report_path?: string
+  current_excel_path?: string
+  target_path?: string
+  target_release?: string
+  status?: string
+  [key: string]: unknown
+}
+
 export interface BackportAttemptPatch {
   kind: string
   source: string

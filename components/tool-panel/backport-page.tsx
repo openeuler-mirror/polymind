@@ -856,9 +856,9 @@ export function BackportPage() {
     runId: string,
     restoreConfig: BackportConfig,
     knownSummary?: BackportRunSummary
-  ) => {
+  ): Promise<boolean> => {
     const normalizedRunId = runId.trim()
-    if (!normalizedRunId) return
+    if (!normalizedRunId) return false
     setRestoringRun(true)
     setExecutionSummary(null)
     rememberActiveRun(normalizedRunId)
@@ -903,17 +903,31 @@ export function BackportPage() {
       if (current.result?.parsedResult) {
         applyOperationResult(current.result.parsedResult)
       } else {
-        const reportPath =
+        let reportPath =
           current.progress?.current_report_path ||
           knownSummary?.current_report_path ||
           restoreConfig.current_report_path ||
           ''
+        // 任务不在列表且后端为持久化恢复记录时,result/progress 可能不含
+        // report 路径:从 task manifest 补充定位信息,避免只恢复任务 ID 无内容
+        if (!reportPath) {
+          try {
+            const task = await backportService.getTask(normalizedRunId)
+            reportPath = task?.current_report_path || ''
+          } catch (taskError) {
+            console.warn('Failed to load saved task manifest for report path:', taskError)
+          }
+        }
         if (reportPath) {
           const loaded = await backportService.loadReport({
             config: restoreConfig,
             baseReportPath: reportPath,
           })
           applyOperationResult(loaded.parsedResult)
+        } else if (current.status !== 'running') {
+          // 非运行中任务必须能加载到 report,否则视为恢复失败
+          // (running 任务无 report 属正常,继续轮询即可)
+          throw new Error('无法定位已保存的 report 内容')
         }
       }
 
@@ -928,6 +942,7 @@ export function BackportPage() {
         setStage('failed')
         setError(current.error || 'Backport 运行失败')
       }
+      return true
     } catch (cause) {
       console.warn('Failed to restore Backport run:', cause)
       addTimeline(
@@ -935,6 +950,7 @@ export function BackportPage() {
         'error',
         cause instanceof Error ? cause.message : '无法读取已保存的运行'
       )
+      return false
     } finally {
       setRunning(false)
       setRunningLabel('')
@@ -1049,10 +1065,41 @@ export function BackportPage() {
       void loadRecentRepositories()
       void hydrateConfiguredRepositories(sanitizedConfig)
       try {
+        // 旧 key(activeRunId)迁移到新 key(activeTaskId.v3):删除前若新 key
+        // 为空且旧 key 有值则迁移,避免升级后首次打开丢失上次任务
+        const legacyRunId = window.localStorage.getItem('polymind.backport.activeRunId')
+        let storedRunId = window.localStorage.getItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY) || ''
+        if (!storedRunId && legacyRunId) {
+          window.localStorage.setItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY, legacyRunId)
+          storedRunId = legacyRunId
+        }
         window.localStorage.removeItem('polymind.backport.activeRunId')
         const runs = await refreshRunHistory()
-        const storedRunId = window.localStorage.getItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY) || ''
-        const selectedRun = runs.find(run => run.run_id === storedRunId) || runs[0]
+        if (storedRunId) {
+          // 优先直接恢复 localStorage 中保存的任务(不依赖任务列表包含它);
+          // 单任务恢复失败(任务已清理/过期)时提示用户,再回退最新任务
+          const savedRun = runs.find(run => run.run_id === storedRunId)
+          let restored = false
+          try {
+            const probe = await backportService.getRun(storedRunId)
+            if (probe) {
+              // restoreRun 内部失败(执行历史/状态/report 加载)时返回 false,
+              // 由外层提示并回退最新任务
+              restored = await restoreRun(storedRunId, sanitizedConfig, savedRun)
+            }
+          } catch (probeError) {
+            console.warn('Saved Backport task unavailable, falling back to latest:', probeError)
+          }
+          if (restored) {
+            return
+          }
+          toast({
+            title: '提示',
+            description: '上次的 Backport 任务已不可用,已切换到最新任务',
+          })
+        }
+        // 无保存 ID 或保存 ID 恢复失败:回退到任务列表最新任务
+        const selectedRun = runs[0]
         if (selectedRun) {
           await restoreRun(selectedRun.run_id, sanitizedConfig, selectedRun)
         }

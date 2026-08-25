@@ -30,6 +30,7 @@ import {
   BackportRunProgress,
   BackportRunListResponse,
   BackportRunResponse,
+  BackportTaskManifest,
   BackportToolSnapshot,
   BackportTryResolveRequest,
 } from '@/lib/backport-types'
@@ -136,6 +137,13 @@ class BackportService {
 
   public async listRuns(): Promise<BackportRunListResponse> {
     return httpClient.get<BackportRunListResponse>('/backport/tasks', { timeout: 30000 })
+  }
+
+  public async getTask(taskId: string): Promise<BackportTaskManifest> {
+    return httpClient.get<BackportTaskManifest>(
+      `/backport/tasks/${encodeURIComponent(taskId)}`,
+      { timeout: 30000 },
+    )
   }
 
   public async listCaseAttempts(
