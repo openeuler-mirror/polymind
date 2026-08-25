@@ -7,11 +7,6 @@ import { appConfig } from '@/app/config'
 import { sessionService } from '@/services/session-service'
 import { messageService } from '@/services/message-service'
 import { abortScheduledRunForSession } from './scheduled-run-controller'
-import {
-  isSessionPendingDelete,
-  markSessionPendingDelete,
-  retryPendingSessionDeletes,
-} from './pending-session-deletes'
 import { syncUrlParams, getUrlParam } from './utils'
 import type { StoreState } from './index'
 
@@ -50,7 +45,7 @@ export interface ChatSlice {
   markConversationScheduled: (conversationId: string, taskId: string) => void
   purgeConversationsByScheduledTask: (taskId: string) => void
   startNewTask: (agentId: string) => void
-  deleteConversation: (id: string) => Promise<void>
+  deleteConversation: (id: string) => Promise<boolean>
   setCurrentConversation: (id: string) => void
   addMessage: (conversationId: string, message: Message) => void
   updateMessage: (
@@ -121,22 +116,25 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
     return id
   },
 
+  /**
+   * 删除会话（本地会话 + 后端会话）— 确认式删除。
+   * 后端删除成功（或本地未持久化/mock 模式）才移除本地条目；后端删除失败时
+   * 保留本地条目并返回 false，由调用方提示用户重试，保证本地视图与后端真相一致。
+   * 副作用：对定时任务会话（scheduledTaskId 有值），后端删除成功后才中止其本地 SSE 挂流
+   */
   deleteConversation: async id => {
     const state = get()
     const conversation = state.conversations.find(c => c.id === id)
-
-    if (conversation?.sessionId && conversation?.agentId) {
+    if (conversation?.sessionId && conversation?.agentId && !appConfig.app.useMockData) {
       try {
-        if (!appConfig.app.useMockData) {
-          await sessionService.deleteSession(conversation.agentId, conversation.sessionId)
-        }
+        await sessionService.deleteSession(conversation.agentId, conversation.sessionId)
       } catch (error) {
         console.error('Failed to delete session:', error)
-        // 删除请求本身失败时才需要本地暂时隐藏，并在后续列表刷新时补删。
-        if (conversation.sessionId) {
-          markSessionPendingDelete(conversation.sessionId)
-        }
+        return false
       }
+    }
+    if (conversation?.scheduledTaskId && conversation.sessionId) {
+      abortScheduledRunForSession(conversation.sessionId)
     }
     cacheDelete(CACHE_KEYS.CONVERSATIONS_WITH_NAMES)
 
@@ -147,6 +145,7 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
       conversations: filtered,
       currentConversationId: newCurrentId,
     })
+    return true
   },
 
   deleteMessage: (conversationId, messageId) => {
@@ -362,21 +361,13 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
       const conversations = summaries.map((s: any) =>
         sessionService.transformConversationSummary(s, agent?.name)
       )
-      retryPendingSessionDeletes(
-        conversations
-          .map((c: Conversation) => (c.sessionId ? { agentId, sessionId: c.sessionId } : null))
-          .filter((item): item is { agentId: string; sessionId: string } => item !== null)
-      )
       set(state => {
         const existingIds = new Set(state.conversations.map(c => c.id))
         const existingSessionIds = new Set(
           state.conversations.map(c => c.sessionId).filter(Boolean)
         )
         const newConversations = conversations.filter(
-          (c: Conversation) =>
-            !existingIds.has(c.id) &&
-            !existingSessionIds.has(c.sessionId) &&
-            !isSessionPendingDelete(c.sessionId)
+          (c: Conversation) => !existingIds.has(c.id) && !existingSessionIds.has(c.sessionId)
         )
         return {
           conversations: [...newConversations, ...state.conversations],
@@ -433,6 +424,9 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
           updatedAt: new Date(detail.updated_at),
           pinned: detail.pinned,
           agentId,
+          // 定时任务会话被点击后由摘要条目切换为本地会话渲染（侧栏按 sessionId
+          // 去重掉摘要），需补齐与摘要一致的“定时”徽标，避免点击后徽标消失。
+          agentName: (detail.scheduled_task_id ?? meta?.scheduledTaskId) ? '定时' : undefined,
           sessionId,
           scheduledTaskId: detail.scheduled_task_id ?? meta?.scheduledTaskId,
           isStreaming: hasStreaming,

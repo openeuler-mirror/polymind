@@ -1,4 +1,5 @@
 import { httpClient } from '@/lib/http-client'
+import { ApiError } from '@/lib/error-handler'
 import { Session, ApiResponse, SessionManagementStrategy, Conversation, Message } from '@/lib/types'
 import { SessionStatus, MessageStatus } from '@/lib/types'
 
@@ -25,10 +26,16 @@ class SessionService {
   }
 
   /**
-   * 删除会话
+   * 删除会话（幂等）：会话已不存在（404）视为删除成功，
+   * 覆盖“后端已删除但响应丢失”后重试永远失败的场景。
    */
   public async deleteSession(agentId: string, sessionId: string): Promise<void> {
-    await httpClient.delete(`/agents/${agentId}/sessions/${sessionId}`)
+    try {
+      await httpClient.delete(`/agents/${agentId}/sessions/${sessionId}`)
+    } catch (error) {
+      if (error instanceof ApiError && error.statusCode === 404) return
+      throw error
+    }
   }
 
   /**

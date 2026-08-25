@@ -11,14 +11,6 @@ export function parseDateSafe(value: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-/** 取执行记录的开始时间（无则用创建时间兜底）对应的毫秒时间戳，缺失返回 0。 */
-export function getRunTimeMs(run: {
-  started_at?: string | null
-  created_at?: string | null
-}): number {
-  return parseDateSafe(run.started_at)?.getTime() ?? parseDateSafe(run.created_at)?.getTime() ?? 0
-}
-
 /** 取执行记录的开始时间（无则用创建时间兜底），缺失时返回 fallback。 */
 export function getRunDate(
   run: { started_at?: string | null; created_at?: string | null },

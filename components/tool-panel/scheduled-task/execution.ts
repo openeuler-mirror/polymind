@@ -217,8 +217,9 @@ export async function triggerScheduledTaskRun(
   let conversationId: string | null = null
   try {
     // 先建真实会话：任务内容作为用户消息，后续执行过程通过 SSE 实时回流。
+    // agentName 统一用“定时”而非真实 agent 名：与刷新后侧栏摘要条目的兜底一致，
     const session = await state.createNewSession(task.agent_id)
-    conversationId = state.createLocalConversation(task.agent_id, agent.name, session.id)
+    conversationId = state.createLocalConversation(task.agent_id, '定时', session.id)
     state.setCurrentConversation(conversationId)
     state.addMessage(conversationId, {
       id: generateUUID(),

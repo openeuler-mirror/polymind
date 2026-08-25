@@ -20,7 +20,11 @@ import { useScheduledTaskStore } from '@/lib/stores/scheduled-task-store'
 import { useChatStore } from '@/lib/store'
 import { scheduledTaskService } from '@/services/scheduled-task-service'
 import * as runController from '@/lib/stores/scheduled-run-controller'
-import type { ScheduledTask, ScheduledTaskRun } from '@/services/scheduled-task-service'
+import type {
+  ScheduledTask,
+  ScheduledTaskConversation,
+  ScheduledTaskRun,
+} from '@/services/scheduled-task-service'
 
 function makeTask(overrides: Partial<ScheduledTask> = {}): ScheduledTask {
   return {
@@ -37,6 +41,8 @@ function makeTask(overrides: Partial<ScheduledTask> = {}): ScheduledTask {
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     recent_runs: [],
+    conversations: [],
+    has_running_run: false,
     ...overrides,
   }
 }
@@ -55,12 +61,27 @@ function makeRun(overrides: Partial<ScheduledTaskRun> = {}): ScheduledTaskRun {
   }
 }
 
+function makeConversation(
+  overrides: Partial<ScheduledTaskConversation> = {}
+): ScheduledTaskConversation {
+  return {
+    id: 'sess-1',
+    task_id: 'task-1',
+    title: '生成每日报告',
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:10:00Z',
+    last_run_status: 'succeeded',
+    ...overrides,
+  }
+}
+
 describe('scheduled-task-store', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     useScheduledTaskStore.setState({
       tasks: [],
       runsByTask: {},
+      conversationsByTask: {},
       loading: false,
       error: '',
     })
@@ -86,18 +107,44 @@ describe('scheduled-task-store', () => {
     expect(state.error).toBe('')
   })
 
-  it('does not sync runs into the chat store (scheduled area is run-driven)', async () => {
+  it('groups conversations into conversationsByTask for the conversation-driven sidebar', async () => {
+    ;(scheduledTaskService.listTasks as jest.Mock).mockResolvedValue([
+      makeTask({
+        id: 'task-1',
+        has_running_run: true,
+        conversations: [
+          makeConversation({ id: 'sess-1', last_run_status: 'running' }),
+          makeConversation({ id: 'sess-2', title: null, last_run_status: null }),
+        ],
+      }),
+      makeTask({ id: 'task-2', conversations: [] }),
+    ])
+
+    await useScheduledTaskStore.getState().refresh()
+
+    const state = useScheduledTaskStore.getState()
+    // 会话摘要按任务归组，供侧栏会话中心化渲染。
+    expect(state.conversationsByTask['task-1'].map(c => c.id)).toEqual(['sess-1', 'sess-2'])
+    expect(state.conversationsByTask['task-2']).toEqual([])
+    // has_running_run 随任务对象透传（isRunning 数据源）。
+    expect(state.tasks[0].has_running_run).toBe(true)
+    expect(state.tasks[1].has_running_run).toBe(false)
+  })
+
+  it('does not sync scheduled data into the chat store (sidebar merges at render time)', async () => {
     ;(scheduledTaskService.listTasks as jest.Mock).mockResolvedValue([
       makeTask({
         recent_runs: [makeRun({ id: 'run-1', session_id: 'sess-1' })],
+        conversations: [makeConversation({ id: 'sess-1' })],
       }),
     ])
 
     await useScheduledTaskStore.getState().refresh()
 
-    // 仅保存任务与执行记录，不触碰任何会话列表。
+    // 仅保存任务/执行记录/会话摘要，不触碰任何会话列表（合并只发生在渲染层）。
     const state = useScheduledTaskStore.getState()
     expect(state.runsByTask['task-1']).toHaveLength(1)
+    expect(state.conversationsByTask['task-1']).toHaveLength(1)
   })
 
   it('deletes the task before aborting runs and purges by task id', async () => {
@@ -143,5 +190,28 @@ describe('scheduled-task-store', () => {
     expect(purgeSpy).not.toHaveBeenCalled()
     purgeSpy.mockRestore()
     abortSpy.mockRestore()
+  })
+
+  it('normalizes has_running_run to false when restoring stale cache without the field', () => {
+    // 缓存在模块加载时读取，需隔离重载模块并让 cacheGet 返回旧格式数据。
+    jest.isolateModules(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { cacheGet } = require('@/lib/cache')
+      ;(cacheGet as jest.Mock).mockReturnValueOnce({
+        tasks: [
+          makeTask({
+            id: 'task-stale',
+            // 引入 has_running_run 之前的旧缓存无此字段。
+            has_running_run: undefined as unknown as boolean,
+          }),
+        ],
+        runsByTask: {},
+        conversationsByTask: {},
+      })
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { useScheduledTaskStore: freshStore } = require('@/lib/stores/scheduled-task-store')
+
+      expect(freshStore.getState().tasks[0].has_running_run).toBe(false)
+    })
   })
 })

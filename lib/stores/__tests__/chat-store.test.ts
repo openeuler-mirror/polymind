@@ -44,11 +44,6 @@ import { MessageStatus, SessionStatus } from '../../types'
 import { sessionService } from '@/services/session-service'
 import { messageService } from '@/services/message-service'
 import { CACHE_KEYS, cacheDelete } from '../../cache'
-import {
-  clearSessionPendingDelete,
-  isSessionPendingDelete,
-  markSessionPendingDelete,
-} from '../pending-session-deletes'
 
 type TestState = ChatSlice & AgentSlice & ConnectionSlice & SettingsSlice & UISlice
 
@@ -337,23 +332,34 @@ describe('ChatSlice', () => {
       expect(sessionService.deleteSession).toHaveBeenCalledWith('agent-1', 'sess-1')
     })
 
-    it('should still delete local conversation and log error when deleteSession fails', async () => {
+    it('should keep local conversation and return false when deleteSession fails', async () => {
       seedConversation({ sessionId: 'sess-1', agentId: 'agent-1' })
       useTestStore.setState({ currentConversationId: 'conv-1' })
       ;(sessionService.deleteSession as jest.Mock).mockRejectedValue(new Error('Network error'))
 
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
 
-      await useTestStore.getState().deleteConversation('conv-1')
+      const deleted = await useTestStore.getState().deleteConversation('conv-1')
 
-      // Local conversation is still deleted
-      expect(useTestStore.getState().conversations.length).toBe(0)
-      expect(useTestStore.getState().currentConversationId).toBeNull()
+      // 确认式删除：后端失败时本地条目保留，等待用户重试
+      expect(deleted).toBe(false)
+      expect(useTestStore.getState().conversations.length).toBe(1)
+      expect(useTestStore.getState().currentConversationId).toBe('conv-1')
 
       // Error is logged without crashing
       expect(consoleSpy).toHaveBeenCalledWith('Failed to delete session:', expect.any(Error))
 
       consoleSpy.mockRestore()
+    })
+
+    it('should return true and remove local conversation when deleteSession succeeds', async () => {
+      seedConversation({ sessionId: 'sess-1', agentId: 'agent-1' })
+      ;(sessionService.deleteSession as jest.Mock).mockResolvedValue(undefined)
+
+      const deleted = await useTestStore.getState().deleteConversation('conv-1')
+
+      expect(deleted).toBe(true)
+      expect(useTestStore.getState().conversations.length).toBe(0)
     })
   })
 
@@ -770,100 +776,6 @@ describe('ChatSlice', () => {
       // State unchanged, no crash
       expect(useTestStore.getState().conversations.length).toBe(0)
     })
-
-    it('should skip sessions pending deletion', async () => {
-      markSessionPendingDelete('sess-deleted')
-      ;(sessionService.getConversations as jest.Mock).mockResolvedValue([
-        {
-          id: 'sess-deleted',
-          title: '已删除会话',
-          agent_id: 'agent-1',
-          created_at: '2025-06-01T00:00:00Z',
-          updated_at: '2025-06-01T00:00:00Z',
-        },
-      ])
-      ;(sessionService.transformConversationSummary as jest.Mock).mockImplementation(
-        (summary: any) => ({
-          id: summary.id,
-          title: summary.title,
-          messages: [],
-          createdAt: new Date(summary.created_at),
-          updatedAt: new Date(summary.updated_at),
-          agentId: summary.agent_id,
-          sessionId: summary.id,
-        })
-      )
-
-      await useTestStore.getState().fetchConversations('agent-1')
-
-      expect(useTestStore.getState().conversations).toHaveLength(0)
-      clearSessionPendingDelete('sess-deleted')
-    })
-
-    it('should retry pending deletion and clear it on success', async () => {
-      markSessionPendingDelete('sess-deleted')
-      ;(sessionService.getConversations as jest.Mock).mockResolvedValue([
-        {
-          id: 'sess-deleted',
-          title: '泄漏会话',
-          agent_id: 'agent-1',
-          created_at: '2025-06-01T00:00:00Z',
-          updated_at: '2025-06-01T00:00:00Z',
-        },
-      ])
-      ;(sessionService.transformConversationSummary as jest.Mock).mockImplementation(
-        (summary: any) => ({
-          id: summary.id,
-          title: summary.title,
-          messages: [],
-          createdAt: new Date(summary.created_at),
-          updatedAt: new Date(summary.updated_at),
-          agentId: summary.agent_id,
-          sessionId: summary.id,
-        })
-      )
-      ;(sessionService.deleteSession as jest.Mock).mockResolvedValue(undefined)
-
-      await useTestStore.getState().fetchConversations('agent-1')
-      await Promise.resolve()
-
-      expect(sessionService.deleteSession).toHaveBeenCalledWith('agent-1', 'sess-deleted')
-      expect(isSessionPendingDelete('sess-deleted')).toBe(false)
-      expect(useTestStore.getState().conversations).toHaveLength(0)
-    })
-
-    it('should keep the pending marker when retry deletion fails', async () => {
-      markSessionPendingDelete('sess-deleted')
-      ;(sessionService.getConversations as jest.Mock).mockResolvedValue([
-        {
-          id: 'sess-deleted',
-          title: '泄漏会话',
-          agent_id: 'agent-1',
-          created_at: '2025-06-01T00:00:00Z',
-          updated_at: '2025-06-01T00:00:00Z',
-        },
-      ])
-      ;(sessionService.transformConversationSummary as jest.Mock).mockImplementation(
-        (summary: any) => ({
-          id: summary.id,
-          title: summary.title,
-          messages: [],
-          createdAt: new Date(summary.created_at),
-          updatedAt: new Date(summary.updated_at),
-          agentId: summary.agent_id,
-          sessionId: summary.id,
-        })
-      )
-      ;(sessionService.deleteSession as jest.Mock).mockRejectedValue(new Error('Network error'))
-
-      await useTestStore.getState().fetchConversations('agent-1')
-      await Promise.resolve()
-
-      expect(sessionService.deleteSession).toHaveBeenCalledWith('agent-1', 'sess-deleted')
-      expect(isSessionPendingDelete('sess-deleted')).toBe(true)
-      expect(useTestStore.getState().conversations).toHaveLength(0)
-      clearSessionPendingDelete('sess-deleted')
-    })
   })
 
   describe('refreshConversation', () => {
@@ -967,6 +879,26 @@ describe('ChatSlice', () => {
       const conv = useTestStore.getState().conversations[0]
       expect(conv.scheduledTaskId).toBe('task-1')
       expect(conv.lastMessageStatus).toBe(MessageStatus.COMPLETED)
+      // 定时任务会话的本地占位须带“定时”徽标，避免点击摘要后侧栏徽标消失。
+      expect(conv.agentName).toBe('定时')
+    })
+
+    it('should not attach agentName to non-scheduled placeholder conversations', async () => {
+      const detail = {
+        title: '普通对话',
+        messages: [],
+        has_more: false,
+        created_at: '2025-06-01T00:00:00Z',
+        updated_at: '2025-06-01T00:00:00Z',
+      }
+      ;(sessionService.getConversation as jest.Mock).mockResolvedValue(detail)
+      ;(sessionService.transformMessage as jest.Mock).mockReturnValue(null)
+
+      await useTestStore.getState().refreshConversation('agent-1', 'sess-remote')
+
+      const conv = useTestStore.getState().conversations[0]
+      expect(conv.scheduledTaskId).toBeUndefined()
+      expect(conv.agentName).toBeUndefined()
     })
 
     it('should update messages without switching current conversation when activate is false', async () => {
