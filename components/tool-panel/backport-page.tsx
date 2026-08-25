@@ -9,6 +9,7 @@ import {
   type InspectorTab,
   type PatchLoadState,
 } from '@/components/tool-panel/backport/inspector-sheet'
+import { PrerequisiteReviewPanel } from '@/components/tool-panel/backport/prerequisite-review-panel'
 import { RepositoryAccessPanel } from '@/components/tool-panel/backport/repository-access-panel'
 import { SupportPanel } from '@/components/tool-panel/backport/support-panel'
 import {
@@ -70,6 +71,8 @@ import {
   BackportGitLogEntry,
   BackportOperationResultData,
   BackportPatchResource,
+  BackportPrerequisiteCandidate,
+  BackportPrerequisiteManifest,
   BackportRepositoryInfo,
   BackportRepositoryPrepareResponse,
   BackportRepositoryRole,
@@ -92,6 +95,8 @@ import { generateUUID } from '@/lib/utils'
 const BACKPORT_COMMIT_PAGE_SIZE = 5
 const BACKPORT_MODEL_EMPTY_VALUE = '__none__'
 const BACKPORT_ACTIVE_RUN_STORAGE_KEY = 'polymind.backport.activeTaskId.v3'
+const PREREQ_STATE_STORAGE_KEY = 'polymind.backport.prereqState'
+const PREREQ_REVIEW_STALE_CODE = 'BACKPORT_PREREQUISITE_REVIEW_STALE'
 const BACKPORT_SUPPORTED_PROVIDERS = new Set([
   'openai',
   'deepseek',
@@ -171,6 +176,17 @@ const buildLegacyRepositoryInfo = (
 const isRemoteRepositoryInput = (input: string): boolean =>
   /^(https?:\/\/|ssh:\/\/|git:\/\/|[^@\s]+@[^:\s]+:)/.test(input.trim())
 
+const buildPrerequisiteInputKey = (config: BackportConfig, excelPath: string): string =>
+  JSON.stringify({
+    excelPath: excelPath.trim(),
+    sourcePath: config.project_dir,
+    sourceBranch: config.source_branch,
+    sourceHead: config.source_repo_state?.head || '',
+    targetPath: config.target_path,
+    targetRelease: config.target_release,
+    targetHead: config.target_repo_state?.head || '',
+  })
+
 export function BackportPage() {
   const { toast } = useToast()
   const patchAnchorRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -181,8 +197,10 @@ export function BackportPage() {
   const runAllReportRefreshInFlightRef = useRef(false)
   const runAllPendingReportRefreshPathRef = useRef<string | null>(null)
   const runAllLastLockEventRef = useRef('')
+  const prereqInputKeyRef = useRef('')
 
   const [config, setConfig] = useState<BackportConfig>(DEFAULT_BACKPORT_CONFIG)
+  const prereqEnabled = Boolean(config.enable_prerequisite_scan)
   const [loadingConfig, setLoadingConfig] = useState(false)
   const [backportModels, setBackportModels] = useState<ModelConfig[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
@@ -221,6 +239,12 @@ export function BackportPage() {
     'all'
   )
   const [searchQuery, setSearchQuery] = useState('')
+  const [prereqOnly, setPrereqOnly] = useState(false)
+  const [prereqManifest, setPrereqManifest] = useState<BackportPrerequisiteManifest | null>(null)
+  const [prereqSelected, setPrereqSelected] = useState<BackportPrerequisiteCandidate[]>([])
+  const [prereqReviewed, setPrereqReviewed] = useState(false)
+  const [prereqRescanning, setPrereqRescanning] = useState(false)
+  const [prereqGeneratedReportPath, setPrereqGeneratedReportPath] = useState('')
   const [commitPage, setCommitPage] = useState(1)
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([])
   const [timeline, setTimeline] = useState<BackportTimelineEntry[]>([])
@@ -378,6 +402,10 @@ export function BackportPage() {
         }
       }
 
+      if (prereqOnly && stringifyValue(item.origin) !== 'prerequisite') {
+        return false
+      }
+
       if (!query) {
         return true
       }
@@ -421,7 +449,15 @@ export function BackportPage() {
 
       return false
     })
-  }, [workingCommits, titleFilter, statusFilter, conflictFilter, mergedFilter, searchQuery])
+  }, [
+    workingCommits,
+    titleFilter,
+    statusFilter,
+    conflictFilter,
+    mergedFilter,
+    prereqOnly,
+    searchQuery,
+  ])
 
   const totalCommitPages = useMemo(
     () => Math.max(1, Math.ceil(filteredRows.length / BACKPORT_COMMIT_PAGE_SIZE)),
@@ -533,6 +569,63 @@ export function BackportPage() {
   useEffect(() => {
     configRef.current = config
   }, [config])
+
+  useEffect(() => {
+    if (loadingConfig) return
+    const nextKey = buildPrerequisiteInputKey(config, excelPath)
+    if (!prereqInputKeyRef.current) {
+      prereqInputKeyRef.current = nextKey
+      return
+    }
+    if (prereqInputKeyRef.current === nextKey) return
+    prereqInputKeyRef.current = nextKey
+    setPrereqManifest(null)
+    setPrereqSelected([])
+    setPrereqReviewed(false)
+    setPrereqGeneratedReportPath('')
+  }, [
+    loadingConfig,
+    excelPath,
+    config.project_dir,
+    config.source_branch,
+    config.source_repo_state?.head,
+    config.target_path,
+    config.target_release,
+    config.target_repo_state?.head,
+  ])
+
+  useEffect(() => {
+    if (prereqManifest) {
+      window.localStorage.setItem(
+        PREREQ_STATE_STORAGE_KEY,
+        JSON.stringify({
+          excelPath,
+          sourcePath: config.project_dir,
+          targetPath: config.target_path,
+          inputKey: buildPrerequisiteInputKey(config, excelPath),
+          inputDigest: prereqManifest.input_digest,
+          targetRef: prereqManifest.target_ref,
+          reviewVersion: prereqManifest.review?.review_version || '',
+          manifest: prereqManifest,
+          selected: prereqSelected,
+          reviewed: prereqReviewed,
+        })
+      )
+    } else {
+      window.localStorage.removeItem(PREREQ_STATE_STORAGE_KEY)
+    }
+  }, [
+    prereqManifest,
+    prereqSelected,
+    prereqReviewed,
+    excelPath,
+    config.project_dir,
+    config.source_branch,
+    config.source_repo_state?.head,
+    config.target_path,
+    config.target_release,
+    config.target_repo_state?.head,
+  ])
 
   const addTimeline = (
     title: string,
@@ -708,7 +801,8 @@ export function BackportPage() {
       if (
         result.operation === 'generate_report' ||
         result.operation === 'continue_report' ||
-        result.operation === 'run_all'
+        result.operation === 'run_all' ||
+        result.operation === 'prerequisite_commits'
       ) {
         setOriginalCommits(nextRows)
         setWorkingCommits(nextRows)
@@ -1064,6 +1158,56 @@ export function BackportPage() {
       void loadRuntimeStatus(sanitizedConfig)
       void loadRecentRepositories()
       void hydrateConfiguredRepositories(sanitizedConfig)
+      try {
+        const rawPrereq = window.localStorage.getItem(PREREQ_STATE_STORAGE_KEY)
+        if (rawPrereq && sanitizedConfig.enable_prerequisite_scan) {
+          const saved = JSON.parse(rawPrereq) as {
+            excelPath?: string
+            sourcePath?: string
+            targetPath?: string
+            inputKey?: string
+            inputDigest?: string
+            targetRef?: string
+            reviewVersion?: string
+            manifest?: BackportPrerequisiteManifest
+            selected?: BackportPrerequisiteCandidate[]
+            reviewed?: boolean
+          }
+          const restoredExcelPath = saved.excelPath || ''
+          const review = saved.manifest?.review
+          const currentInputKey = buildPrerequisiteInputKey(sanitizedConfig, restoredExcelPath)
+          if (
+            saved.manifest &&
+            review &&
+            saved.sourcePath === sanitizedConfig.project_dir &&
+            saved.targetPath === sanitizedConfig.target_path &&
+            saved.inputKey === currentInputKey &&
+            saved.inputDigest === saved.manifest.input_digest &&
+            review.input_digest === saved.manifest.input_digest &&
+            saved.targetRef === saved.manifest.target_ref &&
+            review.target_ref === saved.manifest.target_ref &&
+            saved.reviewVersion === review.review_version
+          ) {
+            prereqInputKeyRef.current = currentInputKey
+            setExcelPath(restoredExcelPath)
+            setPrereqManifest(saved.manifest)
+            setPrereqSelected(
+              Array.isArray(saved.selected)
+                ? saved.selected
+                : (saved.manifest.candidates || []).filter(candidate => candidate.default_selected)
+            )
+            setPrereqReviewed(Boolean(saved.reviewed))
+          }
+        }
+      } catch {
+        window.localStorage.removeItem(PREREQ_STATE_STORAGE_KEY)
+      }
+      if (!prereqInputKeyRef.current) {
+        prereqInputKeyRef.current = buildPrerequisiteInputKey(
+          sanitizedConfig,
+          sanitizedConfig.current_excel_path || ''
+        )
+      }
       try {
         // 旧 key(activeRunId)迁移到新 key(activeTaskId.v3):删除前若新 key
         // 为空且旧 key 有值则迁移,避免升级后首次打开丢失上次任务
@@ -1636,7 +1780,155 @@ export function BackportPage() {
     }
   }
 
+  const handleImportAndFindPrereqs = async () => {
+    if (!excelPath.trim()) {
+      toast({
+        title: '提示',
+        description: '请先填写 Excel 路径',
+      })
+      return
+    }
+
+    const scanConfig = normalizeBackportConfig({
+      ...configRef.current,
+      current_excel_path: excelPath.trim(),
+      current_report_path: '',
+      current_filtered_report_path: '',
+    })
+    setBaseReportPath('')
+    setFilteredReportPath('')
+    setPrereqGeneratedReportPath('')
+    setActiveRunId('')
+    window.localStorage.removeItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY)
+    configRef.current = scanConfig
+    prereqInputKeyRef.current = buildPrerequisiteInputKey(scanConfig, excelPath.trim())
+    await handleSaveConfig(true, scanConfig)
+
+    const response = await runOperation('导入 Excel 并查找前置提交', () =>
+      backportService.findPrerequisiteCommits(
+        {
+          config: scanConfig,
+          excelPath: excelPath.trim(),
+        },
+        handleAgentEvent,
+      )
+    )
+    const manifest = response.parsedResult?.manifest
+    if (!manifest) {
+      throw new Error('前置提交查找未返回可解析结果')
+    }
+    setPrereqManifest(manifest)
+    setPrereqSelected(manifest.candidates.filter(candidate => candidate.default_selected))
+    setPrereqReviewed(false)
+  }
+
+  const handlePrereqConfirm = (selected: BackportPrerequisiteCandidate[]) => {
+    const rows: BackportCommitItem[] = selected.map(candidate => ({
+      commit: candidate.commit,
+      commit_title: candidate.title || '',
+      status: 'pending',
+      origin: 'prerequisite',
+      required_by: candidate.required_by || [],
+      capabilities: candidate.capabilities || [],
+    }))
+    setWorkingCommits(prev => mergeCommitRows(prev, rows))
+    setOriginalCommits(prev => mergeCommitRows(prev, rows))
+    setPrereqSelected(selected)
+    setPrereqReviewed(true)
+  }
+
+  const handlePrereqCancel = () => {
+    setPrereqManifest(null)
+    setPrereqSelected([])
+    setPrereqReviewed(false)
+    setPrereqGeneratedReportPath('')
+  }
+
+  const handlePrereqRescan = async () => {
+    setPrereqReviewed(false)
+    setPrereqSelected([])
+    setPrereqRescanning(true)
+    try {
+      await handleImportAndFindPrereqs()
+    } finally {
+      setPrereqRescanning(false)
+    }
+  }
+
+  const handleGenerateReportWithPrereqs = async () => {
+    if (!excelPath.trim() || !prereqManifest?.review) {
+      await handleImportAndFindPrereqs()
+      return
+    }
+
+    const generateConfig = normalizeBackportConfig({
+      ...configRef.current,
+      current_excel_path: excelPath.trim(),
+    })
+    configRef.current = generateConfig
+    await handleSaveConfig(true, generateConfig)
+    let createdRunId = ''
+    try {
+      const response = await runOperation('生成配置与报告', () =>
+        backportService.generateReport(
+          {
+            config: generateConfig,
+            excelPath: excelPath.trim(),
+            prerequisite_commits: prereqSelected,
+            prerequisite_review: prereqManifest.review,
+          },
+          handleAgentEvent,
+          {
+            onRunCreated: control => {
+              createdRunId = control.runId
+              rememberActiveRun(control.runId)
+              void refreshRunHistory()
+            },
+          },
+        )
+      )
+      const reportPath =
+        response.parsedResult?.artifacts?.base_report_path ||
+        response.parsedResult?.artifacts?.report_path ||
+        response.parsedResult?.report?.report_path ||
+        ''
+      if (!createdRunId || !reportPath) {
+        throw new Error('生成报告未返回可执行的 Task 或 report')
+      }
+      const nextConfig = normalizeBackportConfig({
+        ...generateConfig,
+        current_report_path: reportPath,
+        current_filtered_report_path: '',
+      })
+      configRef.current = nextConfig
+      setConfig(nextConfig)
+      setPrereqGeneratedReportPath(reportPath)
+      return { response, runId: createdRunId, reportPath }
+    } catch (cause) {
+      if ((cause as Error & { code?: string }).code === PREREQ_REVIEW_STALE_CODE) {
+        setPrereqManifest(null)
+        setPrereqSelected([])
+        setPrereqReviewed(false)
+        setPrereqGeneratedReportPath('')
+        setError('')
+        toast({
+          title: '前置提交审阅已过期',
+          description: 'Excel 内容或仓库基线已变化，请重新扫描并审阅。',
+          variant: 'destructive',
+        })
+        return
+      }
+      throw cause
+    }
+  }
+
   const handleGenerateReport = async () => {
+    if (prereqEnabled && !prereqReviewed) {
+      return handleImportAndFindPrereqs()
+    }
+    if (prereqEnabled && prereqReviewed) {
+      return handleGenerateReportWithPrereqs()
+    }
     if (!excelPath.trim()) {
       toast({
         title: '提示',
@@ -1668,6 +1960,8 @@ export function BackportPage() {
   const handleRunAll = async () => {
     const normalizedExcelPath = excelPath.trim()
     let normalizedBaseReportPath = baseReportPath.trim()
+    let runTaskId = activeRunId
+    let generatedPrerequisiteReport = false
     if (!normalizedExcelPath && !normalizedBaseReportPath) {
       toast({
         title: '提示',
@@ -1676,19 +1970,41 @@ export function BackportPage() {
       return
     }
 
+    if (prereqEnabled && !prereqReviewed) {
+      await handleImportAndFindPrereqs()
+      return
+    }
+    if (prereqEnabled && prereqReviewed) {
+      if (!prereqManifest?.review) {
+        setPrereqReviewed(false)
+        await handleImportAndFindPrereqs()
+        return
+      }
+      if (
+        !prereqGeneratedReportPath ||
+        prereqGeneratedReportPath !== normalizedBaseReportPath
+      ) {
+        const generated = await handleGenerateReportWithPrereqs()
+        if (!generated) return
+        normalizedBaseReportPath = generated.reportPath
+        runTaskId = generated.runId
+        generatedPrerequisiteReport = true
+      }
+    }
+
     await handleSaveConfig(true)
     const runConfig = normalizeBackportConfig({
-      ...config,
+      ...configRef.current,
       current_excel_path: normalizedExcelPath,
     })
-    if (stage === 'completed' && activeRunId) {
+    if (!generatedPrerequisiteReport && stage === 'completed' && runTaskId) {
       try {
         const regenerated = await runOperation('重新生成执行报告', async () => {
           const response = await backportService.generateReport(
             {
               config: runConfig,
               excelPath: normalizedExcelPath,
-              runId: activeRunId,
+              runId: runTaskId,
             },
             handleAgentEvent,
             {
@@ -1732,9 +2048,11 @@ export function BackportPage() {
           {
             config: runConfig,
             excelPath: normalizedExcelPath,
-            runId: activeRunId || undefined,
+            runId: runTaskId || undefined,
             baseReportPath: normalizedBaseReportPath,
-            workingReportPath: filteredReportPath.trim() || normalizedBaseReportPath,
+            workingReportPath: generatedPrerequisiteReport
+              ? normalizedBaseReportPath
+              : filteredReportPath.trim() || normalizedBaseReportPath,
           },
           handleAgentEvent,
           handleRunAllProgress,
@@ -3151,36 +3469,86 @@ export function BackportPage() {
               <div>
                 <h4 className="text-sm font-medium text-slate-900">执行选项</h4>
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-xs font-medium text-slate-900">执行时生成冲突报告</div>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    OpenCode 展示迁移说明；Mystique/PortGPT 对解冲突补丁进行 AI
-                    评分，可能增加执行耗时。
-                  </p>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-slate-900">
+                      执行时生成冲突报告
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      OpenCode 展示迁移说明；Mystique/PortGPT 对解冲突补丁进行 AI
+                      评分，可能增加执行耗时。
+                    </p>
+                  </div>
+                  <Switch
+                    checked={Boolean(config.cvekit_options.enable_conflict_summary)}
+                    onCheckedChange={checked =>
+                      setConfig(prev => ({
+                        ...prev,
+                        cvekit_options: {
+                          ...prev.cvekit_options,
+                          enable_conflict_summary: checked,
+                        },
+                      }))
+                    }
+                    disabled={running || loadingConfig}
+                    aria-label="执行时生成冲突报告"
+                  />
                 </div>
-                <Switch
-                  checked={Boolean(config.cvekit_options.enable_conflict_summary)}
-                  onCheckedChange={checked =>
-                    setConfig(prev => ({
-                      ...prev,
-                      cvekit_options: {
-                        ...prev.cvekit_options,
-                        enable_conflict_summary: checked,
-                      },
-                    }))
-                  }
-                  disabled={running || loadingConfig}
-                  aria-label="执行时生成冲突报告"
-                />
+
+                <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-slate-900">
+                      导入时查找前置提交
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      打开后导入 Excel 会先扫描当前 commits 的前置提交，审阅勾选后再生成报告。
+                    </p>
+                  </div>
+                  <Switch
+                    checked={Boolean(config.enable_prerequisite_scan)}
+                    onCheckedChange={checked => {
+                      setConfig(prev => ({ ...prev, enable_prerequisite_scan: checked }))
+                      if (!checked) {
+                        setPrereqManifest(null)
+                        setPrereqSelected([])
+                        setPrereqReviewed(false)
+                        setPrereqGeneratedReportPath('')
+                        setPrereqOnly(false)
+                      }
+                    }}
+                    disabled={running || loadingConfig}
+                    aria-label="导入时查找前置提交"
+                  />
+                </div>
               </div>
             </section>
           </div>
         </RepositoryAccessPanel>
 
+        {prereqEnabled && prereqManifest && !prereqReviewed ? (
+          <PrerequisiteReviewPanel
+            manifest={prereqManifest}
+            initialSelected={prereqSelected}
+            rescanning={prereqRescanning}
+            onCancel={handlePrereqCancel}
+            onConfirm={handlePrereqConfirm}
+            onRescan={() => void handlePrereqRescan()}
+          />
+        ) : null}
+
         <CommitTable
           excelPath={excelPath}
-          onExcelPathChange={setExcelPath}
+          onExcelPathChange={value => {
+            if (value !== excelPath) {
+              setPrereqReviewed(false)
+              setPrereqManifest(null)
+              setPrereqSelected([])
+              setPrereqGeneratedReportPath('')
+              setPrereqOnly(false)
+            }
+            setExcelPath(value)
+          }}
           running={running}
           runningLabel={runningLabel}
           canPauseRunAll={Boolean(runAllControl) && runAllPauseState === 'running'}
@@ -3215,7 +3583,17 @@ export function BackportPage() {
           canContinueReport={canContinueReport}
           onOpenPathBrowser={openPathBrowser}
           onGenerateReport={handleGenerateReport}
-          generateReportLabel={activeRunId ? '导入 Excel 新版本' : '导入 Excel 并生成报告'}
+          generateReportLabel={
+            prereqEnabled
+              ? prereqReviewed
+                ? '生成报告'
+                : '导入 Excel 并查找前置提交'
+              : activeRunId
+                ? '导入 Excel 新版本'
+                : '导入 Excel 并生成报告'
+          }
+          prereqOnly={prereqOnly}
+          onPrereqOnlyChange={setPrereqOnly}
           onRunAll={handleRunAll}
           runAllIdleLabel={stage === 'completed' ? '基于当前仓库重新执行' : '一键运行'}
           onPauseRunAll={handlePauseRunAll}

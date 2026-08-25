@@ -76,6 +76,8 @@ interface CommitTableProps {
   onOpenPathBrowser: () => void
   onGenerateReport: () => void
   generateReportLabel?: string
+  prereqOnly?: boolean
+  onPrereqOnlyChange?: (value: boolean) => void
   onRunAll: () => void
   runAllIdleLabel?: string
   onPauseRunAll: () => void
@@ -135,6 +137,8 @@ export function CommitTable({
   onOpenPathBrowser,
   onGenerateReport,
   generateReportLabel = '导入 Excel 并生成报告',
+  prereqOnly = false,
+  onPrereqOnlyChange,
   onRunAll,
   runAllIdleLabel = '一键运行',
   onPauseRunAll,
@@ -225,13 +229,10 @@ export function CommitTable({
               >
                 <FolderOpen className="h-4 w-4" />
               </Button>
-              <Button
-                size="sm"
-                className="h-8"
-                onClick={onGenerateReport}
-                disabled={running || !excelPath.trim()}
-              >
-                {running && runningLabel === '生成配置与报告' ? (
+              <Button size="sm" className="h-8" onClick={onGenerateReport} disabled={running || !excelPath.trim()}>
+                {running &&
+                (runningLabel === '生成配置与报告' ||
+                  runningLabel === '导入 Excel 并查找前置提交') ? (
                   <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
                 ) : (
                   <Play className="mr-1 h-4 w-4" />
@@ -299,6 +300,21 @@ export function CommitTable({
               <RotateCcw className="mr-1 h-4 w-4" />
               恢复列表
             </Button>
+            {onPrereqOnlyChange ? (
+              <Button
+                variant={prereqOnly ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  onPrereqOnlyChange(!prereqOnly)
+                  clearSelection()
+                }}
+                disabled={running}
+                title="只显示来自前置提交查找的条目"
+              >
+                <GitBranch className={cn('mr-1 h-4 w-4', prereqOnly && 'text-white')} />
+                只看前置提交
+              </Button>
+            ) : null}
           </div>
         </div>
       </CardHeader>
@@ -484,10 +500,15 @@ export function CommitTable({
                         </div>
 
                         <div className="min-w-0 pr-2">
-                          <div
-                            className="line-clamp-2 text-[12px] font-medium leading-5 text-slate-900"
-                            title={resolveCommitTitle(row.data)}
-                          >
+                          {stringifyValue(row.data.origin) === 'prerequisite' ? (
+                            <Badge
+                              variant="outline"
+                              className="mb-1 border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700"
+                            >
+                              前置
+                            </Badge>
+                          ) : null}
+                          <div className="line-clamp-2 text-[12px] font-medium leading-5 text-slate-900" title={resolveCommitTitle(row.data)}>
                             {resolveCommitTitle(row.data) || '--'}
                           </div>
                           {stringifyValue(row.data.applied_commit).trim() ? (
