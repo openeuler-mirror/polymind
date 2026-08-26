@@ -854,7 +854,7 @@ install_app_packages() {
 
   log_step "安装 polymind (前端)..."
 
-  run_with_log "$INSTALL_LOG" pnpm add -g polymind@1.1.5 --registry="$PNPM_MIRROR" || {
+  run_with_log "$INSTALL_LOG" pnpm add -g polymind@1.1.6 --registry="$PNPM_MIRROR" || {
     log_err "polymind 安装失败"
     return 1
   }
