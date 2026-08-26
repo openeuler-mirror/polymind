@@ -71,6 +71,8 @@ NEXT_PUBLIC_APP_NAME=PolyMind
 NEXT_PUBLIC_APP_VERSION=1.0.0
 # 调试模式
 NEXT_PUBLIC_DEBUG=false
+# WittyHub 技能广场 API 地址
+NEXT_WITTYHUB_API_URL=https://skillhub.openeuler.org
 # 认证令牌（可选，用于 API 请求的 Bearer 认证）
 NEXT_PUBLIC_AUTH_TOKEN=dev-token
 # 模拟数据模式（仅开发用，生产环境请设为 false 或不设置）

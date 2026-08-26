@@ -66,7 +66,7 @@ bash install-local.sh
 - **环境检测** — 检查操作系统、架构，以及 Node.js、pnpm、Python、pip 是否已安装
 - **镜像源配置** — 自动配置华为云镜像加速下载
 - **环境隔离初始化** — 创建 Python 虚拟环境，生成独立的环境配置文件
-- **依赖安装** — 通过 pnpm 安装 `polymind` 前端包和 `openclaw`，通过 pip 安装 `witty-service` 后端包
+- **依赖安装** — 通过 pnpm 安装 `polymind` 前端包、`openclaw` 和 `wittyhub` CLI，通过 pip 安装 `witty-service` 后端包
 - **安装验证** — 验证所有组件是否正确安装
 
 3. 安装完成后，脚本会输出安装摘要：
@@ -149,7 +149,7 @@ PolyMind 使用 `~/.polymind/.env` 作为全局配置文件，首次运行时自
 | `NEXT_PUBLIC_AUTH_TOKEN` | API 访问认证 Token | `dev-token` |
 | `NEXT_PUBLIC_APP_NAME` | 应用名称 | `PolyMind` |
 | `NEXT_PUBLIC_DEBUG` | 调试模式 | `false` |
-| `NEXT_WITTYHUB_API_URL` | WittyHub 技能广场 API 地址 | `http://127.0.0.1:8081` |
+| `NEXT_WITTYHUB_API_URL` | WittyHub 技能广场 API 地址 | `https://skillhub.openeuler.org` |
 
 ### 连接与重试配置
 

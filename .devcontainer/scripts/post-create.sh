@@ -33,7 +33,7 @@ NEXT_PUBLIC_API_TIMEOUT=120000
 NEXT_PUBLIC_MAX_RETRY_ATTEMPTS=3
 NEXT_PUBLIC_RECONNECT_INTERVAL=3000
 NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS=5
-NEXT_WITTYHUB_API_URL=http://127.0.0.1:8081
+NEXT_WITTYHUB_API_URL=https://skillhub.openeuler.org
 NEXT_PUBLIC_AUTH_TOKEN=dev-token
 EOF
   echo "[ok] Created .env from devcontainer template (see .env.example for all options)"
