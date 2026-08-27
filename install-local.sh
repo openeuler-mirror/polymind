@@ -60,6 +60,9 @@ DOCKER_DAEMON_CONFIG="/etc/docker/daemon.json"
 # OpenCode 版本
 REQUIRED_OPENCODE_VERSION="1.17.20"
 
+# WittyHub CLI 版本
+REQUIRED_WITTYHUB_CLI_VERSION="0.0.3"
+
 # Docker 镜像
 DOCKER_IMAGE_BASE="ghcr.io/openwitty/witty-agent-server"
 DOCKER_IMAGE_TAGS=("openclaw" "opencode")
@@ -824,6 +827,23 @@ install_opencode_cli() {
   fi
 }
 
+# ---------- WittyHub CLI 安装 ----------
+install_wittyhub_cli() {
+  log_step "安装 wittyhub CLI ..."
+
+  run_with_log "$INSTALL_LOG" pnpm add -g "wittyhub@${REQUIRED_WITTYHUB_CLI_VERSION}" --registry="$PNPM_MIRROR" || {
+    log_err "wittyhub CLI 安装失败"
+    return 1
+  }
+
+  if command -v wittyhub &> /dev/null; then
+    log_ok "wittyhub CLI ${REQUIRED_WITTYHUB_CLI_VERSION} 安装完成"
+  else
+    log_err "wittyhub CLI 安装异常: 未找到 wittyhub 命令"
+    return 1
+  fi
+}
+
 install_app_packages() {
   section "3/4  应用包安装"
 
@@ -834,7 +854,7 @@ install_app_packages() {
 
   log_step "安装 polymind (前端)..."
 
-  run_with_log "$INSTALL_LOG" pnpm add -g polymind@1.1.5 --registry="$PNPM_MIRROR" || {
+  run_with_log "$INSTALL_LOG" pnpm add -g polymind@1.1.6 --registry="$PNPM_MIRROR" || {
     log_err "polymind 安装失败"
     return 1
   }
@@ -861,6 +881,11 @@ install_app_packages() {
 
   install_opencode_cli || {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: opencode-ai 安装失败" >> "$INSTALL_LOG"
+    return 1
+  }
+
+  install_wittyhub_cli || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: wittyhub CLI 安装失败" >> "$INSTALL_LOG"
     return 1
   }
 }
@@ -954,6 +979,14 @@ verify_installation() {
     log_ok "opencode   $(command -v opencode)"
   else
     log_err "opencode   未找到"
+    errors=$((errors + 1))
+  fi
+
+  # wittyhub CLI
+  if command -v wittyhub &> /dev/null; then
+    log_ok "wittyhub   $(command -v wittyhub)"
+  else
+    log_err "wittyhub   未找到"
     errors=$((errors + 1))
   fi
 

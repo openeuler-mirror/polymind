@@ -78,7 +78,7 @@ On first container creation, `.devcontainer/scripts/post-create.sh` generates `.
 ```
 NEXT_PUBLIC_AGENTD_API_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_WS_URL=ws://127.0.0.1:8000/ws
-NEXT_WITTYHUB_API_URL=http://127.0.0.1:8081
+NEXT_WITTYHUB_API_URL=https://skillhub.openeuler.org
 ```
 
 Edit `.env` as needed. Existing `.env` is never overwritten.

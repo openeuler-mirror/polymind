@@ -65,7 +65,7 @@ The script will automatically:
 - **Environment Detection** — Check OS, architecture, and if Node.js, pnpm, Python, pip are installed
 - **Mirror Configuration** — Automatically configure Huawei Cloud mirrors for faster downloads
 - **Environment Isolation** — Create Python virtual environment and generate isolated environment profile
-- **Dependency Installation** — Install `polymind` frontend and `openclaw` via pnpm, `witty-service` backend via pip
+- **Dependency Installation** — Install `polymind` frontend, `openclaw`, and the `wittyhub` CLI via pnpm, `witty-service` backend via pip
 - **Installation Verification** — Verify all components are correctly installed
 
 3. After installation, the script will output an installation summary:
@@ -148,7 +148,7 @@ PolyMind uses `~/.polymind/.env` as the global configuration file, which is auto
 | `NEXT_PUBLIC_AUTH_TOKEN` | API access token | `dev-token` |
 | `NEXT_PUBLIC_APP_NAME` | Application name | `PolyMind` |
 | `NEXT_PUBLIC_DEBUG` | Debug mode | `false` |
-| `NEXT_WITTYHUB_API_URL` | WittyHub skill marketplace API URL | `http://127.0.0.1:8081` |
+| `NEXT_WITTYHUB_API_URL` | WittyHub skill marketplace API URL | `https://skillhub.openeuler.org` |
 
 ### Connection and Retry
 
