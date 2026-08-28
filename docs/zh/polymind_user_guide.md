@@ -59,17 +59,11 @@ nginx（端口 3000，反向代理）
 
 | 依赖 | 最低版本 | 说明 |
 |------|----------|------|
-| 操作系统 | Linux | 仅支持 Linux |
-| Node.js | 22 | 由 install-local.sh 通过 nvm 自动安装 |
-| pnpm | 11 | 由 install-local.sh 自动安装 |
-| Python | 3.11 | 用于 witty-service 后端 venv |
-| nginx | 任意 | PolyMind 必需的反向代理 |
-| Docker | 任意（20.10+） | Agent 沙箱运行时，由 install-local.sh 自动安装并预拉取镜像 |
-| opencode | 1.17.20 | Agent Adapter CLI，由 install-local.sh 自动安装 |
-| git | 任意 | 下载 nvm 时必需 |
+| 操作系统 | openEuler | 已安装 openEuler 系统 |
+| git | 任意 | 克隆仓库时必需 |
 
 > [!NOTE]说明
-> 上述依赖除 git 外，`install-local.sh` 都会自动安装。如果系统已有满足版本要求的依赖，脚本会跳过重复安装。安装 nginx、Docker 以及写入 `/etc/docker/daemon.json` 时需要 **sudo 权限**。
+> 操作系统需为 openEuler，git 需提前安装；
 
 ---
 
@@ -210,7 +204,7 @@ witty-service --version
 witty-service 0.10.1
 ```
 
-#### 验证 Agent 运行时（一键脚本方式）
+#### （可选）验证 openclaw CLI（一键脚本方式）
 
 ```bash
 openclaw --version
@@ -222,7 +216,7 @@ openclaw --version
 2026.6.10
 ```
 
-#### 验证 OpenCode CLI（一键脚本方式）
+#### （可选）验证 OpenCode CLI（一键脚本方式）
 
 ```bash
 opencode --version
@@ -234,7 +228,7 @@ opencode --version
 1.17.20
 ```
 
-#### 验证反向代理
+#### （可选）验证反向代理
 
 ```bash
 nginx -v
@@ -246,7 +240,7 @@ nginx -v
 nginx version: nginx/1.24.0
 ```
 
-#### 验证 Docker 沙箱运行时（一键脚本方式）
+#### （可选）验证 Docker 沙箱运行时（一键脚本方式）
 
 ```bash
 docker --version
