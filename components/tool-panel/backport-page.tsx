@@ -28,6 +28,7 @@ import {
   normalizeCommitRows,
   parseBoolLike,
   parseMergedLike,
+  resolveBackportFailureMessage,
   resolveBackportProgressText,
   resolveCommitTitle,
   resolveConflictMeta,
@@ -69,6 +70,7 @@ import {
   BackportExecutionRunSummary,
   BackportExecutionSummary,
   BackportGitLogEntry,
+  BackportOperationDiagnostics,
   BackportOperationResultData,
   BackportPatchResource,
   BackportPrerequisiteCandidate,
@@ -738,7 +740,10 @@ export function BackportPage() {
     setStage(result.stage || (result.status === 'success' ? 'interactive_editing' : 'failed'))
 
     if (result.status === 'failed') {
-      const message = result.summary || result.diagnostics?.error_text || 'Backport 执行失败'
+      const message = resolveBackportFailureMessage(
+        result.diagnostics,
+        result.summary || result.diagnostics?.error_text || 'Backport 执行失败'
+      )
       setError(message)
       addTimeline('执行失败', 'error', message)
     } else {
@@ -1069,7 +1074,13 @@ export function BackportPage() {
       return response
     } catch (cause) {
       console.error(`Failed to run Backport operation: ${label}`, cause)
-      const message = cause instanceof Error ? cause.message : `${label} 失败`
+      const diagnostics = (
+        cause as Error & { diagnostics?: BackportOperationDiagnostics }
+      ).diagnostics
+      const message = resolveBackportFailureMessage(
+        diagnostics,
+        cause instanceof Error ? cause.message : `${label} 失败`
+      )
       setError(message)
       setStage('failed')
       addTimeline(`${label} 失败`, 'error', message)

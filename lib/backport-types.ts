@@ -272,6 +272,9 @@ export interface BackportOperationArtifacts {
 export interface BackportOperationDiagnostics {
   code?: string
   error_text?: string
+  retryable?: boolean
+  wait_seconds?: number
+  timeout_seconds?: number
   last_tool?: BackportToolSnapshot | null
 }
 

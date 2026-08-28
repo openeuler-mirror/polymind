@@ -17,6 +17,7 @@ import {
   BackportLoadGitShowRequest,
   BackportLoadReportRequest,
   BackportManualPatchRequest,
+  BackportOperationDiagnostics,
   BackportPatchPreviewResponse,
   BackportPrerequisiteCommitsRequest,
   BackportRecentRepositoriesResponse,
@@ -248,8 +249,11 @@ class BackportService {
     if (current.status === 'failed') {
       const error = new Error(current.error || '生成配置与报告失败') as Error & {
         code?: string
+        diagnostics?: BackportOperationDiagnostics
       }
-      error.code = current.result?.parsedResult?.diagnostics?.code
+      const diagnostics = current.result?.parsedResult?.diagnostics
+      error.code = diagnostics?.code
+      error.diagnostics = diagnostics
       throw error
     }
     if (!current.result && (current.status === 'paused' || current.status === 'interrupted')) {
@@ -407,7 +411,14 @@ class BackportService {
     lifecycle?.onRunUpdated?.(current)
 
     if (current.status === 'failed') {
-      throw new Error(current.error || '一键运行失败')
+      const error = new Error(current.error || '一键运行失败') as Error & {
+        code?: string
+        diagnostics?: BackportOperationDiagnostics
+      }
+      const diagnostics = current.result?.parsedResult?.diagnostics
+      error.code = diagnostics?.code
+      error.diagnostics = diagnostics
+      throw error
     }
     if (!current.result && (current.status === 'paused' || current.status === 'interrupted')) {
       const reportPath = current.progress?.current_report_path
