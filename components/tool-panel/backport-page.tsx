@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, RefreshCw, RotateCcw, Save, Wrench } from 'lucide-react'
 
 import { CommitTable } from '@/components/tool-panel/backport/commit-table'
+import { CommitImportDialog } from '@/components/tool-panel/backport/commit-import-dialog'
 import {
   InspectorSheet,
   type InspectorTab,
@@ -64,6 +65,7 @@ import {
   BackportBrowseEntry,
   BackportAttemptSummary,
   BackportCommitItem,
+  BackportCommitImportEntry,
   BackportCommitRow,
   BackportConfig,
   BackportExecutionRunSummary,
@@ -176,9 +178,14 @@ const buildLegacyRepositoryInfo = (
 const isRemoteRepositoryInput = (input: string): boolean =>
   /^(https?:\/\/|ssh:\/\/|git:\/\/|[^@\s]+@[^:\s]+:)/.test(input.trim())
 
-const buildPrerequisiteInputKey = (config: BackportConfig, excelPath: string): string =>
+const buildPrerequisiteInputKey = (
+  config: BackportConfig,
+  excelPath: string,
+  commitEntries: BackportCommitImportEntry[] = []
+): string =>
   JSON.stringify({
     excelPath: excelPath.trim(),
+    commitEntries,
     sourcePath: config.project_dir,
     sourceBranch: config.source_branch,
     sourceHead: config.source_repo_state?.head || '',
@@ -259,6 +266,8 @@ export function BackportPage() {
   const [gitShowContent, setGitShowContent] = useState('')
   const [gitLogError, setGitLogError] = useState('')
   const [pathBrowserOpen, setPathBrowserOpen] = useState(false)
+  const [commitImportOpen, setCommitImportOpen] = useState(false)
+  const [commitEntries, setCommitEntries] = useState<BackportCommitImportEntry[]>([])
   const [browsePath, setBrowsePath] = useState('')
   const [browseEntries, setBrowseEntries] = useState<BackportBrowseEntry[]>([])
   const [browseParentPath, setBrowseParentPath] = useState<string | null>(null)
@@ -572,7 +581,7 @@ export function BackportPage() {
 
   useEffect(() => {
     if (loadingConfig) return
-    const nextKey = buildPrerequisiteInputKey(config, excelPath)
+    const nextKey = buildPrerequisiteInputKey(config, excelPath, commitEntries)
     if (!prereqInputKeyRef.current) {
       prereqInputKeyRef.current = nextKey
       return
@@ -586,6 +595,7 @@ export function BackportPage() {
   }, [
     loadingConfig,
     excelPath,
+    commitEntries,
     config.project_dir,
     config.source_branch,
     config.source_repo_state?.head,
@@ -600,9 +610,10 @@ export function BackportPage() {
         PREREQ_STATE_STORAGE_KEY,
         JSON.stringify({
           excelPath,
+          commitEntries,
           sourcePath: config.project_dir,
           targetPath: config.target_path,
-          inputKey: buildPrerequisiteInputKey(config, excelPath),
+          inputKey: buildPrerequisiteInputKey(config, excelPath, commitEntries),
           inputDigest: prereqManifest.input_digest,
           targetRef: prereqManifest.target_ref,
           reviewVersion: prereqManifest.review?.review_version || '',
@@ -619,6 +630,7 @@ export function BackportPage() {
     prereqSelected,
     prereqReviewed,
     excelPath,
+    commitEntries,
     config.project_dir,
     config.source_branch,
     config.source_repo_state?.head,
@@ -956,7 +968,23 @@ export function BackportPage() {
     setRestoringRun(true)
     setExecutionSummary(null)
     rememberActiveRun(normalizedRunId)
-    if (knownSummary?.excel_path) {
+    setCommitEntries([])
+    if (knownSummary?.commit_csv_path) {
+      try {
+        const preview = await backportService.previewCommitImportText(
+          await backportService.getTaskCommitCsv(normalizedRunId),
+          'csv'
+        )
+        if (preview.errors?.length || preview.entries.length === 0) {
+          throw new Error(preview.errors?.[0]?.message || '归档提交 CSV 无有效条目')
+        }
+        setCommitEntries(preview.entries)
+        setExcelPath('')
+        setConfig(prev => ({ ...prev, current_excel_path: '' }))
+      } catch (cause) {
+        console.warn('Failed to restore archived Backport commit CSV:', cause)
+      }
+    } else if (knownSummary?.excel_path) {
       setExcelPath(knownSummary.excel_path)
       setConfig(prev => ({ ...prev, current_excel_path: knownSummary.excel_path }))
     }
@@ -1029,7 +1057,7 @@ export function BackportPage() {
         setStage('paused')
         setRunAllPauseState('paused')
         setError('后端运行曾被中断，已恢复最后保存的报告，可继续执行。')
-        addTimeline('运行已中断', 'error', '已恢复最后保存的 report，没有重新导入 Excel。')
+        addTimeline('运行已中断', 'error', '已恢复最后保存的 report，没有重新导入提交。')
       } else if (current.status === 'paused') {
         setRunAllPauseState('paused')
       } else if (current.status === 'failed') {
@@ -1163,6 +1191,7 @@ export function BackportPage() {
         if (rawPrereq && sanitizedConfig.enable_prerequisite_scan) {
           const saved = JSON.parse(rawPrereq) as {
             excelPath?: string
+            commitEntries?: BackportCommitImportEntry[]
             sourcePath?: string
             targetPath?: string
             inputKey?: string
@@ -1174,8 +1203,15 @@ export function BackportPage() {
             reviewed?: boolean
           }
           const restoredExcelPath = saved.excelPath || ''
+          const restoredCommitEntries = Array.isArray(saved.commitEntries)
+            ? saved.commitEntries
+            : []
           const review = saved.manifest?.review
-          const currentInputKey = buildPrerequisiteInputKey(sanitizedConfig, restoredExcelPath)
+          const currentInputKey = buildPrerequisiteInputKey(
+            sanitizedConfig,
+            restoredExcelPath,
+            restoredCommitEntries
+          )
           if (
             saved.manifest &&
             review &&
@@ -1190,6 +1226,7 @@ export function BackportPage() {
           ) {
             prereqInputKeyRef.current = currentInputKey
             setExcelPath(restoredExcelPath)
+            setCommitEntries(restoredCommitEntries)
             setPrereqManifest(saved.manifest)
             setPrereqSelected(
               Array.isArray(saved.selected)
@@ -1781,10 +1818,10 @@ export function BackportPage() {
   }
 
   const handleImportAndFindPrereqs = async () => {
-    if (!excelPath.trim()) {
+    if (!excelPath.trim() && commitEntries.length === 0) {
       toast({
         title: '提示',
-        description: '请先填写 Excel 路径',
+        description: '请先导入提交或填写 Excel 路径',
       })
       return
     }
@@ -1801,17 +1838,24 @@ export function BackportPage() {
     setActiveRunId('')
     window.localStorage.removeItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY)
     configRef.current = scanConfig
-    prereqInputKeyRef.current = buildPrerequisiteInputKey(scanConfig, excelPath.trim())
+    prereqInputKeyRef.current = buildPrerequisiteInputKey(
+      scanConfig,
+      excelPath.trim(),
+      commitEntries
+    )
     await handleSaveConfig(true, scanConfig)
 
-    const response = await runOperation('导入 Excel 并查找前置提交', () =>
-      backportService.findPrerequisiteCommits(
-        {
-          config: scanConfig,
-          excelPath: excelPath.trim(),
-        },
-        handleAgentEvent,
-      )
+    const response = await runOperation(
+      commitEntries.length > 0 ? '导入提交并查找前置提交' : '导入 Excel 并查找前置提交',
+      () =>
+        backportService.findPrerequisiteCommits(
+          {
+            config: scanConfig,
+            excelPath: excelPath.trim(),
+            commitEntries,
+          },
+          handleAgentEvent
+        )
     )
     const manifest = response.parsedResult?.manifest
     if (!manifest) {
@@ -1856,7 +1900,7 @@ export function BackportPage() {
   }
 
   const handleGenerateReportWithPrereqs = async () => {
-    if (!excelPath.trim() || !prereqManifest?.review) {
+    if ((!excelPath.trim() && commitEntries.length === 0) || !prereqManifest?.review) {
       await handleImportAndFindPrereqs()
       return
     }
@@ -1874,6 +1918,7 @@ export function BackportPage() {
           {
             config: generateConfig,
             excelPath: excelPath.trim(),
+            commitEntries,
             prerequisite_commits: prereqSelected,
             prerequisite_review: prereqManifest.review,
           },
@@ -1884,7 +1929,7 @@ export function BackportPage() {
               rememberActiveRun(control.runId)
               void refreshRunHistory()
             },
-          },
+          }
         )
       )
       const reportPath =
@@ -1913,7 +1958,7 @@ export function BackportPage() {
         setError('')
         toast({
           title: '前置提交审阅已过期',
-          description: 'Excel 内容或仓库基线已变化，请重新扫描并审阅。',
+          description: '提交输入或仓库基线已变化，请重新扫描并审阅。',
           variant: 'destructive',
         })
         return
@@ -1929,10 +1974,10 @@ export function BackportPage() {
     if (prereqEnabled && prereqReviewed) {
       return handleGenerateReportWithPrereqs()
     }
-    if (!excelPath.trim()) {
+    if (!excelPath.trim() && commitEntries.length === 0) {
       toast({
         title: '提示',
-        description: '请先填写 Excel 路径',
+        description: '请先导入提交或填写 Excel 路径',
       })
       return
     }
@@ -1944,6 +1989,7 @@ export function BackportPage() {
         {
           config,
           excelPath: excelPath.trim(),
+          commitEntries,
           runId: activeRunId || undefined,
         },
         handleAgentEvent,
@@ -1962,10 +2008,10 @@ export function BackportPage() {
     let normalizedBaseReportPath = baseReportPath.trim()
     let runTaskId = activeRunId
     let generatedPrerequisiteReport = false
-    if (!normalizedExcelPath && !normalizedBaseReportPath) {
+    if (!normalizedExcelPath && commitEntries.length === 0 && !normalizedBaseReportPath) {
       toast({
         title: '提示',
-        description: '请先填写 Excel 路径或生成可继续的 report',
+        description: '请先导入提交、填写 Excel 路径或生成可继续的 report',
       })
       return
     }
@@ -1980,10 +2026,7 @@ export function BackportPage() {
         await handleImportAndFindPrereqs()
         return
       }
-      if (
-        !prereqGeneratedReportPath ||
-        prereqGeneratedReportPath !== normalizedBaseReportPath
-      ) {
+      if (!prereqGeneratedReportPath || prereqGeneratedReportPath !== normalizedBaseReportPath) {
         const generated = await handleGenerateReportWithPrereqs()
         if (!generated) return
         normalizedBaseReportPath = generated.reportPath
@@ -2004,6 +2047,7 @@ export function BackportPage() {
             {
               config: runConfig,
               excelPath: normalizedExcelPath,
+              commitEntries,
               runId: runTaskId,
             },
             handleAgentEvent,
@@ -2207,6 +2251,26 @@ export function BackportPage() {
       setGitLogError(cause instanceof Error ? cause.message : '读取 git show 失败')
     } finally {
       setGitShowLoading(false)
+    }
+  }
+
+  const handleDownloadCommitCsv = async () => {
+    if (!activeRunId) return
+    try {
+      const content = await backportService.getTaskCommitCsv(activeRunId)
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = 'commits.csv'
+      anchor.click()
+      URL.revokeObjectURL(url)
+    } catch (cause) {
+      toast({
+        title: '下载 commits.csv 失败',
+        description: cause instanceof Error ? cause.message : '未找到归档的提交 CSV',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -2671,7 +2735,7 @@ export function BackportPage() {
     handleResetAll()
     setActiveRunId('')
     window.localStorage.removeItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY)
-    addTimeline('已新建 Backport 任务', 'info', '导入 Excel 后会创建新的运行归档。')
+    addTimeline('已新建 Backport 任务', 'info', '导入提交后会创建新的运行归档。')
   }
 
   const handleSelectRun = (runId: string) => {
@@ -3472,9 +3536,7 @@ export function BackportPage() {
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-xs font-medium text-slate-900">
-                      执行时生成冲突报告
-                    </div>
+                    <div className="text-xs font-medium text-slate-900">执行时生成冲突报告</div>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       OpenCode 展示迁移说明；Mystique/PortGPT 对解冲突补丁进行 AI
                       评分，可能增加执行耗时。
@@ -3498,11 +3560,9 @@ export function BackportPage() {
 
                 <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
                   <div className="min-w-0">
-                    <div className="text-xs font-medium text-slate-900">
-                      导入时查找前置提交
-                    </div>
+                    <div className="text-xs font-medium text-slate-900">导入时查找前置提交</div>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      打开后导入 Excel 会先扫描当前 commits 的前置提交，审阅勾选后再生成报告。
+                      打开后导入提交会先扫描当前 commits 的前置提交，审阅勾选后再生成报告。
                     </p>
                   </div>
                   <Switch
@@ -3541,6 +3601,7 @@ export function BackportPage() {
           excelPath={excelPath}
           onExcelPathChange={value => {
             if (value !== excelPath) {
+              setCommitEntries([])
               setPrereqReviewed(false)
               setPrereqManifest(null)
               setPrereqSelected([])
@@ -3581,16 +3642,27 @@ export function BackportPage() {
           onCommitPageChange={setCommitPage}
           originalCommitCount={originalCommits.length}
           canContinueReport={canContinueReport}
+          hasCommitEntries={commitEntries.length > 0}
+          onOpenCommitImport={() => setCommitImportOpen(true)}
+          onDownloadCommitCsv={
+            activeRunId && commitEntries.length > 0
+              ? () => void handleDownloadCommitCsv()
+              : undefined
+          }
           onOpenPathBrowser={openPathBrowser}
           onGenerateReport={handleGenerateReport}
           generateReportLabel={
             prereqEnabled
               ? prereqReviewed
                 ? '生成报告'
-                : '导入 Excel 并查找前置提交'
+                : commitEntries.length > 0
+                  ? '导入提交并查找前置提交'
+                  : '导入 Excel 并查找前置提交'
               : activeRunId
                 ? '导入 Excel 新版本'
-                : '导入 Excel 并生成报告'
+                : commitEntries.length > 0
+                  ? '导入提交并生成报告'
+                  : '导入 Excel 并生成报告'
           }
           prereqOnly={prereqOnly}
           onPrereqOnlyChange={setPrereqOnly}
@@ -3833,6 +3905,30 @@ export function BackportPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CommitImportDialog
+        open={commitImportOpen}
+        onOpenChange={setCommitImportOpen}
+        onConfirm={entries => {
+          const rows = normalizeCommitRows(entries)
+          setCommitEntries(entries)
+          setExcelPath('')
+          setConfig(prev => ({ ...prev, current_excel_path: '' }))
+          setOriginalCommits(rows)
+          setWorkingCommits(rows)
+          setBaseReportPath('')
+          setFilteredReportPath('')
+          setPrereqManifest(null)
+          setPrereqSelected([])
+          setPrereqReviewed(false)
+          setPrereqGeneratedReportPath('')
+          setPrereqOnly(false)
+          toast({
+            title: '提交清单已更新',
+            description: `已导入 ${entries.length} 条提交，确认生成报告后会替换当前 Backport 清单。`,
+          })
+        }}
+      />
 
       <Dialog open={pathBrowserOpen} onOpenChange={setPathBrowserOpen}>
         <DialogContent className="max-w-3xl">

@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  Download,
   FolderOpen,
   GitBranch,
   ListFilter,
@@ -73,6 +74,9 @@ interface CommitTableProps {
   onCommitPageChange: (updater: number | ((prev: number) => number)) => void
   originalCommitCount: number
   canContinueReport: boolean
+  hasCommitEntries: boolean
+  onOpenCommitImport: () => void
+  onDownloadCommitCsv?: () => void
   onOpenPathBrowser: () => void
   onGenerateReport: () => void
   generateReportLabel?: string
@@ -134,6 +138,9 @@ export function CommitTable({
   onCommitPageChange,
   originalCommitCount,
   canContinueReport,
+  hasCommitEntries,
+  onOpenCommitImport,
+  onDownloadCommitCsv,
   onOpenPathBrowser,
   onGenerateReport,
   generateReportLabel = '导入 Excel 并生成报告',
@@ -168,7 +175,8 @@ export function CommitTable({
   const isRunAllPauseRequested = runAllPauseState === 'pause_requested'
   const isRunAllPaused = runAllPauseState === 'paused'
   const isOtherOperationRunning = running && !isRunAllRunning
-  const lacksRunAllInput = !running && !excelPath.trim() && !baseReportPath.trim()
+  const lacksRunAllInput =
+    !running && !excelPath.trim() && !hasCommitEntries && !baseReportPath.trim()
   const runAllButtonDisabled =
     isOtherOperationRunning ||
     (isRunAllRunning && !canPauseRunAll) ||
@@ -213,6 +221,15 @@ export function CommitTable({
               展示回移植任务列表，支持筛选状态、查看 Patch、应用提交和分析冲突
             </CardDescription>
             <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={onOpenCommitImport}
+                disabled={running}
+              >
+                导入 CSV / TSV
+              </Button>
               <Input
                 value={excelPath}
                 onChange={e => onExcelPathChange(e.target.value)}
@@ -229,10 +246,16 @@ export function CommitTable({
               >
                 <FolderOpen className="h-4 w-4" />
               </Button>
-              <Button size="sm" className="h-8" onClick={onGenerateReport} disabled={running || !excelPath.trim()}>
+              <Button
+                size="sm"
+                className="h-8"
+                onClick={onGenerateReport}
+                disabled={running || (!excelPath.trim() && !hasCommitEntries)}
+              >
                 {running &&
                 (runningLabel === '生成配置与报告' ||
-                  runningLabel === '导入 Excel 并查找前置提交') ? (
+                  runningLabel === '导入 Excel 并查找前置提交' ||
+                  runningLabel === '导入提交并查找前置提交') ? (
                   <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
                 ) : (
                   <Play className="mr-1 h-4 w-4" />
@@ -268,6 +291,12 @@ export function CommitTable({
                 )}
                 继续检查
               </Button>
+              {onDownloadCommitCsv ? (
+                <Button variant="outline" size="sm" className="h-8" onClick={onDownloadCommitCsv}>
+                  <Download className="mr-1 h-4 w-4" />
+                  下载 commits.csv
+                </Button>
+              ) : null}
               <Button
                 variant="outline"
                 size="sm"
@@ -508,7 +537,10 @@ export function CommitTable({
                               前置
                             </Badge>
                           ) : null}
-                          <div className="line-clamp-2 text-[12px] font-medium leading-5 text-slate-900" title={resolveCommitTitle(row.data)}>
+                          <div
+                            className="line-clamp-2 text-[12px] font-medium leading-5 text-slate-900"
+                            title={resolveCommitTitle(row.data)}
+                          >
                             {resolveCommitTitle(row.data) || '--'}
                           </div>
                           {stringifyValue(row.data.applied_commit).trim() ? (

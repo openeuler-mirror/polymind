@@ -6,6 +6,7 @@ import {
   BackportBrowseResponse,
   BackportCommitMessagePreview,
   BackportCommitMessagePreviewRequest,
+  BackportCommitImportPreview,
   BackportConfig,
   BackportConfigUpdateResponse,
   BackportContinueReportRequest,
@@ -68,6 +69,25 @@ function parseJsonObject(text: string): Record<string, unknown> {
 }
 
 class BackportService {
+  public async previewCommitImportFile(file: File): Promise<BackportCommitImportPreview> {
+    const formData = new FormData()
+    formData.append('file', file)
+    return httpClient.post<BackportCommitImportPreview>(
+      '/backport/commit-imports/preview',
+      formData
+    )
+  }
+
+  public async previewCommitImportText(
+    text: string,
+    delimiter: 'csv' | 'tsv'
+  ): Promise<BackportCommitImportPreview> {
+    return httpClient.post<BackportCommitImportPreview>('/backport/commit-imports/preview-text', {
+      text,
+      delimiter,
+    })
+  }
+
   public async getConfig(): Promise<BackportConfig> {
     return httpClient.get<BackportConfig>('/backport/config')
   }
@@ -142,10 +162,15 @@ class BackportService {
   }
 
   public async getTask(taskId: string): Promise<BackportTaskManifest> {
-    return httpClient.get<BackportTaskManifest>(
-      `/backport/tasks/${encodeURIComponent(taskId)}`,
-      { timeout: 30000 },
-    )
+    return httpClient.get<BackportTaskManifest>(`/backport/tasks/${encodeURIComponent(taskId)}`, {
+      timeout: 30000,
+    })
+  }
+
+  public async getTaskCommitCsv(taskId: string): Promise<string> {
+    return httpClient.get<string>(`/backport/tasks/${encodeURIComponent(taskId)}/commits.csv`, {
+      timeout: 30000,
+    })
   }
 
   public async listCaseAttempts(
@@ -224,6 +249,7 @@ class BackportService {
       payload: {
         config: request.config,
         excel_path: request.excelPath,
+        ...(request.commitEntries?.length ? { commit_entries: request.commitEntries } : {}),
         run_id: request.runId,
         prerequisite_commits: request.prerequisite_commits,
         prerequisite_review: request.prerequisite_review,
@@ -295,7 +321,7 @@ class BackportService {
 
   public async findPrerequisiteCommits(
     request: BackportPrerequisiteCommitsRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportRunResponse> {
     onEvent?.({ type: 'message.started', payload: {} })
 
@@ -304,6 +330,7 @@ class BackportService {
       payload: {
         config: request.config,
         excel_path: request.excelPath,
+        ...(request.commitEntries?.length ? { commit_entries: request.commitEntries } : {}),
       },
     }
 
@@ -313,7 +340,7 @@ class BackportService {
       const created = await httpClient.post<BackportAsyncRunResponse>(
         '/backport/runs',
         runRequest,
-        { timeout: 30000 },
+        { timeout: 30000 }
       )
       let current = created
 
