@@ -395,6 +395,7 @@ class BackportService {
       payload: {
         config: request.config,
         excel_path: request.excelPath,
+        ...(request.commitEntries?.length ? { commit_entries: request.commitEntries } : {}),
         base_report_path: request.baseReportPath,
         working_report_path: request.workingReportPath,
         run_id: request.runId,

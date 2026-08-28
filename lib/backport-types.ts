@@ -56,7 +56,8 @@ export interface BackportPrerequisiteCandidate {
 }
 
 export interface BackportPrerequisiteReview {
-  excel_sha256: string
+  excel_sha256?: string
+  commit_entries_sha256?: string
   input_digest: string
   source_repo: string
   source_branch: string
@@ -528,6 +529,7 @@ export interface BackportLoadReportRequest {
 export interface BackportRunAllRequest {
   config: BackportConfig
   excelPath: string
+  commitEntries?: BackportCommitImportEntry[]
   runId?: string
   baseReportPath?: string
   workingReportPath?: string

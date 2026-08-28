@@ -2040,19 +2040,27 @@ export function BackportPage() {
       ...configRef.current,
       current_excel_path: normalizedExcelPath,
     })
-    if (!generatedPrerequisiteReport && stage === 'completed' && runTaskId) {
+    if (
+      !generatedPrerequisiteReport &&
+      ((stage === 'completed' && runTaskId) || (!runTaskId && !normalizedBaseReportPath))
+    ) {
       try {
-        const regenerated = await runOperation('重新生成执行报告', async () => {
+        const operationName = runTaskId ? '重新生成执行报告' : '生成执行报告'
+        let generatedRunId = ''
+        const regenerated = await runOperation(operationName, async () => {
           const response = await backportService.generateReport(
             {
               config: runConfig,
               excelPath: normalizedExcelPath,
               commitEntries,
-              runId: runTaskId,
+              runId: runTaskId || undefined,
             },
             handleAgentEvent,
             {
-              onRunCreated: control => rememberActiveRun(control.runId),
+              onRunCreated: control => {
+                generatedRunId = control.runId
+                rememberActiveRun(control.runId)
+              },
             }
           )
           if (
@@ -2067,6 +2075,7 @@ export function BackportPage() {
           regenerated.parsedResult?.artifacts?.base_report_path ||
           regenerated.parsedResult?.artifacts?.report_path ||
           ''
+        runTaskId = generatedRunId || runTaskId
       } catch {
         return
       }
@@ -2092,6 +2101,7 @@ export function BackportPage() {
           {
             config: runConfig,
             excelPath: normalizedExcelPath,
+            commitEntries,
             runId: runTaskId || undefined,
             baseReportPath: normalizedBaseReportPath,
             workingReportPath: generatedPrerequisiteReport
@@ -3912,6 +3922,7 @@ export function BackportPage() {
         onConfirm={entries => {
           const rows = normalizeCommitRows(entries)
           setCommitEntries(entries)
+          setActiveRunId('')
           setExcelPath('')
           setConfig(prev => ({ ...prev, current_excel_path: '' }))
           setOriginalCommits(rows)
