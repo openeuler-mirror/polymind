@@ -160,8 +160,9 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
         <DialogHeader>
           <DialogTitle>导入 Backport 提交</DialogTitle>
           <DialogDescription>
-            可上传浏览器所在机器的 CSV，或粘贴 CSV/TSV。只接受 commit_id、commit_title
-            两列；确认后会替换当前提交清单。
+            可上传浏览器所在机器的 CSV，或粘贴 CSV/TSV。每行必须为提交 ID、标题两列； 推荐使用
+            commit_id、commit_title，也兼容 commit hash、commit、hash、sha 及 title、subject、patch
+            title。确认后会替换当前提交清单。
           </DialogDescription>
         </DialogHeader>
 
