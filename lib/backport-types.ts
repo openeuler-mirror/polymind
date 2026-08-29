@@ -296,6 +296,7 @@ export interface BackportOperationArtifacts {
 export interface BackportOperationDiagnostics {
   code?: string
   error_text?: string
+  errors?: BackportCommitImportIssue[]
   last_tool?: BackportToolSnapshot | null
 }
 

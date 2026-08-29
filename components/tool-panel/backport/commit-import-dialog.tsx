@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { FileUp, Plus, RefreshCw, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,11 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  createEditableCommitImportPreviewEntry,
+  getEditableCommitImportPreviewEntryKey,
+  type EditableCommitImportPreviewEntry,
+} from '@/components/tool-panel/backport/commit-import-preview-entry'
 import type {
   BackportCommitImportEntry,
   BackportCommitImportIssue,
@@ -77,11 +82,15 @@ function normalizedEntries(entries: BackportCommitImportEntry[]): BackportCommit
 export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImportDialogProps) {
   const [text, setText] = useState('')
   const [delimiter, setDelimiter] = useState<'csv' | 'tsv'>('csv')
-  const [entries, setEntries] = useState<BackportCommitImportPreviewRow[]>([])
+  const [entries, setEntries] = useState<EditableCommitImportPreviewEntry[]>([])
   const [sourceIssues, setSourceIssues] = useState<BackportCommitImportIssue[]>([])
   const [warnings, setWarnings] = useState<BackportCommitImportIssue[]>([])
   const [loading, setLoading] = useState(false)
   const [requestError, setRequestError] = useState('')
+  const nextClientId = useRef(1)
+
+  const createEntry = (entry: BackportCommitImportPreviewRow) =>
+    createEditableCommitImportPreviewEntry(nextClientId.current++, entry)
 
   const localIssues = useMemo(() => validateEntries(entries), [entries])
   const allIssues = [...sourceIssues, ...localIssues]
@@ -89,9 +98,11 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
   const applyPreview = (preview: BackportCommitImportPreview) => {
     setEntries(
       (preview.rows || preview.entries || []).map((entry, index) => ({
-        commit: entry.commit || '',
-        commit_title: entry.commit_title || '',
-        row: typeof entry.row === 'number' ? entry.row : index + 1,
+        ...createEntry({
+          commit: entry.commit || '',
+          commit_title: entry.commit_title || '',
+          row: typeof entry.row === 'number' ? entry.row : index + 1,
+        }),
       }))
     )
     setSourceIssues(preview.errors || [])
@@ -271,7 +282,7 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
                 size="sm"
                 variant="outline"
                 onClick={() =>
-                  setEntries(current => [...current, { commit: '', commit_title: '' }])
+                  setEntries(current => [...current, createEntry({ commit: '', commit_title: '' })])
                 }
               >
                 <Plus className="mr-1 h-4 w-4" />
@@ -281,7 +292,7 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
             <div className="space-y-2">
               {entries.map((entry, index) => (
                 <div
-                  key={`${index}-${entry.commit}`}
+                  key={getEditableCommitImportPreviewEntryKey(entry)}
                   className="grid grid-cols-[minmax(120px,0.4fr)_minmax(180px,1fr)_auto] gap-2"
                 >
                   <Input

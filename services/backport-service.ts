@@ -7,6 +7,7 @@ import {
   BackportCommitMessagePreview,
   BackportCommitMessagePreviewRequest,
   BackportCommitImportPreview,
+  BackportCommitImportIssue,
   BackportConfig,
   BackportConfigUpdateResponse,
   BackportContinueReportRequest,
@@ -66,6 +67,20 @@ function parseJsonObject(text: string): Record<string, unknown> {
   } catch {
     return {}
   }
+}
+
+function formatCommitImportErrors(
+  fallback: string,
+  errors: BackportCommitImportIssue[] | undefined
+): string {
+  if (!errors?.length) return fallback
+  return [
+    fallback,
+    ...errors.map(
+      issue =>
+        `${issue.row ? `第 ${issue.row} 行` : '提交清单'}${issue.field ? `（${issue.field}）` : ''}：${issue.message}`
+    ),
+  ].join('\n')
 }
 
 class BackportService {
@@ -272,7 +287,12 @@ class BackportService {
     }
 
     if (current.status === 'failed') {
-      const error = new Error(current.error || '生成配置与报告失败') as Error & {
+      const error = new Error(
+        formatCommitImportErrors(
+          current.error || '生成配置与报告失败',
+          current.result?.parsedResult?.diagnostics?.errors
+        )
+      ) as Error & {
         code?: string
       }
       error.code = current.result?.parsedResult?.diagnostics?.code
@@ -355,7 +375,12 @@ class BackportService {
       }
 
       if (current.status === 'failed') {
-        throw new Error(current.error || '前置提交查找失败')
+        throw new Error(
+          formatCommitImportErrors(
+            current.error || '前置提交查找失败',
+            current.result?.parsedResult?.diagnostics?.errors
+          )
+        )
       }
       if (!current.result) {
         throw new Error('前置提交查找未返回结果')
