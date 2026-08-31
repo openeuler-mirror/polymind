@@ -56,7 +56,8 @@ export interface BackportPrerequisiteCandidate {
 }
 
 export interface BackportPrerequisiteReview {
-  excel_sha256: string
+  excel_sha256?: string
+  commit_entries_sha256?: string
   input_digest: string
   source_repo: string
   source_branch: string
@@ -151,6 +152,29 @@ export interface BackportBrowseResponse {
 
 export interface BackportCommitItem {
   [key: string]: unknown
+}
+
+export interface BackportCommitImportEntry {
+  [key: string]: unknown
+  commit: string
+  commit_title: string
+}
+
+export interface BackportCommitImportIssue {
+  row?: number
+  field?: string
+  message: string
+}
+
+export interface BackportCommitImportPreviewRow extends BackportCommitImportEntry {
+  row?: number
+}
+
+export interface BackportCommitImportPreview {
+  entries: BackportCommitImportEntry[]
+  rows?: BackportCommitImportPreviewRow[]
+  errors?: BackportCommitImportIssue[]
+  warnings?: BackportCommitImportIssue[]
 }
 
 export interface BackportCommitRow {
@@ -272,6 +296,7 @@ export interface BackportOperationArtifacts {
 export interface BackportOperationDiagnostics {
   code?: string
   error_text?: string
+  errors?: BackportCommitImportIssue[]
   last_tool?: BackportToolSnapshot | null
 }
 
@@ -372,6 +397,8 @@ export interface BackportRunSummary extends BackportAsyncRunResponse {
   updated_at: string
   current_report_path: string
   excel_path: string
+  input_path?: string
+  commit_csv_path?: string
   commit_count: number
   current_excel_version: number
   current_execution: number
@@ -483,6 +510,7 @@ export function resetRunAllStateForGeneratedReport(
 export interface BackportGenerateReportRequest {
   config: BackportConfig
   excelPath: string
+  commitEntries?: BackportCommitImportEntry[]
   runId?: string
   prerequisite_commits?: BackportPrerequisiteCandidate[]
   prerequisite_review?: BackportPrerequisiteReview
@@ -491,6 +519,7 @@ export interface BackportGenerateReportRequest {
 export interface BackportPrerequisiteCommitsRequest {
   config: BackportConfig
   excelPath: string
+  commitEntries?: BackportCommitImportEntry[]
 }
 
 export interface BackportLoadReportRequest {
@@ -501,6 +530,7 @@ export interface BackportLoadReportRequest {
 export interface BackportRunAllRequest {
   config: BackportConfig
   excelPath: string
+  commitEntries?: BackportCommitImportEntry[]
   runId?: string
   baseReportPath?: string
   workingReportPath?: string

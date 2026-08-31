@@ -6,6 +6,8 @@ import {
   BackportBrowseResponse,
   BackportCommitMessagePreview,
   BackportCommitMessagePreviewRequest,
+  BackportCommitImportPreview,
+  BackportCommitImportIssue,
   BackportConfig,
   BackportConfigUpdateResponse,
   BackportContinueReportRequest,
@@ -67,7 +69,40 @@ function parseJsonObject(text: string): Record<string, unknown> {
   }
 }
 
+function formatCommitImportErrors(
+  fallback: string,
+  errors: BackportCommitImportIssue[] | undefined
+): string {
+  if (!errors?.length) return fallback
+  return [
+    fallback,
+    ...errors.map(
+      issue =>
+        `${issue.row ? `第 ${issue.row} 行` : '提交清单'}${issue.field ? `（${issue.field}）` : ''}：${issue.message}`
+    ),
+  ].join('\n')
+}
+
 class BackportService {
+  public async previewCommitImportFile(file: File): Promise<BackportCommitImportPreview> {
+    const formData = new FormData()
+    formData.append('file', file)
+    return httpClient.post<BackportCommitImportPreview>(
+      '/backport/commit-imports/preview',
+      formData
+    )
+  }
+
+  public async previewCommitImportText(
+    text: string,
+    delimiter: 'csv' | 'tsv'
+  ): Promise<BackportCommitImportPreview> {
+    return httpClient.post<BackportCommitImportPreview>('/backport/commit-imports/preview-text', {
+      text,
+      delimiter,
+    })
+  }
+
   public async getConfig(): Promise<BackportConfig> {
     return httpClient.get<BackportConfig>('/backport/config')
   }
@@ -142,10 +177,15 @@ class BackportService {
   }
 
   public async getTask(taskId: string): Promise<BackportTaskManifest> {
-    return httpClient.get<BackportTaskManifest>(
-      `/backport/tasks/${encodeURIComponent(taskId)}`,
-      { timeout: 30000 },
-    )
+    return httpClient.get<BackportTaskManifest>(`/backport/tasks/${encodeURIComponent(taskId)}`, {
+      timeout: 30000,
+    })
+  }
+
+  public async getTaskCommitCsv(taskId: string): Promise<string> {
+    return httpClient.get<string>(`/backport/tasks/${encodeURIComponent(taskId)}/commits.csv`, {
+      timeout: 30000,
+    })
   }
 
   public async listCaseAttempts(
@@ -224,6 +264,7 @@ class BackportService {
       payload: {
         config: request.config,
         excel_path: request.excelPath,
+        ...(request.commitEntries?.length ? { commit_entries: request.commitEntries } : {}),
         run_id: request.runId,
         prerequisite_commits: request.prerequisite_commits,
         prerequisite_review: request.prerequisite_review,
@@ -246,7 +287,12 @@ class BackportService {
     }
 
     if (current.status === 'failed') {
-      const error = new Error(current.error || '生成配置与报告失败') as Error & {
+      const error = new Error(
+        formatCommitImportErrors(
+          current.error || '生成配置与报告失败',
+          current.result?.parsedResult?.diagnostics?.errors
+        )
+      ) as Error & {
         code?: string
       }
       error.code = current.result?.parsedResult?.diagnostics?.code
@@ -295,7 +341,7 @@ class BackportService {
 
   public async findPrerequisiteCommits(
     request: BackportPrerequisiteCommitsRequest,
-    onEvent?: (event: any) => void,
+    onEvent?: (event: any) => void
   ): Promise<BackportRunResponse> {
     onEvent?.({ type: 'message.started', payload: {} })
 
@@ -304,6 +350,7 @@ class BackportService {
       payload: {
         config: request.config,
         excel_path: request.excelPath,
+        ...(request.commitEntries?.length ? { commit_entries: request.commitEntries } : {}),
       },
     }
 
@@ -313,7 +360,7 @@ class BackportService {
       const created = await httpClient.post<BackportAsyncRunResponse>(
         '/backport/runs',
         runRequest,
-        { timeout: 30000 },
+        { timeout: 30000 }
       )
       let current = created
 
@@ -328,7 +375,12 @@ class BackportService {
       }
 
       if (current.status === 'failed') {
-        throw new Error(current.error || '前置提交查找失败')
+        throw new Error(
+          formatCommitImportErrors(
+            current.error || '前置提交查找失败',
+            current.result?.parsedResult?.diagnostics?.errors
+          )
+        )
       }
       if (!current.result) {
         throw new Error('前置提交查找未返回结果')
@@ -368,6 +420,7 @@ class BackportService {
       payload: {
         config: request.config,
         excel_path: request.excelPath,
+        ...(request.commitEntries?.length ? { commit_entries: request.commitEntries } : {}),
         base_report_path: request.baseReportPath,
         working_report_path: request.workingReportPath,
         run_id: request.runId,
