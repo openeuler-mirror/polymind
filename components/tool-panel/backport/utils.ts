@@ -15,7 +15,10 @@ const TARGET_REPOSITORY_LOCK_TIMEOUT = 'TARGET_REPOSITORY_LOCK_TIMEOUT'
 
 export const DEFAULT_COMMIT_MESSAGE_TEMPLATE = `{{subject}}
 
+{{body_prefix}}
+
 commit {{commit_id}} {{source}}
+{{body_separator}}
 
 {{body}}
 
