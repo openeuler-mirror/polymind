@@ -385,6 +385,9 @@ export function applyArtifactCompleted(
     mime: payload.mime || existing?.mime,
     ...(payload.content !== undefined ? { content: payload.content } : {}),
   }
+  // 产物正文已写入 message.artifacts[].content，事件 payload 不再携带 content
+  const eventPayload = { ...payload }
+  delete eventPayload.content
   return {
     ...upsertArtifact(m, artifact),
     events: [
@@ -393,7 +396,7 @@ export function applyArtifactCompleted(
         type: 'artifact.completed',
         content: `产物已生成：${artifact.name}`,
         timestamp: timestamp || Date.now(),
-        payload,
+        payload: eventPayload,
       },
     ],
   }

@@ -56,7 +56,9 @@ export function ArtifactCard({ artifact, agentId }: { artifact: Artifact; agentI
         if (canOpen) openArtifactPanel(artifact)
       }}
       onKeyDown={e => {
-        if (canOpen && (e.key === 'Enter' || e.key === ' ')) {
+        // 仅当焦点在卡片本身时响应回车/空格；
+        // 若事件源自内层下载/复制按钮，交给按钮原生激活，避免冒泡误开预览面板并吞掉按钮默认行为。
+        if (canOpen && e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault()
           openArtifactPanel(artifact)
         }
