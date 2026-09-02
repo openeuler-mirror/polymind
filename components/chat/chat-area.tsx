@@ -541,6 +541,7 @@ export function ChatArea() {
           messages={messages}
           onRegenerate={handleRegenerate}
           agentName={currentConversation?.agentName}
+          agentId={currentConversation?.agentId}
         />
       </div>
       <div className="border-t border-border p-4">
