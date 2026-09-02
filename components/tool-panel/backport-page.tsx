@@ -29,6 +29,7 @@ import {
   normalizeCommitRows,
   parseBoolLike,
   parseMergedLike,
+  resolveBackportModelReference,
   resolveBackportProgressText,
   resolveCommitTitle,
   resolveConflictMeta,
@@ -1159,15 +1160,30 @@ export function BackportPage() {
         const models = await modelService.getModels()
         setBackportModels(models)
         const compatibleModels = models.filter(isBackportCompatibleModel)
-        if (!sanitizedConfig.backport_model_id) {
-          const defaultModel =
-            compatibleModels.find(model => model.isDefault) ||
-            (compatibleModels.length === 1 ? compatibleModels[0] : null)
-          if (defaultModel) {
-            sanitizedConfig = {
-              ...sanitizedConfig,
-              backport_model_id: defaultModel.id,
-            }
+        const modelResolution = resolveBackportModelReference(
+          sanitizedConfig.backport_model_id,
+          compatibleModels
+        )
+        sanitizedConfig = {
+          ...sanitizedConfig,
+          backport_model_id: modelResolution.modelId,
+        }
+        if (modelResolution.shouldOpenSelector) {
+          setRuntimeModelSelectorOpen(true)
+        }
+        if (modelResolution.repaired) {
+          try {
+            await backportService.updateConfig({
+              ...nextConfig,
+              backport_model_id: modelResolution.modelId,
+            })
+          } catch (repairError) {
+            console.error('Failed to repair Backport model reference:', repairError)
+            toast({
+              title: '提示',
+              description: '当前模型已临时恢复，但失效配置保存失败',
+              variant: 'destructive',
+            })
           }
         }
       } catch (modelError) {
@@ -3262,7 +3278,7 @@ export function BackportPage() {
                     </span>
                   )}
 
-                  {runtimeStatus?.ok ? (
+                  {compatibleBackportModels.length > 0 ? (
                     <Button
                       type="button"
                       variant="link"
@@ -3272,7 +3288,8 @@ export function BackportPage() {
                     >
                       {runtimeModelSelectorOpen ? '收起' : '切换模型'}
                     </Button>
-                  ) : (
+                  ) : null}
+                  {!runtimeStatus?.ok ? (
                     <Button
                       type="button"
                       variant="link"
@@ -3282,7 +3299,7 @@ export function BackportPage() {
                     >
                       去模型设置
                     </Button>
-                  )}
+                  ) : null}
                   {!runtimeStatus?.ok && !loadingRuntimeStatus ? (
                     <Button
                       type="button"
