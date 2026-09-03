@@ -14,7 +14,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { agentService } from '@/services/agent-service'
 import { modelService } from '@/services/model-service'
-import { SandboxType, ModelConfig } from '@/lib/types'
+import { SandboxType, ModelConfig, AdapterType } from '@/lib/types'
 import { useChatStore } from '@/lib/store'
 import {
   Bot,
@@ -34,10 +34,18 @@ interface AgentCreatePageProps {
 }
 
 export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
-  const [agentForm, setAgentForm] = useState({
+  const [agentForm, setAgentForm] = useState<{
+    name: string
+    description: string
+    adapterType: AdapterType | string
+    sandboxType: SandboxType
+    idleTimeout: number
+    icon: string
+    modelId: string
+  }>({
     name: '',
     description: '',
-    adapterType: 'openclaw',
+    adapterType: AdapterType.OPENCLAW,
     sandboxType: SandboxType.LOCAL_PROCESS,
     idleTimeout: 3600,
     icon: 'bot',
@@ -291,8 +299,9 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                   <SelectValue placeholder="选择适配器类型" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="openclaw">OpenClaw</SelectItem>
-                  <SelectItem value="opencode">OpenCode</SelectItem>
+                  <SelectItem value={AdapterType.OPENCLAW}>OpenClaw</SelectItem>
+                  <SelectItem value={AdapterType.OPENCODE}>OpenCode</SelectItem>
+                  <SelectItem value={AdapterType.DSH}>Deepseek Harness</SelectItem>
                 </SelectContent>
               </Select>
             </div>
