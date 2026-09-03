@@ -65,7 +65,7 @@ pnpm dev   # → http://localhost:3000
 ```
 NEXT_PUBLIC_AGENTD_API_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_WS_URL=ws://127.0.0.1:8000/ws
-NEXT_WITTYHUB_API_URL=http://127.0.0.1:8081
+NEXT_WITTYHUB_API_URL=https://skillhub.openeuler.org
 ```
 
 你可以按需修改 `.env` 配置。如果 `.env` 已存在，脚本不会覆盖。

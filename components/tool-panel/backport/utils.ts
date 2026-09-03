@@ -10,6 +10,13 @@ import type {
   BackportRunSummaryCase,
   BackportStage,
 } from '@/lib/backport-types'
+import type { ModelConfig } from '@/lib/types'
+
+export interface BackportModelResolution {
+  modelId: string
+  repaired: boolean
+  shouldOpenSelector: boolean
+}
 
 const TARGET_REPOSITORY_LOCK_TIMEOUT = 'TARGET_REPOSITORY_LOCK_TIMEOUT'
 
@@ -51,6 +58,32 @@ export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   target_repo_state: null,
   enable_prerequisite_scan: false,
   cvekit_options: {},
+}
+
+export function resolveBackportModelReference(
+  savedModelId: string,
+  compatibleModels: readonly ModelConfig[]
+): BackportModelResolution {
+  const normalizedModelId = savedModelId.trim()
+  const configuredModelExists = compatibleModels.some(model => model.id === normalizedModelId)
+  if (configuredModelExists) {
+    return {
+      modelId: normalizedModelId,
+      repaired: false,
+      shouldOpenSelector: false,
+    }
+  }
+
+  const fallbackModel =
+    compatibleModels.find(model => model.isDefault) ||
+    (compatibleModels.length === 1 ? compatibleModels[0] : null)
+  const repaired = Boolean(normalizedModelId)
+
+  return {
+    modelId: fallbackModel?.id || '',
+    repaired,
+    shouldOpenSelector: repaired && !fallbackModel && compatibleModels.length > 1,
+  }
 }
 
 export type RowStatusKind =

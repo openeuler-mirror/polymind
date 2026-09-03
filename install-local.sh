@@ -50,6 +50,23 @@ REQUIRED_PYTHON_MINOR=11
 DEFAULT_PNPM_MIRROR="https://mirrors.huaweicloud.com/repository/npm/"
 DEFAULT_PIP_MIRROR="https://repo.huaweicloud.com/repository/pypi/simple"
 
+# Docker 配置
+DEFAULT_DOCKER_REGISTRY_MIRRORS=(
+  "https://ghcr.1ms.run"
+  "https://ghcr.nju.edu.cn"
+)
+DOCKER_DAEMON_CONFIG="/etc/docker/daemon.json"
+
+# OpenCode 版本
+REQUIRED_OPENCODE_VERSION="1.17.20"
+
+# WittyHub CLI 版本
+REQUIRED_WITTYHUB_CLI_VERSION="0.0.3"
+
+# Docker 镜像
+DOCKER_IMAGE_BASE="ghcr.io/openwitty/witty-agent-server"
+DOCKER_IMAGE_TAGS=("openclaw" "opencode")
+
 # ---------- 命令行参数 ----------
 ARG_VERBOSE=false
 ARG_PNPM_MIRROR=""
@@ -477,6 +494,235 @@ NGINXEOF
   log_ok "nginx 配置模板已生成: $nginx_dir/nginx.conf.template"
 }
 
+# ---------- Docker 安装 ----------
+install_docker() {
+  log_step "检查 Docker..."
+
+  if command -v docker &> /dev/null; then
+    local docker_ver
+    docker_ver=$(docker --version 2>&1 | cut -d' ' -f3 | tr -d ',')
+    log_ok "Docker ${docker_ver} 已安装: $(command -v docker)"
+    return 0
+  fi
+
+  log_warn "Docker 未安装，正在自动安装..."
+
+  local docker_installed=false
+
+  # ---------- 策略1: 包管理器安装（国内用户首选，不依赖外部URL） ----------
+  if command -v dnf &> /dev/null; then
+    # dnf 系 (openEuler / Fedora / RHEL 8+ / CentOS 8+)
+    # 先尝试系统仓库中的 docker（openEuler 可能在 EPOL 中）
+    log_step "尝试: dnf install docker (系统仓库)..."
+    if sudo dnf install -y docker 2>> "$INSTALL_LOG"; then
+      docker_installed=true
+    else
+      log_warn "系统仓库未找到 docker，尝试添加 Docker CE 仓库..."
+      # 添加 Docker CE 官方仓库（使用阿里云镜像）
+      if sudo dnf config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo 2>> "$INSTALL_LOG"; then
+        log_step "尝试: dnf install docker-ce (Docker CE 仓库)..."
+        sudo dnf install -y docker-ce 2>> "$INSTALL_LOG" && docker_installed=true
+      fi
+      # 如果 dnf config-manager 不存在，直接用 curl + tee
+      if ! $docker_installed; then
+        log_step "尝试: 手动添加 Docker CE 仓库并安装..."
+        sudo tee /etc/yum.repos.d/docker-ce.repo > /dev/null << 'DOCKERCEREPO'
+[docker-ce-stable]
+name=Docker CE Stable
+baseurl=https://mirrors.aliyun.com/docker-ce/linux/centos/$releasever/$basearch/stable
+enabled=1
+gpgcheck=1
+gpgkey=https://mirrors.aliyun.com/docker-ce/linux/centos/gpg
+DOCKERCEREPO
+        sudo dnf install -y docker-ce 2>> "$INSTALL_LOG" && docker_installed=true
+      fi
+    fi
+
+  elif command -v yum &> /dev/null; then
+    # yum 系 (RHEL 7 / CentOS 7)
+    log_step "尝试: yum install docker (系统仓库)..."
+    if sudo yum install -y docker 2>> "$INSTALL_LOG"; then
+      docker_installed=true
+    else
+      log_warn "系统仓库未找到 docker，尝试添加 Docker CE 仓库..."
+      sudo yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo 2>> "$INSTALL_LOG" || true
+      if [ ! -f /etc/yum.repos.d/docker-ce.repo ]; then
+        sudo tee /etc/yum.repos.d/docker-ce.repo > /dev/null << 'DOCKERCEREPO'
+[docker-ce-stable]
+name=Docker CE Stable
+baseurl=https://mirrors.aliyun.com/docker-ce/linux/centos/$releasever/$basearch/stable
+enabled=1
+gpgcheck=1
+gpgkey=https://mirrors.aliyun.com/docker-ce/linux/centos/gpg
+DOCKERCEREPO
+      fi
+      log_step "尝试: yum install docker-ce..."
+      sudo yum install -y docker-ce 2>> "$INSTALL_LOG" && docker_installed=true
+    fi
+
+  elif command -v apt-get &> /dev/null; then
+    # apt 系 (Debian / Ubuntu)
+    log_step "尝试: apt-get install docker.io..."
+    if sudo apt-get update -qq && sudo apt-get install -y -qq docker.io 2>> "$INSTALL_LOG"; then
+      docker_installed=true
+    else
+      # 尝试 Docker CE
+      log_warn "docker.io 安装失败，尝试添加 Docker CE 仓库..."
+      if command -v curl &> /dev/null; then
+        curl -fsSL --connect-timeout 10 --max-time 30 https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | sudo apt-key add - 2>> "$INSTALL_LOG" || true
+        sudo add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://mirrors.aliyun.com/docker-ce/linux/ubuntu $(lsb_release -cs 2>/dev/null || echo 'stable') stable" 2>> "$INSTALL_LOG" || true
+        sudo apt-get update -qq && sudo apt-get install -y -qq docker-ce 2>> "$INSTALL_LOG" && docker_installed=true
+      fi
+    fi
+  fi
+
+  # ---------- 策略2: 官方便捷脚本（兜底，尝试验证性降级） ----------
+  if ! $docker_installed && ! command -v docker &> /dev/null; then
+    if command -v curl &> /dev/null; then
+      log_step "包管理器均失败，尝试: Docker 官方便捷脚本..."
+      # 使用 --connect-timeout 和 --max-time 避免长时间卡死
+      if curl -fsSL --connect-timeout 10 --max-time 120 https://get.docker.com 2>> "$INSTALL_LOG" | sh -s docker --mirror Aliyun 2>> "$INSTALL_LOG"; then
+        docker_installed=true
+      else
+        log_warn "官方便捷脚本执行失败（网络不可达或脚本错误）"
+      fi
+    fi
+  fi
+
+  # ---------- 安装后验证 ----------
+  if command -v docker &> /dev/null; then
+    local installed_version
+    installed_version=$(docker --version 2>&1 | cut -d' ' -f3 | tr -d ',')
+    log_ok "Docker ${installed_version} 安装成功"
+    return 0
+  else
+    log_err "Docker 安装失败：所有安装策略均未成功"
+    log_info "请手动安装 Docker:"
+    log_info "  RHEL/CentOS/openEuler: sudo dnf install -y docker"
+    log_info "  或访问: https://docs.docker.com/engine/install/"
+    return 1
+  fi
+}
+
+# ---------- Docker 配置 ----------
+configure_docker() {
+  log_step "配置 Docker..."
+
+  # 配置 registry-mirrors（国内镜像加速器）
+  if [ -f "$DOCKER_DAEMON_CONFIG" ]; then
+    log_info "daemon.json 已存在，跳过覆盖（如需更新请手动编辑: $DOCKER_DAEMON_CONFIG）"
+  else
+    log_step "写入镜像加速器配置..."
+
+    sudo mkdir -p "$(dirname "$DOCKER_DAEMON_CONFIG")"
+
+    # 构建 mirrors JSON 数组
+    local mirrors_json=""
+    for mirror in "${DEFAULT_DOCKER_REGISTRY_MIRRORS[@]}"; do
+      if [ -n "$mirrors_json" ]; then
+        mirrors_json+=",
+    "
+      fi
+      mirrors_json+="    \"$mirror\""
+    done
+
+    sudo tee "$DOCKER_DAEMON_CONFIG" > /dev/null << DOCKEREOF
+{
+  "registry-mirrors": [
+${mirrors_json}
+  ],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+DOCKEREOF
+    log_ok "镜像加速器已配置: $DOCKER_DAEMON_CONFIG"
+  fi
+
+  # 将当前用户加入 docker 组
+  if ! groups "$USER" 2>/dev/null | grep -q docker; then
+    log_step "将用户 $USER 加入 docker 组..."
+    sudo groupadd -f docker 2>> "$INSTALL_LOG" || true
+    if sudo usermod -aG docker "$USER" 2>> "$INSTALL_LOG"; then
+      log_warn "已将当前用户加入 docker 组（需重新登录终端或执行 newgrp docker 后生效）"
+    else
+      log_warn "将用户 $USER 加入 docker 组失败，请手动执行: sudo usermod -aG docker $USER"
+    fi
+  else
+    log_info "用户已在 docker 组中，跳过"
+  fi
+
+  # 启动 Docker 守护进程
+  log_step "启动 Docker 服务..."
+  if command -v systemctl &> /dev/null; then
+    sudo systemctl enable docker 2>> "$INSTALL_LOG" || true
+    sudo systemctl start docker 2>> "$INSTALL_LOG" || {
+      log_err "Docker 服务启动失败 (systemctl)"
+      return 1
+    }
+  elif command -v service &> /dev/null; then
+    sudo service docker start 2>> "$INSTALL_LOG" || {
+      log_err "Docker 服务启动失败 (service)"
+      return 1
+    }
+  else
+    log_err "无法启动 Docker 服务（未找到 systemctl 或 service）"
+    return 1
+  fi
+
+  # 等待 Docker 守护进程就绪
+  log_step "等待 Docker 守护进程就绪..."
+  local max_wait=30
+  local waited=0
+  while ! sudo docker info &> /dev/null; do
+    sleep 1
+    waited=$((waited + 1))
+    if [ "$waited" -ge "$max_wait" ]; then
+      log_err "Docker 守护进程启动超时 (${max_wait}s)"
+      return 1
+    fi
+  done
+
+  log_ok "Docker 服务已启动并正常运行"
+
+  # 校验当前会话能否直接访问 Docker（组成员变更需重新登录/newgrp 才生效）
+  if docker info &> /dev/null; then
+    log_ok "当前用户可直接使用 Docker"
+  else
+    log_warn "Docker 守护进程已启动，但当前会话无访问权限"
+    log_warn "请重新登录终端或执行: newgrp docker"
+    log_warn "然后运行: bash start.sh"
+  fi
+}
+
+# ---------- Docker 镜像预拉取 ----------
+pull_docker_images() {
+  log_step "预拉取 Docker 镜像..."
+
+  local pull_failed=0
+
+  for tag in "${DOCKER_IMAGE_TAGS[@]}"; do
+    local image="${DOCKER_IMAGE_BASE}:${tag}"
+    log_detail "拉取: $image"
+
+    if sudo docker pull "$image" 2>> "$INSTALL_LOG"; then
+      log_ok "$image 拉取成功"
+    else
+      log_err "$image 拉取失败"
+      pull_failed=$((pull_failed + 1))
+    fi
+  done
+
+  if [ "$pull_failed" -gt 0 ]; then
+    log_err "共 $pull_failed 个镜像拉取失败，请检查网络或 Docker 配置"
+    return 1
+  fi
+
+  log_ok "所有 Docker 镜像拉取完成"
+}
+
 # ---------- Phase 2: 环境隔离初始化 ----------
 setup_isolation() {
   section "2/4  环境隔离初始化"
@@ -559,6 +805,45 @@ run_with_log() {
   return $ec
 }
 
+# ---------- OpenCode CLI 安装 ----------
+install_opencode_cli() {
+  log_step "安装 opencode-ai ..."
+
+  # pnpm 11 默认拦截依赖的 postinstall 脚本（allowBuilds），
+  # opencode-ai 的原生二进制正是由 postinstall 生成，必须显式放行。
+  run_with_log "$INSTALL_LOG" pnpm add -g --allow-build=opencode-ai "opencode-ai@${REQUIRED_OPENCODE_VERSION}" --registry="$PNPM_MIRROR" || {
+    log_err "opencode-ai 安装失败"
+    return 1
+  }
+
+  local installed_ver
+  installed_ver=$(opencode --version 2>&1)
+  if [ "$installed_ver" = "$REQUIRED_OPENCODE_VERSION" ]; then
+    log_ok "opencode-ai ${installed_ver} 安装完成（含原生二进制）"
+  else
+    log_err "opencode-ai 安装异常: 期望 ${REQUIRED_OPENCODE_VERSION}, 实际 ${installed_ver}"
+    log_info "postinstall 可能未执行，可手动修复: pnpm add -g --allow-build=opencode-ai opencode-ai@${REQUIRED_OPENCODE_VERSION}"
+    return 1
+  fi
+}
+
+# ---------- WittyHub CLI 安装 ----------
+install_wittyhub_cli() {
+  log_step "安装 wittyhub CLI ..."
+
+  run_with_log "$INSTALL_LOG" pnpm add -g "wittyhub@${REQUIRED_WITTYHUB_CLI_VERSION}" --registry="$PNPM_MIRROR" || {
+    log_err "wittyhub CLI 安装失败"
+    return 1
+  }
+
+  if command -v wittyhub &> /dev/null; then
+    log_ok "wittyhub CLI ${REQUIRED_WITTYHUB_CLI_VERSION} 安装完成"
+  else
+    log_err "wittyhub CLI 安装异常: 未找到 wittyhub 命令"
+    return 1
+  fi
+}
+
 install_app_packages() {
   section "3/4  应用包安装"
 
@@ -569,7 +854,7 @@ install_app_packages() {
 
   log_step "安装 polymind (前端)..."
 
-  run_with_log "$INSTALL_LOG" pnpm add -g polymind --registry="$PNPM_MIRROR" || {
+  run_with_log "$INSTALL_LOG" pnpm add -g polymind@1.1.6 --registry="$PNPM_MIRROR" || {
     log_err "polymind 安装失败"
     return 1
   }
@@ -578,7 +863,7 @@ install_app_packages() {
 
   log_step "安装 witty-service (后端)..."
 
-  run_with_log "$INSTALL_LOG" $PIP_ACTIVE install witty-service -i "$PIP_MIRROR" --trusted-host "$(echo "$PIP_MIRROR" | awk -F/ '{print $3}')" || {
+  run_with_log "$INSTALL_LOG" $PIP_ACTIVE install witty-service==0.10.1  -i "$PIP_MIRROR" --trusted-host "$(echo "$PIP_MIRROR" | awk -F/ '{print $3}')" || {
     log_err "witty-service 安装失败"
     return 1
   }
@@ -593,6 +878,16 @@ install_app_packages() {
   }
 
   log_ok "openclaw 安装完成"
+
+  install_opencode_cli || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: opencode-ai 安装失败" >> "$INSTALL_LOG"
+    return 1
+  }
+
+  install_wittyhub_cli || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: wittyhub CLI 安装失败" >> "$INSTALL_LOG"
+    return 1
+  }
 }
 
 # ---------- Phase 4: 安装验证 ----------
@@ -679,6 +974,32 @@ verify_installation() {
     errors=$((errors + 1))
   fi
 
+  # opencode
+  if command -v opencode &> /dev/null; then
+    log_ok "opencode   $(command -v opencode)"
+  else
+    log_err "opencode   未找到"
+    errors=$((errors + 1))
+  fi
+
+  # wittyhub CLI
+  if command -v wittyhub &> /dev/null; then
+    log_ok "wittyhub   $(command -v wittyhub)"
+  else
+    log_err "wittyhub   未找到"
+    errors=$((errors + 1))
+  fi
+
+  # Docker
+  if command -v docker &> /dev/null; then
+    local docker_ver
+    docker_ver=$(docker --version 2>&1 | cut -d' ' -f3 | tr -d ',')
+    log_ok "Docker     ${docker_ver}"
+  else
+    log_err "Docker     未找到"
+    errors=$((errors + 1))
+  fi
+
   # nginx
   if command -v nginx &> /dev/null; then
     local nginx_ver
@@ -716,10 +1037,13 @@ print_summary() {
   echo -e "  手动激活环境:"
   echo -e "    ${DIM}source $PROFILE_FILE${NC}"
   echo ""
-  echo -e "  ${YELLOW}${BOLD}⚠ 重要提醒:${NC}"
-  echo -e "    请配置 OpenClaw，推荐使用以下命令:"
-  echo -e "    ${BOLD}openclaw onboard --install-daemon${NC}"
-  echo ""
+  if command -v docker &> /dev/null && ! docker info &> /dev/null; then
+    echo -e "  ${YELLOW}${BOLD}⚠ Docker 用户组:${NC}"
+    echo -e "    Docker 守护进程已启动，但当前会话无访问权限"
+    echo -e "    请重新登录终端使其生效，或执行: ${BOLD}newgrp docker${NC}"
+    echo -e "    然后运行: ${BOLD}bash start.sh${NC}"
+    echo ""
+  fi
 }
 
 # ---------- main ----------
@@ -760,6 +1084,26 @@ main() {
 
   # 生成 nginx 配置模板
   setup_nginx
+
+  # Docker 安装（必须）
+  install_docker || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Docker 安装失败" >> "$INSTALL_LOG"
+    log_err "Docker 安装失败，PolyMind 需要 Docker 作为沙箱运行时"
+    log_info "请手动安装 Docker 后重新运行 install.sh"
+    exit 1
+  }
+
+  # Docker 配置（镜像加速、用户组、守护进程）
+  configure_docker || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Docker 配置失败" >> "$INSTALL_LOG"
+    exit 1
+  }
+
+  # 预拉取沙箱镜像
+  pull_docker_images || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Docker 镜像拉取失败" >> "$INSTALL_LOG"
+    exit 1
+  }
 
   # Phase 2
   setup_isolation || {
