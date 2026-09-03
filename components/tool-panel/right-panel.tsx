@@ -67,7 +67,7 @@ export function RightPanel() {
     addRightPanelTab,
     removeRightPanelTab,
     setActiveRightPanelTab,
-    setSettingsActiveSection,
+    openSettingsPanel,
   } = useChatStore()
 
   const tools = [
@@ -102,12 +102,7 @@ export function RightPanel() {
     settingsSection?: string
   }) => {
     if (tool.settingsSection) {
-      setSettingsActiveSection(tool.settingsSection)
-      const existingTab = rightPanelTabs.find(tab => tab.id === 'settings')
-      if (!existingTab) {
-        addRightPanelTab({ id: 'settings', name: '设置', icon: Settings, color: 'text-gray-500' })
-      }
-      setActiveRightPanelTab('settings')
+      openSettingsPanel(tool.settingsSection)
     } else {
       const existingTab = rightPanelTabs.find(tab => tab.id === tool.id)
       if (!existingTab) {

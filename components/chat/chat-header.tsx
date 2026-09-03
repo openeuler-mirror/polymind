@@ -114,29 +114,7 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {
-                const {
-                  isRightPanelOpen,
-                  toggleRightPanel,
-                  addRightPanelTab,
-                  setActiveRightPanelTab,
-                  activeRightPanelTab,
-                  rightPanelTabs,
-                } = useChatStore.getState()
-                if (!isRightPanelOpen) {
-                  toggleRightPanel()
-                }
-                // 保存当前活跃标签页
-                const otherTabs = rightPanelTabs.filter(tab => tab.id !== 'settings')
-                if (otherTabs.length > 0) {
-                  // 这里可以通过状态管理来保存，或者在 right-panel.tsx 中通过 useEffect 处理
-                }
-                addRightPanelTab({
-                  id: 'settings',
-                  name: '设置',
-                  icon: Settings,
-                  color: 'text-gray-500',
-                })
-                setActiveRightPanelTab('settings')
+                useChatStore.getState().openSettingsPanel()
               }}
             >
               <Settings className="mr-2 h-4 w-4" />
