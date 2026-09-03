@@ -2,6 +2,7 @@ import type {
   BackportCommitItem,
   BackportCommitRow,
   BackportConfig,
+  BackportOperationDiagnostics,
   BackportPatchKind,
   BackportPatchMap,
   BackportPatchPreviewResponse,
@@ -17,9 +18,14 @@ export interface BackportModelResolution {
   shouldOpenSelector: boolean
 }
 
+const TARGET_REPOSITORY_LOCK_TIMEOUT = 'TARGET_REPOSITORY_LOCK_TIMEOUT'
+
 export const DEFAULT_COMMIT_MESSAGE_TEMPLATE = `{{subject}}
 
+{{body_prefix}}
+
 commit {{commit_id}} {{source}}
+{{body_separator}}
 
 {{body}}
 
@@ -88,6 +94,23 @@ export type RowStatusKind =
   | 'skipped'
   | 'unmatched'
   | 'pending'
+
+export function resolveBackportFailureMessage(
+  diagnostics: BackportOperationDiagnostics | null | undefined,
+  fallback: string
+): string {
+  if (
+    diagnostics?.code === TARGET_REPOSITORY_LOCK_TIMEOUT &&
+    diagnostics.retryable === true
+  ) {
+    const waitText =
+      typeof diagnostics.wait_seconds === 'number'
+        ? `已等待 ${Math.round(diagnostics.wait_seconds)} 秒。`
+        : ''
+    return `目标仓库正被其他任务使用，等待超时。${waitText}请稍后手动重试。`
+  }
+  return fallback || diagnostics?.error_text || 'Backport 执行失败'
+}
 
 export function resolveRunSummaryDetectionText(item: BackportRunSummaryCase): string {
   if (item.detection.state === 'running') return '检测中'

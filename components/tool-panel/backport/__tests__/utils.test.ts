@@ -1,6 +1,7 @@
 import {
   DEFAULT_BACKPORT_CONFIG,
   normalizeBackportConfig,
+  resolveBackportFailureMessage,
   resolveBackportModelReference,
 } from '@/components/tool-panel/backport/utils'
 import type { BackportConfig } from '@/lib/backport-types'
@@ -53,6 +54,26 @@ describe('normalizeBackportConfig', () => {
     expect(config.target_config_layout_opts).toEqual(
       DEFAULT_BACKPORT_CONFIG.target_config_layout_opts
     )
+  })
+})
+
+describe('resolveBackportFailureMessage', () => {
+  it('shows a manual retry message for a retryable repository lock timeout', () => {
+    expect(
+      resolveBackportFailureMessage(
+        {
+          code: 'TARGET_REPOSITORY_LOCK_TIMEOUT',
+          retryable: true,
+          wait_seconds: 2.1,
+          timeout_seconds: 2,
+        },
+        'raw error'
+      )
+    ).toBe('目标仓库正被其他任务使用，等待超时。已等待 2 秒。请稍后手动重试。')
+  })
+
+  it('keeps the existing message for other errors', () => {
+    expect(resolveBackportFailureMessage({ code: 'OTHER_ERROR' }, '原始错误')).toBe('原始错误')
   })
 })
 

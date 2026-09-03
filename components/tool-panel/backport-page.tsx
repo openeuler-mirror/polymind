@@ -29,6 +29,7 @@ import {
   normalizeCommitRows,
   parseBoolLike,
   parseMergedLike,
+  resolveBackportFailureMessage,
   resolveBackportModelReference,
   resolveBackportProgressText,
   resolveCommitTitle,
@@ -72,6 +73,7 @@ import {
   BackportExecutionRunSummary,
   BackportExecutionSummary,
   BackportGitLogEntry,
+  BackportOperationDiagnostics,
   BackportOperationResultData,
   BackportPatchResource,
   BackportPrerequisiteCandidate,
@@ -751,7 +753,10 @@ export function BackportPage() {
     setStage(result.stage || (result.status === 'success' ? 'interactive_editing' : 'failed'))
 
     if (result.status === 'failed') {
-      const message = result.summary || result.diagnostics?.error_text || 'Backport 执行失败'
+      const message = resolveBackportFailureMessage(
+        result.diagnostics,
+        result.summary || result.diagnostics?.error_text || 'Backport 执行失败'
+      )
       setError(message)
       addTimeline('执行失败', 'error', message)
     } else {
@@ -1098,7 +1103,12 @@ export function BackportPage() {
       return response
     } catch (cause) {
       console.error(`Failed to run Backport operation: ${label}`, cause)
-      const message = cause instanceof Error ? cause.message : `${label} 失败`
+      const diagnostics = (cause as Error & { diagnostics?: BackportOperationDiagnostics })
+        .diagnostics
+      const message = resolveBackportFailureMessage(
+        diagnostics,
+        cause instanceof Error ? cause.message : `${label} 失败`
+      )
       setError(message)
       setStage('failed')
       addTimeline(`${label} 失败`, 'error', message)
@@ -3511,16 +3521,22 @@ export function BackportPage() {
                 <div>
                   <h4 className="text-sm font-medium text-slate-900">提交信息模板</h4>
                   <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
-                    {['{{subject}}', '{{commit_id}}', '{{source}}', '{{body}}', '{{trailers}}'].map(
-                      item => (
-                        <span
-                          key={item}
-                          className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[11px]"
-                        >
-                          {item}
-                        </span>
-                      )
-                    )}
+                    {[
+                      '{{subject}}',
+                      '{{commit_id}}',
+                      '{{source}}',
+                      '{{body_prefix}}',
+                      '{{body_separator}}',
+                      '{{body}}',
+                      '{{trailers}}',
+                    ].map(item => (
+                      <span
+                        key={item}
+                        className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[11px]"
+                      >
+                        {item}
+                      </span>
+                    ))}
                   </div>
                 </div>
                 <Button
@@ -3554,6 +3570,11 @@ export function BackportPage() {
                 className="min-h-[160px] resize-y font-mono text-xs leading-5"
                 spellCheck={false}
               />
+              <p className="text-xs leading-5 text-muted-foreground">
+                openEuler 正文分区：{'{{body_prefix}}'} 是分隔线上方的内核格式文本，
+                {'{{body_separator}}'} 是原始分隔线，{'{{body}}'} 是分隔线下方的正文；
+                {'{{source}}'} 可删除，变量之外的文字会原样保留。
+              </p>
             </section>
 
             <section className="grid gap-3 border-t border-slate-100 py-4 lg:grid-cols-[140px_minmax(0,1fr)]">
