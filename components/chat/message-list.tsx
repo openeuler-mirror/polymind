@@ -25,29 +25,28 @@ import {
   CircleSlash,
   type LucideIcon,
 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
-import rehypeKatex from 'rehype-katex'
-import rehypeRaw from 'rehype-raw'
 import mermaid from 'mermaid'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism'
-import 'katex/dist/katex.min.css'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { MarkdownContent } from '@/components/markdown/markdown-content'
 import type { Message, ToolCall, Attachment, EventItem, QuestionInfo } from '@/lib/types'
 import { formatToolOutput } from '@/lib/format-utils'
+import { resolveCodeLanguage } from '@/lib/artifacts'
+import { ArtifactCard } from './artifact-card'
 
 interface MessageListProps {
   messages: Message[]
   onRegenerate?: (assistantMessageId: string) => void
   agentName?: string
+  /** 会话所属 agent id（用于产物文件端点 URL） */
+  agentId?: string
 }
 
-export function MessageList({ messages, onRegenerate, agentName }: MessageListProps) {
+export function MessageList({ messages, onRegenerate, agentName, agentId }: MessageListProps) {
   if (messages.length === 0) {
     return null
   }
@@ -60,6 +59,7 @@ export function MessageList({ messages, onRegenerate, agentName }: MessageListPr
           message={message}
           onRegenerate={onRegenerate}
           agentName={agentName}
+          agentId={agentId}
         />
       ))}
     </div>
@@ -70,10 +70,12 @@ const MessageItem = memo(function MessageItem({
   message,
   onRegenerate,
   agentName,
+  agentId,
 }: {
   message: Message
   onRegenerate?: (assistantMessageId: string) => void
   agentName?: string
+  agentId?: string
 }) {
   const [copied, setCopied] = useState(false)
   // 回答完毕后，过程模块（深度思考/工具调用/提问）折叠在「已完成」耗时行下
@@ -348,6 +350,15 @@ const MessageItem = memo(function MessageItem({
             </>
           )}
 
+        {/* 产物卡片：常显在正文下方（ADR-D6），不随过程模块折叠 */}
+        {!isUser && message.artifacts && message.artifacts.length > 0 && (
+          <div className="grid grid-cols-2 gap-2">
+            {message.artifacts.map(artifact => (
+              <ArtifactCard key={artifact.id} artifact={artifact} agentId={agentId} />
+            ))}
+          </div>
+        )}
+
         {/* Usage Information */}
         {message.usage && (
           <div className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
@@ -441,45 +452,14 @@ function MessageContent({ content, isStreaming }: { content: string; isStreaming
 
   return (
     <>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex, rehypeRaw]}
+      <MarkdownContent
+        content={content}
         components={{
-          h1: ({ children }) => (
-            <h1 className="mb-2 mt-4 text-xl font-bold first:mt-0">{children}</h1>
-          ),
-          h2: ({ children }) => (
-            <h2 className="mb-2 mt-4 text-lg font-semibold first:mt-0">{children}</h2>
-          ),
-          h3: ({ children }) => (
-            <h3 className="mb-2 mt-3 text-base font-semibold first:mt-0">{children}</h3>
-          ),
-          h4: ({ children }) => (
-            <h4 className="mb-2 mt-3 text-sm font-semibold first:mt-0">{children}</h4>
-          ),
-          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-          ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5">{children}</ul>,
-          ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5">{children}</ol>,
-          li: ({ children }) => <li className="text-sm leading-relaxed">{children}</li>,
-          code: ({ className, children, node, ...props }) => {
-            const isInline = !className
-
-            if (isInline) {
-              return (
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm" {...props}>
-                  {children}
-                </code>
-              )
-            }
-
-            return null
-          },
-          pre: ({ children, ...props }) => {
+          pre: ({ children }) => {
             const child = children as React.ReactElement<any>
             const codeElement = child?.props?.children
             const className = child?.props?.className || ''
-            const match = /language-(\w+)/.exec(className)
-            const language = match ? match[1] : ''
+            const language = resolveCodeLanguage(className)
             const code =
               typeof codeElement === 'string' ? codeElement : String(codeElement || '').trim()
 
@@ -489,35 +469,11 @@ function MessageContent({ content, isStreaming }: { content: string; isStreaming
 
             return <CodeBlock code={code} language={language} showLineNumbers={false} />
           },
-          blockquote: ({ children, ...props }) => {
+          blockquote: ({ children }) => {
             return <Admonition type="blockquote">{children}</Admonition>
           },
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              className="text-primary underline hover:text-primary/80"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {children}
-            </a>
-          ),
-          table: ({ children }) => (
-            <div className="mb-2 overflow-x-auto">
-              <table className="min-w-full divide-y divide-border text-sm">{children}</table>
-            </div>
-          ),
-          thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
-          th: ({ children }) => <th className="px-3 py-2 text-left font-semibold">{children}</th>,
-          td: ({ children }) => <td className="px-3 py-2">{children}</td>,
-          hr: () => <hr className="my-4 border-border" />,
-          img: ({ src, alt }) => (
-            <img src={src} alt={alt} className="max-w-full rounded-lg" loading="lazy" />
-          ),
         }}
-      >
-        {content}
-      </ReactMarkdown>
+      />
       {isStreaming && (
         <span className="ml-0.5 inline-block h-4 w-0.5 animate-blink bg-foreground" />
       )}

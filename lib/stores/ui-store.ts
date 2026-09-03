@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand'
+import { Package } from 'lucide-react'
 import type { MCPTool } from '../types'
 import type { Tab } from './utils'
 import { defaultTools } from './utils'
@@ -55,6 +56,11 @@ export interface UISlice {
   removeRightPanelTab: (tabId: string) => void
   setActiveRightPanelTab: (tabId: string | null) => void
   setSettingsActiveSection: (section: string | null) => void
+  /** 产物面板当前选中的产物 id（卡片点击 / 面板切换共用） */
+  selectedArtifactId: string | null
+  /** 打开右侧产物面板并选中指定产物（幂等：tab 存在则不重复添加） */
+  openArtifactPanel: (artifact: { id: string }) => void
+  setSelectedArtifactId: (id: string | null) => void
   toggleSidebarSection: (key: SidebarSectionKey) => void
   toggleScheduledTaskFolder: (taskId: string) => void
   /** 任务删除后清理其文件夹折叠状态，避免 localStorage 残留死键。 */
@@ -70,6 +76,7 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
     rightPanelTabs: [],
     activeRightPanelTab: null,
     settingsActiveSection: null,
+    selectedArtifactId: null,
     sidebarSectionsCollapsed: persisted?.sections ?? {
       pinned: false,
       regular: false,
@@ -106,6 +113,23 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
     },
     setActiveRightPanelTab: tabId => set({ activeRightPanelTab: tabId }),
     setSettingsActiveSection: section => set({ settingsActiveSection: section }),
+    openArtifactPanel: artifact => {
+      set(state => {
+        const rightPanelTabs = state.rightPanelTabs.some(t => t.id === 'artifacts')
+          ? state.rightPanelTabs
+          : [
+              ...state.rightPanelTabs,
+              { id: 'artifacts', name: '产物', icon: Package, color: 'text-orange-500' },
+            ]
+        return {
+          rightPanelTabs,
+          activeRightPanelTab: 'artifacts',
+          isRightPanelOpen: true,
+          selectedArtifactId: artifact.id,
+        }
+      })
+    },
+    setSelectedArtifactId: id => set({ selectedArtifactId: id }),
     toggleSidebarSection: key => {
       set(state => {
         const next = {

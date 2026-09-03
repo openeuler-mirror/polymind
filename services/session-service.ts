@@ -1,7 +1,16 @@
 import { httpClient } from '@/lib/http-client'
 import { ApiError } from '@/lib/error-handler'
-import { Session, ApiResponse, SessionManagementStrategy, Conversation, Message } from '@/lib/types'
+import {
+  Session,
+  ApiResponse,
+  SessionManagementStrategy,
+  Conversation,
+  Message,
+  Artifact,
+  ArtifactType,
+} from '@/lib/types'
 import { SessionStatus, MessageStatus } from '@/lib/types'
+import { normalizeArtifactType, resolveArtifactType } from '@/lib/artifacts'
 
 /**
  * 会话服务类 - 负责会话的创建和管理
@@ -131,10 +140,15 @@ class SessionService {
         | Message['questionStatus']
         | undefined,
       questionAnswers: msg.questionAnswers ?? msg.question_answers ?? null,
+      artifacts: (msg.artifacts ?? msg.artifact_events ?? []).map(this.transformArtifact),
       events: (msg.events || [])
         .filter((evt: any) => {
           // 非生成中的消息（completed / interrupted / error）：过滤掉 delta 事件
-          if (msg.status && msg.status !== 'generating' && evt.type === 'message.delta')
+          if (
+            msg.status &&
+            msg.status !== 'generating' &&
+            (evt.type === 'message.delta' || evt.type === 'artifact.delta')
+          )
             return false
           // 过滤掉空内容的 delta 事件
           if (evt.type === 'message.delta' && !evt.delta && !evt.content) return false
@@ -153,6 +167,29 @@ class SessionService {
           payload: evt.payload,
         })),
       usage: msg.usage,
+    }
+  }
+
+  /**
+   * 将后端消息中的产物记录转换为前端 Artifact 类型。
+   * 后端字段使用 snake_case（relative_path），兼容已有的 camelCase 键。
+   */
+  private transformArtifact(artifact: any): Artifact {
+    const id = artifact.id ?? ''
+    const name = artifact.name ?? artifact.file_name ?? id
+    const typeRaw: ArtifactType | null = normalizeArtifactType(
+      artifact.type ?? artifact.artifact_type
+    )
+    return {
+      id,
+      name,
+      type: typeRaw || resolveArtifactType(name),
+      status: artifact.status === 'error' ? 'error' : 'ready',
+      version: artifact.version ?? 1,
+      relativePath: artifact.relativePath ?? artifact.relative_path ?? '',
+      size: artifact.size,
+      mime: artifact.mime,
+      content: artifact.content,
     }
   }
 

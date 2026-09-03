@@ -32,6 +32,9 @@ export interface EventItem {
     | 'question.asked'
     | 'question.replied'
     | 'question.rejected'
+    | 'artifact.started'
+    | 'artifact.delta'
+    | 'artifact.completed'
   session_id?: string
   event_id?: string
   ts_ms?: number
@@ -99,6 +102,8 @@ export interface Message {
     outputTokens?: number
     totalCost?: number
   }
+  /** 该消息产出的可视化产物（卡片/预览面板渲染） */
+  artifacts?: Artifact[]
 }
 
 /**
@@ -115,6 +120,28 @@ export interface ToolCall {
   error?: string
   duration?: number
   displayText?: string
+}
+
+/**
+ * 产物类型
+ */
+export type ArtifactType = 'html' | 'image' | 'video' | 'markdown' | 'code' | 'pdf' | 'unknown'
+
+/**
+ * 产物接口（对应后端 artifact.* 事件协议）
+ */
+export interface Artifact {
+  id: string
+  name: string
+  type: ArtifactType
+  status: 'creating' | 'ready' | 'error'
+  version: number
+  /** 产物相对工作区的路径（用于文件端点下载/预览） */
+  relativePath: string
+  size?: number
+  mime?: string
+  /** 内联内容（文本类产物且 ≤512KB 时由 artifact.completed 携带） */
+  content?: string
 }
 
 /**
