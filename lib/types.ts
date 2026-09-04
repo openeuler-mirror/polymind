@@ -334,6 +334,7 @@ export enum AdapterType {
   OPENCODE = 'opencode',
   OPENCLAW = 'openclaw',
   CLAUDE_CODE = 'claude-code',
+  DSH = 'dsh',
 }
 
 /**
