@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand'
-import { Package } from 'lucide-react'
+import { Package, Settings } from 'lucide-react'
 import type { MCPTool } from '../types'
 import type { Tab } from './utils'
 import { defaultTools } from './utils'
@@ -61,14 +61,36 @@ export interface UISlice {
   /** 打开右侧产物面板并选中指定产物（幂等：tab 存在则不重复添加） */
   openArtifactPanel: (artifact: { id: string }) => void
   setSelectedArtifactId: (id: string | null) => void
+  /** 打开设置面板并定位到指定 section；设置 tab 不存在时自动创建。 */
+  openSettingsPanel: (section?: string) => void
+  isDefaultModelDialogOpen: boolean
+  openDefaultModelDialog: () => void
+  closeDefaultModelDialog: () => void
   toggleSidebarSection: (key: SidebarSectionKey) => void
   toggleScheduledTaskFolder: (taskId: string) => void
   /** 任务删除后清理其文件夹折叠状态，避免 localStorage 残留死键。 */
   clearScheduledTaskFolderCollapsed: (taskId: string) => void
 }
 
-export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
-  const persisted = loadSidebarUI()
+type UISliceData = Pick<
+  UISlice,
+  | 'isSidebarOpen'
+  | 'isRightPanelOpen'
+  | 'mcpTools'
+  | 'rightPanelTabs'
+  | 'activeRightPanelTab'
+  | 'settingsActiveSection'
+  | 'isDefaultModelDialogOpen'
+  | 'selectedArtifactId'
+  | 'sidebarSectionsCollapsed'
+  | 'scheduledTaskFoldersCollapsed'
+>
+
+/**
+ * UI slice 的默认初始数据（不含持久化、不含动作）。
+ * 作为 store 初始值与此处 reset 用的唯一来源，避免测试里手写一份易漂移的平行副本。
+ */
+export function createDefaultUISliceData(): UISliceData {
   return {
     isSidebarOpen: true,
     isRightPanelOpen: false,
@@ -76,13 +98,20 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
     rightPanelTabs: [],
     activeRightPanelTab: null,
     settingsActiveSection: null,
+    isDefaultModelDialogOpen: false,
     selectedArtifactId: null,
-    sidebarSectionsCollapsed: persisted?.sections ?? {
-      pinned: false,
-      regular: false,
-      scheduled: false,
-    },
-    scheduledTaskFoldersCollapsed: persisted?.folders ?? {},
+    sidebarSectionsCollapsed: { pinned: false, regular: false, scheduled: false },
+    scheduledTaskFoldersCollapsed: {},
+  }
+}
+
+export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
+  const persisted = loadSidebarUI()
+  const defaults = createDefaultUISliceData()
+  return {
+    ...defaults,
+    sidebarSectionsCollapsed: persisted?.sections ?? defaults.sidebarSectionsCollapsed,
+    scheduledTaskFoldersCollapsed: persisted?.folders ?? defaults.scheduledTaskFoldersCollapsed,
 
     toggleSidebar: () => set(state => ({ isSidebarOpen: !state.isSidebarOpen })),
     toggleRightPanel: () => set(state => ({ isRightPanelOpen: !state.isRightPanelOpen })),
@@ -130,6 +159,24 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
       })
     },
     setSelectedArtifactId: id => set({ selectedArtifactId: id }),
+    openSettingsPanel: section => {
+      set(state => {
+        const hasSettingsTab = state.rightPanelTabs.some(tab => tab.id === 'settings')
+        return {
+          settingsActiveSection: section ?? state.settingsActiveSection,
+          rightPanelTabs: hasSettingsTab
+            ? state.rightPanelTabs
+            : [
+                ...state.rightPanelTabs,
+                { id: 'settings', name: '设置', icon: Settings, color: 'text-gray-500' },
+              ],
+          activeRightPanelTab: 'settings',
+          isRightPanelOpen: true,
+        }
+      })
+    },
+    openDefaultModelDialog: () => set({ isDefaultModelDialogOpen: true }),
+    closeDefaultModelDialog: () => set({ isDefaultModelDialogOpen: false }),
     toggleSidebarSection: key => {
       set(state => {
         const next = {

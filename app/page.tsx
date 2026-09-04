@@ -7,12 +7,15 @@ import { AgentStatus } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
+import { modelService } from '@/services/model-service'
+import { DefaultModelDialog } from '@/components/settings/model/default-model-dialog'
 
 export default function Home() {
   const { isSidebarOpen, isRightPanelOpen } = useChatStore()
   const isMobile = useIsMobile()
 
   // 全局初始化：拉取 agents 和 conversations，URL 无 agent 时默认选第一个
+  // 并行拉取模型配置，用于"默认模型首检弹窗"判定（F1）
   useEffect(() => {
     useChatStore
       .getState()
@@ -29,6 +32,19 @@ export default function Home() {
       })
       .catch(err => {
         console.error('Failed to fetch agents:', err)
+      })
+
+    modelService
+      .getModels()
+      .then(models => {
+        const hasActiveDefault = models.some(m => m.enabled && m.isDefault)
+        if (!hasActiveDefault) {
+          useChatStore.getState().openDefaultModelDialog()
+        }
+      })
+      .catch(err => {
+        // 模型加载失败时静默降级：不弹窗、不打断首页初始化。
+        console.error('Failed to fetch models:', err)
       })
   }, [])
 
@@ -61,6 +77,9 @@ export default function Home() {
           </>
         )}
       </ResizablePanelGroup>
+
+      {/* 默认模型首检弹窗（F1）：无有效默认模型时首次进首页拉起 */}
+      <DefaultModelDialog />
     </main>
   )
 }

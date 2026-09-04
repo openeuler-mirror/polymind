@@ -61,10 +61,6 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
   const iconSelectorRef = useRef<HTMLDivElement>(null)
   const addAgent = useChatStore(state => state.addAgent)
   const setCurrentAgent = useChatStore(state => state.setCurrentAgent)
-  const rightPanelTabs = useChatStore(state => state.rightPanelTabs)
-  const setSettingsActiveSection = useChatStore(state => state.setSettingsActiveSection)
-  const addRightPanelTab = useChatStore(state => state.addRightPanelTab)
-  const setActiveRightPanelTab = useChatStore(state => state.setActiveRightPanelTab)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -337,17 +333,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      setSettingsActiveSection('model')
-                      const existingTab = rightPanelTabs.find(tab => tab.id === 'settings')
-                      if (!existingTab) {
-                        addRightPanelTab({
-                          id: 'settings',
-                          name: '设置',
-                          icon: Settings,
-                          color: 'text-gray-500',
-                        })
-                      }
-                      setActiveRightPanelTab('settings')
+                      useChatStore.getState().openSettingsPanel('model')
                     }}
                   >
                     <Plus className="w-3 h-3 mr-1" />

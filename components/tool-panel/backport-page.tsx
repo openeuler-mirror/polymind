@@ -348,12 +348,7 @@ export function BackportPage() {
   )
 
   const openModelSettings = () => {
-    const store = useChatStore.getState()
-    store.setSettingsActiveSection('model')
-    if (!store.rightPanelTabs.some(tab => tab.id === 'settings')) {
-      store.addRightPanelTab({ id: 'settings', name: '设置', color: 'text-gray-500' })
-    }
-    store.setActiveRightPanelTab('settings')
+    useChatStore.getState().openSettingsPanel('model')
   }
 
   const sourceRepository = useMemo(
