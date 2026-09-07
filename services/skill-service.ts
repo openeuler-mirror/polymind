@@ -16,6 +16,23 @@ import {
 
 export const WITTYHUB_REPO_ID = '__wittyhub__'
 
+/**
+ * WittyHub 实例响应格式兼容：
+ * - 公网实例（如 skillhub.openeuler.org）统一包装为 `{ code, msg, data }`
+ * - 本地实例直接返回裸对象（顶层为 skills/results/total_skills 等）
+ * 检测到 `data` 字段时解包，否则原样返回。
+ */
+function unwrapEnvelope<T>(payload: T): T {
+  if (typeof payload !== 'object' || payload === null) {
+    return payload
+  }
+  const record = payload as Record<string, unknown>
+  if ('data' in record && typeof record.data === 'object' && record.data !== null) {
+    return record.data as T
+  }
+  return payload
+}
+
 class SkillService {
   public async listRepositoryResponses(): Promise<SkillRepositoryResponse[]> {
     const response = await this.fetchRepositorySchemas()
@@ -112,7 +129,8 @@ class SkillService {
       throw new Error(`Failed to load wittyhub stats: ${response.status} ${response.statusText}`)
     }
 
-    return (await response.json()) as WittyHubStatsResponse
+    const payload = await response.json()
+    return unwrapEnvelope<WittyHubStatsResponse>(payload)
   }
 
   private async fetchRepositorySchemas(): Promise<SkillRepositoryResponse[]> {
@@ -174,7 +192,8 @@ class SkillService {
       throw new Error(`Failed to load wittyhub skills: ${response.status} ${response.statusText}`)
     }
 
-    return (await response.json()) as WittyHubSkillListResponse
+    const payload = await response.json()
+    return unwrapEnvelope<WittyHubSkillListResponse>(payload)
   }
 
   private async fetchWittyHubSearchPage(
@@ -199,7 +218,8 @@ class SkillService {
       throw new Error(`Failed to search wittyhub skills: ${response.status} ${response.statusText}`)
     }
 
-    return (await response.json()) as WittyHubSearchResponse
+    const payload = await response.json()
+    return unwrapEnvelope<WittyHubSearchResponse>(payload)
   }
 
   private adaptWittyHubSkill(skill: WittyHubSkillResponse): SkillResponse {

@@ -17,9 +17,5 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
     }
   }, [settings.language])
 
-  return (
-    <>
-      {children}
-    </>
-  )
+  return <>{children}</>
 }

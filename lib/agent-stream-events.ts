@@ -12,6 +12,8 @@ import {
   applyToolCallStarted,
   applyUsageUpdated,
   applyStreamError,
+  isStreamDeltaEvent,
+  handleArtifactEvent,
   QUESTION_TOOL_NAMES,
 } from '@/lib/stream-event-handler'
 import { formatToolOutput } from '@/lib/format-utils'
@@ -107,7 +109,7 @@ export function handleAgentStreamEvent({
             : toolCall
         ),
         events: (currentMessage.events || [])
-          .filter(e => e.type !== 'message.delta')
+          .filter(e => !isStreamDeltaEvent(e))
           .map(event =>
             event.toolCall?.status === 'running'
               ? {
@@ -212,6 +214,11 @@ export function handleAgentStreamEvent({
               ],
         })
       }
+      break
+    case 'artifact.started':
+    case 'artifact.delta':
+    case 'artifact.completed':
+      handleArtifactEvent(eventData, store.updateMessage, conversationId, nextAssistantMessageId)
       break
     case 'usage.updated':
       if (eventData.payload) {

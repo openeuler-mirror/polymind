@@ -106,12 +106,12 @@ function logLength<T extends Lengthwise>(arg: T): T {
 }
 
 // Conditional types
-type TypeName<T> = T extends string 
-  ? 'string' 
-  : T extends number 
-    ? 'number' 
-    : T extends boolean 
-      ? 'boolean' 
+type TypeName<T> = T extends string
+  ? 'string'
+  : T extends number
+    ? 'number'
+    : T extends boolean
+      ? 'boolean'
       : 'object'
 
 // Mapped types
@@ -157,10 +157,10 @@ interface ButtonProps {
 }
 
 // Functional Component with Generics
-function List<T>({ 
-  items, 
-  renderItem 
-}: { 
+function List<T>({
+  items,
+  renderItem
+}: {
   items: T[]
   renderItem: (item: T) => React.ReactNode
 }) {
@@ -231,8 +231,8 @@ function useLocalStorage<T>(key: string, initialValue: T) {
 ```ts
 // Deep partial utility
 type DeepPartial<T> = {
-  [P in keyof T]?: T[P] extends object 
-    ? DeepPartial<T[P]> 
+  [P in keyof T]?: T[P] extends object
+    ? DeepPartial<T[P]>
     : T[P] extends Array<infer U>
       ? Array<DeepPartial<U>>
       : T[P]
@@ -251,10 +251,10 @@ type Constructor<T> = new (...args: any[]) => T
 function formatDate(date: Date): string
 function formatDate(timestamp: number): string
 function formatDate(dateOrTimestamp: Date | number): string {
-  const date = typeof dateOrTimestamp === 'number' 
-    ? new Date(dateOrTimestamp) 
+  const date = typeof dateOrTimestamp === 'number'
+    ? new Date(dateOrTimestamp)
     : dateOrTimestamp
-    
+
   return date.toISOString().split('T')[0]
 }
 

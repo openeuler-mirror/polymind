@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createUISlice, type UISlice } from '../ui-store'
+import { createUISlice, createDefaultUISliceData, type UISlice } from '../ui-store'
 
 const useTestStore = create<UISlice>()((...a) => ({
   ...createUISlice(...a),
@@ -7,16 +7,13 @@ const useTestStore = create<UISlice>()((...a) => ({
 
 describe('UISlice', () => {
   beforeEach(() => {
+    // 用 store 的默认初始数据重置，新增字段自动同步，避免手写平行副本漂移。
     useTestStore.setState({
-      isSidebarOpen: true,
-      isRightPanelOpen: false,
+      ...createDefaultUISliceData(),
       mcpTools: [
         { id: 'web-search', name: '网络搜索', description: '', category: 'search', enabled: true },
         { id: 'code-exec', name: '代码执行', description: '', category: 'code', enabled: true },
       ],
-      rightPanelTabs: [],
-      activeRightPanelTab: null,
-      settingsActiveSection: null,
     })
   })
 
@@ -130,6 +127,68 @@ describe('UISlice', () => {
       useTestStore.getState().setSettingsActiveSection('general')
       useTestStore.getState().setSettingsActiveSection(null)
       expect(useTestStore.getState().settingsActiveSection).toBeNull()
+    })
+  })
+
+  describe('Settings panel navigation', () => {
+    it('should open settings tab and set active section', () => {
+      useTestStore.getState().openSettingsPanel('model')
+      const state = useTestStore.getState()
+      expect(state.activeRightPanelTab).toBe('settings')
+      expect(state.settingsActiveSection).toBe('model')
+      expect(state.rightPanelTabs.some(tab => tab.id === 'settings')).toBe(true)
+      expect(state.isRightPanelOpen).toBe(true)
+    })
+
+    it('should keep existing settings tab instead of duplicating', () => {
+      useTestStore.getState().openSettingsPanel('model')
+      useTestStore.getState().openSettingsPanel('general')
+      const settingsTabs = useTestStore
+        .getState()
+        .rightPanelTabs.filter(tab => tab.id === 'settings')
+      expect(settingsTabs.length).toBe(1)
+      expect(useTestStore.getState().settingsActiveSection).toBe('general')
+    })
+
+    it('should preserve active section when section is omitted', () => {
+      useTestStore.getState().openSettingsPanel('model')
+      useTestStore.getState().openSettingsPanel()
+      expect(useTestStore.getState().settingsActiveSection).toBe('model')
+    })
+  })
+
+  describe('Default model dialog', () => {
+    it('should default to closed', () => {
+      expect(useTestStore.getState().isDefaultModelDialogOpen).toBe(false)
+    })
+
+    it('should open default model dialog', () => {
+      useTestStore.getState().openDefaultModelDialog()
+      expect(useTestStore.getState().isDefaultModelDialogOpen).toBe(true)
+    })
+
+    it('should close default model dialog', () => {
+      useTestStore.getState().openDefaultModelDialog()
+      useTestStore.getState().closeDefaultModelDialog()
+      expect(useTestStore.getState().isDefaultModelDialogOpen).toBe(false)
+    })
+  })
+
+  describe('Sidebar sections', () => {
+    it('should toggle a section collapse state', () => {
+      useTestStore.getState().toggleSidebarSection('scheduled')
+      expect(useTestStore.getState().sidebarSectionsCollapsed.scheduled).toBe(true)
+
+      useTestStore.getState().toggleSidebarSection('scheduled')
+      expect(useTestStore.getState().sidebarSectionsCollapsed.scheduled).toBe(false)
+    })
+
+    it('should toggle a scheduled task folder collapse state', () => {
+      useTestStore.getState().toggleScheduledTaskFolder('task-1')
+      expect(useTestStore.getState().scheduledTaskFoldersCollapsed['task-1']).toBe(true)
+
+      useTestStore.getState().toggleScheduledTaskFolder('task-1')
+      expect(useTestStore.getState().scheduledTaskFoldersCollapsed['task-1']).toBe(false)
     })
   })
 })

@@ -1,0 +1,6 @@
+label: Polymind 用户指南
+isManual: true
+description: PolyMind 是一个原生集成 agentd 服务的自托管 AI Agent 交互平台。
+sections:
+  - label: 使用 Polymind
+    href: ./polymind_user_guide.md

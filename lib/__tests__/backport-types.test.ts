@@ -1,7 +1,4 @@
-import {
-  resetRunAllStateForGeneratedReport,
-  type BackportRunAllUiState,
-} from '../backport-types'
+import { resetRunAllStateForGeneratedReport, type BackportRunAllUiState } from '../backport-types'
 
 describe('resetRunAllStateForGeneratedReport', () => {
   it('clears paused one-click run state when a new report is generated', () => {

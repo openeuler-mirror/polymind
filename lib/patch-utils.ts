@@ -67,7 +67,9 @@ export function parseUnifiedDiff(kind: BackportPatchKind, patchText: string): Pa
   for (const [lineIndex, line] of rawLines.entries()) {
     if (line.startsWith('diff --git ')) {
       const match = /^diff --git a\/(.+?) b\/(.+)$/.exec(line)
-      const filePath = normalizePatchPath(match?.[2] || match?.[1] || `unknown-file-${files.length + 1}`)
+      const filePath = normalizePatchPath(
+        match?.[2] || match?.[1] || `unknown-file-${files.length + 1}`
+      )
       currentFile = {
         id: `patch-file-${files.length}`,
         kind,

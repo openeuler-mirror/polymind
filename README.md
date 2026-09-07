@@ -66,7 +66,7 @@ bash install-local.sh
 - **环境检测** — 检查操作系统、架构，以及 Node.js、pnpm、Python、pip 是否已安装
 - **镜像源配置** — 自动配置华为云镜像加速下载
 - **环境隔离初始化** — 创建 Python 虚拟环境，生成独立的环境配置文件
-- **依赖安装** — 通过 pnpm 安装 `polymind` 前端包和 `openclaw`，通过 pip 安装 `witty-service` 后端包
+- **依赖安装** — 通过 pnpm 安装 `polymind` 前端包、`openclaw` 和 `wittyhub` CLI，通过 pip 安装 `witty-service` 后端包
 - **安装验证** — 验证所有组件是否正确安装
 
 3. 安装完成后，脚本会输出安装摘要：
@@ -149,7 +149,7 @@ PolyMind 使用 `~/.polymind/.env` 作为全局配置文件，首次运行时自
 | `NEXT_PUBLIC_AUTH_TOKEN` | API 访问认证 Token | `dev-token` |
 | `NEXT_PUBLIC_APP_NAME` | 应用名称 | `PolyMind` |
 | `NEXT_PUBLIC_DEBUG` | 调试模式 | `false` |
-| `NEXT_WITTYHUB_API_URL` | WittyHub 技能广场 API 地址 | `http://127.0.0.1:8081` |
+| `NEXT_WITTYHUB_API_URL` | WittyHub 技能广场 API 地址 | `https://skillhub.openeuler.org` |
 
 ### 连接与重试配置
 
@@ -212,14 +212,26 @@ pnpm run start
 
 ## 本地开发
 
-### 环境搭建
+### Dev Container 开发环境（推荐）
+
+项目已配置 [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers)，实现"克隆即开发"的一键式体验。详见 [.devcontainer/README.md](.devcontainer/README.md)。
+
+**快速开始：**
+
+1. 安装 [Docker](https://docs.docker.com/get-docker/) 和 VS Code [Dev Containers 扩展](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+2. 用 VS Code 打开项目，点击 "Reopen in Container"
+3. 容器启动后自动安装依赖，运行 `pnpm dev` 即可开发
+
+容器环境包含：Node.js 24、pnpm 11、pre-commit、ESLint/Prettier/Tailwind CSS 等 VS Code 扩展，与 CI 环境完全一致。
+
+### 传统环境搭建
 
 ```bash
 # 1. 克隆仓库
 git clone https://atomgit.com/openeuler/polymind.git
 cd polymind
 
-# 2. 安装依赖
+# 2. 安装依赖（需要 Node.js >= 22）
 pnpm install
 
 # 3. 根据需要修改 .env 中的配置
@@ -227,6 +239,19 @@ pnpm install
 # 4. 启动开发服务器
 pnpm run dev
 ```
+
+### 代码质量与提交前检查
+
+项目通过 [pre-commit](https://pre-commit.com/) 统一管理本地提交与 CI 门禁：通用 hygiene（行尾空白、EOF、YAML/JSON 语法、合并冲突、大文件、私钥）、Gitleaks 密钥扫描、Codespell 拼写检查、Prettier/ESLint（修复模式）与 commitlint 提交规范，配置见根目录 `.pre-commit-config.yaml`。`pnpm install` 自动注册 Git hooks（`prepare` 脚本）；手动初始化：
+
+```bash
+pip install pre-commit
+# 从旧版 husky 迁移时需先清除 hooksPath，否则 hooks 不会生效
+git config --unset-all core.hooksPath || true
+pre-commit install --hook-type pre-commit --hook-type commit-msg
+```
+
+提交时自动检查暂存区文件；`pnpm run precommit` 全量运行检查，`pnpm run typecheck` 单独执行类型检查。社区门禁（openEuler/GitCode 侧）由 `scripts/ci-pre-commit-pr.sh` 以同一份配置增量运行。详见 [docs/static-code-analysis.md](docs/static-code-analysis.md)。
 
 ### 常用开发命令
 
@@ -236,6 +261,9 @@ pnpm run dev
 | `pnpm run build` | 构建生产包 |
 | `pnpm run start` | 使用构建产物启动服务 |
 | `pnpm run lint` | 运行 ESLint 代码检查 |
+| `pnpm run typecheck` | 运行 TypeScript 类型检查 |
+| `pnpm run precommit` | 全量运行 pre-commit 检查 |
+| `pnpm run quality` | 全量质量检查（lint + format:check + typecheck） |
 | `pnpm run test` | 运行 Jest 测试 |
 
 ### 项目结构

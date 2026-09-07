@@ -1,13 +1,6 @@
 'use client'
 
-import {
-  Code2,
-  FileSearch,
-  Lightbulb,
-  MessageSquare,
-  Sparkles,
-  Zap,
-} from 'lucide-react'
+import { Code2, FileSearch, Lightbulb, MessageSquare, Sparkles, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface PromptSuggestion {
@@ -68,7 +61,7 @@ export function WelcomeScreen({ onAddPrompt }: WelcomeScreenProps) {
       </div>
 
       <div className="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
-        {suggestions.map((suggestion) => (
+        {suggestions.map(suggestion => (
           <Button
             key={suggestion.id}
             variant="outline"
@@ -79,9 +72,7 @@ export function WelcomeScreen({ onAddPrompt }: WelcomeScreenProps) {
               <suggestion.icon className="h-4 w-4 text-primary" />
               <span className="font-medium">{suggestion.title}</span>
             </div>
-            <span className="text-sm text-muted-foreground">
-              {suggestion.description}
-            </span>
+            <span className="text-sm text-muted-foreground">{suggestion.description}</span>
           </Button>
         ))}
       </div>

@@ -1,7 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Code, FileText, Terminal, Globe, GitBranch, Figma, Bot, Settings, LayoutGrid } from 'lucide-react'
+import {
+  X,
+  Code,
+  FileText,
+  Terminal,
+  Globe,
+  GitBranch,
+  Figma,
+  Bot,
+  Settings,
+  LayoutGrid,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
@@ -27,8 +38,6 @@ export function RightPanel() {
 
   return (
     <div className="flex h-full flex-col border-l border-border bg-sidebar">
-      
-
       {/* Tools Content */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-xs">
@@ -36,7 +45,7 @@ export function RightPanel() {
             <p className="text-sm text-muted-foreground">使用工具，扩展更多能力</p>
           </div>
           <div className="grid grid-cols-3 gap-4">
-            {tools.map((tool) => (
+            {tools.map(tool => (
               <Button
                 key={tool.id}
                 variant="outline"
@@ -61,10 +70,7 @@ export function RightPanelToggle() {
       variant="ghost"
       size="icon"
       onClick={toggleRightPanel}
-      className={cn(
-        "transition-colors",
-        isRightPanelOpen ? "bg-accent" : "hover:bg-accent"
-      )}
+      className={cn('transition-colors', isRightPanelOpen ? 'bg-accent' : 'hover:bg-accent')}
     >
       <LayoutGrid className="h-5 w-5" />
       <span className="sr-only">切换工具面板</span>

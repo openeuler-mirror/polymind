@@ -176,13 +176,18 @@ class MessageService {
 
   public abortMessage(agentId: string, sessionId?: string): void {
     const controller = this.streamingControllers[agentId]
-    if (!controller) return
-    controller.abort()
-    delete this.streamingControllers[agentId]
+    if (controller) {
+      controller.abort()
+      delete this.streamingControllers[agentId]
+    }
 
-    // 直接调用 HTTP abort 端点，确保后端同步中断（不依赖 SSE 断连检测）
+    // 直接调用 HTTP abort 端点，确保后端同步中断（不依赖 SSE 断连检测）。
+    // 定时任务执行流由 subscribeRunStream 驱动，没有登记在 streamingControllers，
+    // 因此不能因缺少本地 controller 就短路返回，否则后端永远收不到 abort。
     if (sessionId) {
-      sessionService.abortSession(agentId, sessionId)
+      void sessionService.abortSession(agentId, sessionId).catch(error => {
+        console.error('Failed to abort session:', error)
+      })
     }
   }
 
@@ -217,19 +222,55 @@ class MessageService {
   public async reconnectStream(
     agentId: string,
     sessionId: string,
-    onEvent?: (event: any) => void
+    onEvent?: (event: any) => void,
+    timeoutMs?: number,
+    externalSignal?: AbortSignal
   ): Promise<any[]> {
     const url = `/agents/${agentId}/sessions/${sessionId}/messages/stream/reconnect`
     const fullUrl = `${appConfig.api.baseUrl}${url}`
-    const options = buildSSERequestOptions()
-    const response = await fetch(fullUrl, options)
-    if (!response.ok) {
-      const errorBody = await response.text()
-      console.error('Reconnect stream error:', response.status, errorBody)
-      throw new Error(`Reconnect stream failed: ${response.status} ${errorBody}`)
+    const controller = new AbortController()
+    let idleTimer: ReturnType<typeof setTimeout> | undefined
+
+    // 外部取消（如定时任务被删除）与空闲超时共用同一个 controller，
+    // 任一触发都会中止本次挂流请求。
+    const abort = () => controller.abort()
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        controller.abort()
+      } else {
+        externalSignal.addEventListener('abort', abort, { once: true })
+      }
     }
 
-    return parseSSEStream(response, onEvent, '[Reconnect]')
+    // 流活跃时会持续收到事件；只有“长时间一个事件都没有”才判定为挂死/空流，
+    // 中止本次请求，让调用方按 run 状态决定重试或兜底，避免转圈永远不结束。
+    const armIdleTimeout = () => {
+      if (!timeoutMs) return
+      if (idleTimer) clearTimeout(idleTimer)
+      idleTimer = setTimeout(() => controller.abort(), timeoutMs)
+    }
+    armIdleTimeout()
+    const wrappedOnEvent = onEvent
+      ? (event: any) => {
+          armIdleTimeout()
+          onEvent(event)
+        }
+      : undefined
+
+    try {
+      const options = buildSSERequestOptions({ signal: controller.signal })
+      const response = await fetch(fullUrl, options)
+      if (!response.ok) {
+        const errorBody = await response.text()
+        console.error('Reconnect stream error:', response.status, errorBody)
+        throw new Error(`Reconnect stream failed: ${response.status} ${errorBody}`)
+      }
+
+      return await parseSSEStream(response, wrappedOnEvent, '[Reconnect]')
+    } finally {
+      if (idleTimer) clearTimeout(idleTimer)
+      externalSignal?.removeEventListener('abort', abort)
+    }
   }
 
   /**

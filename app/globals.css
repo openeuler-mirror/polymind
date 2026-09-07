@@ -20,7 +20,7 @@
   --accent-foreground: oklch(0.145 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.90 0 0);
+  --border: oklch(0.9 0 0);
   --input: oklch(0.92 0 0);
   --ring: oklch(0.45 0.2 260);
   --chart-1: oklch(0.646 0.222 41.116);
@@ -35,7 +35,7 @@
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.94 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.90 0 0);
+  --sidebar-border: oklch(0.9 0 0);
   --sidebar-ring: oklch(0.45 0.2 260);
 }
 
@@ -122,18 +122,20 @@
   body {
     @apply bg-background text-foreground;
   }
-  
+
   /* 统一输入元素样式 */
-  input, textarea, select {
+  input,
+  textarea,
+  select {
     @apply bg-transparent dark:bg-input/30 text-foreground;
   }
-  
+
   /* 暗色模式下的下拉框样式 */
   .dark select {
     background-color: var(--input);
     color: var(--foreground);
   }
-  
+
   /* 暗色模式下的下拉选项样式 */
   .dark select option {
     background-color: var(--background);
@@ -163,8 +165,14 @@
 
 /* Typing animation */
 @keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .animate-blink {
@@ -173,8 +181,14 @@
 
 /* Message streaming animation */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-message-in {
@@ -183,8 +197,14 @@
 
 /* Tool panel slide animation */
 @keyframes slideIn {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .animate-slide-in {

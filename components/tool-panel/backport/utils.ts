@@ -2,6 +2,7 @@ import type {
   BackportCommitItem,
   BackportCommitRow,
   BackportConfig,
+  BackportOperationDiagnostics,
   BackportPatchKind,
   BackportPatchMap,
   BackportPatchPreviewResponse,
@@ -9,10 +10,22 @@ import type {
   BackportRunSummaryCase,
   BackportStage,
 } from '@/lib/backport-types'
+import type { ModelConfig } from '@/lib/types'
+
+export interface BackportModelResolution {
+  modelId: string
+  repaired: boolean
+  shouldOpenSelector: boolean
+}
+
+const TARGET_REPOSITORY_LOCK_TIMEOUT = 'TARGET_REPOSITORY_LOCK_TIMEOUT'
 
 export const DEFAULT_COMMIT_MESSAGE_TEMPLATE = `{{subject}}
 
+{{body_prefix}}
+
 commit {{commit_id}} {{source}}
+{{body_separator}}
 
 {{body}}
 
@@ -43,7 +56,34 @@ export const DEFAULT_BACKPORT_CONFIG: BackportConfig = {
   target_repo_input: '',
   source_repo_state: null,
   target_repo_state: null,
+  enable_prerequisite_scan: false,
   cvekit_options: {},
+}
+
+export function resolveBackportModelReference(
+  savedModelId: string,
+  compatibleModels: readonly ModelConfig[]
+): BackportModelResolution {
+  const normalizedModelId = savedModelId.trim()
+  const configuredModelExists = compatibleModels.some(model => model.id === normalizedModelId)
+  if (configuredModelExists) {
+    return {
+      modelId: normalizedModelId,
+      repaired: false,
+      shouldOpenSelector: false,
+    }
+  }
+
+  const fallbackModel =
+    compatibleModels.find(model => model.isDefault) ||
+    (compatibleModels.length === 1 ? compatibleModels[0] : null)
+  const repaired = Boolean(normalizedModelId)
+
+  return {
+    modelId: fallbackModel?.id || '',
+    repaired,
+    shouldOpenSelector: repaired && !fallbackModel && compatibleModels.length > 1,
+  }
 }
 
 export type RowStatusKind =
@@ -54,6 +94,23 @@ export type RowStatusKind =
   | 'skipped'
   | 'unmatched'
   | 'pending'
+
+export function resolveBackportFailureMessage(
+  diagnostics: BackportOperationDiagnostics | null | undefined,
+  fallback: string
+): string {
+  if (
+    diagnostics?.code === TARGET_REPOSITORY_LOCK_TIMEOUT &&
+    diagnostics.retryable === true
+  ) {
+    const waitText =
+      typeof diagnostics.wait_seconds === 'number'
+        ? `已等待 ${Math.round(diagnostics.wait_seconds)} 秒。`
+        : ''
+    return `目标仓库正被其他任务使用，等待超时。${waitText}请稍后手动重试。`
+  }
+  return fallback || diagnostics?.error_text || 'Backport 执行失败'
+}
 
 export function resolveRunSummaryDetectionText(item: BackportRunSummaryCase): string {
   if (item.detection.state === 'running') return '检测中'
@@ -171,14 +228,11 @@ function conflictReportStatusLabel(status: string): string {
   return labels[normalized] || status || '未知'
 }
 
-export function buildConflictReportText(
-  rows: BackportCommitRow[],
-  enabled: boolean,
-): string {
+export function buildConflictReportText(rows: BackportCommitRow[], enabled: boolean): string {
   if (!enabled) return ''
 
   const sections = rows
-    .map((row) => {
+    .map(row => {
       const commit = stringifyValue(row.data.commit || row.data.input_commit).trim()
       const shortCommit = commit ? commit.slice(0, 12) : '未知 commit'
       const title = resolveCommitTitle(row.data)
@@ -214,14 +268,9 @@ export function buildConflictReportText(
       const error = stringifyValue(summaryData.error).trim()
 
       if (normalizedStatus === 'success') {
-        return [
-          heading,
-          '',
-          `评分：${score || '-'}`,
-          '',
-          '原因：',
-          reason || '未返回原因',
-        ].join('\n')
+        return [heading, '', `评分：${score || '-'}`, '', '原因：', reason || '未返回原因'].join(
+          '\n'
+        )
       }
 
       const lines = [heading, '', `状态：${conflictReportStatusLabel(status)}`]

@@ -6,17 +6,46 @@ import { cacheDelete, CACHE_KEYS } from '../cache'
 import { appConfig } from '@/app/config'
 import { sessionService } from '@/services/session-service'
 import { messageService } from '@/services/message-service'
+import { abortScheduledRunForSession } from './scheduled-run-controller'
 import { syncUrlParams, getUrlParam } from './utils'
 import type { StoreState } from './index'
+
+/** 计算移除某会话后的 state 变化并同步 URL：若删除的是当前会话，则回退到下一个会话（或清空）。 */
+function computeRemovalState(
+  prev: {
+    conversations: Conversation[]
+    currentConversationId: string | null
+    currentAgentId?: string | null
+  },
+  removedId: string
+): { filtered: Conversation[]; newCurrentId: string | null } {
+  const filtered = prev.conversations.filter(c => c.id !== removedId)
+  const newCurrentId =
+    prev.currentConversationId === removedId ? filtered[0]?.id || null : prev.currentConversationId
+
+  if (prev.currentConversationId === removedId) {
+    if (newCurrentId) {
+      const newConv = filtered.find(c => c.id === newCurrentId)
+      if (newConv) {
+        syncUrlParams(newConv.agentId, newConv.sessionId)
+      }
+    } else {
+      syncUrlParams(prev.currentAgentId || undefined)
+    }
+  }
+  return { filtered, newCurrentId }
+}
 
 export interface ChatSlice {
   conversations: Conversation[]
   currentConversationId: string | null
   createConversation: (agentId?: string, agentName?: string) => Promise<string>
-  createLocalConversation: (agentId: string, agentName?: string) => string
+  createLocalConversation: (agentId: string, agentName?: string, sessionId?: string) => string
   assignSessionToConversation: (convId: string, sessionId: string) => void
+  markConversationScheduled: (conversationId: string, taskId: string) => void
+  purgeConversationsByScheduledTask: (taskId: string) => void
   startNewTask: (agentId: string) => void
-  deleteConversation: (id: string) => Promise<void>
+  deleteConversation: (id: string) => Promise<boolean>
   setCurrentConversation: (id: string) => void
   addMessage: (conversationId: string, message: Message) => void
   updateMessage: (
@@ -30,7 +59,16 @@ export interface ChatSlice {
   updateConversationTitle: (id: string, title: string) => void
   togglePinConversation: (id: string) => void
   fetchConversations: (agentId: string) => Promise<void>
-  refreshConversation: (agentId: string, sessionId: string) => Promise<void>
+  refreshConversation: (
+    agentId: string,
+    sessionId: string,
+    meta?: {
+      scheduledTaskId?: string
+      lastMessageStatus?: MessageStatus
+      /** 刷新后是否把该会话切换为当前会话；默认 true，后台回填时应传 false。 */
+      activate?: boolean
+    }
+  ) => Promise<void>
   loadMoreMessages: (agentId: string, sessionId: string, before: string) => Promise<void>
 }
 
@@ -78,45 +116,36 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
     return id
   },
 
+  /**
+   * 删除会话（本地会话 + 后端会话）— 确认式删除。
+   * 后端删除成功（或本地未持久化/mock 模式）才移除本地条目；后端删除失败时
+   * 保留本地条目并返回 false，由调用方提示用户重试，保证本地视图与后端真相一致。
+   * 副作用：对定时任务会话（scheduledTaskId 有值），后端删除成功后才中止其本地 SSE 挂流
+   */
   deleteConversation: async id => {
     const state = get()
     const conversation = state.conversations.find(c => c.id === id)
-
-    if (conversation?.sessionId && conversation?.agentId) {
+    if (conversation?.sessionId && conversation?.agentId && !appConfig.app.useMockData) {
       try {
-        if (!appConfig.app.useMockData) {
-          await sessionService.deleteSession(conversation.agentId, conversation.sessionId)
-        }
+        await sessionService.deleteSession(conversation.agentId, conversation.sessionId)
       } catch (error) {
         console.error('Failed to delete session:', error)
+        return false
       }
     }
-
+    if (conversation?.scheduledTaskId && conversation.sessionId) {
+      abortScheduledRunForSession(conversation.sessionId)
+    }
     cacheDelete(CACHE_KEYS.CONVERSATIONS_WITH_NAMES)
 
-    // Compute URL sync params before set() so the reducer stays pure
     const prevState = get()
-    const filtered = prevState.conversations.filter(c => c.id !== id)
-    const newCurrentId =
-      prevState.currentConversationId === id
-        ? filtered[0]?.id || null
-        : prevState.currentConversationId
-
-    if (prevState.currentConversationId === id) {
-      if (newCurrentId) {
-        const newConv = filtered.find(c => c.id === newCurrentId)
-        if (newConv) {
-          syncUrlParams(newConv.agentId, newConv.sessionId)
-        }
-      } else {
-        syncUrlParams(prevState.currentAgentId || undefined)
-      }
-    }
+    const { filtered, newCurrentId } = computeRemovalState(prevState, id)
 
     set({
       conversations: filtered,
       currentConversationId: newCurrentId,
     })
+    return true
   },
 
   deleteMessage: (conversationId, messageId) => {
@@ -172,18 +201,32 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
 
   updateMessage: (conversationId, messageId, updates) => {
     set(state => ({
-      conversations: state.conversations.map(c =>
-        c.id === conversationId
-          ? {
-              ...c,
-              messages: c.messages.map(m =>
-                m.id === messageId
-                  ? { ...m, ...(typeof updates === 'function' ? updates(m) : updates) }
-                  : m
-              ),
-            }
-          : c
-      ),
+      conversations: state.conversations.map(c => {
+        if (c.id !== conversationId) return c
+        const before = c.messages.find(m => m.id === messageId)
+        const messages = c.messages.map(m =>
+          m.id === messageId
+            ? { ...m, ...(typeof updates === 'function' ? updates(m) : updates) }
+            : m
+        )
+        const after = messages.find(m => m.id === messageId)
+        // 只有状态发生跳变（如 streaming → completed/error）才刷新会话级
+        // lastMessageStatus 与 updatedAt，避免 message.delta 每次都触发侧栏重排。
+        const statusChanged = !!after?.status && before?.status !== after.status
+        const lastAssistantWithStatus = [...messages]
+          .reverse()
+          .find(m => m.role === 'assistant' && m.status)
+        return {
+          ...c,
+          messages,
+          ...(statusChanged
+            ? {
+                lastMessageStatus: lastAssistantWithStatus?.status ?? c.lastMessageStatus,
+                updatedAt: new Date(),
+              }
+            : {}),
+        }
+      }),
     }))
   },
 
@@ -211,51 +254,62 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
     const agentId = conversation?.agentId || state.currentAgentId
     if (agentId) {
       set({ _stoppingInProgress: true })
+      // 定时任务执行流的本地挂流由 scheduled-run-controller 管理，
+      // 需要单独中止；messageService.abortMessage 会继续向后端发 abort。
+      if (conversation?.scheduledTaskId && conversation.sessionId) {
+        abortScheduledRunForSession(conversation.sessionId)
+      }
       messageService.abortMessage(agentId, conversation?.sessionId)
     }
 
     set(state => ({
       _stoppingInProgress: false,
-      conversations: state.conversations.map(conv =>
-        conv.id === conversationId
-          ? {
-              ...conv,
-              isStreaming: false,
-              messages: conv.messages.map(message =>
-                message.role === 'assistant' &&
-                (message.isStreaming ||
-                  message.toolCalls?.some(toolCall => toolCall.status === 'running'))
-                  ? {
-                      ...message,
-                      isStreaming: false,
-                      status: MessageStatus.INTERRUPTED,
-                      toolCalls: message.toolCalls?.map(toolCall =>
-                        toolCall.status === 'running'
-                          ? {
-                              ...toolCall,
-                              status: 'error' as const,
-                              error: toolCall.error || '已停止生成',
-                            }
-                          : toolCall
-                      ),
-                      events: message.events?.map(event =>
-                        event.toolCall?.status === 'running'
-                          ? {
-                              ...event,
-                              toolCall: {
-                                ...event.toolCall,
-                                status: 'error' as const,
-                                error: event.toolCall.error || '已停止生成',
-                              },
-                            }
-                          : event
-                      ),
-                    }
-                  : message
-              ),
-            }
-          : conv
-      ),
+      conversations: state.conversations.map(conv => {
+        if (conv.id !== conversationId) return conv
+        const hadStreaming = conv.messages.some(
+          message =>
+            message.role === 'assistant' &&
+            (message.isStreaming ||
+              message.toolCalls?.some(toolCall => toolCall.status === 'running'))
+        )
+        return {
+          ...conv,
+          isStreaming: false,
+          lastMessageStatus: hadStreaming ? MessageStatus.INTERRUPTED : conv.lastMessageStatus,
+          messages: conv.messages.map(message =>
+            message.role === 'assistant' &&
+            (message.isStreaming ||
+              message.toolCalls?.some(toolCall => toolCall.status === 'running'))
+              ? {
+                  ...message,
+                  isStreaming: false,
+                  status: MessageStatus.INTERRUPTED,
+                  toolCalls: message.toolCalls?.map(toolCall =>
+                    toolCall.status === 'running'
+                      ? {
+                          ...toolCall,
+                          status: 'error' as const,
+                          error: toolCall.error || '已停止生成',
+                        }
+                      : toolCall
+                  ),
+                  events: message.events?.map(event =>
+                    event.toolCall?.status === 'running'
+                      ? {
+                          ...event,
+                          toolCall: {
+                            ...event.toolCall,
+                            status: 'error' as const,
+                            error: event.toolCall.error || '已停止生成',
+                          },
+                        }
+                      : event
+                  ),
+                }
+              : message
+          ),
+        }
+      }),
     }))
   },
 
@@ -264,7 +318,11 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
     set(state => {
       const idx = state.conversations.findIndex(c => c.id === id)
       if (idx === -1) return state
-      const updated = { ...state.conversations[idx], title, updatedAt: new Date() }
+      const updated = {
+        ...state.conversations[idx],
+        title,
+        updatedAt: new Date(),
+      }
       const next = [...state.conversations]
       next.splice(idx, 1)
       next.unshift(updated)
@@ -320,12 +378,17 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
     }
   },
 
-  refreshConversation: async (agentId, sessionId) => {
+  refreshConversation: async (agentId, sessionId, meta) => {
     try {
       const detail = await sessionService.getConversation(agentId, sessionId)
       const messages = (detail.messages || []).map((msg: any) =>
         sessionService.transformMessage(msg)
       )
+      const hasStreaming = messages.some((m: Message) => m.isStreaming)
+      const lastMessageStatus =
+        meta?.lastMessageStatus ??
+        [...messages].reverse().find((m: Message) => m.role === 'assistant' && m.status)?.status
+      const activate = meta?.activate !== false
       set(state => {
         const existing = state.conversations.find(c => c.sessionId === sessionId)
         if (existing) {
@@ -337,13 +400,22 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
                     messages,
                     hasMore: detail.has_more ?? false,
                     updatedAt: new Date(detail.updated_at),
+                    title: detail.title || c.title,
+                    lastMessageStatus,
+                    scheduledTaskId:
+                      detail.scheduled_task_id ?? meta?.scheduledTaskId ?? c.scheduledTaskId,
+                    // 会话当前正在生成且后端尚未返回任何消息（如刚建会话任务仍在执行）时，
+                    // 保留 isStreaming，避免空消息把占位会话的流式状态误覆盖为 false。
+                    isStreaming: hasStreaming || (c.isStreaming && messages.length === 0),
                   }
                 : c
             ),
-            currentConversationId: existing.id,
-            currentAgentId: agentId,
+            ...(activate ? { currentConversationId: existing.id, currentAgentId: agentId } : {}),
           }
         }
+        // 后台回填（activate: false）时本地已无该会话（如刚随任务删除被清理），
+        // 不得新建占位会话，避免复活为无人认领的孤儿条目。
+        if (!activate) return state
         const placeholder: Conversation = {
           id: generateUUID(),
           title: detail.title || '新对话',
@@ -352,13 +424,18 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
           updatedAt: new Date(detail.updated_at),
           pinned: detail.pinned,
           agentId,
+          // 定时任务会话被点击后由摘要条目切换为本地会话渲染（侧栏按 sessionId
+          // 去重掉摘要），需补齐与摘要一致的“定时”徽标，避免点击后徽标消失。
+          agentName: (detail.scheduled_task_id ?? meta?.scheduledTaskId) ? '定时' : undefined,
           sessionId,
+          scheduledTaskId: detail.scheduled_task_id ?? meta?.scheduledTaskId,
+          isStreaming: hasStreaming,
+          lastMessageStatus,
           hasMore: detail.has_more ?? false,
         }
         return {
           conversations: [placeholder, ...state.conversations],
-          currentConversationId: placeholder.id,
-          currentAgentId: agentId,
+          ...(activate ? { currentConversationId: placeholder.id, currentAgentId: agentId } : {}),
         }
       })
     } catch (error) {
@@ -396,9 +473,9 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
     }
   },
 
-  createLocalConversation: (agentId, agentName) => {
+  createLocalConversation: (agentId, agentName, sessionId) => {
     const id = generateUUID()
-    syncUrlParams(agentId)
+    syncUrlParams(agentId, sessionId)
     set(state => ({
       conversations: [
         {
@@ -409,6 +486,7 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
           updatedAt: new Date(),
           agentId,
           agentName,
+          sessionId,
           isStreaming: false,
         },
         ...state.conversations,
@@ -425,6 +503,44 @@ export const createChatSlice: StateCreator<StoreState, [], [], ChatSlice> = (set
     set(state => ({
       conversations: state.conversations.map(c => (c.id === convId ? { ...c, sessionId } : c)),
     }))
+  },
+
+  markConversationScheduled: (conversationId, taskId) => {
+    set(state => ({
+      conversations: state.conversations.map(c =>
+        c.id === conversationId ? { ...c, scheduledTaskId: taskId } : c
+      ),
+    }))
+  },
+
+  purgeConversationsByScheduledTask: taskId => {
+    const prevState = get()
+    const removedIds = new Set(
+      prevState.conversations.filter(c => c.scheduledTaskId === taskId).map(c => c.id)
+    )
+    if (removedIds.size === 0) return
+
+    cacheDelete(CACHE_KEYS.CONVERSATIONS_WITH_NAMES)
+
+    const filtered = prevState.conversations.filter(c => !removedIds.has(c.id))
+    const removedCurrent = prevState.currentConversationId
+      ? removedIds.has(prevState.currentConversationId)
+      : false
+    const newCurrentId = removedCurrent ? filtered[0]?.id || null : prevState.currentConversationId
+
+    if (removedCurrent) {
+      if (newCurrentId) {
+        const nextConv = filtered.find(c => c.id === newCurrentId)
+        if (nextConv) syncUrlParams(nextConv.agentId, nextConv.sessionId)
+      } else {
+        syncUrlParams(prevState.currentAgentId || undefined)
+      }
+    }
+
+    set({
+      conversations: filtered,
+      currentConversationId: newCurrentId,
+    })
   },
 
   startNewTask: agentId => {

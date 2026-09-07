@@ -140,7 +140,6 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
           status: AgentStatus.RUNNING,
           sandboxId: undefined,
           defaultSessionId: undefined,
-          hasScheduledTasks: false,
           idleTimeoutSeconds: config.idleTimeoutSeconds ?? 300,
           createdAt: now,
           updatedAt: now,
@@ -189,17 +188,15 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
           for (const item of enriched) {
             const agentName = item.name
             for (const summary of item.conversations || []) {
-              const sessId: string = summary.id
-              sessionAgentNames.push([sessId, agentName])
+              sessionAgentNames.push([summary.id, agentName])
               allConversations.push(sessionService.transformConversationSummary(summary, agentName))
             }
           }
 
-          const newConversations = deduplicateConversations(get().conversations, allConversations)
-
           cacheSetAll({ agents, conversations: allConversations, sessionAgentNames }, 2 * 60 * 1000)
 
           set(state => {
+            const newConversations = deduplicateConversations(state.conversations, allConversations)
             const patched = patchAgentNames(state.conversations, sessionAgentNames).filter(
               c => !c.agentId || agentIds.has(c.agentId)
             )

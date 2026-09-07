@@ -1,8 +1,24 @@
 import {
   DEFAULT_BACKPORT_CONFIG,
   normalizeBackportConfig,
+  resolveBackportFailureMessage,
+  resolveBackportModelReference,
 } from '@/components/tool-panel/backport/utils'
 import type { BackportConfig } from '@/lib/backport-types'
+import type { ModelConfig } from '@/lib/types'
+
+function model(overrides: Partial<ModelConfig> = {}): ModelConfig {
+  return {
+    id: 'model-1',
+    name: 'Model 1',
+    provider: 'openai',
+    enabled: true,
+    isDefault: false,
+    createdAt: '2026-08-27T00:00:00Z',
+    updatedAt: '2026-08-27T00:00:00Z',
+    ...overrides,
+  }
+}
 
 describe('normalizeBackportConfig', () => {
   it('defaults target config layout to disabled with the recommended level', () => {
@@ -38,5 +54,71 @@ describe('normalizeBackportConfig', () => {
     expect(config.target_config_layout_opts).toEqual(
       DEFAULT_BACKPORT_CONFIG.target_config_layout_opts
     )
+  })
+})
+
+describe('resolveBackportFailureMessage', () => {
+  it('shows a manual retry message for a retryable repository lock timeout', () => {
+    expect(
+      resolveBackportFailureMessage(
+        {
+          code: 'TARGET_REPOSITORY_LOCK_TIMEOUT',
+          retryable: true,
+          wait_seconds: 2.1,
+          timeout_seconds: 2,
+        },
+        'raw error'
+      )
+    ).toBe('目标仓库正被其他任务使用，等待超时。已等待 2 秒。请稍后手动重试。')
+  })
+
+  it('keeps the existing message for other errors', () => {
+    expect(resolveBackportFailureMessage({ code: 'OTHER_ERROR' }, '原始错误')).toBe('原始错误')
+  })
+})
+
+describe('resolveBackportModelReference', () => {
+  it('preserves an existing configured model', () => {
+    expect(resolveBackportModelReference('model-1', [model()])).toEqual({
+      modelId: 'model-1',
+      repaired: false,
+      shouldOpenSelector: false,
+    })
+  })
+
+  it('repairs a stale model reference with the default model', () => {
+    const models = [model(), model({ id: 'model-2', isDefault: true })]
+
+    expect(resolveBackportModelReference('deleted-model', models)).toEqual({
+      modelId: 'model-2',
+      repaired: true,
+      shouldOpenSelector: false,
+    })
+  })
+
+  it('repairs a stale model reference with the only compatible model', () => {
+    expect(resolveBackportModelReference('deleted-model', [model()])).toEqual({
+      modelId: 'model-1',
+      repaired: true,
+      shouldOpenSelector: false,
+    })
+  })
+
+  it('clears a stale reference and opens the selector when a choice is required', () => {
+    const models = [model(), model({ id: 'model-2' })]
+
+    expect(resolveBackportModelReference('deleted-model', models)).toEqual({
+      modelId: '',
+      repaired: true,
+      shouldOpenSelector: true,
+    })
+  })
+
+  it('clears a stale reference when no compatible models remain', () => {
+    expect(resolveBackportModelReference('deleted-model', [])).toEqual({
+      modelId: '',
+      repaired: true,
+      shouldOpenSelector: false,
+    })
   })
 })

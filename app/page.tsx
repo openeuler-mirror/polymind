@@ -7,12 +7,15 @@ import { AgentStatus } from '@/lib/types'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
+import { modelService } from '@/services/model-service'
+import { DefaultModelDialog } from '@/components/settings/model/default-model-dialog'
 
 export default function Home() {
   const { isSidebarOpen, isRightPanelOpen } = useChatStore()
   const isMobile = useIsMobile()
 
   // 全局初始化：拉取 agents 和 conversations，URL 无 agent 时默认选第一个
+  // 并行拉取模型配置，用于"默认模型首检弹窗"判定（F1）
   useEffect(() => {
     useChatStore
       .getState()
@@ -30,6 +33,19 @@ export default function Home() {
       .catch(err => {
         console.error('Failed to fetch agents:', err)
       })
+
+    modelService
+      .getModels()
+      .then(models => {
+        const hasActiveDefault = models.some(m => m.enabled && m.isDefault)
+        if (!hasActiveDefault) {
+          useChatStore.getState().openDefaultModelDialog()
+        }
+      })
+      .catch(err => {
+        // 模型加载失败时静默降级：不弹窗、不打断首页初始化。
+        console.error('Failed to fetch models:', err)
+      })
   }, [])
 
   return (
@@ -46,7 +62,7 @@ export default function Home() {
 
       {/* Main Content Area - ChatArea always rendered in same position */}
       <ResizablePanelGroup direction="horizontal" className="flex-1">
-        <ResizablePanel id="main" order={1} defaultSize={isRightPanelOpen ? 30 : 100} minSize={20}>
+        <ResizablePanel id="main" order={1} defaultSize={isRightPanelOpen ? 50 : 100} minSize={20}>
           <div className="h-full flex flex-col">
             <ChatArea />
           </div>
@@ -55,12 +71,15 @@ export default function Home() {
         {isRightPanelOpen && (
           <>
             <ResizableHandle />
-            <ResizablePanel id="right-panel" order={2} defaultSize={70} minSize={40} maxSize={80}>
+            <ResizablePanel id="right-panel" order={2} defaultSize={50} minSize={40} maxSize={70}>
               <RightPanel />
             </ResizablePanel>
           </>
         )}
       </ResizablePanelGroup>
+
+      {/* 默认模型首检弹窗（F1）：无有效默认模型时首次进首页拉起 */}
+      <DefaultModelDialog />
     </main>
   )
 }

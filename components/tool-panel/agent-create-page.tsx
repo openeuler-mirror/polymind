@@ -14,7 +14,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { agentService } from '@/services/agent-service'
 import { modelService } from '@/services/model-service'
-import { SandboxType, ModelConfig } from '@/lib/types'
+import { SandboxType, ModelConfig, AdapterType } from '@/lib/types'
 import { useChatStore } from '@/lib/store'
 import {
   Bot,
@@ -34,10 +34,18 @@ interface AgentCreatePageProps {
 }
 
 export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
-  const [agentForm, setAgentForm] = useState({
+  const [agentForm, setAgentForm] = useState<{
+    name: string
+    description: string
+    adapterType: AdapterType | string
+    sandboxType: SandboxType
+    idleTimeout: number
+    icon: string
+    modelId: string
+  }>({
     name: '',
     description: '',
-    adapterType: 'openclaw',
+    adapterType: AdapterType.OPENCLAW,
     sandboxType: SandboxType.LOCAL_PROCESS,
     idleTimeout: 3600,
     icon: 'bot',
@@ -53,10 +61,6 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
   const iconSelectorRef = useRef<HTMLDivElement>(null)
   const addAgent = useChatStore(state => state.addAgent)
   const setCurrentAgent = useChatStore(state => state.setCurrentAgent)
-  const rightPanelTabs = useChatStore(state => state.rightPanelTabs)
-  const setSettingsActiveSection = useChatStore(state => state.setSettingsActiveSection)
-  const addRightPanelTab = useChatStore(state => state.addRightPanelTab)
-  const setActiveRightPanelTab = useChatStore(state => state.setActiveRightPanelTab)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -291,8 +295,9 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                   <SelectValue placeholder="选择适配器类型" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="openclaw">OpenClaw</SelectItem>
-                  <SelectItem value="opencode">OpenCode</SelectItem>
+                  <SelectItem value={AdapterType.OPENCLAW}>OpenClaw</SelectItem>
+                  <SelectItem value={AdapterType.OPENCODE}>OpenCode</SelectItem>
+                  <SelectItem value={AdapterType.DSH}>Deepseek Harness</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -328,17 +333,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      setSettingsActiveSection('model')
-                      const existingTab = rightPanelTabs.find(tab => tab.id === 'settings')
-                      if (!existingTab) {
-                        addRightPanelTab({
-                          id: 'settings',
-                          name: '设置',
-                          icon: Settings,
-                          color: 'text-gray-500',
-                        })
-                      }
-                      setActiveRightPanelTab('settings')
+                      useChatStore.getState().openSettingsPanel('model')
                     }}
                   >
                     <Plus className="w-3 h-3 mr-1" />

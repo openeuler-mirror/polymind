@@ -65,7 +65,7 @@ The script will automatically:
 - **Environment Detection** — Check OS, architecture, and if Node.js, pnpm, Python, pip are installed
 - **Mirror Configuration** — Automatically configure Huawei Cloud mirrors for faster downloads
 - **Environment Isolation** — Create Python virtual environment and generate isolated environment profile
-- **Dependency Installation** — Install `polymind` frontend and `openclaw` via pnpm, `witty-service` backend via pip
+- **Dependency Installation** — Install `polymind` frontend, `openclaw`, and the `wittyhub` CLI via pnpm, `witty-service` backend via pip
 - **Installation Verification** — Verify all components are correctly installed
 
 3. After installation, the script will output an installation summary:
@@ -148,7 +148,7 @@ PolyMind uses `~/.polymind/.env` as the global configuration file, which is auto
 | `NEXT_PUBLIC_AUTH_TOKEN` | API access token | `dev-token` |
 | `NEXT_PUBLIC_APP_NAME` | Application name | `PolyMind` |
 | `NEXT_PUBLIC_DEBUG` | Debug mode | `false` |
-| `NEXT_WITTYHUB_API_URL` | WittyHub skill marketplace API URL | `http://127.0.0.1:8081` |
+| `NEXT_WITTYHUB_API_URL` | WittyHub skill marketplace API URL | `https://skillhub.openeuler.org` |
 
 ### Connection and Retry
 
@@ -210,14 +210,26 @@ pnpm run start
 
 ## Local Development
 
-### Environment Setup
+### Dev Container Setup (Recommended)
+
+The project includes [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers) configuration for a one-click development experience. See [.devcontainer/README_EN.md](.devcontainer/README_EN.md) for details.
+
+**Quick Start:**
+
+1. Install [Docker](https://docs.docker.com/get-docker/) and VS Code [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+2. Open the project in VS Code and click "Reopen in Container"
+3. Dependencies install automatically. Run `pnpm dev` to start developing
+
+The container includes: Node.js 24, pnpm 11, pre-commit, VS Code extensions (ESLint, Prettier, Tailwind CSS), matching the CI environment exactly.
+
+### Traditional Environment Setup
 
 ```bash
 # 1. Clone repository
 git clone https://atomgit.com/openeuler/polymind.git
 cd polymind
 
-# 2. Install dependencies
+# 2. Install dependencies (requires Node.js >= 22)
 pnpm install
 
 # 3. Modify .env configuration if needed
@@ -225,6 +237,19 @@ pnpm install
 # 4. Start development server
 pnpm run dev
 ```
+
+### Code Quality and Pre-commit Checks
+
+The project uses [pre-commit](https://pre-commit.com/) as the single entry for both local commits and CI gates: generic hygiene (trailing whitespace, EOF, YAML/JSON syntax, merge conflicts, large files, private keys), Gitleaks secret scanning, Codespell spelling checks, Prettier/ESLint (fix mode), and commitlint commit-message rules — see `.pre-commit-config.yaml` at the repo root. `pnpm install` registers the Git hooks automatically via the `prepare` script; to initialize manually:
+
+```bash
+pip install pre-commit
+# Clear the leftover hooksPath when migrating from husky, or hooks won't take effect
+git config --unset-all core.hooksPath || true
+pre-commit install --hook-type pre-commit --hook-type commit-msg
+```
+
+Staged files are checked automatically on commit; `pnpm run precommit` runs the full check and `pnpm run typecheck` runs the TypeScript type check. The community gate (openEuler/GitCode side) runs the same config incrementally via `scripts/ci-pre-commit-pr.sh`. See [docs/static-code-analysis.md](docs/static-code-analysis.md).
 
 ### Common Development Commands
 
@@ -234,6 +259,9 @@ pnpm run dev
 | `pnpm run build` | Build production package |
 | `pnpm run start` | Start with built artifacts |
 | `pnpm run lint` | Run ESLint |
+| `pnpm run typecheck` | Run TypeScript type check |
+| `pnpm run precommit` | Run all pre-commit checks |
+| `pnpm run quality` | Full quality check (lint + format:check + typecheck) |
 | `pnpm run test` | Run Jest tests |
 
 ### Project Structure

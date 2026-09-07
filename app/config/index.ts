@@ -115,7 +115,7 @@ export const appConfig: AppConfig = {
   },
   marketplace: {
     get wittyhubApiUrl() {
-      return getConfigValue('NEXT_WITTYHUB_API_URL') || 'http://127.0.0.1:8081'
+      return getConfigValue('NEXT_WITTYHUB_API_URL') || 'https://skillhub.openeuler.org'
     },
   },
   app: {

@@ -247,7 +247,7 @@ module.exports = {
     --foreground: 222.2 47.4% 11.2%;
     /* ... other CSS variables */
   }
-  
+
   .dark {
     --background: 224 71% 4%;
     --foreground: 213 31% 91%;

@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { Send, Paperclip, Mic, Image as ImageIcon, X, FileText, StopCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
+import { useScheduledTaskStore } from '@/lib/stores/scheduled-task-store'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -51,6 +52,7 @@ export function ChatInput({
   const [selectedSkillIndex, setSelectedSkillIndex] = useState(0)
 
   const { currentConversationId, conversations, stopStreaming, currentAgentId } = useChatStore()
+  const refreshScheduled = useScheduledTaskStore(s => s.refresh)
 
   const fetchSkills = useCallback(async () => {
     if (!currentAgentId) {
@@ -418,7 +420,19 @@ export function ChatInput({
             </span>
 
             {isStreaming ? (
-              <Button variant="destructive" size="sm" className="gap-2" onClick={stopStreaming}>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="gap-2"
+                onClick={() => {
+                  stopStreaming()
+                  // 定时任务会话停止后立即刷新 run 状态，让卡片/侧栏的
+                  // “执行中”标识马上消失，不用等 10s 轮询。
+                  if (currentConversation?.scheduledTaskId) {
+                    void refreshScheduled(true)
+                  }
+                }}
+              >
                 <StopCircle className="h-4 w-4" />
                 停止生成
               </Button>

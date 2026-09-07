@@ -32,6 +32,9 @@ export interface EventItem {
     | 'question.asked'
     | 'question.replied'
     | 'question.rejected'
+    | 'artifact.started'
+    | 'artifact.delta'
+    | 'artifact.completed'
   session_id?: string
   event_id?: string
   ts_ms?: number
@@ -99,6 +102,8 @@ export interface Message {
     outputTokens?: number
     totalCost?: number
   }
+  /** 该消息产出的可视化产物（卡片/预览面板渲染） */
+  artifacts?: Artifact[]
 }
 
 /**
@@ -115,6 +120,28 @@ export interface ToolCall {
   error?: string
   duration?: number
   displayText?: string
+}
+
+/**
+ * 产物类型
+ */
+export type ArtifactType = 'html' | 'image' | 'video' | 'markdown' | 'code' | 'pdf' | 'unknown'
+
+/**
+ * 产物接口（对应后端 artifact.* 事件协议）
+ */
+export interface Artifact {
+  id: string
+  name: string
+  type: ArtifactType
+  status: 'creating' | 'ready' | 'error'
+  version: number
+  /** 产物相对工作区的路径（用于文件端点下载/预览） */
+  relativePath: string
+  size?: number
+  mime?: string
+  /** 内联内容（文本类产物且 ≤512KB 时由 artifact.completed 携带） */
+  content?: string
 }
 
 /**
@@ -143,6 +170,7 @@ export interface Conversation {
   agentId?: string // 创建该会话的 agent ID
   agentName?: string // 创建该会话的 agent 名称
   sessionId?: string // 该会话对应的后端 session ID
+  scheduledTaskId?: string // 该会话所属的定时任务 ID（定时任务执行记录）
   isStreaming?: boolean // 该会话是否正在生成消息
   skipReconnect?: boolean // 当前会话的流由专题页面主动消费，不由 ChatArea 自动重连
   hasMore?: boolean // 是否有更早的历史消息可加载
@@ -306,6 +334,7 @@ export enum AdapterType {
   OPENCODE = 'opencode',
   OPENCLAW = 'openclaw',
   CLAUDE_CODE = 'claude-code',
+  DSH = 'dsh',
 }
 
 /**
@@ -374,7 +403,6 @@ export interface Agent {
   sandboxId?: string | null
   workspacePath?: string
   idleTimeoutSeconds: number
-  hasScheduledTasks: boolean
   defaultSessionId?: string | null
   processPort?: number | null
   modelId?: string | null
@@ -452,7 +480,6 @@ export interface CreateAgentRequest {
   adapterType: AdapterType | string
   idleTimeoutSeconds: number
   sandboxId?: string
-  hasScheduledTasks?: boolean
   modelId?: string
   mcpServerName?: string
   mcpServerConfig?: MCPServerConfig

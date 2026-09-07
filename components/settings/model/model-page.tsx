@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, Zap } from 'lucide-react'
+import { Plus, Edit, Trash2, Zap, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,6 +34,9 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Switch } from '@/components/ui/switch'
+import { Separator } from '@/components/ui/separator'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { modelService } from '@/services/model-service'
 import {
   ModelConfig,
@@ -91,6 +94,7 @@ export function ModelPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingModel, setEditingModel] = useState<ModelConfig | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSetDefault, setIsSetDefault] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const { toast } = useToast()
 
@@ -136,6 +140,7 @@ export function ModelPage() {
     setIsSubmitting(false)
     if (model) {
       setEditingModel(model)
+      setIsSetDefault(model.isDefault)
       setFormData({
         name: model.name,
         provider: model.provider as ModelProvider,
@@ -145,6 +150,8 @@ export function ModelPage() {
       })
     } else {
       setEditingModel(null)
+      // 不存在"启用且为默认"的模型时（含全禁用/仅禁用默认），新建的第一个模型自动设为默认（F1 优化点 3）
+      setIsSetDefault(!models.some(m => m.enabled && m.isDefault))
       const defaultProvider = aiProvidersConfig.providers.find(p => p.id === ModelProvider.OPENAI)
       const defaultModel =
         defaultProvider?.models.find(m => m.isDefault) || defaultProvider?.models[0]
@@ -194,7 +201,8 @@ export function ModelPage() {
       errors.name = formData.provider === ModelProvider.CUSTOM ? '请输入模型 ID' : '请选择模型'
     }
 
-    if (!formData.apiKey || !formData.apiKey.trim()) {
+    // 编辑时 apiKey 留空表示沿用现有密钥（handleSubmit 传 undefined，后端不更新），仅新建时必填。
+    if (!editingModel && (!formData.apiKey || !formData.apiKey.trim())) {
       errors.apiKey = '请输入 API 密钥'
     }
 
@@ -223,6 +231,7 @@ export function ModelPage() {
           apiBaseUrl: formData.apiBaseUrl,
           compatibility:
             formData.provider === ModelProvider.CUSTOM ? formData.compatibility : undefined,
+          isDefault: isSetDefault,
         }
         await modelService.updateModel(editingModel.id, request)
       } else {
@@ -234,7 +243,7 @@ export function ModelPage() {
           compatibility:
             formData.provider === ModelProvider.CUSTOM ? formData.compatibility : undefined,
           enabled: true,
-          isDefault: false,
+          isDefault: isSetDefault,
         }
         await modelService.createModel(request)
       }
@@ -299,6 +308,23 @@ export function ModelPage() {
   const getProviderConfig = (providerId: string) => {
     return aiProvidersConfig.providers.find(p => p.id === providerId)
   }
+
+  // 已有默认模型时，切换/取消默认给出提示，优化切换体验（F1 优化点 4）
+  // 「正在编辑的是不是当前默认模型」以 models 列表里的当前默认为准，避免依赖打开弹窗时的快照。
+  const currentDefaultModel = models.find(m => m.enabled && m.isDefault)
+  const isEditingCurrentDefault = !!editingModel && editingModel.id === currentDefaultModel?.id
+  const targetModelName = editingModel?.name || formData.name
+  const defaultSwitchHint = (() => {
+    // 启用默认：非当前默认模型 + 已存在有效默认 → 提示将替换
+    if (isSetDefault && currentDefaultModel && !isEditingCurrentDefault) {
+      return `保存后，默认模型将从「${currentDefaultModel.name}」切换为「${targetModelName}」。`
+    }
+    // 取消当前默认模型的默认标记 → 提示将无默认
+    if (!isSetDefault && isEditingCurrentDefault) {
+      return '关闭后，系统将没有默认模型，智能体可能无法正常使用。'
+    }
+    return null
+  })()
 
   return (
     <div className="space-y-6">
@@ -433,7 +459,7 @@ export function ModelPage() {
                     setFormData(prev => ({ ...prev, apiKey: e.target.value }))
                     setFormErrors(prev => ({ ...prev, apiKey: undefined }))
                   }}
-                  placeholder="请输入 API Key"
+                  placeholder={editingModel ? '留空则保持现有密钥' : '请输入 API Key'}
                   className={`w-full [-webkit-text-security:disc] ${formErrors.apiKey ? 'border-red-500' : ''}`}
                   type="text"
                   autoComplete="off"
@@ -464,6 +490,34 @@ export function ModelPage() {
                     <p className="text-sm text-red-500">{formErrors.apiBaseUrl}</p>
                   )}
                 </div>
+              )}
+
+              <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label
+                    htmlFor="set-default"
+                    className="text-sm font-medium"
+                    onClick={() => setIsSetDefault(v => !v)}
+                  >
+                    设为默认模型
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    智能体将优先使用该模型进行对话与任务执行
+                  </p>
+                </div>
+                <Switch
+                  id="set-default"
+                  checked={isSetDefault}
+                  onCheckedChange={setIsSetDefault}
+                  aria-label="设为默认模型"
+                />
+              </div>
+              {defaultSwitchHint && (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>默认模型将变更</AlertTitle>
+                  <AlertDescription>{defaultSwitchHint}</AlertDescription>
+                </Alert>
               )}
             </div>
 

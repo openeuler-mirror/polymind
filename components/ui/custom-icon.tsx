@@ -7,9 +7,9 @@ interface CustomIconProps {
   alt?: string;
 }
 
-export function CustomIcon({ 
-  src = '/icon.svg', 
-  size = 24, 
+export function CustomIcon({
+  src = '/icon.svg',
+  size = 24,
   className = '',
   alt = 'Icon'
 }: CustomIconProps) {

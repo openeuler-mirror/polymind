@@ -39,7 +39,46 @@ export interface BackportConfig {
   target_repo_input?: string
   source_repo_state?: BackportRepositoryInfo | null
   target_repo_state?: BackportRepositoryInfo | null
+  enable_prerequisite_scan?: boolean
   cvekit_options: Record<string, unknown>
+}
+
+export interface BackportPrerequisiteCandidate {
+  unit_kind: string
+  commit: string
+  mainline_parent: number
+  title: string
+  origin: string
+  default_selected: boolean
+  required_by: string[]
+  capabilities: string[]
+  evidence: unknown[]
+}
+
+export interface BackportPrerequisiteReview {
+  excel_sha256?: string
+  commit_entries_sha256?: string
+  input_digest: string
+  source_repo: string
+  source_branch: string
+  target_repo: string
+  target_release: string
+  target_ref: string
+  review_version: string
+}
+
+export interface BackportPrerequisiteManifest {
+  status: string
+  input_digest: string
+  source_repo: string
+  target_repo: string
+  target_ref: string
+  original_units: unknown[]
+  candidates: BackportPrerequisiteCandidate[]
+  decision_tasks: unknown[]
+  coverage: unknown
+  diagnostics: unknown[]
+  review?: BackportPrerequisiteReview
 }
 
 export interface BackportConfigUpdateResponse {
@@ -113,6 +152,29 @@ export interface BackportBrowseResponse {
 
 export interface BackportCommitItem {
   [key: string]: unknown
+}
+
+export interface BackportCommitImportEntry {
+  [key: string]: unknown
+  commit: string
+  commit_title: string
+}
+
+export interface BackportCommitImportIssue {
+  row?: number
+  field?: string
+  message: string
+}
+
+export interface BackportCommitImportPreviewRow extends BackportCommitImportEntry {
+  row?: number
+}
+
+export interface BackportCommitImportPreview {
+  entries: BackportCommitImportEntry[]
+  rows?: BackportCommitImportPreviewRow[]
+  errors?: BackportCommitImportIssue[]
+  warnings?: BackportCommitImportIssue[]
 }
 
 export interface BackportCommitRow {
@@ -232,7 +294,12 @@ export interface BackportOperationArtifacts {
 }
 
 export interface BackportOperationDiagnostics {
+  code?: string
   error_text?: string
+  retryable?: boolean
+  wait_seconds?: number
+  timeout_seconds?: number
+  errors?: BackportCommitImportIssue[]
   last_tool?: BackportToolSnapshot | null
 }
 
@@ -269,6 +336,8 @@ export interface BackportOperationResultData {
   patch?: BackportPatchPreviewResponse
   commit_message?: BackportCommitMessagePreview
   manual_patch?: BackportManualPatchResult
+  manifest?: BackportPrerequisiteManifest
+  original_commits?: BackportCommitItem[]
   diagnostics?: BackportOperationDiagnostics
 }
 
@@ -285,6 +354,11 @@ export interface BackportRunProgress {
   phase?: string
   phase_state?: 'running' | 'completed' | 'failed'
   message?: string
+  lock_event?: string
+  lock_wait_seconds?: number
+  lock_timeout_seconds?: number
+  lock_owner_task_id?: string
+  lock_owner_operation?: string
   current_report_path?: string
   current_index?: number
   total?: number
@@ -326,6 +400,8 @@ export interface BackportRunSummary extends BackportAsyncRunResponse {
   updated_at: string
   current_report_path: string
   excel_path: string
+  input_path?: string
+  commit_csv_path?: string
   commit_count: number
   current_excel_version: number
   current_execution: number
@@ -344,6 +420,17 @@ export interface BackportRunSummary extends BackportAsyncRunResponse {
 
 export interface BackportRunListResponse {
   runs: BackportRunSummary[]
+}
+
+/** 后端 /backport/tasks/{task_id} 返回的 task manifest(仅声明前端使用的最小字段)。 */
+export interface BackportTaskManifest {
+  task_id?: string
+  current_report_path?: string
+  current_excel_path?: string
+  target_path?: string
+  target_release?: string
+  status?: string
+  [key: string]: unknown
 }
 
 export interface BackportAttemptPatch {
@@ -426,7 +513,16 @@ export function resetRunAllStateForGeneratedReport(
 export interface BackportGenerateReportRequest {
   config: BackportConfig
   excelPath: string
+  commitEntries?: BackportCommitImportEntry[]
   runId?: string
+  prerequisite_commits?: BackportPrerequisiteCandidate[]
+  prerequisite_review?: BackportPrerequisiteReview
+}
+
+export interface BackportPrerequisiteCommitsRequest {
+  config: BackportConfig
+  excelPath: string
+  commitEntries?: BackportCommitImportEntry[]
 }
 
 export interface BackportLoadReportRequest {
@@ -437,6 +533,7 @@ export interface BackportLoadReportRequest {
 export interface BackportRunAllRequest {
   config: BackportConfig
   excelPath: string
+  commitEntries?: BackportCommitImportEntry[]
   runId?: string
   baseReportPath?: string
   workingReportPath?: string

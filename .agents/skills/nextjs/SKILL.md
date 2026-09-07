@@ -67,7 +67,7 @@ import { getProduct } from '@/lib/products'
 
 export default async function ProductPage({ params }: { params: { id: string } }) {
   const product = await getProduct(params.id)
-  
+
   return (
     <article>
       <h1>{product.name}</h1>
@@ -94,7 +94,7 @@ export default function Counter() {
 // Dynamic metadata
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const product = await getProduct(params.id)
-  
+
   return {
     title: product.name,
     description: product.description,

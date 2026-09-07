@@ -1,8 +1,9 @@
 import type { MutableRefObject } from 'react'
-import type { Message, QuestionInfo, QuestionAskedPayload, ToolCall } from './types'
+import type { Message, QuestionInfo, QuestionAskedPayload, ToolCall, Artifact } from './types'
 import { MessageStatus } from './types'
 import { generateUUID } from './utils'
 import { formatToolOutput } from './format-utils'
+import { normalizeArtifactType, resolveArtifactType } from './artifacts'
 
 /**
  * 从 question.asked 事件 payload 中提取所有 QuestionInfo 组成的数组。
@@ -265,12 +266,197 @@ export function applyUsageUpdated(payload: {
   }
 }
 
+// 按 id 去重合并产物到 message.artifacts（started 建初态，completed 写终态）。
+function upsertArtifact(m: Message, patch: Artifact): Partial<Message> {
+  const artifacts = m.artifacts || []
+  const idx = artifacts.findIndex(a => a.id === patch.id)
+  const next =
+    idx >= 0 ? artifacts.map((a, i) => (i === idx ? { ...a, ...patch } : a)) : [...artifacts, patch]
+  return { artifacts: next }
+}
+
+// artifact.started：产物开始生成（建 creating 初态）。
+export function applyArtifactStarted(
+  m: Message,
+  payload: {
+    id?: string
+    name?: string
+    type?: string
+    version?: number
+    relative_path?: string
+    size?: number
+    mime?: string
+  },
+  timestamp?: number
+): Partial<Message> {
+  const id = payload.id || generateUUID()
+  const name = payload.name || id
+  const artifact: Artifact = {
+    id,
+    name,
+    type: normalizeArtifactType(payload.type) || resolveArtifactType(name),
+    status: 'creating',
+    version: payload.version ?? 1,
+    relativePath: payload.relative_path || '',
+    size: payload.size,
+    mime: payload.mime,
+  }
+  return {
+    ...upsertArtifact(m, artifact),
+    events: [
+      ...(m.events || []),
+      {
+        type: 'artifact.started',
+        content: `开始生成产物：${name}`,
+        timestamp: timestamp || Date.now(),
+        payload,
+      },
+    ],
+  }
+}
+
+// artifact.delta：流式增量累积到对应产物的内联 content。
+export function applyArtifactDelta(
+  m: Message,
+  delta: string,
+  artifactId: string,
+  timestamp?: number
+): Partial<Message> {
+  if (!(m.artifacts || []).some(a => a.id === artifactId)) return {}
+  const events = [...(m.events || [])]
+  let idx = -1
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].type === 'artifact.delta' && events[i].payload?.id === artifactId) {
+      idx = i
+      break
+    }
+  }
+  if (idx >= 0) {
+    const target = events[idx]
+    events[idx] = {
+      ...target,
+      content: (target.content || '') + delta,
+      timestamp: timestamp || target.timestamp || Date.now(),
+    }
+  } else {
+    events.push({
+      type: 'artifact.delta',
+      content: delta,
+      timestamp: timestamp || Date.now(),
+      payload: { id: artifactId, delta },
+    })
+  }
+  return {
+    artifacts: (m.artifacts || []).map(a =>
+      a.id === artifactId ? { ...a, content: (a.content || '') + delta } : a
+    ),
+    events,
+  }
+}
+
+// artifact.completed：产物生成结束（写终态，超限/二进制仅带相对路径）。
+export function applyArtifactCompleted(
+  m: Message,
+  payload: {
+    id?: string
+    name?: string
+    type?: string
+    status?: string
+    version?: number
+    relative_path?: string
+    size?: number
+    mime?: string
+    content?: string
+  },
+  timestamp?: number
+): Partial<Message> {
+  const id = payload.id
+  if (!id) return {}
+  const existing = (m.artifacts || []).find(a => a.id === id)
+  const name = payload.name || existing?.name || id
+  const artifact: Artifact = {
+    id,
+    name,
+    type: normalizeArtifactType(payload.type) || existing?.type || resolveArtifactType(name),
+    status: payload.status === 'error' ? 'error' : 'ready',
+    version: payload.version ?? existing?.version ?? 1,
+    relativePath: payload.relative_path || existing?.relativePath || '',
+    size: payload.size ?? existing?.size,
+    mime: payload.mime || existing?.mime,
+    ...(payload.content !== undefined ? { content: payload.content } : {}),
+  }
+  // 产物正文已写入 message.artifacts[].content，事件 payload 不再携带 content
+  const eventPayload = { ...payload }
+  delete eventPayload.content
+  return {
+    ...upsertArtifact(m, artifact),
+    events: [
+      ...(m.events || []),
+      {
+        type: 'artifact.completed',
+        content: `产物已生成：${artifact.name}`,
+        timestamp: timestamp || Date.now(),
+        payload: eventPayload,
+      },
+    ],
+  }
+}
+
+// 判断事件是否为流式增量类事件（完成时需从 events 中滤除，避免尾部再展示一遍冗余内容）。
+export function isStreamDeltaEvent(e: { type: string }): boolean {
+  return e.type === 'message.delta' || e.type === 'artifact.delta'
+}
+
+// 两个 stream handler（handleStreamEvent / handleAgentStreamEvent）共用的 updateMessage 回调签名。
+export type UpdateMessageFn = (
+  conversationId: string,
+  messageId: string,
+  updates: Partial<Message> | ((m: Message) => Partial<Message>)
+) => void
+
+// artifact.* 事件统一分发：把 started/delta/completed 三类的「提取 payload → 调 apply*」逻辑收拢到一处，
+// 避免 handleStreamEvent 与 handleAgentStreamEvent 各写一份重复的分发 switch。
+export function handleArtifactEvent(
+  eventData: any,
+  updateMessage: UpdateMessageFn,
+  conversationId: string,
+  messageId: string
+): void {
+  const payload = eventData.payload
+  switch (eventData.type) {
+    case 'artifact.started':
+      if (payload?.id || payload?.name) {
+        updateMessage(conversationId, messageId, (m: Message) =>
+          applyArtifactStarted(m, payload, eventData.ts_ms)
+        )
+      }
+      break
+    case 'artifact.delta': {
+      const delta = payload?.delta
+      const artifactId = payload?.id
+      if (delta && artifactId) {
+        updateMessage(conversationId, messageId, (m: Message) =>
+          applyArtifactDelta(m, delta, artifactId, eventData.ts_ms)
+        )
+      }
+      break
+    }
+    case 'artifact.completed':
+      if (payload?.id) {
+        updateMessage(conversationId, messageId, (m: Message) =>
+          applyArtifactCompleted(m, payload, eventData.ts_ms)
+        )
+      }
+      break
+  }
+}
+
 // stream.error / client.error：标记消息为错误状态并滤除 delta 事件。
 export function applyStreamError(m: Message): Partial<Message> {
   return {
     isStreaming: false,
     status: MessageStatus.ERROR,
-    events: (m.events || []).filter(e => e.type !== 'message.delta'),
+    events: (m.events || []).filter(e => !isStreamDeltaEvent(e)),
   }
 }
 
@@ -312,6 +498,7 @@ export function handleStreamEvent(
         content: m.content || eventData.payload?.text || '',
         isStreaming: false,
         status: MessageStatus.COMPLETED,
+        events: (m.events || []).filter(e => !isStreamDeltaEvent(e)),
       }))
       setStreaming(conversationId, false)
       break
@@ -386,6 +573,11 @@ export function handleStreamEvent(
         }))
       }
       break
+    case 'artifact.started':
+    case 'artifact.delta':
+    case 'artifact.completed':
+      handleArtifactEvent(eventData, updateMessage, conversationId, messageId)
+      break
     case 'usage.updated':
       if (eventData.payload) {
         updateMessage(conversationId, messageId, applyUsageUpdated(eventData.payload))
@@ -400,10 +592,11 @@ export function handleStreamEvent(
       break
     case 'turn.completed':
       locallyCreatedMessageIds?.current.delete(messageId)
-      updateMessage(conversationId, messageId, {
+      updateMessage(conversationId, messageId, (m: Message) => ({
         isStreaming: false,
         status: MessageStatus.COMPLETED,
-      })
+        events: (m.events || []).filter(e => !isStreamDeltaEvent(e)),
+      }))
       setStreaming(conversationId, false)
       break
     case 'question.asked': {

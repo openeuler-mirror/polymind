@@ -20,6 +20,21 @@ log_ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 log_err()   { echo -e "${RED}[ERR]${NC}   $*"; }
 
+# nginx 需要 root 权限绑定端口/访问系统日志时自动使用 sudo
+# （master 进程以 root 运行，worker 仍按 user 指令以普通用户运行）
+nginx_cmd() {
+  if [ "$(id -u)" -eq 0 ]; then
+    nginx "$@"
+  else
+    sudo nginx "$@"
+  fi
+}
+
+pid_alive() {
+  local pid=$1
+  kill -0 "$pid" 2>/dev/null || sudo kill -0 "$pid" 2>/dev/null
+}
+
 section() {
   echo ""
   echo -e "${BOLD}============================================${NC}"
@@ -107,17 +122,34 @@ get_port_pid() {
   fi
 }
 
-kill_port_process() {
+# 查找占用端口的进程；普通用户看不到 root 进程的 PID 时，自动用 sudo 重查
+find_port_pid() {
   local port=$1
   local pid
   pid=$(get_port_pid "$port")
+  if [ -z "$pid" ] && ! check_port "$port"; then
+    if command -v ss &> /dev/null; then
+      pid=$(sudo ss -tulnp 2>/dev/null | grep ":$port " | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -1)
+    elif command -v lsof &> /dev/null; then
+      pid=$(sudo lsof -Pi ":$port" -sTCP:LISTEN -t 2>/dev/null | head -1)
+    elif command -v netstat &> /dev/null; then
+      pid=$(sudo netstat -tulnp 2>/dev/null | grep ":$port " | awk '{print $NF}' | sed 's/\/.*//' | head -1)
+    fi
+  fi
+  echo "$pid"
+}
+
+kill_port_process() {
+  local port=$1
+  local pid
+  pid=$(find_port_pid "$port")
   if [ -n "$pid" ]; then
     log_warn "端口 $port 被进程 PID=$pid 占用，正在终止..."
-    kill "$pid" 2>/dev/null || true
+    kill "$pid" 2>/dev/null || sudo kill "$pid" 2>/dev/null || true
     sleep 1
-    if kill -0 "$pid" 2>/dev/null; then
+    if pid_alive "$pid"; then
       log_warn "进程未响应，强制终止..."
-      kill -9 "$pid" 2>/dev/null || true
+      kill -9 "$pid" 2>/dev/null || sudo kill -9 "$pid" 2>/dev/null || true
       sleep 1
     fi
     if check_port "$port"; then
@@ -168,6 +200,14 @@ generate_nginx_config() {
   # 显式设置 nginx worker 用户
   sed -i "1i user $(whoami);" "$NGINX_CONF"
 
+  # 兜底修复旧版模板：确保 error_log/pid 指向用户目录，避免写入系统路径
+  if ! grep -q '^error_log' "$NGINX_CONF"; then
+    sed -i "/^user /a error_log $POLYMIND_DIR/nginx/error.log;" "$NGINX_CONF"
+  fi
+  if ! grep -q '^pid ' "$NGINX_CONF"; then
+    sed -i "/^error_log /a pid $POLYMIND_DIR/nginx/nginx.pid;" "$NGINX_CONF"
+  fi
+
   # 创建 nginx 临时目录（非 root 运行时必需）
   mkdir -p "$NGINX_DIR/tmp/client_body" "$NGINX_DIR/tmp/proxy" "$NGINX_DIR/tmp/fastcgi" "$NGINX_DIR/tmp/uwsgi" "$NGINX_DIR/tmp/scgi"
 
@@ -178,17 +218,17 @@ start_nginx() {
   generate_nginx_config || return 1
 
   log_info "测试 nginx 配置..."
-  if ! nginx -t -c "$NGINX_CONF" 2>&1; then
+  if ! nginx_cmd -t -c "$NGINX_CONF" 2>&1; then
     log_err "nginx 配置测试失败"
     return 1
   fi
 
   log_info "启动 nginx (端口 $FRONTEND_PORT)..."
-  nginx -c "$NGINX_CONF"
+  nginx_cmd -c "$NGINX_CONF"
   sleep 1
 
   NGINX_PID=$(cat "$NGINX_DIR/nginx.pid" 2>/dev/null || true)
-  if [ -n "$NGINX_PID" ] && kill -0 "$NGINX_PID" 2>/dev/null; then
+  if [ -n "$NGINX_PID" ] && pid_alive "$NGINX_PID"; then
     log_ok "nginx 已启动  PID=$NGINX_PID  端口=$FRONTEND_PORT"
     return 0
   else
@@ -200,28 +240,29 @@ start_nginx() {
 stop_nginx() {
   log_info "停止 nginx..."
 
+  local pid
   if [ -f "$NGINX_DIR/nginx.pid" ]; then
-    local pid
     pid=$(cat "$NGINX_DIR/nginx.pid" 2>/dev/null || true)
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-      nginx -c "$NGINX_CONF" -s quit 2>/dev/null || true
-      sleep 1
-      if kill -0 "$pid" 2>/dev/null; then
-        kill -TERM "$pid" 2>/dev/null || true
-      fi
-      log_ok "nginx 已停止 (PID=$pid)"
-    fi
-    rm -f "$NGINX_DIR/nginx.pid"
-  else
-    local pid
-    pid=$(get_port_pid "$FRONTEND_PORT")
-    if [ -n "$pid" ]; then
-      nginx -s quit 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-      log_ok "nginx 已停止 (端口 $FRONTEND_PORT)"
-    else
-      log_info "nginx 未在运行"
-    fi
   fi
+  if [ -z "$pid" ]; then
+    pid=$(find_port_pid "$FRONTEND_PORT")
+  fi
+
+  if [ -n "$pid" ] && pid_alive "$pid"; then
+    nginx_cmd -c "$NGINX_CONF" -s quit 2>/dev/null || true
+    sleep 1
+    if pid_alive "$pid"; then
+      kill -TERM "$pid" 2>/dev/null || sudo kill -TERM "$pid" 2>/dev/null || true
+      sleep 1
+      if pid_alive "$pid"; then
+        kill -9 "$pid" 2>/dev/null || sudo kill -9 "$pid" 2>/dev/null || true
+      fi
+    fi
+    log_ok "nginx 已停止 (PID=$pid)"
+  else
+    log_info "nginx 未在运行"
+  fi
+  rm -f "$NGINX_DIR/nginx.pid"
 }
 
 # ---------- 状态查询 ----------
@@ -244,7 +285,7 @@ show_status() {
     echo -e "  前端 (polymind):      ${RED}未运行${NC}"
   fi
 
-  if [ -n "${NGINX_PID:-}" ] && kill -0 "$NGINX_PID" 2>/dev/null; then
+  if [ -n "${NGINX_PID:-}" ] && pid_alive "$NGINX_PID"; then
     echo -e "  代理 (nginx):         ${GREEN}运行中${NC}  PID=$NGINX_PID  端口=${FRONTEND_PORT:-3000}"
   else
     echo -e "  代理 (nginx):         ${RED}未运行${NC}"
@@ -346,6 +387,34 @@ run_precheck() {
     missing=1
   else
     log_ok "nginx $(nginx -v 2>&1 | cut -d'/' -f2) 已就绪"
+  fi
+
+  # 检查 Docker 守护进程（警告级别，不阻塞启动）
+  if command -v docker &> /dev/null; then
+    if docker info &> /dev/null; then
+      log_ok "Docker 守护进程运行中"
+    else
+      local docker_err
+      docker_err="$(docker info 2>&1 | head -3)"
+      if echo "$docker_err" | grep -qi "permission denied"; then
+        log_warn "Docker 守护进程运行中，但当前用户无权限访问 Docker 套接字"
+        if id -nG 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
+          log_warn "当前会话已在 docker 组但仍无权限，请检查套接字属组: ls -l /var/run/docker.sock"
+          log_warn "若属组不是 docker，请执行: sudo chgrp docker /var/run/docker.sock && sudo systemctl restart docker"
+        elif id -nG "$USER" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
+          log_warn "用户 $USER 已在 docker 组，但当前会话尚未生效（组在登录时加载）"
+          log_warn "请执行: newgrp docker（或重新登录终端），然后重新运行 start.sh"
+        else
+          log_warn "用户 $USER 尚未加入 docker 组，请执行: sudo usermod -aG docker $USER"
+        fi
+      else
+        log_warn "Docker 守护进程未运行，Docker 沙箱将不可用"
+        log_warn "请执行: sudo systemctl start docker"
+      fi
+    fi
+  else
+    log_warn "Docker 未安装，Docker 沙箱将不可用"
+    log_warn "请运行 install-local.sh 安装 Docker"
   fi
 
   if [ -f "$ENV_FILE" ]; then
