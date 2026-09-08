@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Bot, Check, ChevronDown, Plus, Loader2 } from 'lucide-react'
+import { Bot, Check, ChevronDown, Settings, Loader2 } from 'lucide-react'
 import { useChatStore } from '@/lib/store'
 import { AgentStatus } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,15 @@ import {
 } from '@/components/ui/command'
 import { cn } from '@/lib/utils'
 
-export function AgentSelector() {
+interface AgentSelectorProps {
+  /**
+   * compact 模式：渲染为输入框右下角的一个内联小按钮（图标 + 名称 + 下拉箭头），
+   * 用于聊天输入框底栏；默认（bar）渲染为输入框顶部的整行选择栏。
+   */
+  compact?: boolean
+}
+
+export function AgentSelector({ compact = false }: AgentSelectorProps) {
   const [open, setOpen] = useState(false)
   const {
     agents,
@@ -74,24 +82,43 @@ export function AgentSelector() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          className={cn(
-            'flex w-full items-center gap-1 px-4 py-2.5 text-sm',
-            'border-b border-border',
-            'hover:bg-accent/50 transition-colors',
-            'rounded-t-2xl'
-          )}
-        >
-          <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span
-            className={cn('flex-1 text-left truncate', !currentAgent && 'text-muted-foreground')}
+        {compact ? (
+          <button
+            className={cn(
+              'inline-flex h-8 max-w-[190px] items-center gap-1.5 rounded-full px-3 text-sm',
+              'transition-colors hover:bg-accent/60 hover:text-accent-foreground'
+            )}
           >
-            {currentAgent ? '@' + currentAgent.name : '选择智能体'}
-          </span>
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        </button>
+            <span className={cn('truncate', !currentAgent && 'text-muted-foreground')}>
+              {currentAgent ? '@' + currentAgent.name : '选择智能体'}
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </button>
+        ) : (
+          <button
+            className={cn(
+              'flex w-full items-center gap-1 px-4 py-2.5 text-sm',
+              'border-b border-border',
+              'hover:bg-accent/50 transition-colors',
+              'rounded-t-2xl'
+            )}
+          >
+            <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span
+              className={cn('flex-1 text-left truncate', !currentAgent && 'text-muted-foreground')}
+            >
+              {currentAgent ? '@' + currentAgent.name : '选择智能体'}
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          </button>
+        )}
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0" align="start" side="top" sideOffset={8}>
+      <PopoverContent
+        className="w-[280px] p-0"
+        align={compact ? 'end' : 'start'}
+        side="top"
+        sideOffset={8}
+      >
         <Command value={currentAgentId || undefined}>
           <CommandList>
             <CommandGroup heading="智能体">
@@ -155,12 +182,9 @@ export function AgentSelector() {
             </CommandGroup>
             <CommandSeparator />
             <CommandGroup>
-              <CommandItem
-                onSelect={handleCreateAgent}
-                className="flex items-center justify-center gap-1 text-primary"
-              >
-                <Plus className="h-4 w-4 text-primary shrink-0" />
-                <span>创建 Agent</span>
+              <CommandItem onSelect={handleCreateAgent} className="flex items-center gap-1.5">
+                <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="flex-1 truncate min-w-0">创建 Agent</span>
               </CommandItem>
             </CommandGroup>
           </CommandList>

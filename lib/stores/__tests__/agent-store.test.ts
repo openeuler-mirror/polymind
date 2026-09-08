@@ -31,26 +31,14 @@ jest.mock('@/app/config', () => ({
 }))
 
 import { create } from 'zustand'
-import { createAgentSlice, type AgentSlice } from '../agent-store'
-import { createChatSlice, type ChatSlice } from '../chat-store'
-import { createConnectionSlice, type ConnectionSlice } from '../connection-store'
-import { createSettingsSlice, type SettingsSlice } from '../settings-store'
-import { createUISlice, type UISlice } from '../ui-store'
+import { createStoreShape, type StoreState } from '../store-shape'
 import { AdapterType, SandboxType, AgentStatus } from '../../types'
 import { agentService } from '@/services/agent-service'
 import { sessionService } from '@/services/session-service'
 import { cacheGetAll, cacheSetAll } from '../../cache'
 import { appConfig } from '@/app/config'
 
-type TestState = ChatSlice & AgentSlice & ConnectionSlice & SettingsSlice & UISlice
-
-const useTestStore = create<TestState>()((...a) => ({
-  ...createChatSlice(...a),
-  ...createAgentSlice(...a),
-  ...createConnectionSlice(...a),
-  ...createSettingsSlice(...a),
-  ...createUISlice(...a),
-}))
+const useTestStore = create<StoreState>()(createStoreShape)
 
 const testAgent: ReturnType<typeof agentService.transformAgent> = {
   id: 'test-agent',
