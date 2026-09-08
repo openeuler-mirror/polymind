@@ -26,7 +26,7 @@ export function SidebarSection({
       <CollapsibleTrigger asChild>
         <button
           type="button"
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
         >
           {Icon ? <Icon className="h-3.5 w-3.5 shrink-0" /> : null}
           {/* 标签与箭头放在同一内层 flex，让箭头紧贴文字，而非被 flex-1 推到最右侧。 */}

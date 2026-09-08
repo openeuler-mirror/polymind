@@ -1,15 +1,6 @@
 'use client'
 
-import {
-  PanelLeftOpen,
-  Share2,
-  MoreHorizontal,
-  Moon,
-  Sun,
-  Monitor,
-  PanelRight,
-  Settings,
-} from 'lucide-react'
+import { PanelLeftOpen, Share2, MoreHorizontal, Moon, Sun, Monitor, Settings } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useChatStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
@@ -39,8 +30,8 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
   const { isSidebarOpen, toggleSidebar } = useChatStore()
 
   return (
-    <header className="flex h-14 items-center justify-between px-4">
-      <div className="flex items-center gap-3">
+    <header className="flex h-16 items-center justify-between pl-6 pr-4">
+      <div className="flex items-center gap-4">
         {!isSidebarOpen && (
           <TooltipProvider delayDuration={0}>
             <Tooltip>
@@ -54,12 +45,7 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
           </TooltipProvider>
         )}
 
-        <div className="flex flex-col">
-          <h1 className="text-sm font-semibold">{conversation?.title || '新对话'}</h1>
-          <span className="text-xs text-muted-foreground">
-            {`${conversation?.messages.length || 0} 条消息`}
-          </span>
-        </div>
+        <h1 className="text-base font-semibold">{conversation?.title || '新对话'}</h1>
       </div>
 
       <div className="flex items-center gap-2">

@@ -47,7 +47,7 @@ export function SettingsPage() {
   return (
     <div className="flex h-full min-h-0 bg-background">
       {/* Sidebar */}
-      <div className="w-48 border-r border-border bg-sidebar p-4">
+      <div className="w-48 border-r border-border bg-background p-4">
         <nav className="space-y-1">
           {sections.map(section => (
             <button

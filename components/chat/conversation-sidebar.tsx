@@ -1,7 +1,17 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
-import { ChevronLeft, MessageSquarePlus, Search } from 'lucide-react'
+import {
+  PanelLeftClose,
+  MessageSquarePlus,
+  Search,
+  MessageCircle,
+  Clock,
+  Bot,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
+import { format } from 'date-fns'
 import { useChatStore } from '@/lib/store'
 import { MessageStatus, type Conversation } from '@/lib/types'
 import {
@@ -16,9 +26,10 @@ import {
 import { sessionService } from '@/services/session-service'
 import { abortScheduledRunForSession } from '@/lib/stores/scheduled-run-controller'
 import { useToast } from '@/hooks/use-toast'
+import { cn } from '@/lib/utils'
 import { groupSidebarConversations, sortByUpdatedAtDesc } from '@/lib/sidebar-utils'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { CustomIcon } from '@/components/ui/custom-icon'
 import { DeleteScheduledTaskDialog } from '@/components/tool-panel/scheduled-task/delete-task-dialog'
@@ -27,15 +38,18 @@ import { ScheduledTaskFolder } from './scheduled-task-folder'
 import { SidebarSection } from './sidebar-section'
 
 export function ConversationSidebar() {
-  const [searchQuery, setSearchQuery] = useState('')
   const [isHydrated, setIsHydrated] = useState(false)
   const [deleteTaskTarget, setDeleteTaskTarget] = useState<ScheduledTask | null>(null)
+  const [searchDialogOpen, setSearchDialogOpen] = useState(false)
+  const [searchKeyword, setSearchKeyword] = useState('')
   const { toast } = useToast()
 
   const {
     conversations,
     currentConversationId,
     isSidebarOpen,
+    isRightPanelOpen,
+    activeRightPanelTab,
     setCurrentConversation,
     deleteConversation,
     toggleSidebar,
@@ -149,24 +163,79 @@ export function ConversationSidebar() {
     refreshScheduledAfterConversationDelete(conversation)
   }
 
-  const normalizedQuery = searchQuery.trim().toLowerCase()
+  // 搜索弹窗选中结果：本地会话直接选中，未加载的定时任务摘要懒加载会话详情。
+  const handleSearchSelect = (conversation: Conversation) => {
+    const state = useChatStore.getState()
+    const existing = state.conversations.find(c => c.id === conversation.id)
+    if (existing) {
+      state.setCurrentConversation(existing.id)
+    } else if (conversation.agentId && conversation.sessionId) {
+      void state.refreshConversation(conversation.agentId, conversation.sessionId, {
+        scheduledTaskId: conversation.scheduledTaskId,
+      })
+    }
+    setSearchDialogOpen(false)
+  }
 
-  const filteredConversations = useMemo(
-    () => conversations.filter(c => c.title.toLowerCase().includes(normalizedQuery)),
-    [conversations, normalizedQuery]
-  )
+  const groups = useMemo(() => groupSidebarConversations(conversations), [conversations])
 
-  const groups = useMemo(
-    () => groupSidebarConversations(filteredConversations),
-    [filteredConversations]
-  )
+  // 弹窗搜索的可检索会话集合：本地会话 + 定时任务后端摘要（按 sessionId 去重）。
+  const searchableConversations = useMemo(() => {
+    const list: Conversation[] = [...conversations]
+    const localSessionIds = new Set(
+      conversations.map(c => c.sessionId).filter((s): s is string => Boolean(s))
+    )
+    for (const task of scheduledTasks) {
+      const summaries = summaryConversationsByTask[task.id] ?? []
+      for (const summary of summaries) {
+        if (!localSessionIds.has(summary.id)) {
+          list.push(summaryToConversation(task, summary))
+        }
+      }
+    }
+    return list
+  }, [conversations, scheduledTasks, summaryConversationsByTask])
+
+  const dialogQuery = searchKeyword.trim()
+
+  // 搜索索引：每条会话的正文小写串只算一次（随 searchableConversations 变化重建），
+  // 避免每次输入/每次重渲染都对全部消息重复 toLowerCase。
+  const searchIndex = useMemo(() => {
+    const index = new Map<string, SearchIndexEntry>()
+    for (const conversation of searchableConversations) {
+      const messages = (conversation.messages ?? []).map(message => {
+        const content = message.content ?? ''
+        return { content, lower: content.toLowerCase() }
+      })
+      index.set(conversation.id, {
+        messages,
+        haystack: messages.map(message => message.lower).join('\n'),
+      })
+    }
+    return index
+  }, [searchableConversations])
+
+  // 命中标题或任意消息内容的会话，按最近更新时间排序；
+  // 预览文本在同一次 memo 内算出，渲染阶段只读结果，不再逐行扫描消息。
+  const dialogResults = useMemo(() => {
+    const q = dialogQuery.toLowerCase()
+    if (!q) return []
+    return sortByUpdatedAtDesc(
+      searchableConversations.filter(c => {
+        if (c.title.toLowerCase().includes(q)) return true
+        return searchIndex.get(c.id)?.haystack.includes(q) ?? false
+      })
+    ).map(conversation => ({
+      conversation,
+      snippet: pickConversationSnippet(searchIndex.get(conversation.id), q),
+    }))
+  }, [searchableConversations, searchIndex, dialogQuery])
 
   // 定时任务区以“会话”为唯一实体渲染：
   // - 后端 conversations 摘要为权威来源（含 last_run_status）；
   // - 本地已打开/手动触发的会话更实时，按 sessionId 去重后优先垫场，
   //   覆盖手动触发后到下一次轮询（≤10s）之间的空窗。
   const scheduledFolders = useMemo(() => {
-    const searching = normalizedQuery.length > 0
     const localByTask = new Map<string, Conversation[]>()
     for (const conversation of conversations) {
       if (!conversation.scheduledTaskId) continue
@@ -182,22 +251,17 @@ export function ConversationSidebar() {
       runningSessionIds: ReadonlySet<string>
     }> = []
     for (const task of scheduledTasks) {
-      // 搜索时：任务名命中则整组展示；否则仅保留标题命中的条目。
-      const taskNameMatches = !searching || task.name.toLowerCase().includes(normalizedQuery)
       const localAll = localByTask.get(task.id) ?? []
       const localSessionIds = new Set(
         localAll.map(c => c.sessionId).filter((s): s is string => Boolean(s))
       )
       const summaries = summaryConversationsByTask[task.id] ?? []
-      const matchesQuery = (conversation: Conversation) =>
-        taskNameMatches || conversation.title.toLowerCase().includes(normalizedQuery)
       const entries = sortByUpdatedAtDesc([
-        ...localAll.filter(matchesQuery),
+        ...localAll,
         ...summaries
           // 已有本地会话的摘要按 sessionId 去重（本地条目更实时，优先渲染）。
           .filter(summary => !localSessionIds.has(summary.id))
-          .map(summary => summaryToConversation(task, summary))
-          .filter(matchesQuery),
+          .map(summary => summaryToConversation(task, summary)),
       ])
       if (entries.length === 0) continue
       const runningSessionIds = new Set(
@@ -220,7 +284,7 @@ export function ConversationSidebar() {
     }
     folders.sort((a, b) => folderLatestTime(b) - folderLatestTime(a))
     return folders
-  }, [conversations, scheduledTasks, summaryConversationsByTask, normalizedQuery])
+  }, [conversations, scheduledTasks, summaryConversationsByTask])
 
   const scheduledEntryCount = scheduledFolders.reduce((sum, f) => sum + f.conversations.length, 0)
   const totalCount = groups.pinned.length + groups.regular.length + scheduledEntryCount
@@ -243,60 +307,140 @@ export function ConversationSidebar() {
     return null
   }
 
+  // 顶部导航项：仅「智能体 / 定时任务」映射到右侧面板 tab，高亮直接跟随面板真实状态；
+  // 「新对话」是动作、「IM 频道」是占位，都不持有选中态，避免导航高亮与真实视图不一致。
+  const navItems: { id: string; label: string; icon: LucideIcon; panelTabId: string | null }[] = [
+    { id: 'chat', label: '新对话', icon: MessageSquarePlus, panelTabId: null },
+    { id: 'im', label: 'IM 频道', icon: MessageCircle, panelTabId: null },
+    { id: 'agent', label: '智能体', icon: Bot, panelTabId: 'agent' },
+    { id: 'scheduled-tasks', label: '定时任务', icon: Clock, panelTabId: 'scheduled-tasks' },
+  ]
+
+  // 打开右侧面板并确保可见（agent / scheduled-tasks）。
+  const openRightPanelTab = (tab: {
+    id: string
+    name: string
+    icon: LucideIcon
+    color: string
+  }) => {
+    const state = useChatStore.getState()
+    state.addRightPanelTab(tab)
+    state.setActiveRightPanelTab(tab.id)
+    if (!state.isRightPanelOpen) {
+      state.toggleRightPanel()
+    }
+  }
+
+  const startNewTask = () => {
+    const state = useChatStore.getState()
+    const currentConv = state.conversations.find(c => c.id === state.currentConversationId)
+    const agentId =
+      currentConv?.agentId ||
+      state.currentAgentId ||
+      state.agents.find(a => a.status !== 'deleted')?.id
+    if (agentId) {
+      state.startNewTask(agentId)
+    }
+  }
+
+  const handleNavClick = (navId: string) => {
+    if (navId === 'chat') {
+      startNewTask()
+    } else if (navId === 'agent') {
+      openRightPanelTab({ id: 'agent', name: '智能体', icon: Bot, color: 'text-cyan-500' })
+    } else if (navId === 'scheduled-tasks') {
+      openRightPanelTab({
+        id: 'scheduled-tasks',
+        name: '定时任务',
+        icon: Clock,
+        color: 'text-violet-500',
+      })
+    } else if (navId === 'im') {
+      toast({
+        title: 'IM 频道',
+        description: 'IM 频道机器人功能即将上线',
+      })
+    }
+  }
+
   return (
     <div className="flex h-full w-72 flex-col border-r border-border bg-sidebar overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-sidebar-border p-4">
+      {/* Header：高度与 chat-header（h-16）保持一致，两栏顶线对齐 */}
+      <div className="flex h-16 shrink-0 items-center justify-between pl-4 pr-3">
         <div className="flex items-center gap-2">
-          <CustomIcon src="/icon.svg" size={24} className="h-6 w-6 text-primary" alt="Logo" />
-          <span className="text-lg font-semibold">PolyMind</span>
+          <div className="flex items-center gap-2">
+            <CustomIcon src="/icon.svg" size={24} className="h-6 w-6 text-primary" alt="Logo" />
+            <span className="text-lg font-semibold">PolyMind</span>
+          </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-      </div>
-
-      {/* New Task Button */}
-      <div className="p-3">
-        <Button
-          variant="outline"
-          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            const state = useChatStore.getState()
-            const currentConv = state.conversations.find(c => c.id === state.currentConversationId)
-            const agentId =
-              currentConv?.agentId ||
-              state.currentAgentId ||
-              state.agents.find(a => a.status !== 'deleted')?.id
-            if (agentId) {
-              state.startNewTask(agentId)
-            }
-          }}
-        >
-          <MessageSquarePlus className="h-4 w-4" />
-          <span>新任务</span>
-        </Button>
-      </div>
-
-      {/* Search */}
-      <div className="px-3 pb-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="搜索对话..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            aria-label="搜索对话"
+            title="搜索对话"
+            onClick={() => {
+              setSearchKeyword('')
+              setSearchDialogOpen(true)
+            }}
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            aria-label="收起侧边栏"
+            onClick={toggleSidebar}
+            title="收起侧边栏"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </Button>
         </div>
       </div>
+
+      {/* Top Nav */}
+      <nav className="px-3 pt-1 pb-2">
+        {navItems.map(item => {
+          const Icon = item.icon
+          // 面板类入口的高亮来自面板真实状态：面板关闭或切到别的 tab 时自动熄灭
+          const isActive =
+            item.panelTabId !== null && isRightPanelOpen && activeRightPanelTab === item.panelTabId
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => handleNavClick(item.id)}
+              className={cn(
+                'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
+                isActive
+                  ? 'bg-sidebar-accent font-semibold text-sidebar-accent-foreground'
+                  : 'hover:bg-sidebar-accent/60'
+              )}
+            >
+              <Icon className={cn('h-4 w-4', isActive && 'text-primary')} />
+              <span>{item.label}</span>
+            </button>
+          )
+        })}
+      </nav>
 
       {/* Conversation List */}
-      <ScrollArea className="flex-1 min-h-0 px-2">
-        {!isHydrated || totalCount === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-            <MessageSquarePlus className="mb-2 h-8 w-8" />
-            <p className="text-sm">暂无对话</p>
+      <ScrollArea className="flex-1 min-h-0 px-3">
+        {!isHydrated ? (
+          <div className="h-full" />
+        ) : totalCount === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-background text-muted-foreground">
+              <MessageSquarePlus className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">还没有对话</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                点击上方“新对话”开始你的第一个任务
+              </p>
+            </div>
           </div>
         ) : (
           <>
@@ -364,6 +508,89 @@ export function ConversationSidebar() {
         task={deleteTaskTarget}
         onClose={() => setDeleteTaskTarget(null)}
       />
+
+      {/* 搜索对话弹窗 */}
+      <Dialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen}>
+        <DialogContent
+          showCloseButton={false}
+          className={cn(
+            'max-w-2xl gap-0 overflow-hidden p-0 sm:max-w-2xl top-[12%] translate-y-0',
+            dialogQuery.length > 0
+              ? 'grid-rows-[auto_1fr] h-[min(72vh,560px)]'
+              : 'grid-rows-[auto] h-auto'
+          )}
+        >
+          <DialogTitle className="sr-only">搜索对话内容</DialogTitle>
+
+          <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+            <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <input
+              autoFocus
+              aria-label="搜索对话内容"
+              value={searchKeyword}
+              onChange={e => setSearchKeyword(e.target.value)}
+              placeholder="搜索对话内容..."
+              className="flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
+            />
+            <button
+              type="button"
+              aria-label="清空搜索内容"
+              onClick={() => setSearchKeyword('')}
+              className="text-muted-foreground transition-colors hover:text-foreground"
+              title="清空"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {dialogQuery.length > 0 && (
+            <ScrollArea className="min-h-0 px-3 py-3">
+              {dialogResults.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    <Search className="h-7 w-7" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">暂无相关结果</p>
+                </div>
+              ) : (
+                <ul className="space-y-1">
+                  {dialogResults.map(({ conversation, snippet }) => (
+                    <li key={conversation.id}>
+                      <button
+                        type="button"
+                        onClick={() => handleSearchSelect(conversation)}
+                        className={cn(
+                          'flex w-full items-start gap-4 rounded-xl px-4 py-3 text-left transition-colors',
+                          conversation.id === currentConversationId
+                            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                            : 'hover:bg-muted'
+                        )}
+                      >
+                        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                          <MessageCircle className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium">
+                              {conversation.title}
+                            </span>
+                            <span className="ml-auto shrink-0 text-xs text-muted-foreground/60">
+                              {formatConversationDate(conversation.updatedAt)}
+                            </span>
+                          </div>
+                          <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                            {snippet}
+                          </p>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </ScrollArea>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -402,4 +629,35 @@ function folderLatestTime(folder: { conversations: Conversation[] }): number {
     if (Number.isFinite(ts) && ts > latest) latest = ts
   }
   return latest
+}
+
+/** 安全格式化会话日期：兼容 Date 与 ISO 字符串，非法日期返回空串避免 date-fns 抛错。 */
+function formatConversationDate(date: Date): string {
+  const ts = new Date(date).getTime()
+  if (!Number.isFinite(ts)) return ''
+  return format(new Date(date), 'M月d日')
+}
+
+/** 搜索索引条目：正文原文 + 已小写正文，搜索判定与预览共用，避免重复计算。 */
+interface SearchIndexEntry {
+  messages: { content: string; lower: string }[]
+  /** 全部正文的小写拼接，用于「是否命中」判定 */
+  haystack: string
+}
+
+/**
+ * 从搜索索引中提取预览文本：优先命中关键词的消息，其次最新一条有内容的消息。
+ * 单次倒序遍历，不做数组反转、不重复小写化（query 已由调用方转小写）。
+ */
+function pickConversationSnippet(entry: SearchIndexEntry | undefined, query: string): string {
+  if (!entry || entry.messages.length === 0) return ''
+  let latest = ''
+  let matched = ''
+  for (let i = entry.messages.length - 1; i >= 0; i--) {
+    const message = entry.messages[i]
+    if (!latest && message.content.trim()) latest = message.content
+    if (!matched && message.lower.includes(query)) matched = message.content
+    if (latest && matched) break
+  }
+  return (matched || latest).replace(/\s+/g, ' ').trim()
 }
