@@ -5,8 +5,9 @@ import {
   UpdateAgentRequest,
   ApiResponse,
   CreateAgentHubRequest,
+  AgentTemplateInfo,
 } from '@/lib/types'
-import { AgentStatus, AdapterType } from '@/lib/types'
+import { AgentStatus, AdapterType, SandboxType } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
 
 class AgentService {
@@ -120,6 +121,38 @@ class AgentService {
     }
   }
 
+  /** 获取预置 Agent 模板列表（只读，零网络、零 DB；离线可用）。 */
+  public async getAgentTemplates(): Promise<AgentTemplateInfo[]> {
+    const response = await httpClient.get<AgentTemplateInfo[]>('/agent-templates')
+    if (!response) {
+      throw new Error('Invalid API response: no response received')
+    }
+    // 响应不是数组说明后端契约被破坏：抛错让上层进入错误态，而不是静默降级成「暂无模板」
+    if (!Array.isArray(response)) {
+      throw new Error('Invalid API response: agent templates is not an array')
+    }
+    return response.map(t => this.transformTemplate(t))
+  }
+
+  /** 一键实例化预置模板，返回创建好的 Agent（含 process_port）。 */
+  public async instantiateAgentTemplate(name: string, modelId: string): Promise<Agent> {
+    const backendRequest: Record<string, any> = {
+      model_id: modelId,
+      // 不暴露 sandbox 选择；恒默认本地进程沙箱
+      sandbox_type: SandboxType.LOCAL_PROCESS,
+    }
+
+    const response = await httpClient.post<Agent>(
+      `/agent-templates/${encodeURIComponent(name)}/instantiate`,
+      backendRequest
+    )
+
+    if (!response) {
+      throw new Error('Invalid API response: no response received')
+    }
+    return this.transformAgent(response)
+  }
+
   public async pauseAgent(agentId: string): Promise<{ agent?: Agent; error?: string }> {
     try {
       const response = await httpClient.post<any>(`/agents/${agentId}/pause`)
@@ -196,6 +229,21 @@ class AgentService {
       mcpServerList: agent.mcp_server_list || [],
       createdAt: agent.created_at || agent.createdAt,
       updatedAt: agent.updated_at || agent.updatedAt,
+    }
+  }
+
+  private transformTemplate(template: any): AgentTemplateInfo {
+    if (!template || typeof template !== 'object') {
+      throw new Error('Agent template data is invalid')
+    }
+
+    return {
+      name: template.name,
+      description: template.description,
+      version: template.version ?? '1.0.0',
+      skillCount: template.skill_count ?? template.skillCount ?? 0,
+      skills: Array.isArray(template.skills) ? template.skills : [],
+      sourceCommit: template.source_commit ?? template.sourceCommit ?? null,
     }
   }
 

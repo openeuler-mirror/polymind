@@ -1,0 +1,133 @@
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+import { Loader2, Plus, CheckCircle2, RefreshCw } from 'lucide-react'
+import { agentService } from '@/services/agent-service'
+import { AgentTemplateInfo } from '@/lib/types'
+import { isTemplateInstantiated } from '@/lib/agent-template-utils'
+import { useTemplateInstantiate } from '@/hooks/use-template-instantiate'
+import { cn } from '@/lib/utils'
+import { useChatStore } from '@/lib/store'
+
+/**
+ * Agent 模版快捷墙。
+ * 作为输入框上方的一排左对齐 chips 展示，一键实例化对应 Agent。
+ * 实例化流程（选中 / 错误分类 / 刷新）与智能体页共用 useTemplateInstantiate。
+ */
+export function AgentTemplateChips() {
+  const [templates, setTemplates] = useState<AgentTemplateInfo[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(true)
+  const [templateLoadError, setTemplateLoadError] = useState(false)
+  const { instantiatingTemplate, instantiateTemplate, refreshAgents } = useTemplateInstantiate()
+  // Agent 列表以全局 store 为唯一来源：智能体页的删除/新增/暂停都会同步到 store，
+  // 模版墙据此实时更新「已创建」状态，避免两处各持副本导致状态不一致。
+  const agents = useChatStore(state => state.agents)
+  const reportTemplateWall = useChatStore(state => state.reportTemplateWall)
+  const setTemplateHintAnchor = useChatStore(state => state.setTemplateHintAnchor)
+  const dismissTemplateHint = useChatStore(state => state.dismissTemplateHint)
+
+  const fetchTemplates = useCallback(async () => {
+    try {
+      setTemplatesLoading(true)
+      setTemplateLoadError(false)
+      const data = await agentService.getAgentTemplates()
+      setTemplates(data)
+    } catch (err) {
+      console.error('Failed to fetch agent templates:', err)
+      setTemplateLoadError(true)
+    } finally {
+      setTemplatesLoading(false)
+    }
+  }, [])
+
+  // 挂载时与服务端对齐一次（模版列表 + agent 列表，后者写入全局 store）
+  useEffect(() => {
+    fetchTemplates()
+    refreshAgents()
+  }, [fetchTemplates, refreshAgents])
+
+  // 向 store 上报模版墙状态：气泡据此判定「是否已有模版 agent」与「是否可指向模版墙」。
+  useEffect(() => {
+    reportTemplateWall({
+      ready: !templatesLoading && !templateLoadError && templates.length > 0,
+      names: templates.map(template => template.name),
+    })
+  }, [templatesLoading, templateLoadError, templates, reportTemplateWall])
+
+  // 把模版墙根节点注册为引导气泡的锚点；卸载时回调收到 null，气泡随之收起。
+  const attachTemplateHintAnchor = useCallback(
+    (node: HTMLDivElement | null) => setTemplateHintAnchor(node),
+    [setTemplateHintAnchor]
+  )
+
+  const handleTemplateClick = async (template: AgentTemplateInfo) => {
+    // 用户已按引导点击模版，气泡使命结束（无论实例化是否成功）。
+    dismissTemplateHint()
+    const outcome = await instantiateTemplate(template)
+    // 新建成功后模版列表本身不变，重取一次以防后端刷新了模板元数据
+    if (outcome === 'instantiated') fetchTemplates()
+  }
+
+  if (templatesLoading) {
+    return (
+      <div className="flex h-6 items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        加载模板中...
+      </div>
+    )
+  }
+
+  if (templateLoadError) {
+    return (
+      <button
+        type="button"
+        onClick={fetchTemplates}
+        className="inline-flex h-6 items-center gap-1.5 rounded-full border border-dashed border-border px-4 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+      >
+        <RefreshCw className="h-3.5 w-3.5" />
+        模版加载失败，点击重试
+      </button>
+    )
+  }
+
+  if (templates.length === 0) return null
+
+  return (
+    <div ref={attachTemplateHintAnchor} className="flex flex-wrap items-center gap-2">
+      {templates.map(template => {
+        const instantiated = isTemplateInstantiated(agents, template)
+        const isInstantiating = instantiatingTemplate === template.name
+        const disabled = instantiatingTemplate !== null
+        return (
+          <button
+            key={template.name}
+            type="button"
+            title={template.description || template.name}
+            aria-label={
+              instantiated
+                ? `模板 ${template.name}（已创建，选中该 Agent）`
+                : `实例化模板 ${template.name}`
+            }
+            aria-busy={isInstantiating}
+            disabled={disabled}
+            onClick={() => handleTemplateClick(template)}
+            className={cn(
+              'group inline-flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-3.5 py-2 text-sm transition-all',
+              'hover:border-primary/40 hover:shadow-sm',
+              disabled && 'cursor-default opacity-60'
+            )}
+          >
+            {isInstantiating ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+            ) : instantiated ? (
+              <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+            ) : (
+              <Plus className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-primary" />
+            )}
+            <span className="max-w-[140px] truncate font-medium">{template.name}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}

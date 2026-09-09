@@ -34,36 +34,12 @@ jest.mock('@/services/scheduled-task-service', () => {
 
 jest.mock('@/lib/store', () => {
   const { create } = jest.requireActual('zustand') as typeof import('zustand')
-  const { createChatSlice } = jest.requireActual(
-    '@/lib/stores/chat-store'
-  ) as typeof import('@/lib/stores/chat-store')
-  const { createAgentSlice } = jest.requireActual(
-    '@/lib/stores/agent-store'
-  ) as typeof import('@/lib/stores/agent-store')
-  const { createConnectionSlice } = jest.requireActual(
-    '@/lib/stores/connection-store'
-  ) as typeof import('@/lib/stores/connection-store')
-  const { createSettingsSlice } = jest.requireActual(
-    '@/lib/stores/settings-store'
-  ) as typeof import('@/lib/stores/settings-store')
-  const { createUISlice } = jest.requireActual(
-    '@/lib/stores/ui-store'
-  ) as typeof import('@/lib/stores/ui-store')
+  const { createStoreShape } = jest.requireActual(
+    '@/lib/stores/store-shape'
+  ) as typeof import('@/lib/stores/store-shape')
 
   return {
-    useChatStore: create<
-      ReturnType<typeof createChatSlice> &
-        ReturnType<typeof createAgentSlice> &
-        ReturnType<typeof createConnectionSlice> &
-        ReturnType<typeof createSettingsSlice> &
-        ReturnType<typeof createUISlice>
-    >()((...args: Parameters<typeof createChatSlice>) => ({
-      ...createChatSlice(...args),
-      ...createAgentSlice(...args),
-      ...createConnectionSlice(...args),
-      ...createSettingsSlice(...args),
-      ...createUISlice(...args),
-    })),
+    useChatStore: create<import('@/lib/stores/store-shape').StoreState>()(createStoreShape),
   }
 })
 

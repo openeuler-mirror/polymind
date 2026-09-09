@@ -37,8 +37,10 @@ export default function Home() {
     modelService
       .getModels()
       .then(models => {
-        const hasActiveDefault = models.some(m => m.enabled && m.isDefault)
-        if (!hasActiveDefault) {
+        const hasConfiguredDefault = models.some(m => m.enabled && m.isDefault)
+        // 复用同一次请求结果：既决定是否拉起首检弹窗，也作为模版引导气泡的「已配置默认模型」依据。
+        useChatStore.getState().setHasConfiguredDefaultModel(hasConfiguredDefault)
+        if (!hasConfiguredDefault) {
           useChatStore.getState().openDefaultModelDialog()
         }
       })

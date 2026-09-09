@@ -506,6 +506,22 @@ export interface CreateAgentHubRequest {
   model_id?: string
 }
 
+/**
+ * 预置 Agent 模板信息（GET /agent-templates 的单个模板）。
+ * 只读、零网络、零 DB；source_commit 仅本地读缓存 HEAD，离线可为 null。
+ */
+export interface AgentTemplateInfo {
+  name: string
+  description: string
+  version: string
+  /** 顶层 skill 数量（嵌套为载荷不计数） */
+  skillCount: number
+  /** 顶层 skill 名称列表，供卡片标注与预览 */
+  skills: string[]
+  /** 模板 skill 来源仓库的 commit hash；离线或未预热时为 null */
+  sourceCommit: string | null
+}
+
 // ============================================
 // 会话相关类型
 // ============================================

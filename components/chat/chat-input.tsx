@@ -1,7 +1,16 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { Send, Paperclip, Mic, Image as ImageIcon, X, FileText, StopCircle } from 'lucide-react'
+import {
+  Send,
+  Paperclip,
+  Mic,
+  Plus,
+  Image as ImageIcon,
+  X,
+  FileText,
+  StopCircle,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
 import { useScheduledTaskStore } from '@/lib/stores/scheduled-task-store'
@@ -20,28 +29,11 @@ const models = [
   { id: 'llama-3', name: 'Llama 3 70B', provider: 'Meta' },
 ]
 
-// 预设提示词接口
-export interface PromptSuggestion {
-  id: string
-  icon?: React.ElementType
-  title: string
-  description?: string
-  prompt: string
-}
-
 interface ChatInputProps {
   onSend: (content: string, attachments?: File[]) => void
-  presetPrompts?: PromptSuggestion[]
-  onRemovePresetPrompt?: (promptId: string) => void
-  onClearPresetPrompts?: () => void
 }
 
-export function ChatInput({
-  onSend,
-  presetPrompts = [],
-  onRemovePresetPrompt,
-  onClearPresetPrompts,
-}: ChatInputProps) {
+export function ChatInput({ onSend }: ChatInputProps) {
   const { toast } = useToast()
   const [skills, setSkills] = useState<AgentSkill[]>([])
   const [input, setInput] = useState('')
@@ -159,22 +151,14 @@ export function ChatInput({
 
   const handleSubmit = useCallback(() => {
     const trimmedInput = input.trim()
-    if (!trimmedInput && attachments.length === 0 && presetPrompts.length === 0) return
+    if (!trimmedInput && attachments.length === 0) return
     if (isStreaming) return
     if (!currentAgentId) return
 
-    // 将预设提示词的内容添加到消息中
-    let finalContent = trimmedInput
-    if (presetPrompts.length > 0) {
-      const presetContent = presetPrompts.map(p => p.prompt).join('\n\n')
-      finalContent = trimmedInput ? `${presetContent}\n\n${trimmedInput}` : presetContent
-    }
-
-    onSend(finalContent, attachments.length > 0 ? attachments : undefined)
+    onSend(trimmedInput, attachments.length > 0 ? attachments : undefined)
     setInput('')
     setAttachments([])
-    onClearPresetPrompts?.()
-  }, [input, attachments, presetPrompts, isStreaming, onSend, onClearPresetPrompts, currentAgentId])
+  }, [input, attachments, isStreaming, onSend, currentAgentId])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // 当技能选择器显示时，手动处理键盘导航
@@ -275,33 +259,30 @@ export function ChatInput({
 
   // 普通聊天输入模式
   return (
-    <div className="mx-auto max-w-4xl">
-      {/* Attachments Preview */}
-      {attachments.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-2">
-          {attachments.map((file, index) => (
-            <AttachmentPreview
-              key={`${file.name}-${index}`}
-              file={file}
-              onRemove={() => removeAttachment(index)}
-            />
-          ))}
-        </div>
-      )}
-
+    <div className="mx-auto w-full max-w-4xl">
       {/* Input Area */}
       <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         className={cn(
-          'relative rounded-2xl border bg-card transition-all',
+          'relative rounded-2xl border bg-card shadow-sm transition-all',
           isDragging ? 'border-primary border-dashed bg-primary/5' : 'border-border',
           'focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20'
         )}
       >
-        {/* Agent Selector Bar */}
-        <AgentSelector />
+        {/* Attachments Preview：显示在输入框内部（光标上方） */}
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-4 pt-3">
+            {attachments.map((file, index) => (
+              <AttachmentPreview
+                key={`${file.name}-${index}`}
+                file={file}
+                onRemove={() => removeAttachment(index)}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Skill选择器 - 绝对定位悬浮在上方，不占用高度，完全手动实现避免组件内置逻辑冲突 */}
         {showSkillSelector && (
@@ -336,29 +317,10 @@ export function ChatInput({
           </div>
         )}
 
-        {/* 预设提示词标签 */}
-        {presetPrompts.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-4 pt-3">
-            {presetPrompts.map(prompt => (
-              <div
-                key={prompt.id}
-                className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm text-primary"
-              >
-                <span className="font-medium">{prompt.title}</span>
-                <button
-                  onClick={() => onRemovePresetPrompt?.(prompt.id)}
-                  className="ml-1 rounded-full p-0.5 hover:bg-primary/20"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="relative min-h-[60px]">
+        <div className="relative min-h-[80px]">
           {/* 高亮显示层，和输入内容完全同步 */}
-          <div className="absolute inset-0 px-4 py-3 whitespace-pre-wrap break-words pointer-events-none z-10 text-transparent font-sans text-base leading-normal tracking-normal md:text-sm">
+          {/* 高亮层必须与下方 Textarea 的 px-5 py-4 完全一致，否则技能高亮会相对正文错位 */}
+          <div className="absolute inset-0 px-5 py-4 whitespace-pre-wrap break-words pointer-events-none z-10 text-transparent font-sans text-base leading-normal tracking-normal md:text-sm">
             {renderHighlightedContent(input)}
           </div>
           {/* 实际输入层，透明显示 */}
@@ -369,14 +331,15 @@ export function ChatInput({
             onKeyDown={handleKeyDown}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
-            placeholder='输入消息，按 Enter 发送，输入"/"获得更多技能'
-            className="min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent px-4 py-3 focus-visible:ring-0 relative z-20"
+            placeholder='描述你的任务，输入 "/" 调用技能，Enter 发送'
+            className="min-h-[80px] max-h-[200px] resize-none border-0 bg-transparent px-5 py-4 focus-visible:ring-0 shadow-none relative z-20"
             disabled={isStreaming}
           />
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-between border-t border-border px-3 py-2">
+        <div className="flex items-center justify-between px-3 py-1.5">
+          {/* 左下角：仅保留一个 + 号按钮，用于上传图片或附件 */}
           <div className="flex items-center gap-1">
             <TooltipProvider delayDuration={0}>
               <Tooltip>
@@ -384,41 +347,21 @@ export function ChatInput({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8"
+                    className="h-8 w-8 rounded-full"
+                    aria-label="上传图片或附件"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isStreaming || attachments.length >= 5}
                   >
-                    <Paperclip className="h-4 w-4" />
+                    <Plus className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>添加附件</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" disabled={isStreaming}>
-                    <ImageIcon className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>添加图片</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" disabled={isStreaming}>
-                    <Mic className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>语音输入</TooltipContent>
+                <TooltipContent>上传图片或附件</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
 
+          {/* 右下角：选择 Agent + 语音 + 发送（流式时切换为停止生成） */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {input.length > 0 && `${input.length} 字符`}
-            </span>
-
             {isStreaming ? (
               <Button
                 variant="destructive"
@@ -438,24 +381,42 @@ export function ChatInput({
               </Button>
             ) : (
               <TooltipProvider delayDuration={0}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
+                <div className="flex items-center gap-2">
+                  {/* 右下角选择 Agent */}
+                  <AgentSelector compact />
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
                       <Button
+                        variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
-                        onClick={handleSubmit}
-                        disabled={!currentAgentId || (!input.trim() && attachments.length === 0)}
+                        className="h-8 w-8 rounded-full"
+                        aria-label="语音输入"
+                        disabled={isStreaming}
                       >
-                        <Send className="h-4 w-4" />
-                        <span className="sr-only">发送</span>
+                        <Mic className="h-4 w-4" />
                       </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {currentAgentId ? '发送' : '请先选择上方的智能体'}
-                  </TooltipContent>
-                </Tooltip>
+                    </TooltipTrigger>
+                    <TooltipContent>语音输入</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Button
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={handleSubmit}
+                          disabled={!currentAgentId || (!input.trim() && attachments.length === 0)}
+                        >
+                          <Send className="h-4 w-4" />
+                          <span className="sr-only">发送</span>
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{currentAgentId ? '发送' : '请先选择智能体'}</TooltipContent>
+                  </Tooltip>
+                </div>
               </TooltipProvider>
             )}
           </div>
@@ -489,21 +450,33 @@ function AttachmentPreview({ file, onRemove }: AttachmentPreviewProps) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  // 生成文件类型标签：取扩展名并转大写（html -> HTML），无扩展名时退回 FILE
+  const getTypeLabel = (name: string) => {
+    const ext = name.split('.').pop()
+    return ext && ext !== name ? ext.toUpperCase() : 'FILE'
+  }
+
   return (
-    <div className="group relative flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
-      <Icon className="h-4 w-4 text-muted-foreground" />
-      <div className="flex flex-col">
-        <span className="max-w-[120px] truncate text-sm font-medium">{file.name}</span>
-        <span className="text-xs text-muted-foreground">{formatSize(file.size)}</span>
+    <div className="group flex items-center gap-2.5 rounded-lg border border-border bg-muted/40 px-3 py-2">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <Icon className="h-4 w-4" />
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute -right-2 -top-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
+      <div className="flex flex-col">
+        <span className="max-w-[140px] truncate text-sm font-medium leading-tight">
+          {file.name}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {getTypeLabel(file.name)} · {formatSize(file.size)}
+        </span>
+      </div>
+      <button
+        type="button"
         onClick={onRemove}
+        aria-label="移除附件"
+        className="ml-1 rounded-full p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100"
       >
-        <X className="h-3 w-3" />
-      </Button>
+        <X className="h-3.5 w-3.5" />
+      </button>
     </div>
   )
 }

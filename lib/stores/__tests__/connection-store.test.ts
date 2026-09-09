@@ -1,9 +1,5 @@
 import { create } from 'zustand'
-import { createConnectionSlice, type ConnectionSlice } from '../connection-store'
-import { createChatSlice, type ChatSlice } from '../chat-store'
-import { createAgentSlice, type AgentSlice } from '../agent-store'
-import { createSettingsSlice, type SettingsSlice } from '../settings-store'
-import { createUISlice, type UISlice } from '../ui-store'
+import { createStoreShape, type StoreState } from '../store-shape'
 import { messageService } from '@/services/message-service'
 
 jest.mock('@/services/message-service', () => ({
@@ -17,15 +13,7 @@ jest.mock('@/services/message-service', () => ({
   },
 }))
 
-type TestState = ChatSlice & AgentSlice & ConnectionSlice & SettingsSlice & UISlice
-
-const useTestStore = create<TestState>()((...a) => ({
-  ...createChatSlice(...a),
-  ...createAgentSlice(...a),
-  ...createConnectionSlice(...a),
-  ...createSettingsSlice(...a),
-  ...createUISlice(...a),
-}))
+const useTestStore = create<StoreState>()(createStoreShape)
 
 describe('ConnectionSlice', () => {
   beforeEach(() => {
