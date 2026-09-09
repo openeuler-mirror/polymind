@@ -179,6 +179,82 @@
   animation: blink 1s infinite;
 }
 
+.shimmer {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* 静息态底字变淡，扫光窗口经过处显示原色 → 「聚焦扫过」观感。
+   静息态长期处于低对比度（占位引导文字，流式中），用 0.45 兼顾可读性与「变淡」诉求 */
+.shimmer__base {
+  color: currentColor;
+  opacity: 0.45;
+}
+
+.shimmer__window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 55%;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  will-change: transform;
+  animation: shimmer-window 1.6s linear infinite;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 35%, #000 65%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 35%, #000 65%, transparent);
+}
+
+.shimmer__copy {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  white-space: nowrap;
+  color: currentColor;
+  opacity: 1;
+  will-change: transform;
+  animation: shimmer-copy 1.6s linear infinite;
+}
+
+/* 窗口宽 55%：起始 -100%（右缘贴左边界）→ 75% 时 55%*182%≈100%（左缘扫出右边界），
+   副本以等量反向位移抵消，字形始终不动（对齐偏差实测 ≤0.02px） */
+@keyframes shimmer-window {
+  0% {
+    transform: translateX(-100%);
+  }
+  75% {
+    transform: translateX(181.8%);
+  }
+  100% {
+    transform: translateX(181.8%);
+  }
+}
+
+@keyframes shimmer-copy {
+  0% {
+    transform: translateX(55%);
+  }
+  75% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer__window {
+    display: none;
+  }
+  /* 扫光层隐藏后底字会一直停在低透明度，需恢复原色，否则动效敏感用户看到的是"变灰"的文字 */
+  .shimmer__base {
+    opacity: 1;
+  }
+}
+
 /* Message streaming animation */
 @keyframes fadeIn {
   from {

@@ -37,6 +37,12 @@ import type { Message, ToolCall, Attachment, EventItem, QuestionInfo } from '@/l
 import { formatToolOutput } from '@/lib/format-utils'
 import { resolveCodeLanguage } from '@/lib/artifacts'
 import { ArtifactCard } from './artifact-card'
+import { ShimmerText } from '@/components/ui/shimmer-text'
+import {
+  getMessageEventGroups,
+  isProcessGroup,
+  type MessageEventGroup,
+} from '@/lib/message-event-groups'
 
 interface MessageListProps {
   messages: Message[]
@@ -86,15 +92,15 @@ const MessageItem = memo(function MessageItem({
   const hasPendingQuestion =
     !isUser && !!message.question?.length && message.questionStatus === 'pending'
 
-  const hasProcessModules =
-    !isUser &&
-    !!message.events?.some(
-      e =>
-        e.type === 'thinking' ||
-        e.type === 'tool.call.started' ||
-        e.type === 'tool.call.response' ||
-        e.type === 'question.asked'
-    )
+  // 事件分组：按时间线渲染（深度思考 / 正文 / 工具调用 / 提问）。
+  // 分组带缓存与尾部增量复用，避免流式期间每个 delta 都重建整条时间线。
+  const eventGroups: MessageEventGroup[] =
+    !isUser && message.events && message.events.length > 0
+      ? getMessageEventGroups(message.id, message.events)
+      : []
+
+  // 过程模块是否参与「已完成」折叠：复用 isProcessGroup，避免与分组定义各写一份判定
+  const hasProcessModules = !isUser && eventGroups.some(isProcessGroup)
   const processCollapsible =
     !isUser && !message.isStreaming && hasProcessModules && !hasPendingQuestion
   const showProcess = !processCollapsible || processExpanded
@@ -113,6 +119,17 @@ const MessageItem = memo(function MessageItem({
       }
     }
   }
+
+  // 折叠态在「已完成」之外保留的正文段 = 最后一段正文。
+  // 若它排在最后一个过程事件之后，就是「收尾回答」；否则（收尾是工具调用/提问/思考）
+  // 说明本轮没有尾随正文，此时必须回退展示最后一段正文，
+  // 否则过程模块与正文会被整体折叠，用户看到一条空消息。
+  const collapsedDeltaIndex = eventGroups.reduce(
+    (acc: number, group: MessageEventGroup, index: number) =>
+      group.type === 'delta-group' ? index : acc,
+    -1
+  )
+  const hasCollapsedContent = collapsedDeltaIndex >= 0
 
   const handleCopy = async () => {
     try {
@@ -135,16 +152,16 @@ const MessageItem = memo(function MessageItem({
 
   return (
     <div className={cn('group animate-message-in', isUser && 'flex flex-row-reverse')}>
-      <div className={cn('flex flex-col gap-2', isUser ? 'max-w-[80%] items-end' : 'w-full')}>
+      <div className={cn('flex flex-col gap-1', isUser ? 'max-w-[80%] items-end' : 'w-full')}>
         {/* 助手消息头部：头像 + 名称 */}
         {!isUser && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-2">
             <Avatar className="h-6 w-6 bg-accent">
               <AvatarFallback className="bg-accent text-accent-foreground">
                 <Bot className="h-3.5 w-3.5" />
               </AvatarFallback>
             </Avatar>
-            <span className="text-sm font-medium">{agentName || 'AI 助手'}</span>
+            <span className="text-base font-medium">{agentName || 'AI 助手'}</span>
           </div>
         )}
 
@@ -152,7 +169,7 @@ const MessageItem = memo(function MessageItem({
         {processCollapsible && (
           <button
             onClick={() => setProcessExpanded(!processExpanded)}
-            className="group/mod mb-1 flex w-fit items-center gap-2 text-sm  text-muted-foreground transition-colors duration-150 hover:text-foreground"
+            className="group/mod flex w-fit items-center gap-2 text-sm text-process-foreground transition-colors duration-150 hover:text-foreground"
           >
             <span>已完成{durationText ? ` ${durationText}` : ''}</span>
             <ChevronRight
@@ -174,107 +191,31 @@ const MessageItem = memo(function MessageItem({
         )}
 
         {/* Events in order — 按时间线渲染：深度思考 / 正文流式输出 / 工具调用 / 提问流程 */}
-        {!isUser && message.events && message.events.length > 0 && (
-          <div className="space-y-3">
-            {(() => {
-              const visibleEvents = message.events!
-              const groupedEvents: any[] = []
-              let currentThinkingGroup: any[] = []
-              let currentDeltaGroup: any[] = []
-
-              visibleEvents.forEach((event, index) => {
-                if (event.type === 'thinking') {
-                  if (currentDeltaGroup.length > 0) {
-                    groupedEvents.push({ type: 'delta-group', events: currentDeltaGroup })
-                    currentDeltaGroup = []
-                  }
-                  currentThinkingGroup.push(event)
-                } else if (event.type === 'message.delta') {
-                  if (currentThinkingGroup.length > 0) {
-                    groupedEvents.push({ type: 'thinking-group', events: currentThinkingGroup })
-                    currentThinkingGroup = []
-                  }
-                  currentDeltaGroup.push(event)
-                } else {
-                  if (currentThinkingGroup.length > 0) {
-                    groupedEvents.push({ type: 'thinking-group', events: currentThinkingGroup })
-                    currentThinkingGroup = []
-                  }
-                  if (currentDeltaGroup.length > 0) {
-                    groupedEvents.push({ type: 'delta-group', events: currentDeltaGroup })
-                    currentDeltaGroup = []
-                  }
-                  groupedEvents.push(event)
-                }
-              })
-
-              if (currentThinkingGroup.length > 0) {
-                groupedEvents.push({ type: 'thinking-group', events: currentThinkingGroup })
-              }
-
-              if (currentDeltaGroup.length > 0) {
-                groupedEvents.push({ type: 'delta-group', events: currentDeltaGroup })
-              }
-
-              // 去重并合并工具调用事件
-              const toolCallMap = new Map()
-              const deduplicatedGroups = []
-
-              for (const group of groupedEvents) {
-                if (
-                  (group.type === 'tool.call.started' || group.type === 'tool.call.response') &&
-                  group.toolCall?.id
-                ) {
-                  const toolCallId = group.toolCall.id
-                  if (toolCallMap.has(toolCallId)) {
-                    const existing = toolCallMap.get(toolCallId)
-                    const mergedToolCall = { ...existing.toolCall, ...group.toolCall }
-                    if (
-                      (!group.toolCall.input ||
-                        (typeof group.toolCall.input === 'object' &&
-                          Object.keys(group.toolCall.input).length === 0)) &&
-                      existing.toolCall.input
-                    ) {
-                      mergedToolCall.input = existing.toolCall.input
-                    }
-                    toolCallMap.set(toolCallId, { ...group, toolCall: mergedToolCall })
-                  } else {
-                    toolCallMap.set(toolCallId, group)
-                  }
-                }
-              }
-
-              const processedToolCallIds = new Set()
-              for (const group of groupedEvents) {
-                if (
-                  (group.type === 'tool.call.started' || group.type === 'tool.call.response') &&
-                  group.toolCall?.id
-                ) {
-                  const toolCallId = group.toolCall.id
-                  if (processedToolCallIds.has(toolCallId)) continue
-                  processedToolCallIds.add(toolCallId)
-                  deduplicatedGroups.push(toolCallMap.get(toolCallId))
-                } else {
-                  deduplicatedGroups.push(group)
-                }
-              }
-
-              return deduplicatedGroups
-            })().map((group: any, groupIndex: number, groups: any[]) => {
-              // 回答完毕后，过程模块折叠在「已完成」行下，仅保留正文（delta-group）
-              if (!showProcess && group.type !== 'delta-group') return null
+        {!isUser && eventGroups.length > 0 && (
+          <div
+            className={cn(
+              'space-y-3',
+              // 「已完成」行与首个过程模块之间的间距：展开态需要更明显的分隔
+              processCollapsible && processExpanded && 'mt-3',
+              // 折叠态仅保留正文时，与「已完成」行保持适度间距
+              processCollapsible && !processExpanded && hasCollapsedContent && 'mt-2'
+            )}
+          >
+            {eventGroups.map((group, groupIndex, groups) => {
+              // 折叠态：只保留最后一段正文，其余过程模块（含中途正文）收进「已完成」内部
+              if (!showProcess && groupIndex !== collapsedDeltaIndex) return null
               if (group.type === 'thinking-group') {
                 const isLastGroup = groupIndex === groups.length - 1
                 const thinkingCompleted = !!message.content || !isLastGroup || !message.isStreaming
                 return (
                   <ThinkingGroup
                     key={`thinking-group-${groupIndex}`}
-                    events={group.events}
+                    events={group.events ?? []}
                     completed={thinkingCompleted}
                   />
                 )
               } else if (group.type === 'delta-group') {
-                const deltaContent = group.events.map((event: EventItem) => event.content).join('')
+                const deltaContent = (group.events ?? []).map(event => event.content).join('')
                 if (!deltaContent) return null
                 return <ResponseBlock key={`delta-group-${groupIndex}`} content={deltaContent} />
               } else if (
@@ -292,11 +233,12 @@ const MessageItem = memo(function MessageItem({
                   groups
                     .slice(groupIndex + 1)
                     .find(
-                      (g: any) => g.type === 'question.replied' || g.type === 'question.rejected'
+                      (g: MessageEventGroup) =>
+                        g.type === 'question.replied' || g.type === 'question.rejected'
                     ) ?? null
                 const isLastAsked = !groups
                   .slice(groupIndex + 1)
-                  .some((g: any) => g.type === 'question.asked')
+                  .some((g: MessageEventGroup) => g.type === 'question.asked')
                 return (
                   <QuestionFlowBlock
                     key={`question-${groupIndex}`}
@@ -315,16 +257,11 @@ const MessageItem = memo(function MessageItem({
           </div>
         )}
 
-        {/* 流式进行中的尾随状态行（已有正文流式输出时） */}
+        {/* 流式进行中的尾随状态行（已有正文流式输出时）— 呼吸脉冲而非 spinner */}
         {!isUser &&
           message.isStreaming &&
           !hasPendingQuestion &&
-          message.events?.some(e => e.type === 'message.delta') && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span>生成回复中</span>
-            </div>
-          )}
+          message.events?.some(e => e.type === 'message.delta') && <StreamingIndicator />}
 
         {/* Message Content — 当 events 中有 delta 时隐藏纯文本内容，避免重复渲染 */}
         {(isUser ||
@@ -339,7 +276,9 @@ const MessageItem = memo(function MessageItem({
                   <span>思考已中断</span>
                 </div>
               ) : isUser ? (
-                <div className="rounded-2xl bg-[#edf3fe] px-4 py-3">
+                // 用户气泡底色走 --user-bubble 语义 token：
+                // 浅色是淡蓝、深色是主色叠加，暗色模式下正文（近白）依然可读。
+                <div className="rounded-2xl bg-user-bubble px-4 py-3">
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <MessageContent content={message.content} isStreaming={message.isStreaming} />
                   </div>
@@ -420,8 +359,10 @@ const MessageItem = memo(function MessageItem({
 })
 
 function ResponseBlock({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
+  // 正文行高：项目未启用 @tailwindcss/typography（prose 类不生效），行高需显式设置。
+  // 从浏览器默认的 1.5 放宽到 1.75，缓解中文长段落「挤」的观感。
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none">
+    <div className="prose prose-sm dark:prose-invert max-w-none leading-[1.75]">
       <MessageContent content={content} isStreaming={isStreaming} />
     </div>
   )
@@ -440,14 +381,8 @@ function MessageContent({ content, isStreaming }: { content: string; isStreaming
       mermaidInitialized.current = true
     }
   }, [])
-
   if (!content && isStreaming) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        <span>生成回复中</span>
-      </div>
-    )
+    return <StreamingIndicator />
   }
 
   return (
@@ -585,7 +520,7 @@ function MermaidChart({ chart }: { chart: string }) {
 
   if (error) {
     return (
-      <div className="mb-2 rounded-lg border border-red-500/50 bg-red-500/10 p-3 text-sm text-red-500">
+      <div className="mb-2 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
         {error}
       </div>
     )
@@ -731,9 +666,9 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
     },
     error: {
       icon: AlertCircle,
-      iconClass: 'text-red-500',
+      iconClass: 'text-destructive',
       label: '出错',
-      labelClass: 'bg-red-500/10 text-red-500',
+      labelClass: 'bg-destructive/10 text-destructive',
     },
     pending: {
       icon: Wrench,
@@ -771,11 +706,11 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   const execCommand = getExecCommand()
 
   return (
-    <div className="text-sm">
+    <div className="text-sm text-process-foreground">
       {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="group/mod flex min-w-0 max-w-full items-center gap-2 py-1 text-muted-foreground transition-colors duration-150 hover:text-foreground"
+        className="group/mod flex min-w-0 max-w-full items-center gap-2 py-1 text-process-foreground transition-colors duration-150 hover:text-foreground"
       >
         <TooltipProvider>
           <Tooltip>
@@ -795,7 +730,7 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
             : readFilePath || toolCall.name}
         </span>
         {toolCall.duration && (
-          <span className="text-xs text-muted-foreground/70 shrink-0 font-mono">
+          <span className="text-xs text-process-foreground/70 shrink-0 font-mono">
             {(toolCall.duration / 1000).toFixed(1)}s
           </span>
         )}
@@ -820,11 +755,11 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
           {toolCall.name === 'read' ? (
             // read 工具：直接显示文件内容
             displayOutput ? (
-              <pre className="bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+              <pre className="text-muted-foreground bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                 {displayOutput}
               </pre>
             ) : toolCall.error ? (
-              <pre className="bg-red-500/10 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+              <pre className="text-muted-foreground bg-destructive/10 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                 {formatForDisplay(
                   typeof toolCall.error === 'string'
                     ? toolCall.error
@@ -859,8 +794,8 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
             <>
               {toolCall.input ? (
                 <div>
-                  <div className="text-muted-foreground mb-1 font-medium">输入</div>
-                  <pre className="bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+                  <div className="text-process-foreground mb-1 font-medium">输入</div>
+                  <pre className="text-muted-foreground bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                     {formatForDisplay(
                       typeof toolCall.input === 'string'
                         ? toolCall.input
@@ -871,8 +806,8 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
               ) : toolCall.inputRaw ? (
                 // tool.call.delta 流式累积的原始内容
                 <div>
-                  <div className="text-muted-foreground mb-1 font-medium">输入（流式）</div>
-                  <pre className="bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+                  <div className="text-process-foreground mb-1 font-medium">输入（流式）</div>
+                  <pre className="text-muted-foreground bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                     {toolCall.inputRaw}
                   </pre>
                 </div>
@@ -880,16 +815,16 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
               {/* 错误状态下 output 通常与 error 内容重复，只展示错误区域 */}
               {displayOutput && toolCall.status !== 'error' && (
                 <div>
-                  <div className="text-muted-foreground mb-1 font-medium">输出</div>
-                  <pre className="bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+                  <div className="text-process-foreground mb-1 font-medium">输出</div>
+                  <pre className="text-muted-foreground bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                     {displayOutput}
                   </pre>
                 </div>
               )}
               {toolCall.error && (
                 <div>
-                  <div className="text-red-500 mb-1 font-medium">错误</div>
-                  <pre className="bg-red-500/10 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
+                  <div className="text-destructive mb-1 font-medium">错误</div>
+                  <pre className="text-muted-foreground bg-destructive/10 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                     {formatForDisplay(
                       typeof toolCall.error === 'string'
                         ? toolCall.error
@@ -912,10 +847,10 @@ function QuestionFlowBlock({
   isLastAsked,
   resolutionEvent,
 }: {
-  askedEvent: EventItem
+  askedEvent: MessageEventGroup
   message: Message
   isLastAsked: boolean
-  resolutionEvent: EventItem | null
+  resolutionEvent: MessageEventGroup | null
 }) {
   // message.question 始终持有最新一轮提问；历史轮次从事件 payload 还原
   const askedQuestions =
@@ -940,7 +875,7 @@ function QuestionFlowBlock({
   // 已跳过
   if (status === 'rejected') {
     return (
-      <div className="flex items-center gap-2 py-0.5 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 py-0.5 text-sm text-process-foreground">
         <CircleSlash className="h-3.5 w-3.5 shrink-0" />
         <span>您跳过了此问题</span>
       </div>
@@ -961,7 +896,7 @@ function QuestionFlowBlock({
         <div>
           <button
             onClick={() => questions?.length && setStatusExpanded(!statusExpanded)}
-            className="group/mod flex items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
+            className="group/mod flex items-center gap-1.5 text-sm text-process-foreground transition-colors duration-150 hover:text-foreground"
           >
             {waiting && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />}
             <span>等待你的回答</span>
@@ -978,7 +913,7 @@ function QuestionFlowBlock({
           {statusExpanded && questions && (
             <div className="mt-1.5 space-y-1 border-l border-border/50 pl-3 text-sm">
               {questions.map((q, i) => (
-                <p key={i} className="leading-relaxed text-muted-foreground/80">
+                <p key={i} className="leading-relaxed text-process-foreground">
                   {i + 1}. {q.header || q.question}
                 </p>
               ))}
@@ -991,7 +926,7 @@ function QuestionFlowBlock({
       <div>
         <button
           onClick={() => setCardExpanded(!cardExpanded)}
-          className="group/mod flex items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
+          className="group/mod flex items-center gap-1.5 text-sm text-process-foreground transition-colors duration-150 hover:text-foreground"
         >
           <MessageSquare className="h-3.5 w-3.5 shrink-0" />
           <span>向用户提问</span>
@@ -1010,13 +945,13 @@ function QuestionFlowBlock({
                 const ans = answers?.[i] ?? []
                 return (
                   <div key={i}>
-                    <div className="text-sm text-muted-foreground">{q.header || q.question}</div>
+                    <div className="text-sm text-process-foreground">{q.header || q.question}</div>
                     {ans.length > 0 ? (
                       <div className="mt-0.5 text-sm font-semibold text-foreground">
                         {ans.join('、')}
                       </div>
                     ) : (
-                      <div className="mt-0.5 text-sm text-muted-foreground/60">
+                      <div className="mt-0.5 text-sm text-process-foreground/80">
                         {waiting ? '待回答' : '（未作答）'}
                       </div>
                     )}
@@ -1024,7 +959,7 @@ function QuestionFlowBlock({
                 )
               })
             ) : (
-              <div className="text-sm text-muted-foreground">{askedEvent.content}</div>
+              <div className="text-sm text-process-foreground">{askedEvent.content}</div>
             )}
           </div>
         )}
@@ -1032,6 +967,23 @@ function QuestionFlowBlock({
     </div>
   )
 }
+
+/**
+ * StreamingIndicator — 生成态/流式思考的扫光反馈（替代 Loader2 spinner）。
+ * 仅用于流式生成态；真正的阻塞式 loading（加载历史、流程渲染中）仍使用 Loader2。
+ * memo：流式期间 MessageItem 每个 delta 都重渲染，指示器文本固定，跳过重渲染。
+ */
+const StreamingIndicator = memo(function StreamingIndicator({
+  text = '生成回复中',
+}: {
+  text?: string
+}) {
+  return (
+    <span className="inline-flex items-center gap-2 text-sm text-muted-foreground pt-2">
+      <ShimmerText text={text} />
+    </span>
+  )
+})
 
 function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: boolean }) {
   const [expanded, setExpanded] = useState(!completed)
@@ -1048,9 +1000,9 @@ function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: 
     <div>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="group/mod flex items-center gap-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
+        className="group/mod flex items-center gap-1.5 text-sm text-process-foreground transition-colors duration-150 hover:text-foreground"
       >
-        <span>深度思考</span>
+        {completed ? <span>深度思考</span> : <ShimmerText text="深度思考" />}
         <ChevronRight
           className={cn(
             'h-3.5 w-3.5 shrink-0 transition-all duration-150',
@@ -1066,7 +1018,7 @@ function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: 
           className="mt-1.5 max-h-72 space-y-1.5 overflow-y-auto border-l border-border/50 pl-3 text-sm scrollbar-thin"
         >
           {events.map((event, index) => (
-            <p key={`thinking-step-${index}`} className="leading-relaxed text-muted-foreground/80">
+            <p key={`thinking-step-${index}`} className="leading-relaxed text-process-foreground">
               {event.content}
             </p>
           ))}
