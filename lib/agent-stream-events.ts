@@ -12,7 +12,7 @@ import {
   applyToolCallStarted,
   applyUsageUpdated,
   applyStreamError,
-  isStreamDeltaEvent,
+  coalesceStreamEvents,
   handleArtifactEvent,
   QUESTION_TOOL_NAMES,
 } from '@/lib/stream-event-handler'
@@ -89,15 +89,16 @@ export function handleAgentStreamEvent({
       }
       break
     case 'message.completed':
-    case 'turn.completed':
+    case 'turn.completed': {
       const completedText =
         eventData.type === 'message.completed' ? eventData.payload?.text : undefined
       const currentText = currentMessage.content ?? ''
+      const finalText =
+        typeof completedText === 'string' && completedText.length > currentText.length
+          ? completedText
+          : currentText
       store.updateMessage(conversationId, nextAssistantMessageId, {
-        content:
-          typeof completedText === 'string' && completedText.length > currentText.length
-            ? completedText
-            : currentText,
+        content: finalText,
         isStreaming: false,
         toolCalls: currentMessage.toolCalls?.map(toolCall =>
           toolCall.status === 'running'
@@ -108,23 +109,22 @@ export function handleAgentStreamEvent({
               }
             : toolCall
         ),
-        events: (currentMessage.events || [])
-          .filter(e => !isStreamDeltaEvent(e))
-          .map(event =>
-            event.toolCall?.status === 'running'
-              ? {
-                  ...event,
-                  toolCall: {
-                    ...event.toolCall,
-                    status: 'completed' as const,
-                    displayText: event.toolCall.displayText || '工具调用已结束',
-                  },
-                }
-              : event
-          ),
+        events: coalesceStreamEvents(currentMessage.events || [], finalText).map(event =>
+          event.toolCall?.status === 'running'
+            ? {
+                ...event,
+                toolCall: {
+                  ...event.toolCall,
+                  status: 'completed' as const,
+                  displayText: event.toolCall.displayText || '工具调用已结束',
+                },
+              }
+            : event
+        ),
       })
       store.setStreaming(conversationId, false)
       break
+    }
     case 'thinking':
       if (eventData.payload?.thinking) {
         store.updateMessage(

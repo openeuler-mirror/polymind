@@ -1,5 +1,12 @@
 import type { MutableRefObject } from 'react'
-import type { Message, QuestionInfo, QuestionAskedPayload, ToolCall, Artifact } from './types'
+import type {
+  Message,
+  QuestionInfo,
+  QuestionAskedPayload,
+  ToolCall,
+  Artifact,
+  EventItem,
+} from './types'
 import { MessageStatus } from './types'
 import { generateUUID } from './utils'
 import { formatToolOutput } from './format-utils'
@@ -407,6 +414,57 @@ export function isStreamDeltaEvent(e: { type: string }): boolean {
   return e.type === 'message.delta' || e.type === 'artifact.delta'
 }
 
+/**
+ * 消息完成后收敛流式事件（替代直接滤除 delta 事件）：
+ * - 丢弃 artifact.delta（产物增量已并入 message.artifacts）；
+ * - 把连续的 message.delta 合并为一条「文本段」事件（保留首条时间戳），
+ *   让正文在事件时间线上保留分段位置 —— 这样「已完成」折叠时只保留最后一段正文，
+ *   过程中的正文段会随过程模块一起收进折叠区；
+ * - 若分段正文与最终正文不一致（增量缺失/被截断），补齐尾部；无法补齐时回退为丢弃
+ *   全部 message.delta，由 message.content 统一渲染，避免正文丢失。
+ */
+export function coalesceStreamEvents(events: EventItem[], finalContent?: string): EventItem[] {
+  const coalesced: EventItem[] = []
+  for (const evt of events) {
+    if (evt.type === 'artifact.delta') continue
+    if (evt.type === 'message.delta') {
+      if (!evt.content) continue
+      const last = coalesced[coalesced.length - 1]
+      if (last && last.type === 'message.delta') {
+        coalesced[coalesced.length - 1] = {
+          ...last,
+          content: (last.content || '') + evt.content,
+        }
+      } else {
+        coalesced.push({ ...evt })
+      }
+      continue
+    }
+    coalesced.push(evt)
+  }
+
+  if (finalContent) {
+    const deltaIndexes = coalesced
+      .map((evt, index) => (evt.type === 'message.delta' ? index : -1))
+      .filter(index => index >= 0)
+    const joined = deltaIndexes.map(index => coalesced[index].content || '').join('')
+    if (joined !== finalContent) {
+      const lastIndex = deltaIndexes[deltaIndexes.length - 1]
+      if (lastIndex !== undefined && joined.length > 0 && finalContent.startsWith(joined)) {
+        // 增量缺少尾部（如 message.completed 携带了更完整的文本）：补到最后一段
+        coalesced[lastIndex] = {
+          ...coalesced[lastIndex],
+          content: (coalesced[lastIndex].content || '') + finalContent.slice(joined.length),
+        }
+      } else {
+        return coalesced.filter(evt => evt.type !== 'message.delta')
+      }
+    }
+  }
+
+  return coalesced
+}
+
 // 两个 stream handler（handleStreamEvent / handleAgentStreamEvent）共用的 updateMessage 回调签名。
 export type UpdateMessageFn = (
   conversationId: string,
@@ -492,16 +550,20 @@ export function handleStreamEvent(
         )
       }
       break
-    case 'message.completed':
+    case 'message.completed': {
       locallyCreatedMessageIds?.current.delete(messageId)
-      updateMessage(conversationId, messageId, (m: Message) => ({
-        content: m.content || eventData.payload?.text || '',
-        isStreaming: false,
-        status: MessageStatus.COMPLETED,
-        events: (m.events || []).filter(e => !isStreamDeltaEvent(e)),
-      }))
+      updateMessage(conversationId, messageId, (m: Message) => {
+        const content = m.content || eventData.payload?.text || ''
+        return {
+          content,
+          isStreaming: false,
+          status: MessageStatus.COMPLETED,
+          events: coalesceStreamEvents(m.events || [], content),
+        }
+      })
       setStreaming(conversationId, false)
       break
+    }
     case 'thinking':
       if (eventData.payload?.thinking) {
         updateMessage(conversationId, messageId, (m: Message) =>
@@ -590,15 +652,16 @@ export function handleStreamEvent(
       updateMessage(conversationId, messageId, (m: Message) => applyStreamError(m))
       setStreaming(conversationId, false)
       break
-    case 'turn.completed':
+    case 'turn.completed': {
       locallyCreatedMessageIds?.current.delete(messageId)
       updateMessage(conversationId, messageId, (m: Message) => ({
         isStreaming: false,
         status: MessageStatus.COMPLETED,
-        events: (m.events || []).filter(e => !isStreamDeltaEvent(e)),
+        events: coalesceStreamEvents(m.events || [], m.content || ''),
       }))
       setStreaming(conversationId, false)
       break
+    }
     case 'question.asked': {
       const { questions, questionId } = extractQuestions(eventData.payload)
       updateMessage(conversationId, messageId, (m: Message) =>
