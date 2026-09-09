@@ -151,7 +151,9 @@ export function ConversationItem({
       className={cn(
         'group flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 transition-colors',
         isEditing && 'inset-ring-2 inset-ring-primary bg-sidebar',
-        isActive ? 'bg-accent text-accent-foreground' : 'bg-muted/60 hover:bg-muted',
+        isActive
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+          : 'bg-muted/60 hover:bg-muted',
         className
       )}
     >
