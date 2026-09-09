@@ -406,7 +406,7 @@ export function AgentPage() {
         <div className="mx-auto flex w-full max-w-3xl items-end justify-between gap-4 px-6">
           <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-tight">智能体</h2>
-            <p className="mt-1 text-xs text-muted-foreground">管理运行实例与预置模版</p>
+            <p className="mt-1 text-xs text-muted-foreground">管理运行实例与推荐智能体</p>
           </div>
           {!isCreating && (
             <div className="flex shrink-0 items-center gap-2">
@@ -465,7 +465,7 @@ export function AgentPage() {
                       : 'text-muted-foreground hover:bg-muted'
                   )}
                 >
-                  模版
+                  特别推荐
                 </button>
               </div>
 
@@ -530,18 +530,18 @@ export function AgentPage() {
                   )}
                   {templatesLoading ? (
                     <div className="flex items-center justify-center h-24 gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" /> 加载模板中...
+                      <Loader2 className="h-4 w-4 animate-spin" /> 加载推荐智能体中...
                     </div>
                   ) : templateLoadError ? (
                     <div className="flex items-center justify-between gap-3 border border-dashed rounded-md p-4">
-                      <span className="text-sm text-muted-foreground">无法加载预置模板。</span>
+                      <span className="text-sm text-muted-foreground">无法加载推荐智能体。</span>
                       <Button variant="outline" size="sm" onClick={fetchTemplates}>
                         <RefreshCw className="h-3 w-3 mr-1" /> 重试
                       </Button>
                     </div>
                   ) : templates.length === 0 ? (
                     <div className="border border-dashed rounded-md p-4 text-sm text-muted-foreground">
-                      暂无预置模板
+                      暂无推荐智能体
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
