@@ -30,11 +30,19 @@ import {
   scheduledTaskService,
   type CreateScheduledTaskRequest,
   type ScheduledTask,
-  type ScheduleType,
   type UpdateScheduledTaskRequest,
 } from '@/services/scheduled-task-service'
-import { cn } from '@/lib/utils'
-import { formatCron, TIMEZONE_OPTIONS } from './utils'
+import { ScheduleEditor } from './schedule-editor'
+import {
+  buildSchedulePayload,
+  createScheduleDraft,
+  DEFAULT_TASK_TIMEZONE,
+  draftFromSchedule,
+  TIMEZONE_OPTIONS,
+  timezoneForTask,
+  validateScheduleDraft,
+  type ScheduleDraft,
+} from './utils'
 
 interface CreateTaskDialogProps {
   open: boolean
@@ -52,37 +60,34 @@ interface EditTaskDialogProps {
 interface TaskFormState {
   name: string
   agentId: string
-  scheduleType: ScheduleType
-  cronExpr: string
-  intervalSeconds: string
+  /** 结构化的计划时间草稿，提交时再转换成后端需要的 cron / interval 字段。 */
+  schedule: ScheduleDraft
+  /** 任务时区：新建时用默认值，编辑时保留任务原值（与调度模式无关）。 */
   timezone: string
   content: string
-  workspaceFolder: string
   enabled: boolean
 }
 
-const initialForm: TaskFormState = {
-  name: '',
-  agentId: '',
-  scheduleType: 'cron',
-  cronExpr: '',
-  intervalSeconds: '3600',
-  timezone: 'Asia/Shanghai',
-  content: '',
-  workspaceFolder: '',
-  enabled: true,
+/** 新建任务的初始表单：计划时间默认「每天 + 任务时区下的下一个整点」。 */
+function initialForm(): TaskFormState {
+  return {
+    name: '',
+    agentId: '',
+    schedule: createScheduleDraft(),
+    timezone: DEFAULT_TASK_TIMEZONE,
+    content: '',
+    enabled: true,
+  }
 }
 
 function formFromTask(task: ScheduledTask): TaskFormState {
+  const schedule = draftFromSchedule(task)
   return {
     name: task.name,
     agentId: task.agent_id,
-    scheduleType: task.schedule_type,
-    cronExpr: task.cron_expr ?? '',
-    intervalSeconds: String(task.interval_seconds ?? 3600),
-    timezone: task.timezone,
+    schedule,
+    timezone: timezoneForTask(task),
     content: task.content,
-    workspaceFolder: task.workspace_folder ?? '',
     enabled: task.enabled,
   }
 }
@@ -98,7 +103,7 @@ interface TaskFormDialogProps {
 function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormDialogProps) {
   const { t } = useTranslation('tool-panel')
   const { toast } = useToast()
-  const [form, setForm] = useState<TaskFormState>(() => (task ? formFromTask(task) : initialForm))
+  const [form, setForm] = useState<TaskFormState>(() => (task ? formFromTask(task) : initialForm()))
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([])
   const [loadingAgents, setLoadingAgents] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -135,23 +140,17 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
     }
   }, [open, task, t, toast])
 
+  // 计划时间单独校验：既参与整体校验，也用于在编辑器内联展示错误。
+  // t 作为依赖传入，切换语言时错误提示会跟着重算。
+  const scheduleError = useMemo(() => validateScheduleDraft(form.schedule, t), [form.schedule, t])
+
   const validationError = useMemo(() => {
     if (!form.name.trim()) return t('scheduledTask.form.nameRequired')
     if (!form.agentId) return t('scheduledTask.form.agentRequired')
-    if (form.scheduleType === 'cron') {
-      const cronExpr = form.cronExpr.trim()
-      if (!cronExpr) return t('scheduledTask.form.cronRequired')
-      if (formatCron(cronExpr) === null) return t('scheduledTask.form.cronInvalid')
-    }
-    if (form.scheduleType === 'interval') {
-      const seconds = Number(form.intervalSeconds)
-      if (!Number.isInteger(seconds) || seconds <= 0) {
-        return t('scheduledTask.form.intervalInvalid')
-      }
-    }
+    if (scheduleError) return scheduleError
     if (!form.content.trim()) return t('scheduledTask.form.contentRequired')
     return null
-  }, [form, t])
+  }, [form.name, form.agentId, form.content, scheduleError, t])
 
   const handleSubmit = async () => {
     if (validationError) {
@@ -162,39 +161,39 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
       return
     }
 
+    const schedule = buildSchedulePayload(form.schedule)
+    if (!schedule) {
+      // validationError 已在前面拦截，这里只是兜底，避免发出字段不完整的请求。
+      toast({
+        title: t('scheduledTask.form.validationTitle'),
+        description: t('scheduledTask.schedule.invalidSchedule'),
+      })
+      return
+    }
+
     setSubmitting(true)
     try {
       if (mode === 'create') {
         const payload: CreateScheduledTaskRequest = {
           name: form.name.trim(),
-          schedule_type: form.scheduleType,
+          schedule_type: schedule.schedule_type,
           timezone: form.timezone,
           content: form.content.trim(),
           agent_id: form.agentId,
-          workspace_folder: form.workspaceFolder.trim() || null,
           enabled: form.enabled,
-        }
-        if (form.scheduleType === 'cron') {
-          payload.cron_expr = form.cronExpr.trim()
-        } else {
-          payload.interval_seconds = Number(form.intervalSeconds)
+          cron_expr: schedule.cron_expr,
+          interval_seconds: schedule.interval_seconds,
         }
         await scheduledTaskService.createTask(payload)
       } else if (task) {
         const payload: UpdateScheduledTaskRequest = {
           name: form.name.trim(),
-          schedule_type: form.scheduleType,
+          schedule_type: schedule.schedule_type,
           timezone: form.timezone,
           content: form.content.trim(),
-          workspace_folder: form.workspaceFolder.trim() || null,
-        }
-        if (form.scheduleType === 'cron') {
-          payload.cron_expr = form.cronExpr.trim()
-          // 切换调度类型时显式清空另一字段，避免后端 PATCH 合并残留脏数据
-          payload.interval_seconds = null
-        } else {
-          payload.cron_expr = null
-          payload.interval_seconds = Number(form.intervalSeconds)
+          // 未使用的一侧显式置 null，避免后端 PATCH 合并残留脏数据
+          cron_expr: schedule.cron_expr,
+          interval_seconds: schedule.interval_seconds,
         }
         await scheduledTaskService.updateTask(task.id, payload)
       }
@@ -227,6 +226,10 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
 
   const updateField = <K extends keyof TaskFormState>(key: K, value: TaskFormState[K]) => {
     setForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  const updateSchedule = (patch: Partial<ScheduleDraft>) => {
+    setForm(prev => ({ ...prev, schedule: { ...prev.schedule, ...patch } }))
   }
 
   return (
@@ -290,57 +293,7 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
             </Select>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label>{t('scheduledTask.form.scheduleTypeLabel')}</Label>
-            <div className="flex rounded-md border bg-muted/30 p-0.5">
-              {(
-                [
-                  { value: 'cron', label: t('scheduledTask.form.scheduleTypeCron') },
-                  { value: 'interval', label: t('scheduledTask.form.scheduleTypeInterval') },
-                ] as const
-              ).map(option => (
-                <Button
-                  key={option.value}
-                  type="button"
-                  variant="ghost"
-                  className={cn(
-                    'h-8 flex-1 text-sm',
-                    form.scheduleType === option.value
-                      ? 'bg-background font-medium shadow-sm'
-                      : 'text-muted-foreground'
-                  )}
-                  onClick={() => updateField('scheduleType', option.value)}
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {form.scheduleType === 'cron' ? (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="task-cron">{t('scheduledTask.form.cronLabel')}</Label>
-              <Input
-                id="task-cron"
-                value={form.cronExpr}
-                onChange={event => updateField('cronExpr', event.target.value)}
-                placeholder={t('scheduledTask.form.cronPlaceholder')}
-                maxLength={255}
-              />
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="task-interval">{t('scheduledTask.form.intervalLabel')}</Label>
-              <Input
-                id="task-interval"
-                type="number"
-                min={1}
-                value={form.intervalSeconds}
-                onChange={event => updateField('intervalSeconds', event.target.value)}
-                placeholder={t('scheduledTask.form.intervalPlaceholder')}
-              />
-            </div>
-          )}
+          <ScheduleEditor draft={form.schedule} error={scheduleError} onChange={updateSchedule} />
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="task-timezone">{t('scheduledTask.form.timezoneLabel')}</Label>
@@ -369,17 +322,6 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
             />
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="task-workspace">{t('scheduledTask.form.workspaceLabel')}</Label>
-            <Input
-              id="task-workspace"
-              value={form.workspaceFolder}
-              onChange={event => updateField('workspaceFolder', event.target.value)}
-              placeholder={t('scheduledTask.form.workspacePlaceholder')}
-              maxLength={512}
-            />
-          </div>
-
           {mode === 'create' ? (
             <div className="flex items-center justify-between rounded-md border px-3 py-2.5">
               <div>
@@ -397,9 +339,7 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
             <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2.5 text-sm">
               <span className="text-muted-foreground">{t('scheduledTask.form.currentStatus')}</span>
               <span className="font-medium">
-                {form.enabled
-                  ? t('scheduledTask.form.enabled')
-                  : t('scheduledTask.form.disabled')}
+                {form.enabled ? t('scheduledTask.form.enabled') : t('scheduledTask.form.disabled')}
               </span>
             </div>
           )}

@@ -13,7 +13,6 @@ import {
   type ScheduledTask,
   type ScheduledTaskRun,
 } from '@/services/scheduled-task-service'
-import { formatSchedule } from './utils'
 
 /** 订阅执行事件流时，等待后端建流的总体上限（建流通常在数秒内完成）。 */
 const STREAM_ATTACH_TIMEOUT_MS = 30_000
@@ -219,14 +218,10 @@ export async function triggerScheduledTaskRun(
   let conversationId: string | null = null
   try {
     // 先建真实会话：任务内容作为用户消息，后续执行过程通过 SSE 实时回流。
-    // agentName 统一用任务的调度规则描述而非真实 agent 名：与刷新后侧栏摘要条目的兜底一致，
-    // 也与手动触发时侧栏会话条目的展示保持一致。
     const session = await state.createNewSession(task.agent_id)
     conversationId = state.createLocalConversation(
       task.agent_id,
-      i18n.t('tool-panel:scheduledTask.run.conversationTitle', {
-        schedule: formatSchedule(task),
-      }),
+      i18n.t('chat:sidebar.scheduledBadge'),
       session.id
     )
     state.setCurrentConversation(conversationId)
