@@ -1,118 +1,238 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { History, RefreshCw } from 'lucide-react'
+import { History, Loader2 } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useChatStore } from '@/lib/store'
 import { useScheduledTaskStore } from '@/lib/stores/scheduled-task-store'
-import { formatDateTime } from '@/lib/date-utils'
 import {
   scheduledTaskService,
   type ScheduledTaskRunWithTask,
 } from '@/services/scheduled-task-service'
-import { getRunStatusMeta } from './utils'
+import { RunRecordsTimeline } from './run-timeline'
+import {
+  buildTaskScheduleLabels,
+  filterRuns,
+  groupRunsByGranularity,
+  RUN_TASK_ALL,
+  type RunRecordsView,
+} from './run-records-utils'
 
-/** 执行记录页前端分页大小。 */
+/** 服务端聚合接口的分页批次大小：每次多取一批用于筛选/滚动（与展示页大小独立可调）。 */
+const FETCH_BATCH_SIZE = 20
+/** 首屏与「加载更多」每次新增展示的记录条数。 */
 const PAGE_SIZE = 20
+/** 筛选命中率低时自动补拉服务端批次的上限：避免一次筛选触发无上限请求，剩余交给「加载更多」。 */
+const MAX_AUTO_BACKFILL_BATCHES = 5
 
-export function RunRecords() {
+interface RunRecordsController {
+  records: ScheduledTaskRunWithTask[] // 已加载的窗口（服务端倒序，按需追加）
+  visible: ScheduledTaskRunWithTask[] // 窗口内命中筛选、且落在展示范围内的记录
+  matched: ScheduledTaskRunWithTask[] // 窗口内命中筛选条件的全部记录
+  total: number // 服务端（未筛选）总条数
+  loading: boolean // 有记录请求在途（含补拉与轮询重载）
+  error: string | null // 记录请求失败文案（与任务列表的 error 区分）
+  hasMore: boolean // 展示范围之外或服务端尚有未加载数据
+  refresh: () => Promise<void>
+  loadMore: () => void
+}
+
+/**
+ * 执行记录数据源：跨任务聚合接口按服务端分页累积成本地窗口，筛选/分组/分页都在窗口内完成——
+ * 筛选条件变化时按需补拉，免去为「按任务/状态筛选」再另开一套后端查询参数。
+ */
+export function useRunRecords(
+  view: RunRecordsView,
+  options: { enabled?: boolean } = {}
+): RunRecordsController {
+  const { enabled = true } = options
   const { t } = useTranslation('tool-panel')
-  const tasks = useScheduledTaskStore(s => s.tasks)
   const runsByTask = useScheduledTaskStore(s => s.runsByTask)
-  const loading = useScheduledTaskStore(s => s.loading)
-  const error = useScheduledTaskStore(s => s.error)
-  const refresh = useScheduledTaskStore(s => s.refresh)
+  const storeRefresh = useScheduledTaskStore(s => s.refresh)
   const subscribe = useScheduledTaskStore(s => s.subscribe)
   const unsubscribe = useScheduledTaskStore(s => s.unsubscribe)
 
-  // 执行记录页通过后端聚合接口做服务端分页（跨全部任务），
-  // 与侧栏/任务列表使用的 recent_runs（每任务 10 条）分离。
   const [records, setRecords] = useState<ScheduledTaskRunWithTask[]>([])
   const [total, setTotal] = useState(0)
-  const [historyLoading, setHistoryLoading] = useState(false)
-  const [historyError, setHistoryError] = useState<string | null>(null)
-  const [page, setPage] = useState(1)
-  /** 拉取序号：并发请求只允许最新一次写入结果，避免乱序覆盖。 */
-  const historyFetchSeqRef = useRef(0)
+  const [exhausted, setExhausted] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // 展示范围随筛选条件缓存：切换筛选时自然回到一页，无需在 effect 中重置 state。
+  const [visibleWindow, setVisibleWindow] = useState<{ key: string; count: number }>({
+    key: '',
+    count: PAGE_SIZE,
+  })
 
-  // 挂载即订阅共享数据源，复用全局轮询（任务列表/侧栏）。
+  // 以下 ref 供异步流程读取最新值（state 闭包会过期）。
+  const recordsRef = useRef<ScheduledTaskRunWithTask[]>([])
+  const totalRef = useRef(0) // 服务端总条数（未筛选），用于判断是否还有未加载数据
+  const exhaustedRef = useRef(false) // 服务端已取空（返回不足一批），不再继续请求
+  /** 记录请求互斥：同一时刻只允许一次，避免乱序覆盖与请求叠加。 */
+  const inFlightRef = useRef(false)
+  const viewRef = useRef(view) // 最新筛选条件，供异步补拉读取
+
+  // 挂载即订阅共享数据源，复用全局轮询（侧栏/任务列表同一定时器）。
   useEffect(() => {
+    if (!enabled) return
     subscribe()
     return () => unsubscribe()
-  }, [subscribe, unsubscribe])
+  }, [enabled, subscribe, unsubscribe])
 
-  const loadPage = useCallback(
-    async (targetPage: number) => {
-      const seq = ++historyFetchSeqRef.current
-      setHistoryLoading(true)
+  // 每次渲染后同步筛选条件，保证补拉流程读到最新值。
+  useEffect(() => {
+    viewRef.current = view
+  })
+
+  /** 保证「筛选后可见条数」不少于 target：不足则按批补拉服务端数据，每批 FETCH_BATCH_SIZE 条。 */
+  const ensureVisible = useCallback(
+    async (target: number) => {
+      if (inFlightRef.current) return
+      inFlightRef.current = true
+      setLoading(true)
       try {
-        const result = await scheduledTaskService.listRunsPage({
-          limit: PAGE_SIZE,
-          offset: (targetPage - 1) * PAGE_SIZE,
-        })
-        if (seq !== historyFetchSeqRef.current) return
-        setRecords(result.items)
-        setTotal(result.total)
-        setHistoryError(null)
+        let batches = 0
+        for (;;) {
+          const loaded = recordsRef.current
+          // 停手条件依次为：筛选已够 / 服务端取空 / 补拉批次上限 / 已取满总数（首轮 total 未知，放行一次）。
+          if (filterRuns(loaded, viewRef.current).length >= target) break
+          if (exhaustedRef.current || batches >= MAX_AUTO_BACKFILL_BATCHES) break
+          if (loaded.length > 0 && loaded.length >= totalRef.current) break
+
+          const result = await scheduledTaskService.listRunsPage({
+            limit: FETCH_BATCH_SIZE,
+            offset: recordsRef.current.length,
+          })
+          batches += 1
+          recordsRef.current = [...recordsRef.current, ...result.items]
+          totalRef.current = result.total
+          setRecords(recordsRef.current)
+          setTotal(result.total)
+          if (result.items.length < FETCH_BATCH_SIZE) {
+            exhaustedRef.current = true
+            setExhausted(true)
+            break
+          }
+        }
+        setError(null)
       } catch (fetchError) {
-        if (seq !== historyFetchSeqRef.current) return
         console.error('Failed to load run history:', fetchError)
-        setHistoryError(t('scheduledTask.runs.loadFailed'))
+        setError(t('scheduledTask.runs.loadFailed'))
       } finally {
-        if (seq === historyFetchSeqRef.current) setHistoryLoading(false)
+        inFlightRef.current = false
+        setLoading(false)
       }
     },
     [t]
   )
 
-  // 数据刷新后页码可能越界，展示与导航时收敛到有效范围。
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const currentPage = Math.min(page, pageCount)
+  /** 重新拉取已加载窗口：轮询发现新记录/状态变化时刷新，同时保留已加载深度。 */
+  const reloadWindow = useCallback(async () => {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
+    setLoading(true)
+    try {
+      const limit = Math.max(FETCH_BATCH_SIZE, recordsRef.current.length)
+      const result = await scheduledTaskService.listRunsPage({ limit, offset: 0 })
+      // 一次请求结果覆盖窗口状态：records/total/exhausted 及其 ref 镜像同步更新。
+      recordsRef.current = result.items
+      totalRef.current = result.total
+      exhaustedRef.current = result.items.length < limit
+      setRecords(result.items)
+      setTotal(result.total)
+      setExhausted(exhaustedRef.current)
+      setError(null)
+    } catch (fetchError) {
+      console.error('Failed to reload run history:', fetchError)
+      setError(t('scheduledTask.runs.loadFailed'))
+    } finally {
+      inFlightRef.current = false
+      setLoading(false)
+    }
+  }, [t])
 
-  // 页码变化（含初次挂载）时拉取对应页。
+  // 首屏与筛选/粒度变化：展示范围回到一页，并按需补拉匹配记录。
+  const viewKey = `${view.granularity}|${view.taskId}|${view.status}`
+  const visibleCount = visibleWindow.key === viewKey ? visibleWindow.count : PAGE_SIZE
   useEffect(() => {
-    void loadPage(currentPage)
-  }, [currentPage, loadPage])
+    if (!enabled) return
+    void ensureVisible(PAGE_SIZE)
+  }, [enabled, viewKey, ensureVisible])
 
-  // 轮询发现新执行记录（recent_runs 变化）时，后台同步刷新当前页，
-  // 执行记录页无需等手动刷新即可跟上新结果。只负责“数据变化而页码未变”的重载：
-  // 页码变化由上面的 currentPage effect 触发，这里跳过，避免同一页重复请求；
-  // 且始终用收敛后的 currentPage，避免 total 收缩（如删除任务）后请求越界页。
+  // 轮询发现执行记录内容变化时重载窗口，新结果无需手动刷新即可出现。
   const runsSignatureRef = useRef('')
-  const lastLoadedPageRef = useRef(currentPage)
   useEffect(() => {
-    const pageChanged = lastLoadedPageRef.current !== currentPage
-    lastLoadedPageRef.current = currentPage
     const signature = JSON.stringify(runsByTask)
     const changed = runsSignatureRef.current !== '' && signature !== runsSignatureRef.current
     runsSignatureRef.current = signature
-    if (!changed || pageChanged) return
-    void loadPage(currentPage)
-  }, [runsByTask, currentPage, loadPage])
+    if (!enabled || !changed) return
+    void reloadWindow()
+  }, [runsByTask, enabled, reloadWindow])
 
-  const handleRefresh = async () => {
+  const refresh = useCallback(async () => {
     const before = JSON.stringify(useScheduledTaskStore.getState().runsByTask)
-    await refresh(true)
-    // 数据确实变化时由签名 effect 自动重载当前页；未变化才显式重载，避免双请求。
-    const after = JSON.stringify(useScheduledTaskStore.getState().runsByTask)
-    if (before === after) {
-      void loadPage(currentPage)
+    await storeRefresh(true)
+    // 数据确实变化时由签名 effect 自动重载；未变化才显式重载，避免双请求。
+    if (before === JSON.stringify(useScheduledTaskStore.getState().runsByTask)) {
+      await reloadWindow()
     }
-  }
+  }, [storeRefresh, reloadWindow])
+
+  const loadMore = useCallback(() => {
+    const target = visibleCount + PAGE_SIZE
+    setVisibleWindow({ key: viewKey, count: target })
+    void ensureVisible(target)
+  }, [visibleCount, viewKey, ensureVisible])
+
+  const matched = useMemo(() => filterRuns(records, view), [records, view])
+  const visible = useMemo(() => matched.slice(0, visibleCount), [matched, visibleCount])
+  const hasMore = matched.length > visibleCount || (!exhausted && records.length < total)
+
+  return { records, visible, matched, total, loading, error, hasMore, refresh, loadMore }
+}
+
+interface RunRecordsProps {
+  view: RunRecordsView
+  controller: RunRecordsController
+  onResetFilters: () => void // 清除筛选（无匹配结果时提供的快捷入口）
+}
+
+/** 执行记录列表主体：分组时间线 + 加载更多。 */
+export function RunRecords({ view, controller, onResetFilters }: RunRecordsProps) {
+  const { t } = useTranslation('tool-panel')
+  const tasks = useScheduledTaskStore(s => s.tasks)
+  const { visible, matched, records, total, loading, error, hasMore, loadMore } = controller
+
+  // 这两项的文案在渲染时由 i18n 决定（与 task-card 同一做法），刻意不 memo：
+  // 否则切换语言后 memo 不会重算，分组标题与调度规则会停留在旧语言。
+  const scheduleLabels = buildTaskScheduleLabels(tasks)
+  const groups = groupRunsByGranularity(visible, view.granularity)
 
   const handleViewConversation = (record: ScheduledTaskRunWithTask) => {
     if (!record.session_id) return
     void useChatStore.getState().refreshConversation(record.agent_id, record.session_id, {
-      // 本地尚无该会话（超出 recent_runs 上限/缓存清空）时也要建成定时任务条目，
-      // 避免落入普通会话列表。
+      // 本地尚无该会话（超出 recent_runs 上限/缓存清空）时也要建成定时任务条目，避免落入普通会话列表。
       scheduledTaskId: record.task_id,
     })
   }
+
+  const filtered = view.taskId !== RUN_TASK_ALL || view.status !== 'all'
+  const loadMoreButton = hasMore ? (
+    <Button variant="outline" size="sm" disabled={loading} onClick={loadMore}>
+      {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+      {t('scheduledTask.runs.loadMore')}
+    </Button>
+  ) : null
 
   // 加载失败（error 已设置）时优先展示错误而非空态
   if (tasks.length === 0 && !loading && !error) {
@@ -129,122 +249,76 @@ export function RunRecords() {
     )
   }
 
-  const refreshing = loading || historyLoading
+  if (loading && records.length === 0) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <Skeleton key={index} className="h-16 w-full rounded-md" />
+        ))}
+      </div>
+    )
+  }
+
+  if (error && records.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>{t('scheduledTask.empty.loadFailedTitle')}</EmptyTitle>
+          <EmptyDescription>{error}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
+  if (matched.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <History className="h-6 w-6" />
+          </EmptyMedia>
+          <EmptyTitle>
+            {filtered ? t('scheduledTask.runs.noMatchTitle') : t('scheduledTask.runs.emptyTitle')}
+          </EmptyTitle>
+          <EmptyDescription>
+            {filtered
+              ? t('scheduledTask.runs.noMatchDescription')
+              : t('scheduledTask.runs.notRunYet')}
+          </EmptyDescription>
+        </EmptyHeader>
+        {filtered && (
+          <EmptyContent>
+            {/* 命中率低时窗口内可能为空，但服务端仍有未加载数据：保留继续扫描的入口 */}
+            {loadMoreButton}
+            <Button variant="ghost" size="sm" onClick={onResetFilters}>
+              {t('scheduledTask.runs.clearFilters')}
+            </Button>
+          </EmptyContent>
+        )}
+      </Empty>
+    )
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          {t('scheduledTask.runs.totalCount', { count: total })}
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void handleRefresh()}
-          disabled={refreshing}
-        >
-          <RefreshCw className={refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-          {t('common:action.refresh')}
-        </Button>
-      </div>
+    <div>
+      <RunRecordsTimeline
+        groups={groups}
+        scheduleLabels={scheduleLabels}
+        onOpenConversation={handleViewConversation}
+      />
 
-      {refreshing && records.length === 0 ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <Skeleton key={index} className="h-16 w-full rounded-md" />
-          ))}
+      <div className="flex flex-col items-center gap-3 pt-6">
+        <div className="text-xs text-muted-foreground">
+          {filtered
+            ? t('scheduledTask.runs.filteredCount', {
+                visible: visible.length,
+                loaded: records.length,
+                total,
+              })
+            : t('scheduledTask.runs.shownCount', { visible: visible.length, total })}
         </div>
-      ) : (historyError || error) && records.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>{t('scheduledTask.empty.loadFailedTitle')}</EmptyTitle>
-            <EmptyDescription>{historyError || error}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : records.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <History className="h-6 w-6" />
-            </EmptyMedia>
-            <EmptyTitle>{t('scheduledTask.runs.emptyTitle')}</EmptyTitle>
-            <EmptyDescription>{t('scheduledTask.runs.notRunYet')}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <div className="space-y-4">
-          <div className="overflow-hidden rounded-lg border">
-            {records.map((record, index) => {
-              const status = getRunStatusMeta(record.status)
-              return (
-                <div
-                  key={record.id}
-                  className={
-                    index > 0 ? 'border-t border-border bg-card px-4 py-3' : 'bg-card px-4 py-3'
-                  }
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-foreground">
-                        {record.task_name}
-                      </div>
-                      <div className="mt-0.5 text-xs text-muted-foreground">
-                        {formatDateTime(record.started_at)} → {formatDateTime(record.finished_at)}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {record.session_id && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs text-primary"
-                          onClick={() => handleViewConversation(record)}
-                        >
-                          {t('scheduledTask.runs.viewConversation')}
-                        </Button>
-                      )}
-                      <Badge variant="outline" className={status.className}>
-                        {status.label}
-                      </Badge>
-                    </div>
-                  </div>
-                  {record.error && (
-                    <div className="mt-1 truncate text-xs text-red-600" title={record.error}>
-                      {record.error}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-          {pageCount > 1 && (
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                {t('scheduledTask.runs.pageIndicator', { page: currentPage, total: pageCount })}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage <= 1}
-                  // 基于 currentPage 导航，避免 page state 越界后无法回退。
-                  onClick={() => setPage(currentPage - 1)}
-                >
-                  {t('scheduledTask.runs.prevPage')}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage >= pageCount}
-                  onClick={() => setPage(currentPage + 1)}
-                >
-                  {t('scheduledTask.runs.nextPage')}
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+        {loadMoreButton}
+      </div>
     </div>
   )
 }

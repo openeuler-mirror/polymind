@@ -752,11 +752,34 @@
       "emptyTitle": "No run records yet",
       "emptyDescription": "Once you create scheduled tasks, their run results will be collected here.",
       "notRunYet": "This task has not run yet. Click \u201cRun now\u201d on its card to trigger a run.",
-      "totalCount": "{{count}} records",
-      "viewConversation": "View conversation",
-      "pageIndicator": "Page {{page}} of {{total}}",
-      "prevPage": "Previous",
-      "nextPage": "Next",
+      "noMatchTitle": "No matching run records",
+      "noMatchDescription": "No records match the current filters. Change the filters or keep loading more history.",
+      "filteredCount": "{{visible}} matched · {{loaded}} loaded of {{total}}",
+      "shownCount": "Showing {{visible}} of {{total}}",
+      "loadMore": "Load more",
+      "clearFilters": "Clear filters",
+      "allTasks": "All tasks",
+      "allStatuses": "All statuses",
+      "granularityAria": "Grouping granularity",
+      "granularity": {
+        "day": "By day",
+        "week": "By week",
+        "month": "By month"
+      },
+      "group": {
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "thisWeek": "This week",
+        "lastWeek": "Last week",
+        "thisMonth": "This month",
+        "lastMonth": "Last month"
+      },
+      "duration": {
+        "minutesSeconds": "{{minutes}}m {{seconds}}s",
+        "hoursMinutes": "{{hours}}h {{minutes}}m"
+      },
+      "refreshAria": "Refresh run records",
+      "openConversation": "View run conversation",
       "loadFailed": "Failed to load run records"
     },
     "run": {
