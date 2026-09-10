@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { Activity, AlertCircle, ChevronLeft, ChevronRight, HeartPulse } from 'lucide-react'
 import {
   Accordion,
@@ -33,93 +35,105 @@ import { cn } from '@/lib/utils'
 
 const DRAWER_WIDTH = 340
 
-const STATUS_META: Record<
+const STATUS_META_KEYS: Record<
   AgentHealthStatus['overall_status'],
-  { label: string; dot: string; tone: string }
+  { labelKey: string; dot: string; tone: string }
 > = {
   healthy: {
-    label: '正常',
+    labelKey: 'insight.health.status.healthy',
     dot: 'bg-emerald-500',
     tone: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   },
   degraded: {
-    label: '降级',
+    labelKey: 'insight.health.status.degraded',
     dot: 'bg-amber-500',
     tone: 'border-amber-200 bg-amber-50 text-amber-700',
   },
   missing_runtime: {
-    label: '缺失 Runtime',
+    labelKey: 'insight.health.status.missingRuntime',
     dot: 'bg-red-600',
     tone: 'border-red-200 bg-red-50 text-red-700',
   },
   ambiguous: {
-    label: '匹配冲突',
+    labelKey: 'insight.health.status.ambiguous',
     dot: 'bg-orange-500',
     tone: 'border-orange-200 bg-orange-50 text-orange-700',
   },
   unhealthy: {
-    label: '异常',
+    labelKey: 'insight.health.status.unhealthy',
     dot: 'bg-red-500',
     tone: 'border-red-200 bg-red-50 text-red-700',
   },
   hung: {
-    label: '卡顿',
+    labelKey: 'insight.health.status.hung',
     dot: 'bg-orange-500',
     tone: 'border-orange-200 bg-orange-50 text-orange-700',
   },
   unknown: {
-    label: '未知',
+    labelKey: 'insight.health.status.unknown',
     dot: 'bg-amber-500',
     tone: 'border-amber-200 bg-amber-50 text-amber-700',
   },
   no_port: {
-    label: '无端口',
+    labelKey: 'insight.health.status.noPort',
     dot: 'bg-slate-500',
     tone: 'border-slate-200 bg-slate-50 text-slate-700',
   },
   offline: {
-    label: '已下线',
+    labelKey: 'insight.health.status.offline',
     dot: 'bg-red-700',
     tone: 'border-red-200 bg-red-50 text-red-700',
   },
 }
 
-function getAdapterStatusMeta(status: string | null) {
+function getStatusMeta(
+  status: AgentHealthStatus['overall_status'],
+  t: TFunction
+): { label: string; dot: string; tone: string } {
+  const meta = STATUS_META_KEYS[status]
+  return {
+    label: t(meta.labelKey),
+    dot: meta.dot,
+    tone: meta.tone,
+  }
+}
+
+function getAdapterStatusMeta(status: string | null, t: TFunction) {
   if (status === 'healthy') {
     return {
-      label: 'Adapter 正常',
+      label: t('insight.health.adapter.healthy'),
       tone: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     }
   }
 
   if (status === 'hung') {
     return {
-      label: 'Adapter 卡顿',
+      label: t('insight.health.adapter.hung'),
       tone: 'border-orange-200 bg-orange-50 text-orange-700',
     }
   }
 
   if (status === 'offline' || status === 'unhealthy') {
     return {
-      label: 'Adapter 异常',
+      label: t('insight.health.adapter.unhealthy'),
       tone: 'border-red-200 bg-red-50 text-red-700',
     }
   }
 
   if (status === 'unknown') {
     return {
-      label: 'Adapter 未知',
+      label: t('insight.health.adapter.unknown'),
       tone: 'border-amber-200 bg-amber-50 text-amber-700',
     }
   }
 
   return {
-    label: 'Adapter 未就绪',
+    label: t('insight.health.adapter.notReady'),
     tone: 'border-slate-200 bg-slate-50 text-slate-700',
   }
 }
 
-function formatRelativeTime(timestampMs: number | null, now: number): string {
+function formatRelativeTime(timestampMs: number | null, now: number, t: TFunction): string {
   if (!timestampMs) {
     return '—'
   }
@@ -127,23 +141,23 @@ function formatRelativeTime(timestampMs: number | null, now: number): string {
   const diffSeconds = Math.floor((now - timestampMs) / 1000)
 
   if (diffSeconds < 5) {
-    return '刚刚'
+    return t('insight.health.justNow')
   }
 
   if (diffSeconds < 60) {
-    return `${diffSeconds} 秒前`
+    return t('insight.health.secondsAgo', { count: diffSeconds })
   }
 
   if (diffSeconds < 3600) {
-    return `${Math.floor(diffSeconds / 60)} 分钟前`
+    return t('insight.health.minutesAgo', { count: Math.floor(diffSeconds / 60) })
   }
 
-  return `${Math.floor(diffSeconds / 3600)} 小时前`
+  return t('insight.health.hoursAgo', { count: Math.floor(diffSeconds / 3600) })
 }
 
-function formatClockTime(timestampMs: number | null): string {
+function formatClockTime(timestampMs: number | null, t: TFunction): string {
   if (!timestampMs) {
-    return '尚未扫描'
+    return t('insight.health.notScanned')
   }
 
   return new Date(timestampMs).toLocaleTimeString('zh-CN', {
@@ -171,18 +185,24 @@ function RuntimeCard({
   now,
   title,
   value,
+  t,
 }: {
   runtime: AgentRuntimeHealthStatus
   now: number
   title: string
   value: string
+  t: TFunction
 }) {
-  const statusMeta = STATUS_META[runtime.status]
+  const statusMeta = getStatusMeta(runtime.status, t)
   const details = [
-    ['端口', formatPorts(runtime.ports)],
-    ['延迟', runtime.latency_ms !== null ? `${runtime.latency_ms} ms` : '—'],
-    ['分类', runtime.category || '—'],
-    ['最近检查', formatRelativeTime(runtime.last_check_time, now)],
+    [t('insight.health.detail.ports'), formatPorts(runtime.ports)],
+    ['PID', runtime.pid.toString()],
+    [
+      t('insight.health.detail.latency'),
+      runtime.latency_ms !== null ? `${runtime.latency_ms} ms` : '—',
+    ],
+    [t('insight.health.detail.category'), runtime.category || '—'],
+    [t('insight.health.detail.lastCheck'), formatRelativeTime(runtime.last_check_time, now, t)],
   ]
 
   return (
@@ -223,23 +243,28 @@ function HealthAgentCard({
   agent,
   now,
   onAcknowledgeOffline,
+  t,
 }: {
   agent: AgentHealthStatus
   now: number
   onAcknowledgeOffline?: (pid: number) => Promise<void>
+  t: TFunction
 }) {
-  const statusMeta = STATUS_META[agent.overall_status]
-  const adapterMeta = getAdapterStatusMeta(agent.adapter_status)
+  const statusMeta = getStatusMeta(agent.overall_status, t)
+  const adapterMeta = getAdapterStatusMeta(agent.adapter_status, t)
   const [removing, setRemoving] = useState(false)
   const [removeError, setRemoveError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const canAcknowledge = canAcknowledgeManagedAgent(agent)
   const details = [
-    ['Witty 状态', agent.witty_status || '—'],
-    ['Gateway 端口', agent.gateway_port?.toString() || '—'],
+    [t('insight.health.detail.wittyStatus'), agent.witty_status || '—'],
+    [t('insight.health.detail.gatewayPort'), agent.gateway_port?.toString() || '—'],
     ['Adapter', agent.adapter_type || '—'],
-    ['沙箱', agent.sandbox_type || '—'],
-    ['Adapter 延迟', agent.adapter_latency_ms !== null ? `${agent.adapter_latency_ms} ms` : '—'],
+    [t('insight.health.detail.sandbox'), agent.sandbox_type || '—'],
+    [
+      t('insight.health.detail.adapterLatency'),
+      agent.adapter_latency_ms !== null ? `${agent.adapter_latency_ms} ms` : '—',
+    ],
     ['Adapter PID', agent.adapter_pid?.toString() || '—'],
     agent.adapter_base_url ? ['Adapter URL', agent.adapter_base_url] : null,
   ].filter(Boolean) as Array<[string, string]>
@@ -257,7 +282,7 @@ function HealthAgentCard({
       await onAcknowledgeOffline(runtimePid)
       setConfirmOpen(false)
     } catch (error) {
-      setRemoveError(error instanceof Error ? error.message : '移除失败，请稍后重试')
+      setRemoveError(error instanceof Error ? error.message : t('insight.health.removeFailed'))
     } finally {
       setRemoving(false)
     }
@@ -305,8 +330,9 @@ function HealthAgentCard({
           <RuntimeCard
             runtime={agent.runtime}
             now={now}
-            title="Primary Runtime"
+            title={t('insight.health.primaryRuntime')}
             value={`${agent.witty_agent_id}-primary`}
+            t={t}
           />
         </div>
       ) : null}
@@ -318,8 +344,9 @@ function HealthAgentCard({
               key={`${agent.witty_agent_id}-${runtime.pid}`}
               runtime={runtime}
               now={now}
-              title="候选 Runtime"
+              title={t('insight.health.candidateRuntime')}
               value={`${agent.witty_agent_id}-${runtime.pid}`}
+              t={t}
             />
           ))}
         </div>
@@ -338,19 +365,19 @@ function HealthAgentCard({
               }}
             >
               {removing ? <Spinner className="mr-2 h-3.5 w-3.5" /> : null}
-              确认下线并移除
+              {t('insight.health.acknowledge')}
             </Button>
 
             <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>确认移除离线 Runtime</AlertDialogTitle>
+                  <AlertDialogTitle>{t('insight.health.confirmRemoveTitle')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    该操作会将当前离线 runtime 从健康状态列表中移除。
+                    {t('insight.health.confirmRemoveDescription')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel disabled={removing}>取消</AlertDialogCancel>
+                  <AlertDialogCancel disabled={removing}>{t('common:action.cancel')}</AlertDialogCancel>
                   <Button
                     type="button"
                     disabled={removing}
@@ -359,7 +386,7 @@ function HealthAgentCard({
                     }}
                   >
                     {removing ? <Spinner className="mr-2 h-3.5 w-3.5" /> : null}
-                    确认移除
+                    {t('insight.health.confirmRemove')}
                   </Button>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -378,6 +405,7 @@ interface InsightHealthRailProps {
 }
 
 export function InsightHealthRail({ controller }: InsightHealthRailProps) {
+  const { t } = useTranslation('tool-panel')
   const summary = summarizeManagedHealthAgents(controller.agents)
   const hasAttention = summary.attentionCount > 0
   const [expanded, setExpanded] = useState(false)
@@ -399,7 +427,7 @@ export function InsightHealthRail({ controller }: InsightHealthRailProps) {
         <div className="flex h-[640px] w-10 flex-col items-center gap-3 border-r bg-muted/40 px-1 py-4 text-muted-foreground">
           <HeartPulse className="h-4 w-4 animate-pulse" />
           <span className="[writing-mode:vertical-rl] text-[12px] font-semibold tracking-[0.16em]">
-            健康状态
+            {t('insight.health.title')}
           </span>
         </div>
       </div>
@@ -408,38 +436,38 @@ export function InsightHealthRail({ controller }: InsightHealthRailProps) {
 
   const badges = (
     <div className="flex flex-wrap gap-2">
-      <Badge variant="outline">总计 {controller.agents.length}</Badge>
+      <Badge variant="outline">{t('insight.health.total', { count: controller.agents.length })}</Badge>
       <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700">
-        正常 {summary.healthyCount}
+        {t('insight.health.healthyCount', { count: summary.healthyCount })}
       </Badge>
       {summary.degradedCount > 0 ? (
         <Badge className="border border-amber-200 bg-amber-50 text-amber-700">
-          降级 {summary.degradedCount}
+          {t('insight.health.degradedCount', { count: summary.degradedCount })}
         </Badge>
       ) : null}
       {summary.missingRuntimeCount > 0 ? (
         <Badge className="border border-red-200 bg-red-50 text-red-700">
-          缺失 Runtime {summary.missingRuntimeCount}
+          {t('insight.health.missingRuntimeCount', { count: summary.missingRuntimeCount })}
         </Badge>
       ) : null}
       {summary.ambiguousCount > 0 ? (
         <Badge className="border border-orange-200 bg-orange-50 text-orange-700">
-          冲突 {summary.ambiguousCount}
+          {t('insight.health.ambiguousCount', { count: summary.ambiguousCount })}
         </Badge>
       ) : null}
       {summary.offlineCount > 0 ? (
         <Badge className="border border-red-200 bg-red-50 text-red-700">
-          下线 {summary.offlineCount}
+          {t('insight.health.offlineCount', { count: summary.offlineCount })}
         </Badge>
       ) : null}
       {summary.hungCount > 0 ? (
         <Badge className="border border-orange-200 bg-orange-50 text-orange-700">
-          卡顿 {summary.hungCount}
+          {t('insight.health.hungCount', { count: summary.hungCount })}
         </Badge>
       ) : null}
       {summary.unhealthyCount > 0 ? (
         <Badge className="border border-red-200 bg-red-50 text-red-700">
-          异常 {summary.unhealthyCount}
+          {t('insight.health.unhealthyCount', { count: summary.unhealthyCount })}
         </Badge>
       ) : null}
     </div>
@@ -448,7 +476,7 @@ export function InsightHealthRail({ controller }: InsightHealthRailProps) {
   const contentBody = controller.error ? (
     <Alert variant="destructive">
       <AlertCircle />
-      <AlertTitle>健康状态加载失败</AlertTitle>
+      <AlertTitle>{t('insight.health.loadFailed')}</AlertTitle>
       <AlertDescription>{controller.error}</AlertDescription>
     </Alert>
   ) : controller.agents.length === 0 ? (
@@ -457,7 +485,7 @@ export function InsightHealthRail({ controller }: InsightHealthRailProps) {
         <EmptyMedia variant="icon">
           <HeartPulse />
         </EmptyMedia>
-        <EmptyTitle>当前没有 Agent 健康数据</EmptyTitle>
+        <EmptyTitle>{t('insight.health.empty')}</EmptyTitle>
       </EmptyHeader>
     </Empty>
   ) : (
@@ -469,6 +497,7 @@ export function InsightHealthRail({ controller }: InsightHealthRailProps) {
             agent={agent}
             now={now}
             onAcknowledgeOffline={controller.acknowledgeOfflineAgent}
+            t={t}
           />
         ))}
       </div>
@@ -500,7 +529,7 @@ export function InsightHealthRail({ controller }: InsightHealthRailProps) {
             className={cn('h-4 w-4', hasAttention ? 'text-red-600' : 'text-muted-foreground')}
           />
           <span className="[writing-mode:vertical-rl] text-[13px] font-semibold tracking-[0.18em] text-foreground">
-            健康状态
+            {t('insight.health.title')}
           </span>
           <Badge variant="outline" className="px-1 text-[9px]">
             {controller.agents.length}
@@ -524,7 +553,7 @@ export function InsightHealthRail({ controller }: InsightHealthRailProps) {
           <div className="min-w-0 flex-1 space-y-3 p-3">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Activity className="h-3.5 w-3.5" />
-              {formatClockTime(controller.lastScanTime)}
+              {formatClockTime(controller.lastScanTime, t)}
             </div>
             {badges}
             {contentBody}

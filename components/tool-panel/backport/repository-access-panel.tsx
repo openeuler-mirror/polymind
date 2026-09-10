@@ -11,6 +11,8 @@ import {
   Search,
   XCircle,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -45,7 +47,8 @@ interface RepositoryAccessPanelProps {
   onBranchChange: (role: BackportRepositoryRole, branch: string) => void
 }
 
-const roleLabel = (role: BackportRepositoryRole) => (role === 'source' ? '源仓库' : '目标仓库')
+const roleLabel = (role: BackportRepositoryRole, t: TFunction) =>
+  role === 'source' ? t('backport.repository.role.source') : t('backport.repository.role.target')
 
 const branchOptions = (repository: BackportRepositoryInfo | null): string[] => {
   if (!repository) return []
@@ -119,6 +122,7 @@ function RepositoryCard({
   onRefreshRepository: (role: BackportRepositoryRole) => void
   onBranchChange: (role: BackportRepositoryRole, branch: string) => void
 }) {
+  const { t } = useTranslation('tool-panel')
   const isPreparing = preparingRole === role && prepareTask?.status === 'running'
   const isFailed = preparingRole === role && prepareTask?.status === 'failed'
   const options = branchOptions(repository)
@@ -136,7 +140,7 @@ function RepositoryCard({
       <div className="flex min-h-8 items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-base font-medium text-slate-950">{roleLabel(role)}</span>
+            <span className="text-base font-medium text-slate-950">{roleLabel(role, t)}</span>
             {ready ? (
               <Badge
                 variant="outline"
@@ -147,7 +151,7 @@ function RepositoryCard({
                     : 'border-amber-200 bg-amber-50 text-amber-700'
                 )}
               >
-                {canUse ? '已就绪' : '需要处理'}
+                {canUse ? t('backport.repository.ready') : t('backport.repository.needsAttention')}
               </Badge>
             ) : null}
           </div>
@@ -159,7 +163,7 @@ function RepositoryCard({
             className="h-8 px-2"
             onClick={() => onRefreshRepository(role)}
             disabled={running || isPreparing}
-            title="刷新仓库状态"
+            title={t('backport.repository.refreshStatus')}
           >
             <RefreshCw className={cn('h-4 w-4', isPreparing && 'animate-spin')} />
           </Button>
@@ -170,7 +174,7 @@ function RepositoryCard({
         <div className="mt-5 space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
             <RefreshCw className="h-4 w-4 animate-spin" />
-            正在准备{roleLabel(role)}
+            {t('backport.repository.preparing', { role: roleLabel(role, t) })}
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-blue-100">
             <div
@@ -207,14 +211,14 @@ function RepositoryCard({
               {repository.source_url || repository.input || repository.local_path}
             </div>
             <div className="truncate font-mono text-xs text-slate-500">
-              本地路径：{repository.local_path}
+              {t('backport.repository.localPath', { path: repository.local_path })}
             </div>
           </div>
 
           <div className="grid gap-x-4 gap-y-3 sm:grid-cols-[72px_minmax(0,1fr)]">
             <div className="flex items-center gap-1.5 text-sm text-slate-600">
               <GitBranch className="h-3.5 w-3.5" />
-              分支
+              {t('backport.repository.branch')}
             </div>
             <Select
               value={selectedBranch}
@@ -222,7 +226,7 @@ function RepositoryCard({
               disabled={running || options.length === 0}
             >
               <SelectTrigger className="h-8 w-fit min-w-[132px] max-w-full bg-white px-2 text-xs">
-                <SelectValue placeholder="选择本地分支" />
+                <SelectValue placeholder={t('backport.repository.selectLocalBranch')} />
               </SelectTrigger>
               <SelectContent>
                 {options.map(branch => (
@@ -235,7 +239,7 @@ function RepositoryCard({
 
             <div className="flex items-center gap-1.5 text-sm text-slate-600">
               <GitCommit className="h-3.5 w-3.5" />
-              提交
+              {t('backport.repository.commit')}
             </div>
             <div className="truncate font-mono text-sm text-slate-950">
               {repository.short_head || '--'}
@@ -244,27 +248,37 @@ function RepositoryCard({
 
           <div className="space-y-2">
             <StatusLine
-              label="本地分支"
-              value={`${localBranchCount} 个`}
+              label={t('backport.repository.localBranches')}
+              value={t('backport.repository.branchCount', { count: localBranchCount })}
               ok={localBranchCount > 0}
             />
             {role === 'target' ? (
               <>
-                <StatusLine label="写入权限" ok={Boolean(repository.writable)} />
                 <StatusLine
-                  label={repository.status_clean ? '工作区干净' : '存在未提交修改'}
+                  label={t('backport.repository.writePermission')}
+                  ok={Boolean(repository.writable)}
+                />
+                <StatusLine
+                  label={
+                    repository.status_clean
+                      ? t('backport.repository.worktreeClean')
+                      : t('backport.repository.uncommittedChanges')
+                  }
                   ok={repository.status_clean}
                 />
                 {repository.operation_in_progress ? (
-                  <StatusLine label="存在未完成 Git 操作" ok={false} />
+                  <StatusLine label={t('backport.repository.gitOperationInProgress')} ok={false} />
                 ) : null}
               </>
             ) : (
               <>
-                <StatusLine label="读取权限" ok={repository.can_read} />
                 <StatusLine
-                  label="远程分支"
-                  value={`${remoteBranchCount} 个`}
+                  label={t('backport.repository.readPermission')}
+                  ok={repository.can_read}
+                />
+                <StatusLine
+                  label={t('backport.repository.remoteBranches')}
+                  value={t('backport.repository.branchCount', { count: remoteBranchCount })}
                   ok
                   muted={remoteBranchCount === 0}
                 />
@@ -287,7 +301,7 @@ function RepositoryCard({
               onClick={() => onAddRepository(role)}
               disabled={running}
             >
-              更换仓库
+              {t('backport.repository.changeRepository')}
             </Button>
             <Button
               variant="ghost"
@@ -296,21 +310,23 @@ function RepositoryCard({
               onClick={() => onSelectRecentRepository(role)}
               disabled={running}
             >
-              选择已有
+              {t('backport.repository.selectExisting')}
             </Button>
           </div>
         </div>
       ) : (
         <div className="mt-6 flex min-h-[170px] flex-col justify-between rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4">
           <div>
-            <div className="text-sm font-medium text-slate-900">尚未选择{roleLabel(role)}</div>
+            <div className="text-sm font-medium text-slate-900">
+              {t('backport.repository.notSelected', { role: roleLabel(role, t) })}
+            </div>
             <p className="mt-2 text-xs leading-5 text-slate-500">
-              粘贴 Git URL 或服务器本地路径，系统会检测并准备成可用仓库。
+              {t('backport.repository.notSelectedHint')}
             </p>
             {isFailed ? (
               <div className="mt-3 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs text-red-700">
                 <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                <span>{prepareTask?.error || '仓库准备失败'}</span>
+                <span>{prepareTask?.error || t('backport.repository.prepareFailed')}</span>
               </div>
             ) : null}
           </div>
@@ -321,7 +337,7 @@ function RepositoryCard({
               onClick={() => onAddRepository(role)}
               disabled={running}
             >
-              添加新仓库
+              {t('backport.repository.addRepository')}
             </Button>
             <Button
               variant="outline"
@@ -331,7 +347,7 @@ function RepositoryCard({
               disabled={running}
             >
               <Search className="mr-1 h-4 w-4" />
-              选择已有仓库
+              {t('backport.repository.selectExistingRepository')}
             </Button>
           </div>
         </div>
@@ -341,12 +357,15 @@ function RepositoryCard({
 }
 
 export function RepositoryAccessPanel(props: RepositoryAccessPanelProps) {
+  const { t } = useTranslation('tool-panel')
   if (!props.expanded) {
     return (
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 truncate text-sm text-slate-600">
-            <span className="font-medium text-slate-950">回移配置：</span>
+            <span className="font-medium text-slate-950">
+              {t('backport.repository.configLabel')}
+            </span>
             {props.collapsedSummary}
           </div>
           {props.headerAction ? <div className="shrink-0">{props.headerAction}</div> : null}
@@ -360,8 +379,10 @@ export function RepositoryAccessPanel(props: RepositoryAccessPanelProps) {
       <div className="space-y-4 px-4 py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <h3 className="text-base font-semibold text-slate-950">回移配置</h3>
-            <p className="mt-1 text-sm text-slate-500">选择源仓库提交，并回移到目标仓库。</p>
+            <h3 className="text-base font-semibold text-slate-950">
+              {t('backport.repository.configTitle')}
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">{t('backport.repository.configDesc')}</p>
           </div>
           {props.headerAction ? <div className="shrink-0">{props.headerAction}</div> : null}
         </div>

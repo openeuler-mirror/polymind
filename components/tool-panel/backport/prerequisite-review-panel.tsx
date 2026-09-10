@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { GitCompareArrows, RefreshCw, Search, TriangleAlert } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -46,6 +47,7 @@ export function PrerequisiteReviewPanel({
   onConfirm,
   onRescan,
 }: PrerequisiteReviewPanelProps) {
+  const { t } = useTranslation('tool-panel')
   const [query, setQuery] = useState('')
   const [selectedSet, setSelectedSet] = useState<Set<string>>(new Set())
 
@@ -112,19 +114,19 @@ export function PrerequisiteReviewPanel({
               <GitCompareArrows className="size-5" aria-hidden="true" />
             </div>
             <div className="flex min-w-0 flex-col gap-2">
-              <CardTitle>前置提交审阅</CardTitle>
-              <CardDescription>
-                在下方原始 Commit 表格中打开任意提交进行对照；此审阅区会一直保留到确认加入或取消。
-              </CardDescription>
+              <CardTitle>{t('backport.prereq.title')}</CardTitle>
+              <CardDescription>{t('backport.prereq.description')}</CardDescription>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">原始 {originalCount} 条</Badge>
-            <Badge variant="outline">建议前置 {candidates.length} 条</Badge>
+            <Badge variant="outline">{t('backport.prereq.originalCount', { count: originalCount })}</Badge>
+            <Badge variant="outline">
+              {t('backport.prereq.suggestedCount', { count: candidates.length })}
+            </Badge>
             {targetRef ? (
               <Badge variant="secondary" className="font-mono">
-                目标基线 {targetRef.slice(0, 12)}
+                {t('backport.prereq.targetBaseline', { ref: targetRef.slice(0, 12) })}
               </Badge>
             ) : null}
           </div>
@@ -135,9 +137,11 @@ export function PrerequisiteReviewPanel({
         {manifest.decision_tasks && manifest.decision_tasks.length > 0 ? (
           <Alert>
             <TriangleAlert aria-hidden="true" />
-            <AlertTitle>存在需要人工判断的候选</AlertTitle>
+            <AlertTitle>{t('backport.prereq.decisionAlertTitle')}</AlertTitle>
             <AlertDescription>
-              扫描结果包含 {manifest.decision_tasks.length} 项 decision task，请在生成报告前确认。
+              {t('backport.prereq.decisionAlertDescription', {
+                count: manifest.decision_tasks.length,
+              })}
             </AlertDescription>
           </Alert>
         ) : null}
@@ -149,8 +153,8 @@ export function PrerequisiteReviewPanel({
           <InputGroupInput
             value={query}
             onChange={event => setQuery(event.target.value)}
-            placeholder="按标题或 commit 搜索候选"
-            aria-label="搜索候选前置提交"
+            placeholder={t('backport.prereq.searchPlaceholder')}
+            aria-label={t('backport.prereq.searchAriaLabel')}
             className="font-mono text-xs"
           />
         </InputGroup>
@@ -166,22 +170,24 @@ export function PrerequisiteReviewPanel({
                       filtered.every(candidate => selectedSet.has(candidate.commit))
                     }
                     onCheckedChange={checked => toggleFiltered(checked === true)}
-                    aria-label="选择当前筛选结果中的全部前置提交"
+                    aria-label={t('backport.prereq.selectAllAriaLabel')}
                     disabled={rescanning}
                   />
                 </TableHead>
                 <TableHead className="w-40">Commit</TableHead>
-                <TableHead className="min-w-80">标题</TableHead>
-                <TableHead className="min-w-96">为什么需要</TableHead>
-                <TableHead className="min-w-72">被谁依赖</TableHead>
-                <TableHead className="w-28">来源</TableHead>
+                <TableHead className="min-w-80">{t('backport.prereq.columnTitle')}</TableHead>
+                <TableHead className="min-w-96">{t('backport.prereq.columnWhyNeeded')}</TableHead>
+                <TableHead className="min-w-72">
+                  {t('backport.prereq.columnRequiredBy')}
+                </TableHead>
+                <TableHead className="w-28">{t('backport.prereq.columnOrigin')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                    没有匹配的候选前置提交
+                    {t('backport.prereq.empty')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -196,7 +202,9 @@ export function PrerequisiteReviewPanel({
                         <Checkbox
                           checked={checked}
                           onCheckedChange={value => toggle(candidate.commit, value === true)}
-                          aria-label={`选择前置提交 ${candidate.commit}`}
+                          aria-label={t('backport.prereq.selectCommitAriaLabel', {
+                            commit: candidate.commit,
+                          })}
                           disabled={rescanning}
                         />
                       </TableCell>
@@ -236,7 +244,9 @@ export function PrerequisiteReviewPanel({
                         <Badge
                           variant={candidate.origin === 'deterministic' ? 'secondary' : 'outline'}
                         >
-                          {candidate.origin === 'deterministic' ? '确定性' : candidate.origin}
+                          {candidate.origin === 'deterministic'
+                            ? t('backport.prereq.originDeterministic')
+                            : candidate.origin}
                         </Badge>
                       </TableCell>
                     </TableRow>
@@ -250,21 +260,23 @@ export function PrerequisiteReviewPanel({
 
       <CardFooter className="flex flex-col-reverse gap-3 border-t py-4 sm:flex-row sm:justify-between">
         <p className="text-xs text-muted-foreground">
-          已选择 {selected.length} 条；确认后会加入下方 Commit 表格并标记为“前置”。
+          {t('backport.prereq.footerHint', { count: selected.length })}
         </p>
         <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
           <Button variant="ghost" onClick={onCancel} disabled={rescanning}>
-            取消审阅
+            {t('backport.prereq.cancelReview')}
           </Button>
           <Button variant="outline" onClick={onRescan} disabled={rescanning}>
             <RefreshCw
               data-icon="inline-start"
               className={rescanning ? 'animate-spin' : undefined}
             />
-            重新扫描
+            {t('backport.prereq.rescan')}
           </Button>
           <Button onClick={handleConfirm} disabled={rescanning}>
-            {selected.length > 0 ? `确认加入（${selected.length}）` : '确认不加入'}
+            {selected.length > 0
+              ? t('backport.prereq.confirmWithCount', { count: selected.length })
+              : t('backport.prereq.confirmWithoutSelection')}
           </Button>
         </div>
       </CardFooter>

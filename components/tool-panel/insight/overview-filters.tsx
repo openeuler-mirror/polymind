@@ -1,6 +1,7 @@
 'use client'
 
 import { Clock3, RefreshCw, TimerReset } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -40,11 +41,13 @@ export function InsightOverviewFilters({
   status,
   onRefresh,
 }: InsightOverviewFiltersProps) {
+  const { t } = useTranslation('tool-panel')
+
   return (
     <Card className="gap-3 py-3">
       <CardHeader className="gap-1.5 pb-1">
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="min-w-0 flex-1 text-base">总览筛选</CardTitle>
+          <CardTitle className="min-w-0 flex-1 text-base">{t('insight.filters.title')}</CardTitle>
           <Button
             variant="outline"
             size="sm"
@@ -53,7 +56,7 @@ export function InsightOverviewFilters({
             className="min-w-[108px]"
           >
             <RefreshCw className={cn('h-4 w-4', status.refreshing && 'animate-spin')} />
-            {status.refreshing ? '刷新中' : '刷新'}
+            {status.refreshing ? t('insight.filters.refreshing') : t('common:action.refresh')}
           </Button>
         </div>
       </CardHeader>
@@ -66,10 +69,10 @@ export function InsightOverviewFilters({
               onValueChange={filters.setSelectedWittyAgentId}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="全部 Agent" />
+                <SelectValue placeholder={t('insight.filters.allAgents')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">全部 Agent</SelectItem>
+                <SelectItem value="all">{t('insight.filters.allAgents')}</SelectItem>
                 {filters.agentFilterOptions.map(agent => (
                   <SelectItem key={agent.witty_agent_id} value={agent.witty_agent_id}>
                     {agent.label}
@@ -80,7 +83,7 @@ export function InsightOverviewFilters({
           </div>
 
           <div className="space-y-2">
-            <div className="text-sm font-semibold text-foreground/95">时间范围</div>
+            <div className="text-sm font-semibold text-foreground/95">{t('insight.filters.timeRange')}</div>
             <ToggleGroup
               type="single"
               variant="outline"

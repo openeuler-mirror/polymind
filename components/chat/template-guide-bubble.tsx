@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from 'react'
 import type { RefObject } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -19,6 +20,7 @@ import { getTemplateHintAnchor } from '@/lib/stores/onboarding-store'
  *   引导只会展示一次，被一次误点吃掉就再也看不到了。
  */
 export function TemplateGuideBubble() {
+  const { t } = useTranslation('chat')
   const visible = useChatStore(state => state.templateHintVisible)
   const anchorReady = useChatStore(state => state.templateHintAnchorReady)
   const dismissTemplateHint = useChatStore(state => state.dismissTemplateHint)
@@ -59,7 +61,7 @@ export function TemplateGuideBubble() {
         align="start"
         sideOffset={12}
         collisionPadding={12}
-        aria-label="模版使用引导"
+        aria-label={t('template.guide.ariaLabel')}
         // 气泡只是提示，不抢占输入框焦点。
         onOpenAutoFocus={event => event.preventDefault()}
         // 点击页面其它位置不关闭气泡（默认行为会让一次误点永久消耗掉这次引导）。
@@ -70,19 +72,21 @@ export function TemplateGuideBubble() {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-14 rounded-t-2xl bg-gradient-to-b from-primary/10 to-transparent" />
         <div className="relative p-4">
           <div className="space-y-1">
-            <p className="text-sm font-semibold leading-snug">试试点一个模版开始</p>
+            <p className="text-sm font-semibold leading-snug">{t('template.guide.title')}</p>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              点任意模版即可一键创建对应的 Agent，并直接开始对话。
+              {t('template.guide.description')}
             </p>
           </div>
           <div className="mt-3 flex items-center justify-between gap-3">
-            <span className="text-[11px] leading-none text-muted-foreground/70">仅提示一次</span>
+            <span className="text-[11px] leading-none text-muted-foreground/70">
+              {t('template.guide.hintOnce')}
+            </span>
             <Button
               size="sm"
               className="h-7 rounded-full px-3 text-xs"
               onClick={dismissTemplateHint}
             >
-              知道了
+              {t('template.guide.gotIt')}
             </Button>
           </div>
         </div>

@@ -15,12 +15,14 @@ import {
   Search,
   Trash2,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
+  BACKPORT_OPERATION_IDS,
   type RowStatusKind,
   buildDisplayPatchResources,
   formatGitDate,
@@ -143,11 +145,11 @@ export function CommitTable({
   onDownloadCommitCsv,
   onOpenPathBrowser,
   onGenerateReport,
-  generateReportLabel = '导入 Excel 并生成报告',
+  generateReportLabel,
   prereqOnly = false,
   onPrereqOnlyChange,
   onRunAll,
-  runAllIdleLabel = '一键运行',
+  runAllIdleLabel,
   onPauseRunAll,
   onContinueReport,
   onExecuteSelected,
@@ -166,12 +168,13 @@ export function CommitTable({
   onApplyRow,
   onResolveConflictRow,
 }: CommitTableProps) {
+  const { t } = useTranslation('tool-panel')
   const updateFilter = <T,>(setter: (value: T) => void, value: T) => {
     setter(value)
     clearSelection()
   }
 
-  const isRunAllRunning = running && runningLabel === '一键运行'
+  const isRunAllRunning = running && runningLabel === BACKPORT_OPERATION_IDS.runAll
   const isRunAllPauseRequested = runAllPauseState === 'pause_requested'
   const isRunAllPaused = runAllPauseState === 'paused'
   const isOtherOperationRunning = running && !isRunAllRunning
@@ -190,9 +193,9 @@ export function CommitTable({
 
   let runAllButtonTitle: string | undefined
   if (isRunAllPauseRequested) {
-    runAllButtonTitle = '正在完成当前 commit，完成后暂停并保存 report'
+    runAllButtonTitle = t('backport.runAll.pauseTitle')
   } else if (isRunAllPaused) {
-    runAllButtonTitle = '从已保存的 report 继续一键运行'
+    runAllButtonTitle = t('backport.runAll.resumeTitle')
   }
 
   let runAllButtonIcon = <Play className="mr-1 h-4 w-4" />
@@ -202,13 +205,13 @@ export function CommitTable({
     runAllButtonIcon = <Pause className="mr-1 h-4 w-4" />
   }
 
-  let runAllButtonLabel = runAllIdleLabel
+  let runAllButtonLabel = runAllIdleLabel || t('backport.operation.runAll')
   if (isRunAllRunning && isRunAllPauseRequested) {
-    runAllButtonLabel = '暂停中...'
+    runAllButtonLabel = t('backport.runAll.pausing')
   } else if (isRunAllRunning) {
-    runAllButtonLabel = '暂停'
+    runAllButtonLabel = t('backport.runAll.pause')
   } else if (isRunAllPaused) {
-    runAllButtonLabel = '继续一键运行'
+    runAllButtonLabel = t('backport.runAll.resume')
   }
 
   return (
@@ -216,10 +219,8 @@ export function CommitTable({
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <CardTitle>Commit 表格</CardTitle>
-            <CardDescription>
-              展示回移植任务列表，支持筛选状态、查看 Patch、应用提交和分析冲突
-            </CardDescription>
+            <CardTitle>{t('backport.table.title')}</CardTitle>
+            <CardDescription>{t('backport.table.description')}</CardDescription>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
@@ -228,7 +229,7 @@ export function CommitTable({
                 onClick={onOpenCommitImport}
                 disabled={running}
               >
-                导入 CSV / TSV
+                {t('backport.table.importCsv')}
               </Button>
               <Input
                 value={excelPath}
@@ -242,7 +243,7 @@ export function CommitTable({
                 className="h-8 w-8 shrink-0"
                 onClick={onOpenPathBrowser}
                 disabled={running}
-                title="浏览服务器路径"
+                title={t('backport.table.browseServerPath')}
               >
                 <FolderOpen className="h-4 w-4" />
               </Button>
@@ -253,14 +254,14 @@ export function CommitTable({
                 disabled={running || (!excelPath.trim() && !hasCommitEntries)}
               >
                 {running &&
-                (runningLabel === '生成配置与报告' ||
-                  runningLabel === '导入 Excel 并查找前置提交' ||
-                  runningLabel === '导入提交并查找前置提交') ? (
+                (runningLabel === BACKPORT_OPERATION_IDS.generateConfigAndReport ||
+                  runningLabel === BACKPORT_OPERATION_IDS.importExcelFindPrereqs ||
+                  runningLabel === BACKPORT_OPERATION_IDS.importCommitsFindPrereqs) ? (
                   <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
                 ) : (
                   <Play className="mr-1 h-4 w-4" />
                 )}
-                {generateReportLabel}
+                {generateReportLabel || t('backport.button.importExcelGenerateReport')}
               </Button>
               <Button
                 size="sm"
@@ -280,21 +281,21 @@ export function CommitTable({
                 disabled={running || !baseReportPath.trim() || !canContinueReport}
                 title={
                   canContinueReport
-                    ? '从第一条待检查提交继续推进'
-                    : '需要无阻塞冲突且存在待检查提交'
+                    ? t('backport.table.continueHintEnabled')
+                    : t('backport.table.continueHintDisabled')
                 }
               >
-                {running && runningLabel === '继续检查' ? (
+                {running && runningLabel === BACKPORT_OPERATION_IDS.continueCheck ? (
                   <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
                 ) : (
                   <RefreshCw className="mr-1 h-4 w-4" />
                 )}
-                继续检查
+                {t('backport.table.continueCheck')}
               </Button>
               {onDownloadCommitCsv ? (
                 <Button variant="outline" size="sm" className="h-8" onClick={onDownloadCommitCsv}>
                   <Download className="mr-1 h-4 w-4" />
-                  下载 commits.csv
+                  {t('backport.table.downloadCsv')}
                 </Button>
               ) : null}
               <Button
@@ -305,7 +306,7 @@ export function CommitTable({
                 disabled={running || filteredRows.length === 0}
               >
                 <Play className="mr-1 h-4 w-4" />
-                执行当前结果集
+                {t('backport.table.executeFiltered')}
               </Button>
             </div>
           </div>
@@ -318,7 +319,7 @@ export function CommitTable({
               disabled={running || selectedRowIds.length === 0}
             >
               <Trash2 className="mr-1 h-4 w-4" />
-              删除选中
+              {t('backport.table.deleteSelected')}
             </Button>
             <Button
               variant="outline"
@@ -327,7 +328,7 @@ export function CommitTable({
               disabled={running || originalCommitCount === 0}
             >
               <RotateCcw className="mr-1 h-4 w-4" />
-              恢复列表
+              {t('backport.table.resetList')}
             </Button>
             {onPrereqOnlyChange ? (
               <Button
@@ -338,10 +339,10 @@ export function CommitTable({
                   clearSelection()
                 }}
                 disabled={running}
-                title="只显示来自前置提交查找的条目"
+                title={t('backport.table.prereqOnlyHint')}
               >
                 <GitBranch className={cn('mr-1 h-4 w-4', prereqOnly && 'text-white')} />
-                只看前置提交
+                {t('backport.table.prereqOnly')}
               </Button>
             ) : null}
           </div>
@@ -372,13 +373,13 @@ export function CommitTable({
                   <input
                     value={searchQuery}
                     onChange={e => updateFilter(onSearchQueryChange, e.target.value)}
-                    placeholder="筛选commit"
+                    placeholder={t('backport.table.filterCommit')}
                     className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] font-normal outline-none placeholder:text-muted-foreground/70 focus:border-primary"
                   />
                 </div>
                 <div className="min-w-0">
                   <div className="flex h-5 items-center gap-1 text-foreground">
-                    <span>标题</span>
+                    <span>{t('backport.table.columnTitle')}</span>
                     <ListFilter
                       className={cn(
                         'h-3.5 w-3.5',
@@ -389,13 +390,13 @@ export function CommitTable({
                   <input
                     value={titleFilter}
                     onChange={e => updateFilter(onTitleFilterChange, e.target.value)}
-                    placeholder="筛选标题"
+                    placeholder={t('backport.table.filterTitle')}
                     list="backport-title-candidates"
                     className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] font-normal outline-none placeholder:text-muted-foreground/70 focus:border-primary"
                   />
                 </div>
                 <div>
-                  <div className="h-5 text-foreground">状态</div>
+                  <div className="h-5 text-foreground">{t('backport.table.columnStatus')}</div>
                   <select
                     value={statusFilter}
                     onChange={e =>
@@ -403,18 +404,18 @@ export function CommitTable({
                     }
                     className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] font-normal"
                   >
-                    <option value="all">全部</option>
-                    <option value="success">成功</option>
-                    <option value="conflict">冲突</option>
-                    <option value="unmatched">未匹配</option>
-                    <option value="failed">失败</option>
-                    <option value="noop">无需处理</option>
-                    <option value="pending">待检查</option>
-                    <option value="skipped">跳过</option>
+                    <option value="all">{t('backport.filter.all')}</option>
+                    <option value="success">{t('backport.filter.success')}</option>
+                    <option value="conflict">{t('backport.filter.conflict')}</option>
+                    <option value="unmatched">{t('backport.filter.unmatched')}</option>
+                    <option value="failed">{t('backport.filter.failed')}</option>
+                    <option value="noop">{t('backport.filter.noop')}</option>
+                    <option value="pending">{t('backport.filter.pending')}</option>
+                    <option value="skipped">{t('backport.filter.skipped')}</option>
                   </select>
                 </div>
                 <div>
-                  <div className="h-5 text-foreground">冲突</div>
+                  <div className="h-5 text-foreground">{t('backport.table.columnConflict')}</div>
                   <select
                     value={conflictFilter}
                     onChange={e =>
@@ -422,15 +423,15 @@ export function CommitTable({
                     }
                     className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] font-normal"
                   >
-                    <option value="all">全部</option>
-                    <option value="true">有</option>
-                    <option value="false">无</option>
+                    <option value="all">{t('backport.filter.all')}</option>
+                    <option value="true">{t('backport.filter.hasConflict')}</option>
+                    <option value="false">{t('backport.filter.noConflict')}</option>
                   </select>
                 </div>
                 <div>
                   <div className="flex h-5 items-center gap-1 text-foreground">
                     <GitBranch className="h-3.5 w-3.5" />
-                    目标分支
+                    {t('backport.table.columnTargetBranch')}
                   </div>
                   <select
                     value={mergedFilter}
@@ -439,11 +440,11 @@ export function CommitTable({
                     }
                     className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] font-normal"
                   >
-                    <option value="all">全部</option>
-                    <option value="true">已合入</option>
-                    <option value="false">未合入</option>
-                    <option value="none">未设置</option>
-                    <option value="skipped">已跳过</option>
+                    <option value="all">{t('backport.filter.all')}</option>
+                    <option value="true">{t('backport.filter.merged')}</option>
+                    <option value="false">{t('backport.filter.notMerged')}</option>
+                    <option value="none">{t('backport.filter.notSet')}</option>
+                    <option value="skipped">{t('backport.filter.skippedMerged')}</option>
                   </select>
                 </div>
                 <div>
@@ -451,7 +452,7 @@ export function CommitTable({
                   <div className="mt-1 h-7" />
                 </div>
                 <div>
-                  <div className="h-5 text-foreground">操作</div>
+                  <div className="h-5 text-foreground">{t('backport.table.columnActions')}</div>
                   <div className="mt-1 h-7" />
                 </div>
               </div>
@@ -459,15 +460,15 @@ export function CommitTable({
               <div className="overflow-auto">
                 {filteredRows.length === 0 ? (
                   <div className="py-10 text-center text-sm text-muted-foreground">
-                    当前无可显示条目
+                    {t('backport.table.empty')}
                   </div>
                 ) : (
                   paginatedRows.map(row => {
                     const commit = stringifyValue(row.data.commit || row.data.input_commit)
-                    const statusMeta = resolveStatusMeta(row.data)
-                    const conflictMeta = resolveConflictMeta(row.data)
-                    const targetMeta = resolveTargetMeta(row.data)
-                    const patchResources = buildDisplayPatchResources(row.data, row.rowId)
+                    const statusMeta = resolveStatusMeta(row.data, t)
+                    const conflictMeta = resolveConflictMeta(row.data, t)
+                    const targetMeta = resolveTargetMeta(row.data, t)
+                    const patchResources = buildDisplayPatchResources(row.data, row.rowId, t)
                     const isActive = row.rowId === inspectedRowId
                     const isAnalyzingConflictRow = analyzingConflictRowId === row.rowId
                     const hasActionableConflict =
@@ -518,7 +519,7 @@ export function CommitTable({
                                 e.stopPropagation()
                                 onCopyText(commit, 'Commit')
                               }}
-                              title="复制完整 commit"
+                              title={t('backport.table.copyCommit')}
                             >
                               <Copy className="h-3.5 w-3.5" />
                             </button>
@@ -534,7 +535,7 @@ export function CommitTable({
                               variant="outline"
                               className="mb-1 border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700"
                             >
-                              前置
+                              {t('backport.table.prereqBadge')}
                             </Badge>
                           ) : null}
                           <div
@@ -600,7 +601,11 @@ export function CommitTable({
                                 if (!resource.exists) return
                                 onLoadPatchPreview(row, resource)
                               }}
-                              title={resource.exists ? resource.fileName : `${resource.label} 暂无`}
+                              title={
+                                resource.exists
+                                  ? resource.fileName
+                                  : t('backport.inspector.patchMissing', { label: resource.label })
+                              }
                             >
                               {resource.label.replace(' Patch', '')}
                             </Button>
@@ -617,7 +622,7 @@ export function CommitTable({
                               onOpenInspector(row, 'details')
                             }}
                           >
-                            详情
+                            {t('backport.table.details')}
                           </Button>
                           {hasActionableConflict ? (
                             isFirstBlockingConflict ? (
@@ -632,7 +637,7 @@ export function CommitTable({
                                 }}
                               >
                                 <RefreshCw className="mr-1 h-3 w-3" />
-                                检测冲突
+                                {t('backport.table.recheckConflict')}
                               </Button>
                             ) : null
                           ) : null}
@@ -644,8 +649,8 @@ export function CommitTable({
                               disabled={!canAnalyzeConflictRow(row)}
                               title={
                                 baseReportPath.trim()
-                                  ? '发送到 Patchflow-Agent 分析冲突'
-                                  : '请先生成 report'
+                                  ? t('backport.table.analyzeConflictHint')
+                                  : t('backport.table.generateReportFirst')
                               }
                               onClick={e => {
                                 e.stopPropagation()
@@ -657,7 +662,7 @@ export function CommitTable({
                               ) : (
                                 <Search className="mr-1 h-3 w-3" />
                               )}
-                              分析冲突
+                              {t('backport.table.analyzeConflict')}
                             </Button>
                           ) : null}
                           {hasActionableConflict ? (
@@ -684,7 +689,9 @@ export function CommitTable({
                                 }
                               }}
                             >
-                              {canApplyBackportedPatch ? '尝试应用' : '尝试解冲突'}
+                              {canApplyBackportedPatch
+                                ? t('backport.table.tryApply')
+                                : t('backport.table.tryResolve')}
                             </Button>
                           ) : (
                             <Button
@@ -697,7 +704,7 @@ export function CommitTable({
                                 onApplyRow(row)
                               }}
                             >
-                              应用
+                              {t('backport.table.apply')}
                             </Button>
                           )}
                         </div>
@@ -709,10 +716,10 @@ export function CommitTable({
               <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-white px-3 py-3 text-xs text-slate-600">
                 <div className="flex items-center gap-3">
                   <span className="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-900">
-                    每页 5 条
+                    {t('backport.table.pageSize')}
                   </span>
                   <span className="whitespace-nowrap text-sm text-slate-700">
-                    总计: {filteredRows.length}
+                    {t('backport.table.totalCount', { count: filteredRows.length })}
                   </span>
                 </div>
 
@@ -723,7 +730,7 @@ export function CommitTable({
                     className="h-8 w-8 p-0 text-slate-700"
                     disabled={currentCommitPage <= 1}
                     onClick={() => onCommitPageChange(prev => Math.max(1, prev - 1))}
-                    aria-label="上一页"
+                    aria-label={t('backport.table.prevPage')}
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
@@ -755,7 +762,7 @@ export function CommitTable({
                     className="h-8 w-8 p-0 text-slate-700"
                     disabled={currentCommitPage >= totalCommitPages}
                     onClick={() => onCommitPageChange(prev => Math.min(totalCommitPages, prev + 1))}
-                    aria-label="下一页"
+                    aria-label={t('backport.table.nextPage')}
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>

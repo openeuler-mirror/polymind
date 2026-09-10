@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Loader2, Pencil, Plus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -95,6 +96,7 @@ interface TaskFormDialogProps {
 }
 
 function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormDialogProps) {
+  const { t } = useTranslation('tool-panel')
   const { toast } = useToast()
   const [form, setForm] = useState<TaskFormState>(() => (task ? formFromTask(task) : initialForm))
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([])
@@ -116,8 +118,8 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
         if (!cancelled) {
           setAgents([])
           toast({
-            title: '错误',
-            description: '加载智能体列表失败',
+            title: t('common:status.error'),
+            description: t('scheduledTask.form.loadAgentsFailed'),
             variant: 'destructive',
           })
         }
@@ -131,30 +133,30 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
     return () => {
       cancelled = true
     }
-  }, [open, task, toast])
+  }, [open, task, t, toast])
 
   const validationError = useMemo(() => {
-    if (!form.name.trim()) return '请输入任务名称'
-    if (!form.agentId) return '请选择执行智能体'
+    if (!form.name.trim()) return t('scheduledTask.form.nameRequired')
+    if (!form.agentId) return t('scheduledTask.form.agentRequired')
     if (form.scheduleType === 'cron') {
       const cronExpr = form.cronExpr.trim()
-      if (!cronExpr) return '请填写 Cron 表达式'
-      if (formatCron(cronExpr) === null) return 'Cron 表达式无效，请参考示例（如 0 9 * * *）'
+      if (!cronExpr) return t('scheduledTask.form.cronRequired')
+      if (formatCron(cronExpr) === null) return t('scheduledTask.form.cronInvalid')
     }
     if (form.scheduleType === 'interval') {
       const seconds = Number(form.intervalSeconds)
       if (!Number.isInteger(seconds) || seconds <= 0) {
-        return '间隔秒数必须是大于 0 的整数'
+        return t('scheduledTask.form.intervalInvalid')
       }
     }
-    if (!form.content.trim()) return '请输入任务内容'
+    if (!form.content.trim()) return t('scheduledTask.form.contentRequired')
     return null
-  }, [form])
+  }, [form, t])
 
   const handleSubmit = async () => {
     if (validationError) {
       toast({
-        title: '提示',
+        title: t('scheduledTask.form.validationTitle'),
         description: validationError,
       })
       return
@@ -197,8 +199,11 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
         await scheduledTaskService.updateTask(task.id, payload)
       }
       toast({
-        title: '成功',
-        description: mode === 'create' ? '定时任务已创建' : '定时任务已更新',
+        title: t('common:status.success'),
+        description:
+          mode === 'create'
+            ? t('scheduledTask.toast.createSuccess')
+            : t('scheduledTask.toast.updateSuccess'),
       })
       onOpenChange(false)
       onSuccess()
@@ -208,8 +213,11 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
         error
       )
       toast({
-        title: '错误',
-        description: mode === 'create' ? '创建定时任务失败' : '更新定时任务失败',
+        title: t('common:status.error'),
+        description:
+          mode === 'create'
+            ? t('scheduledTask.toast.createFailed')
+            : t('scheduledTask.toast.updateFailed'),
         variant: 'destructive',
       })
     } finally {
@@ -225,28 +233,32 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{mode === 'create' ? '新建定时任务' : '编辑定时任务'}</DialogTitle>
+          <DialogTitle>
+            {mode === 'create'
+              ? t('scheduledTask.form.createTitle')
+              : t('scheduledTask.form.editTitle')}
+          </DialogTitle>
           <DialogDescription>
             {mode === 'create'
-              ? '配置任务名称、执行智能体与调度规则，创建后将由后端调度器按计划自动运行。'
-              : '修改任务名称、调度规则与内容，保存后由后端调度器按新计划运行。'}
+              ? t('scheduledTask.form.createDescription')
+              : t('scheduledTask.form.editDescription')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-2">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="task-name">任务名称</Label>
+            <Label htmlFor="task-name">{t('scheduledTask.form.nameLabel')}</Label>
             <Input
               id="task-name"
               value={form.name}
               onChange={event => updateField('name', event.target.value)}
-              placeholder="例如：每日竞品动态追踪"
+              placeholder={t('scheduledTask.form.namePlaceholder')}
               maxLength={255}
             />
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="task-agent">执行智能体</Label>
+            <Label htmlFor="task-agent">{t('scheduledTask.form.agentLabel')}</Label>
             <Select
               value={form.agentId || undefined}
               onValueChange={value => updateField('agentId', value)}
@@ -256,17 +268,17 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
                 <SelectValue
                   placeholder={
                     mode === 'edit'
-                      ? '任务创建后不可更换执行智能体'
+                      ? t('scheduledTask.form.agentLockedPlaceholder')
                       : loadingAgents
-                        ? '正在加载智能体...'
-                        : '选择执行智能体'
+                        ? t('scheduledTask.form.agentLoadingPlaceholder')
+                        : t('scheduledTask.form.agentPlaceholder')
                   }
                 />
               </SelectTrigger>
               <SelectContent>
                 {agents.length === 0 && (
                   <div className="px-3 py-2 text-sm text-muted-foreground">
-                    暂无可用智能体，请先创建智能体
+                    {t('scheduledTask.form.agentEmpty')}
                   </div>
                 )}
                 {agents.map(agent => (
@@ -279,12 +291,12 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>调度类型</Label>
+            <Label>{t('scheduledTask.form.scheduleTypeLabel')}</Label>
             <div className="flex rounded-md border bg-muted/30 p-0.5">
               {(
                 [
-                  { value: 'cron', label: 'Cron 表达式' },
-                  { value: 'interval', label: '间隔执行' },
+                  { value: 'cron', label: t('scheduledTask.form.scheduleTypeCron') },
+                  { value: 'interval', label: t('scheduledTask.form.scheduleTypeInterval') },
                 ] as const
               ).map(option => (
                 <Button
@@ -307,31 +319,31 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
 
           {form.scheduleType === 'cron' ? (
             <div className="flex flex-col gap-2">
-              <Label htmlFor="task-cron">Cron 表达式</Label>
+              <Label htmlFor="task-cron">{t('scheduledTask.form.cronLabel')}</Label>
               <Input
                 id="task-cron"
                 value={form.cronExpr}
                 onChange={event => updateField('cronExpr', event.target.value)}
-                placeholder="例如：0 9 * * *（每天 09:00）"
+                placeholder={t('scheduledTask.form.cronPlaceholder')}
                 maxLength={255}
               />
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              <Label htmlFor="task-interval">间隔秒数</Label>
+              <Label htmlFor="task-interval">{t('scheduledTask.form.intervalLabel')}</Label>
               <Input
                 id="task-interval"
                 type="number"
                 min={1}
                 value={form.intervalSeconds}
                 onChange={event => updateField('intervalSeconds', event.target.value)}
-                placeholder="例如：3600（每小时）"
+                placeholder={t('scheduledTask.form.intervalPlaceholder')}
               />
             </div>
           )}
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="task-timezone">时区</Label>
+            <Label htmlFor="task-timezone">{t('scheduledTask.form.timezoneLabel')}</Label>
             <Select value={form.timezone} onValueChange={value => updateField('timezone', value)}>
               <SelectTrigger id="task-timezone" className="w-full">
                 <SelectValue />
@@ -347,23 +359,23 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="task-content">任务内容</Label>
+            <Label htmlFor="task-content">{t('scheduledTask.form.contentLabel')}</Label>
             <Textarea
               id="task-content"
               value={form.content}
               onChange={event => updateField('content', event.target.value)}
-              placeholder="描述到期时需要 Polymind 自动执行的具体任务..."
+              placeholder={t('scheduledTask.form.contentPlaceholder')}
               className="min-h-24"
             />
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="task-workspace">工作目录（可选）</Label>
+            <Label htmlFor="task-workspace">{t('scheduledTask.form.workspaceLabel')}</Label>
             <Input
               id="task-workspace"
               value={form.workspaceFolder}
               onChange={event => updateField('workspaceFolder', event.target.value)}
-              placeholder="例如：code/competitor-tracking"
+              placeholder={t('scheduledTask.form.workspacePlaceholder')}
               maxLength={512}
             />
           </div>
@@ -371,9 +383,9 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
           {mode === 'create' ? (
             <div className="flex items-center justify-between rounded-md border px-3 py-2.5">
               <div>
-                <div className="text-sm font-medium">创建后立即启用</div>
+                <div className="text-sm font-medium">{t('scheduledTask.form.enableNow')}</div>
                 <div className="text-xs text-muted-foreground">
-                  关闭后任务暂停调度，可随时在卡片上重新开启
+                  {t('scheduledTask.form.enableNowHint')}
                 </div>
               </div>
               <Switch
@@ -383,26 +395,34 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
             </div>
           ) : (
             <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2.5 text-sm">
-              <span className="text-muted-foreground">当前状态</span>
-              <span className="font-medium">{form.enabled ? '已启用' : '已停用'}</span>
+              <span className="text-muted-foreground">{t('scheduledTask.form.currentStatus')}</span>
+              <span className="font-medium">
+                {form.enabled
+                  ? t('scheduledTask.form.enabled')
+                  : t('scheduledTask.form.disabled')}
+              </span>
             </div>
           )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-            取消
+            {t('common:action.cancel')}
           </Button>
           <Button onClick={handleSubmit} disabled={submitting || loadingAgents}>
             {submitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {mode === 'create' ? '创建中...' : '保存中...'}
+                {mode === 'create'
+                  ? t('scheduledTask.form.creating')
+                  : t('scheduledTask.form.saving')}
               </>
             ) : (
               <>
                 {mode === 'create' ? <Plus className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-                {mode === 'create' ? '创建任务' : '保存修改'}
+                {mode === 'create'
+                  ? t('scheduledTask.form.createAction')
+                  : t('scheduledTask.form.saveAction')}
               </>
             )}
           </Button>

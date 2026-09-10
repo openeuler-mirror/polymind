@@ -1,3 +1,6 @@
+import type { TFunction } from 'i18next'
+import i18n from '@/lib/i18n/config'
+
 const REMOTE_SKILL_SOURCE_TYPES = new Set(['git', 'clawhub', 'wittyhub'])
 
 type SkillSourceLabelOptions = {
@@ -5,6 +8,7 @@ type SkillSourceLabelOptions = {
   sourceLabel?: string | null
   audience?: 'badge' | 'error'
   fallback?: string
+  t?: TFunction
 }
 
 type SkillSourceBadgeMeta = {
@@ -12,7 +16,11 @@ type SkillSourceBadgeMeta = {
   className: string
 }
 
-export function getSkillSourceBadgeMeta(sourceType?: string | null): SkillSourceBadgeMeta {
+export function getSkillSourceBadgeMeta(
+  sourceType?: string | null,
+  t?: TFunction
+): SkillSourceBadgeMeta {
+  const translate = t ?? i18n.t.bind(i18n)
   switch (sourceType) {
     case 'wittyhub':
       return {
@@ -31,24 +39,24 @@ export function getSkillSourceBadgeMeta(sourceType?: string | null): SkillSource
       }
     case 'local':
       return {
-        label: '本地导入',
+        label: translate('settings:skill.source.localImport'),
         className: 'border-slate-200 bg-slate-50 text-slate-700',
       }
     case 'builtin':
       return {
-        label: '内置',
+        label: translate('settings:skill.source.builtin'),
         className: 'border-violet-200 bg-violet-50 text-violet-700',
       }
     default:
       return {
-        label: sourceType?.trim() || '未知来源',
+        label: sourceType?.trim() || translate('settings:skill.source.unknown'),
         className: 'border-zinc-200 bg-zinc-50 text-zinc-700',
       }
   }
 }
 
-export function formatSkillSourceLabel(sourceType?: string | null): string {
-  return getSkillSourceBadgeMeta(sourceType).label
+export function formatSkillSourceLabel(sourceType?: string | null, t?: TFunction): string {
+  return getSkillSourceBadgeMeta(sourceType, t).label
 }
 
 export function isRemoteSkillSourceType(sourceType?: string | null): boolean {
@@ -57,8 +65,10 @@ export function isRemoteSkillSourceType(sourceType?: string | null): boolean {
 
 export function getSkillSourceLabel(
   sourceType?: string | null,
-  { runtimeSource, sourceLabel, audience = 'badge', fallback }: SkillSourceLabelOptions = {}
+  { runtimeSource, sourceLabel, audience = 'badge', fallback, t }: SkillSourceLabelOptions = {}
 ): string {
+  const translate = t ?? i18n.t.bind(i18n)
+
   if (sourceLabel?.trim()) {
     return sourceLabel.trim()
   }
@@ -66,31 +76,35 @@ export function getSkillSourceLabel(
   if (audience === 'error') {
     switch (runtimeSource) {
       case 'openclaw-bundled':
-        return '运行时内置技能'
+        return translate('settings:skill.source.runtimeBundled')
       case 'agents-skills-personal':
-        return '全局个人技能'
+        return translate('settings:skill.source.globalPersonal')
       case 'openclaw-extra':
-        return '当前 Agent 附加技能'
+        return translate('settings:skill.source.agentExtra')
       case 'openclaw-workspace':
-        return '工作区技能'
+        return translate('settings:skill.source.workspace')
       default:
         break
     }
 
     switch (sourceType) {
       case 'wittyhub':
-        return 'WittyHub 技能'
+        return translate('settings:skill.source.wittyhub')
       case 'clawhub':
-        return 'ClawHub 技能'
+        return translate('settings:skill.source.clawhub')
       case 'builtin':
-        return '运行时技能'
+        return translate('settings:skill.source.runtimeSkill')
       case 'git':
       case 'local':
-        return '导入技能'
+        return translate('settings:skill.source.imported')
       default:
-        return fallback || '技能'
+        return fallback || translate('settings:skill.source.skill')
     }
   }
 
-  return formatSkillSourceLabel(sourceType) || fallback || '未知来源'
+  return (
+    formatSkillSourceLabel(sourceType, translate) ||
+    fallback ||
+    translate('settings:skill.source.unknown')
+  )
 }

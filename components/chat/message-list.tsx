@@ -1,6 +1,8 @@
 'use client'
 
 import { memo, useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import {
@@ -83,6 +85,7 @@ const MessageItem = memo(function MessageItem({
   agentName?: string
   agentId?: string
 }) {
+  const { t } = useTranslation('chat')
   const [copied, setCopied] = useState(false)
   // 回答完毕后，过程模块（深度思考/工具调用/提问）折叠在「已完成」耗时行下
   const [processExpanded, setProcessExpanded] = useState(false)
@@ -161,7 +164,9 @@ const MessageItem = memo(function MessageItem({
                 <Bot className="h-3.5 w-3.5" />
               </AvatarFallback>
             </Avatar>
-            <span className="text-base font-medium">{agentName || 'AI 助手'}</span>
+            <span className="text-base font-medium">
+              {agentName || t('message.assistantFallback')}
+            </span>
           </div>
         )}
 
@@ -171,7 +176,11 @@ const MessageItem = memo(function MessageItem({
             onClick={() => setProcessExpanded(!processExpanded)}
             className="group/mod flex w-fit items-center gap-2 text-sm text-process-foreground transition-colors duration-150 hover:text-foreground"
           >
-            <span>已完成{durationText ? ` ${durationText}` : ''}</span>
+            <span>
+              {durationText
+                ? t('message.completedWithDuration', { duration: durationText })
+                : t('message.completed')}
+            </span>
             <ChevronRight
               className={cn(
                 'h-3.5 w-3.5 shrink-0 transition-all duration-150',
@@ -273,7 +282,7 @@ const MessageItem = memo(function MessageItem({
               {message.status === 'interrupted' && !message.content ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <AlertCircle className="h-4 w-4" />
-                  <span>思考已中断</span>
+                  <span>{t('message.interrupted')}</span>
                 </div>
               ) : isUser ? (
                 // 用户气泡底色走 --user-bubble 语义 token：
@@ -302,9 +311,13 @@ const MessageItem = memo(function MessageItem({
         {message.usage && (
           <div className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
             <div className="flex flex-wrap gap-2">
-              <span>输入 tokens: {message.usage.inputTokens}</span>
-              <span>输出 tokens: {message.usage.outputTokens}</span>
-              <span>成本: ${message.usage.totalCost || 0}</span>
+              <span>
+                {t('message.usage.inputTokens', { count: message.usage.inputTokens })}
+              </span>
+              <span>
+                {t('message.usage.outputTokens', { count: message.usage.outputTokens })}
+              </span>
+              <span>{t('message.usage.cost', { cost: message.usage.totalCost || 0 })}</span>
             </div>
           </div>
         )}
@@ -329,7 +342,7 @@ const MessageItem = memo(function MessageItem({
                       {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>复制</TooltipContent>
+                  <TooltipContent>{t('message.action.copy')}</TooltipContent>
                 </Tooltip>
 
                 {!isUser && (
@@ -345,7 +358,7 @@ const MessageItem = memo(function MessageItem({
                           <RefreshCw className="h-3 w-3" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>重新生成</TooltipContent>
+                      <TooltipContent>{t('message.action.regenerate')}</TooltipContent>
                     </Tooltip>
                   </>
                 )}
@@ -425,6 +438,7 @@ function CodeBlock({
   language: string
   showLineNumbers?: boolean
 }) {
+  const { t } = useTranslation('chat')
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
@@ -450,12 +464,12 @@ function CodeBlock({
           {copied ? (
             <>
               <Check className="h-3.5 w-3.5" />
-              <span>已复制</span>
+              <span>{t('message.codeBlock.copied')}</span>
             </>
           ) : (
             <>
               <Copy className="h-3.5 w-3.5" />
-              <span>复制</span>
+              <span>{t('message.codeBlock.copy')}</span>
             </>
           )}
         </button>
@@ -488,6 +502,7 @@ function CodeBlock({
 }
 
 function MermaidChart({ chart }: { chart: string }) {
+  const { t } = useTranslation('chat')
   const [svg, setSvg] = useState<string>('')
   const [error, setError] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
@@ -500,20 +515,22 @@ function MermaidChart({ chart }: { chart: string }) {
         setSvg(svg)
         setError('')
       } catch (err) {
-        setError(err instanceof Error ? err.message : '渲染流程图失败')
+        setError(err instanceof Error ? err.message : t('message.mermaid.renderFailed'))
       } finally {
         setIsLoading(false)
       }
     }
 
     renderChart()
-  }, [chart])
+  }, [chart, t])
 
   if (isLoading) {
     return (
       <div className="mb-2 flex items-center justify-center rounded-lg bg-muted p-4">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">渲染流程图...</span>
+        <span className="ml-2 text-sm text-muted-foreground">
+          {t('message.mermaid.rendering')}
+        </span>
       </div>
     )
   }
@@ -535,6 +552,7 @@ function MermaidChart({ chart }: { chart: string }) {
 }
 
 function Admonition({ children, type }: { children: React.ReactNode; type?: string }) {
+  const { t } = useTranslation('chat')
   const [isOpen, setIsOpen] = useState(true)
   const [isDetails, setIsDetails] = useState(false)
 
@@ -556,43 +574,43 @@ function Admonition({ children, type }: { children: React.ReactNode; type?: stri
         icon: <Info className="h-5 w-5" />,
         color: 'text-blue-500',
         bg: 'bg-blue-500/10 border-blue-500/50',
-        label: '提示',
+        label: t('message.admonition.note'),
       },
       info: {
         icon: <Info className="h-5 w-5" />,
         color: 'text-blue-500',
         bg: 'bg-blue-500/10 border-blue-500/50',
-        label: '信息',
+        label: t('message.admonition.info'),
       },
       tip: {
         icon: <Lightbulb className="h-5 w-5" />,
         color: 'text-green-500',
         bg: 'bg-green-500/10 border-green-500/50',
-        label: '技巧',
+        label: t('message.admonition.tip'),
       },
       warning: {
         icon: <AlertTriangle className="h-5 w-5" />,
         color: 'text-yellow-500',
         bg: 'bg-yellow-500/10 border-yellow-500/50',
-        label: '警告',
+        label: t('message.admonition.warning'),
       },
       caution: {
         icon: <AlertTriangle className="h-5 w-5" />,
         color: 'text-orange-500',
         bg: 'bg-orange-500/10 border-orange-500/50',
-        label: '注意',
+        label: t('message.admonition.caution'),
       },
       danger: {
         icon: <AlertTriangle className="h-5 w-5" />,
         color: 'text-red-500',
         bg: 'bg-red-500/10 border-red-500/50',
-        label: '危险',
+        label: t('message.admonition.danger'),
       },
       important: {
         icon: <AlertTriangle className="h-5 w-5" />,
         color: 'text-purple-500',
         bg: 'bg-purple-500/10 border-purple-500/50',
-        label: '重要',
+        label: t('message.admonition.important'),
       },
     }
 
@@ -638,6 +656,7 @@ function Admonition({ children, type }: { children: React.ReactNode; type?: stri
 }
 
 function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
+  const { t } = useTranslation('chat')
   const isRunning = toolCall.status === 'running'
   const isCompleted = toolCall.status === 'completed'
   const [isExpanded, setIsExpanded] = useState(false)
@@ -655,25 +674,25 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
     running: {
       icon: Loader2,
       iconClass: 'animate-spin text-primary',
-      label: '运行中',
+      label: t('message.toolCall.status.running'),
       labelClass: 'bg-primary/10 text-primary',
     },
     completed: {
       icon: CheckCircle2,
       iconClass: 'text-accent',
-      label: '已完成',
+      label: t('message.toolCall.status.completed'),
       labelClass: 'bg-accent/10 text-accent',
     },
     error: {
       icon: AlertCircle,
       iconClass: 'text-destructive',
-      label: '出错',
+      label: t('message.toolCall.status.error'),
       labelClass: 'bg-destructive/10 text-destructive',
     },
     pending: {
       icon: Wrench,
       iconClass: 'text-muted-foreground',
-      label: '待执行',
+      label: t('message.toolCall.status.pending'),
       labelClass: 'bg-muted text-muted-foreground',
     },
   }
@@ -719,7 +738,9 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
                 <ToolIcon className={cn('h-3.5 w-3.5 shrink-0', config.iconClass)} />
               </span>
             </TooltipTrigger>
-            {toolCall.name === 'read' && <TooltipContent>查看文件</TooltipContent>}
+            {toolCall.name === 'read' && (
+              <TooltipContent>{t('message.toolCall.viewFile')}</TooltipContent>
+            )}
           </Tooltip>
         </TooltipProvider>
         <span className="font-mono text-xs font-medium truncate max-w-[70%]">
@@ -794,7 +815,9 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
             <>
               {toolCall.input ? (
                 <div>
-                  <div className="text-process-foreground mb-1 font-medium">输入</div>
+                  <div className="text-process-foreground mb-1 font-medium">
+                    {t('message.toolCall.input')}
+                  </div>
                   <pre className="text-muted-foreground bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                     {formatForDisplay(
                       typeof toolCall.input === 'string'
@@ -806,7 +829,9 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
               ) : toolCall.inputRaw ? (
                 // tool.call.delta 流式累积的原始内容
                 <div>
-                  <div className="text-process-foreground mb-1 font-medium">输入（流式）</div>
+                  <div className="text-process-foreground mb-1 font-medium">
+                    {t('message.toolCall.inputStreaming')}
+                  </div>
                   <pre className="text-muted-foreground bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                     {toolCall.inputRaw}
                   </pre>
@@ -815,7 +840,9 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
               {/* 错误状态下 output 通常与 error 内容重复，只展示错误区域 */}
               {displayOutput && toolCall.status !== 'error' && (
                 <div>
-                  <div className="text-process-foreground mb-1 font-medium">输出</div>
+                  <div className="text-process-foreground mb-1 font-medium">
+                    {t('message.toolCall.output')}
+                  </div>
                   <pre className="text-muted-foreground bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                     {displayOutput}
                   </pre>
@@ -823,7 +850,9 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
               )}
               {toolCall.error && (
                 <div>
-                  <div className="text-destructive mb-1 font-medium">错误</div>
+                  <div className="text-destructive mb-1 font-medium">
+                    {t('message.toolCall.error')}
+                  </div>
                   <pre className="text-muted-foreground bg-destructive/10 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
                     {formatForDisplay(
                       typeof toolCall.error === 'string'
@@ -852,6 +881,7 @@ function QuestionFlowBlock({
   isLastAsked: boolean
   resolutionEvent: MessageEventGroup | null
 }) {
+  const { t } = useTranslation('chat')
   // message.question 始终持有最新一轮提问；历史轮次从事件 payload 还原
   const askedQuestions =
     (askedEvent.payload?.questions as QuestionInfo[] | null | undefined) ?? null
@@ -877,7 +907,7 @@ function QuestionFlowBlock({
     return (
       <div className="flex items-center gap-2 py-0.5 text-sm text-process-foreground">
         <CircleSlash className="h-3.5 w-3.5 shrink-0" />
-        <span>您跳过了此问题</span>
+        <span>{t('message.question.skipped')}</span>
       </div>
     )
   }
@@ -899,7 +929,7 @@ function QuestionFlowBlock({
             className="group/mod flex items-center gap-1.5 text-sm text-process-foreground transition-colors duration-150 hover:text-foreground"
           >
             {waiting && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />}
-            <span>等待你的回答</span>
+            <span>{t('message.question.waiting')}</span>
             {questions && questions.length > 0 && (
               <ChevronRight
                 className={cn(
@@ -929,7 +959,7 @@ function QuestionFlowBlock({
           className="group/mod flex items-center gap-1.5 text-sm text-process-foreground transition-colors duration-150 hover:text-foreground"
         >
           <MessageSquare className="h-3.5 w-3.5 shrink-0" />
-          <span>向用户提问</span>
+          <span>{t('message.question.asked')}</span>
           <ChevronRight
             className={cn(
               'h-3.5 w-3.5 shrink-0 transition-all duration-150',
@@ -952,7 +982,9 @@ function QuestionFlowBlock({
                       </div>
                     ) : (
                       <div className="mt-0.5 text-sm text-process-foreground/80">
-                        {waiting ? '待回答' : '（未作答）'}
+                        {waiting
+                          ? t('message.question.pendingAnswer')
+                          : t('message.question.unanswered')}
                       </div>
                     )}
                   </div>
@@ -973,19 +1005,18 @@ function QuestionFlowBlock({
  * 仅用于流式生成态；真正的阻塞式 loading（加载历史、流程渲染中）仍使用 Loader2。
  * memo：流式期间 MessageItem 每个 delta 都重渲染，指示器文本固定，跳过重渲染。
  */
-const StreamingIndicator = memo(function StreamingIndicator({
-  text = '生成回复中',
-}: {
-  text?: string
-}) {
+const StreamingIndicator = memo(function StreamingIndicator({ text }: { text?: string }) {
+  const { t } = useTranslation('chat')
+  const displayText = text ?? t('message.streaming')
   return (
     <span className="inline-flex items-center gap-2 text-sm text-muted-foreground pt-2">
-      <ShimmerText text={text} />
+      <ShimmerText text={displayText} />
     </span>
   )
 })
 
 function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: boolean }) {
+  const { t } = useTranslation('chat')
   const [expanded, setExpanded] = useState(!completed)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -1002,7 +1033,11 @@ function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: 
         onClick={() => setExpanded(!expanded)}
         className="group/mod flex items-center gap-1.5 text-sm text-process-foreground transition-colors duration-150 hover:text-foreground"
       >
-        {completed ? <span>深度思考</span> : <ShimmerText text="深度思考" />}
+        {completed ? (
+          <span>{t('message.thinking')}</span>
+        ) : (
+          <ShimmerText text={t('message.thinking')} />
+        )}
         <ChevronRight
           className={cn(
             'h-3.5 w-3.5 shrink-0 transition-all duration-150',

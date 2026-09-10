@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   X,
   Code,
@@ -18,6 +19,7 @@ import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
 
 export function RightPanel() {
+  const { t } = useTranslation('chat')
   const { isRightPanelOpen, toggleRightPanel } = useChatStore()
 
   if (!isRightPanelOpen) {
@@ -25,15 +27,15 @@ export function RightPanel() {
   }
 
   const tools = [
-    { id: 'editor', name: '编辑器', icon: Code, color: 'text-green-500' },
-    { id: 'document', name: '文档', icon: FileText, color: 'text-blue-500' },
-    { id: 'terminal', name: '终端', icon: Terminal, color: 'text-yellow-500' },
-    { id: 'browser', name: '浏览器', icon: Globe, color: 'text-red-500' },
-    { id: 'code-change', name: '代码变更', icon: GitBranch, color: 'text-purple-500' },
-    { id: 'figma', name: 'Figma', icon: Figma, color: 'text-pink-500' },
-    { id: 'agent', name: '智能体', icon: Bot, color: 'text-cyan-500' },
-    { id: 'mcp', name: 'MCP', icon: Terminal, color: 'text-orange-500' },
-    { id: 'settings', name: '设置', icon: Settings, color: 'text-gray-500' },
+    { id: 'editor', name: t('rightPanel.tools.editor'), icon: Code, color: 'text-green-500' },
+    { id: 'document', name: t('rightPanel.tools.document'), icon: FileText, color: 'text-blue-500' },
+    { id: 'terminal', name: t('rightPanel.tools.terminal'), icon: Terminal, color: 'text-yellow-500' },
+    { id: 'browser', name: t('rightPanel.tools.browser'), icon: Globe, color: 'text-red-500' },
+    { id: 'code-change', name: t('rightPanel.tools.codeChange'), icon: GitBranch, color: 'text-purple-500' },
+    { id: 'figma', name: t('rightPanel.tools.figma'), icon: Figma, color: 'text-pink-500' },
+    { id: 'agent', name: t('rightPanel.tools.agent'), icon: Bot, color: 'text-cyan-500' },
+    { id: 'mcp', name: t('rightPanel.tools.mcp'), icon: Terminal, color: 'text-orange-500' },
+    { id: 'settings', name: t('rightPanel.tools.settings'), icon: Settings, color: 'text-gray-500' },
   ]
 
   return (
@@ -42,7 +44,7 @@ export function RightPanel() {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-xs">
           <div className="text-center mb-8">
-            <p className="text-sm text-muted-foreground">使用工具，扩展更多能力</p>
+            <p className="text-sm text-muted-foreground">{t('rightPanel.description')}</p>
           </div>
           <div className="grid grid-cols-3 gap-4">
             {tools.map(tool => (
@@ -63,6 +65,7 @@ export function RightPanel() {
 }
 
 export function RightPanelToggle() {
+  const { t } = useTranslation('chat')
   const { isRightPanelOpen, toggleRightPanel } = useChatStore()
 
   return (
@@ -73,7 +76,7 @@ export function RightPanelToggle() {
       className={cn('transition-colors', isRightPanelOpen ? 'bg-accent' : 'hover:bg-accent')}
     >
       <LayoutGrid className="h-5 w-5" />
-      <span className="sr-only">切换工具面板</span>
+      <span className="sr-only">{t('rightPanel.toggle')}</span>
     </Button>
   )
 }

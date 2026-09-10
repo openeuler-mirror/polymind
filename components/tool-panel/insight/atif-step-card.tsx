@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { MessageSquareText, Sparkles, Wrench } from 'lucide-react'
 import {
   Accordion,
@@ -39,40 +41,51 @@ function shortId(id: string, length = 20): string {
   return id.length > length ? `${id.slice(0, length)}...` : id
 }
 
-const SOURCE_STYLES: Record<string, { dot: string; badge: string; border: string; label: string }> =
-  {
-    system: {
-      dot: 'bg-purple-500',
-      badge: 'border-purple-200 bg-purple-50 text-purple-700',
-      border: 'border-l-purple-400',
-      label: '系统',
-    },
-    user: {
-      dot: 'bg-blue-500',
-      badge: 'border-blue-200 bg-blue-50 text-blue-700',
-      border: 'border-l-blue-400',
-      label: '用户',
-    },
-    agent: {
-      dot: 'bg-emerald-500',
-      badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-      border: 'border-l-emerald-400',
-      label: 'Agent',
-    },
-  }
+const SOURCE_STYLES: Record<
+  string,
+  { dot: string; badge: string; border: string; labelKey: string }
+> = {
+  system: {
+    dot: 'bg-purple-500',
+    badge: 'border-purple-200 bg-purple-50 text-purple-700',
+    border: 'border-l-purple-400',
+    labelKey: 'insight.atif.source.system',
+  },
+  user: {
+    dot: 'bg-blue-500',
+    badge: 'border-blue-200 bg-blue-50 text-blue-700',
+    border: 'border-l-blue-400',
+    labelKey: 'insight.atif.source.user',
+  },
+  agent: {
+    dot: 'bg-emerald-500',
+    badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    border: 'border-l-emerald-400',
+    labelKey: 'insight.atif.source.agent',
+  },
+}
 
-function getSourceStyle(source: AtifStep['source']) {
-  return (
-    SOURCE_STYLES[source] ?? {
+function getSourceStyle(source: AtifStep['source'], t: TFunction) {
+  const style = SOURCE_STYLES[source]
+  if (!style) {
+    return {
       dot: 'bg-slate-400',
       badge: 'border-slate-200 bg-slate-50 text-slate-700',
       border: 'border-l-slate-300',
       label: source,
     }
-  )
+  }
+
+  return {
+    dot: style.dot,
+    badge: style.badge,
+    border: style.border,
+    label: t(style.labelKey),
+  }
 }
 
 function ExpandableText({ text, className }: { text: string; className?: string }) {
+  const { t } = useTranslation('tool-panel')
   const [expanded, setExpanded] = useState(false)
   const isLong = text.length > 300
   const displayText = isLong && !expanded ? `${text.slice(0, 300)}...` : text
@@ -93,7 +106,7 @@ function ExpandableText({ text, className }: { text: string; className?: string 
           onClick={() => setExpanded(currentValue => !currentValue)}
           className="mt-1 text-xs text-primary hover:underline"
         >
-          {expanded ? '收起' : '展开全部'}
+          {expanded ? t('insight.atif.collapse') : t('insight.atif.expandAll')}
         </button>
       ) : null}
     </div>
@@ -101,6 +114,7 @@ function ExpandableText({ text, className }: { text: string; className?: string 
 }
 
 function ToolCallItem({ tc }: { tc: AtifToolCall }) {
+  const { t } = useTranslation('tool-panel')
   const [showArgs, setShowArgs] = useState(false)
   const argsStr =
     typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments, null, 2)
@@ -121,7 +135,7 @@ function ToolCallItem({ tc }: { tc: AtifToolCall }) {
             onClick={() => setShowArgs(currentValue => !currentValue)}
             className="ml-auto text-xs text-primary hover:underline"
           >
-            {showArgs ? '收起参数' : '展开参数'}
+            {showArgs ? t('insight.atif.collapseArgs') : t('insight.atif.expandArgs')}
           </button>
         ) : null}
       </div>
@@ -166,7 +180,8 @@ function StepSection({
 }
 
 export function InsightAtifStepCard({ step }: { step: AtifStep }) {
-  const style = getSourceStyle(step.source)
+  const { t } = useTranslation('tool-panel')
+  const style = getSourceStyle(step.source, t)
   const sections: Array<{
     key: string
     icon: ReactNode
@@ -179,7 +194,7 @@ export function InsightAtifStepCard({ step }: { step: AtifStep }) {
     sections.push({
       key: 'reasoning',
       icon: <Sparkles className="h-4 w-4 text-purple-500" />,
-      title: '推理过程',
+      title: t('insight.atif.reasoning'),
       content: (
         <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-4 py-3 text-[14px] leading-7 text-foreground">
           {step.reasoning_content}
@@ -192,7 +207,7 @@ export function InsightAtifStepCard({ step }: { step: AtifStep }) {
     sections.push({
       key: 'toolcalls',
       icon: <Wrench className="h-4 w-4 text-orange-500" />,
-      title: '工具调用',
+      title: t('insight.atif.toolCalls'),
       count: step.tool_calls.length,
       content: (
         <div className="space-y-2">
@@ -208,7 +223,7 @@ export function InsightAtifStepCard({ step }: { step: AtifStep }) {
     sections.push({
       key: 'observation',
       icon: <MessageSquareText className="h-4 w-4 text-teal-500" />,
-      title: '观察结果',
+      title: t('insight.atif.observation'),
       count: step.observation.results.length,
       content: (
         <div className="space-y-2">
@@ -226,7 +241,9 @@ export function InsightAtifStepCard({ step }: { step: AtifStep }) {
                   <ExpandableText text={result.content} className="bg-muted/40 text-foreground" />
                 </div>
               ) : (
-                <div className="px-3 py-2 text-xs italic text-muted-foreground">无输出内容</div>
+                <div className="px-3 py-2 text-xs italic text-muted-foreground">
+                  {t('insight.atif.noOutput')}
+                </div>
               )}
             </div>
           ))}
@@ -268,7 +285,7 @@ export function InsightAtifStepCard({ step }: { step: AtifStep }) {
           {step.message ? (
             <ExpandableText text={step.message} className="bg-muted/25 text-foreground" />
           ) : (
-            <span className="text-xs italic text-muted-foreground">无消息内容</span>
+            <span className="text-xs italic text-muted-foreground">{t('insight.atif.noMessage')}</span>
           )}
 
           {sections.length > 0 ? (
@@ -294,17 +311,19 @@ export function InsightAtifStepCard({ step }: { step: AtifStep }) {
             <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
               {step.metrics.prompt_tokens != null ? (
                 <Badge className="border-sky-200 bg-sky-50 text-sky-700">
-                  输入 {fmtTokens(step.metrics.prompt_tokens)}
+                  {t('insight.atif.inputTokens', { value: fmtTokens(step.metrics.prompt_tokens) })}
                 </Badge>
               ) : null}
               {step.metrics.completion_tokens != null ? (
                 <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                  输出 {fmtTokens(step.metrics.completion_tokens)}
+                  {t('insight.atif.outputTokens', {
+                    value: fmtTokens(step.metrics.completion_tokens),
+                  })}
                 </Badge>
               ) : null}
               {step.metrics.cached_tokens != null && step.metrics.cached_tokens > 0 ? (
                 <Badge className="border-amber-200 bg-amber-50 text-amber-700">
-                  缓存 {fmtTokens(step.metrics.cached_tokens)}
+                  {t('insight.atif.cachedTokens', { value: fmtTokens(step.metrics.cached_tokens) })}
                 </Badge>
               ) : null}
             </div>

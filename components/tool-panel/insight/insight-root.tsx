@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Spinner } from '@/components/ui/spinner'
 import { useInsightAvailability } from '@/hooks/insight/use-availability'
@@ -11,18 +12,21 @@ import { InsightHealthRail } from './health-rail'
 import { InsightOverviewPanel } from './overview-panel'
 import { InsightSetupPanel } from './setup-panel'
 
-const views: Array<{ id: InsightPanelView; label: string }> = [
-  { id: 'overview', label: '总览' },
-  { id: 'atif', label: '轨迹详情' },
-]
+const viewIds: InsightPanelView[] = ['overview', 'atif']
 
 export function InsightRoot() {
+  const { t } = useTranslation('tool-panel')
   const availability = useInsightAvailability()
   const controller = useInsightOverview({
     enabled: availability.status === 'available',
   })
   const [activeView, setActiveView] = useState<InsightPanelView>('overview')
   const [atifTarget, setAtifTarget] = useState<InsightAtifTarget | null>(null)
+
+  const views: Array<{ id: InsightPanelView; label: string }> = viewIds.map(id => ({
+    id,
+    label: t(`insight.views.${id}`),
+  }))
 
   const handleOpenAtif = (target: InsightAtifTarget) => {
     setAtifTarget(target)
@@ -39,7 +43,7 @@ export function InsightRoot() {
     >
       <div className="border-b border-sidebar-border px-4 py-3">
         <div className="flex w-full items-start justify-between gap-4">
-          <h2 className="text-lg font-semibold">监测系统</h2>
+          <h2 className="text-lg font-semibold">{t('insight.title')}</h2>
           {availability.status === 'available' ? (
             <TabsList>
               {views.map(view => (
@@ -58,7 +62,7 @@ export function InsightRoot() {
         {availability.status === 'checking' ? (
           <div className="flex min-h-[420px] items-center justify-center gap-3 text-sm text-muted-foreground">
             <Spinner className="h-4 w-4" />
-            正在检测监测系统后端服务...
+            {t('insight.checkingBackend')}
           </div>
         ) : availability.status === 'unavailable' ? (
           <InsightSetupPanel />

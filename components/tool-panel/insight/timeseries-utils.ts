@@ -1,3 +1,4 @@
+import i18n from '@/lib/i18n/config'
 import type { ModelTimeseriesBucket, TimeseriesBucket } from '@/hooks/insight/types'
 
 export const MODEL_COLORS = [
@@ -12,10 +13,18 @@ export const MODEL_COLORS = [
 ] as const
 
 export const TOKEN_SERIES = [
-  { key: 'input', label: '输入 Token', color: '#2563eb' },
-  { key: 'output', label: '输出 Token', color: '#059669' },
-  { key: 'total', label: '总 Token', color: '#7c3aed' },
+  { key: 'input', labelKey: 'insight.timeseries.seriesInput', color: '#2563eb' },
+  { key: 'output', labelKey: 'insight.timeseries.seriesOutput', color: '#059669' },
+  { key: 'total', labelKey: 'insight.timeseries.seriesTotal', color: '#7c3aed' },
 ] as const
+
+export function getTokenSeries() {
+  return TOKEN_SERIES.map(series => ({
+    key: series.key,
+    label: i18n.t(series.labelKey),
+    color: series.color,
+  }))
+}
 
 export function formatTimeseriesValue(value: number): string {
   return value.toLocaleString('zh-CN')

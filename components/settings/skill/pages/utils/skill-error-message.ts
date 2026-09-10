@@ -1,3 +1,5 @@
+import type { TFunction } from 'i18next'
+import i18n from '@/lib/i18n/config'
 import { ApiError, extractApiErrorMessage } from '@/lib/error-handler'
 import { getSkillNameOrNull } from './skill-name'
 import { getSkillSourceLabel } from './skill-source-label'
@@ -11,6 +13,7 @@ type SkillOperationErrorContext = {
   runtimeSource?: string | null
   sourceLabel?: string | null
   fallback?: string
+  t?: TFunction
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -44,19 +47,24 @@ function getNormalizedApiErrorPayload(value: unknown): Record<string, unknown> |
   return nestedError ?? value
 }
 
-function getSkillOperationLabel(operation: SkillOperationKind): string {
-  return operation === 'install' ? '安装' : '卸载'
+function getSkillOperationLabel(operation: SkillOperationKind, t: TFunction): string {
+  return operation === 'install'
+    ? t('settings:skill.error.actionInstall')
+    : t('settings:skill.error.actionUninstall')
 }
 
-function formatSkillSubject(context: SkillOperationErrorContext): string {
+function formatSkillSubject(context: SkillOperationErrorContext, t: TFunction): string {
   const sourceLabel = getSkillSourceLabel(context.sourceType, {
     runtimeSource: context.runtimeSource,
     sourceLabel: context.sourceLabel,
     audience: 'error',
-    fallback: '技能',
+    fallback: t('settings:skill.source.skill'),
+    t,
   })
   const displayName = getSkillNameOrNull(context.skillName)
-  return displayName ? `${sourceLabel}“${displayName}”` : sourceLabel
+  return displayName
+    ? t('settings:skill.error.subject', { source: sourceLabel, name: displayName })
+    : sourceLabel
 }
 
 function extractSkillErrorInfo(error: ApiError): {
@@ -87,45 +95,52 @@ function extractSkillErrorInfo(error: ApiError): {
 
 function translateSkillOperationReason(
   reason: string,
-  context: SkillOperationErrorContext
+  context: SkillOperationErrorContext,
+  t: TFunction
 ): string | null {
   const normalized = reason.trim().toLowerCase()
-  const actionLabel = getSkillOperationLabel(context.operation)
+  const actionLabel = getSkillOperationLabel(context.operation, t)
 
   if (!normalized) {
     return null
   }
 
   if (normalized.includes('bundled skill cannot be uninstalled')) {
-    return '它由 Agent 运行时自带，当前不支持卸载。'
+    return t('settings:skill.error.reasonBundledSkill')
   }
 
   if (normalized.includes('source_path is required for runtime-discovered skill uninstall')) {
-    return '缺少技能安装路径，暂时无法卸载，请先刷新已安装列表后重试。'
+    return t('settings:skill.error.reasonSourcePathRequired')
   }
 
   if (normalized.includes('skill_source is required for wittyhub install')) {
-    return '缺少来源地址，暂时无法安装。'
+    return t('settings:skill.error.reasonSkillSourceRequired')
   }
 
   if (normalized.includes('npx command not found')) {
-    return `当前环境缺少 npx 命令，无法执行${actionLabel}。`
+    return t('settings:skill.error.reasonCommandNotFound', { command: 'npx', action: actionLabel })
   }
 
   if (normalized.includes('openclaw command not found')) {
-    return `当前环境缺少 openclaw 命令，无法执行${actionLabel}。`
+    return t('settings:skill.error.reasonCommandNotFound', {
+      command: 'openclaw',
+      action: actionLabel,
+    })
   }
 
   if (normalized.includes('clawhub command not found')) {
-    return `当前环境缺少 clawhub 命令，无法执行${actionLabel}。`
+    return t('settings:skill.error.reasonCommandNotFound', {
+      command: 'clawhub',
+      action: actionLabel,
+    })
   }
 
   if (normalized.includes('enoent')) {
-    return '技能文件或目录不存在，可能已经被手动删除，请刷新列表后重试。'
+    return t('settings:skill.error.reasonEnoent')
   }
 
   if (normalized.includes('not installed')) {
-    return '当前 Agent 中没有安装这个技能。'
+    return t('settings:skill.error.reasonNotInstalled')
   }
 
   return reason.trim()
@@ -135,9 +150,12 @@ export function extractSkillOperationErrorMessage(
   error: unknown,
   context: SkillOperationErrorContext
 ): string {
-  const actionLabel = getSkillOperationLabel(context.operation)
-  const skillSubject = formatSkillSubject(context)
-  const defaultFallback = context.fallback || `${actionLabel}${skillSubject}失败，请稍后重试。`
+  const t = context.t ?? i18n.t.bind(i18n)
+  const actionLabel = getSkillOperationLabel(context.operation, t)
+  const skillSubject = formatSkillSubject(context, t)
+  const defaultFallback =
+    context.fallback ||
+    t('settings:skill.error.genericFailure', { action: actionLabel, subject: skillSubject })
 
   if (!(error instanceof ApiError)) {
     return extractApiErrorMessage(error, defaultFallback)
@@ -151,28 +169,40 @@ export function extractSkillOperationErrorMessage(
   const effectiveCode = errorInfo.upstreamCode || errorInfo.code
   switch (effectiveCode) {
     case 'OPENCLAW_SKILL_NOT_REMOVABLE':
-      return `${skillSubject}由 Agent 运行时自带，当前不支持卸载。`
+      return t('settings:skill.error.notRemovable', { subject: skillSubject })
     case 'AGENT_NOT_RUNNING':
-      return `当前 Agent 未运行，无法${actionLabel}${skillSubject}。`
+      return t('settings:skill.error.agentNotRunning', {
+        action: actionLabel,
+        subject: skillSubject,
+      })
     case 'SKILL_NOT_FOUND':
-      return `${skillSubject}不存在，可能已经被移除，请刷新列表后重试。`
+      return t('settings:skill.error.notFound', { subject: skillSubject })
     case 'SKILL_INSTALL_RECORD_FAILED':
-      return `${skillSubject}可能已经安装成功，但平台记录保存失败，请刷新已安装列表确认。`
+      return t('settings:skill.error.installRecordFailed', { subject: skillSubject })
     case 'SKILL_UNINSTALL_RECORD_FAILED':
-      return `${skillSubject}可能已经卸载成功，但平台记录清理失败，请刷新已安装列表确认。`
+      return t('settings:skill.error.uninstallRecordFailed', { subject: skillSubject })
     default:
       break
   }
 
   const translatedReason =
-    (errorInfo.reason && translateSkillOperationReason(errorInfo.reason, context)) ||
-    (errorInfo.upstreamMessage && translateSkillOperationReason(errorInfo.upstreamMessage, context))
+    (errorInfo.reason && translateSkillOperationReason(errorInfo.reason, context, t)) ||
+    (errorInfo.upstreamMessage &&
+      translateSkillOperationReason(errorInfo.upstreamMessage, context, t))
 
   if (translatedReason) {
     if (translatedReason.endsWith('。') || translatedReason.endsWith('！')) {
-      return `${actionLabel}${skillSubject}失败：${translatedReason.slice(0, -1)}。`
+      return t('settings:skill.error.reasonSuffix', {
+        action: actionLabel,
+        subject: skillSubject,
+        reason: translatedReason.slice(0, -1),
+      })
     }
-    return `${actionLabel}${skillSubject}失败：${translatedReason}`
+    return t('settings:skill.error.reasonSuffixNoPeriod', {
+      action: actionLabel,
+      subject: skillSubject,
+      reason: translatedReason,
+    })
   }
 
   return extractApiErrorMessage(error, defaultFallback)

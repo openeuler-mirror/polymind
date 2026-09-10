@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 import { AlertCircle, ChartColumnBig, LineChart as LineChartIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -20,8 +21,8 @@ import { cn } from '@/lib/utils'
 import {
   buildModelChartData,
   buildTokenChartData,
+  getTokenSeries,
   MODEL_COLORS,
-  TOKEN_SERIES,
 } from './timeseries-utils'
 
 interface LegendPayloadItem {
@@ -90,7 +91,7 @@ function InteractiveLegend({
   )
 }
 
-const TOKEN_CHART_CONFIG = TOKEN_SERIES.reduce<ChartConfig>((config, series) => {
+const TOKEN_CHART_CONFIG = getTokenSeries().reduce<ChartConfig>((config, series) => {
   config[series.key] = {
     label: series.label,
     color: series.color,
@@ -109,7 +110,9 @@ function TokenTimeseriesChart({
   endNs: number
   bucketCount?: number
 }) {
+  const { t } = useTranslation('tool-panel')
   const [hidden, setHidden] = useState<Set<string>>(new Set())
+  const tokenSeries = useMemo(() => getTokenSeries(), [])
   const { chartData, filled, ticks } = buildTokenChartData({
     data,
     startNs,
@@ -124,7 +127,7 @@ function TokenTimeseriesChart({
           <EmptyMedia variant="icon">
             <LineChartIcon />
           </EmptyMedia>
-          <EmptyTitle className="text-base">暂无 Token 时序数据</EmptyTitle>
+          <EmptyTitle className="text-base">{t('insight.timeseries.emptyToken')}</EmptyTitle>
         </EmptyHeader>
       </Empty>
     )
@@ -141,7 +144,7 @@ function TokenTimeseriesChart({
           content={props => (
             <InteractiveLegend
               hidden={hidden}
-              labels={Object.fromEntries(TOKEN_SERIES.map(series => [series.key, series.label]))}
+              labels={Object.fromEntries(tokenSeries.map(series => [series.key, series.label]))}
               onToggle={key => {
                 setHidden(currentValue => {
                   const nextValue = new Set(currentValue)
@@ -157,7 +160,7 @@ function TokenTimeseriesChart({
             />
           )}
         />
-        {TOKEN_SERIES.map(series => (
+        {tokenSeries.map(series => (
           <Line
             key={series.key}
             type="monotone"
@@ -185,6 +188,7 @@ function ModelTimeseriesChart({
   endNs: number
   bucketCount?: number
 }) {
+  const { t } = useTranslation('tool-panel')
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   const { chartData, models, ticks } = buildModelChartData({
     data,
@@ -210,7 +214,7 @@ function ModelTimeseriesChart({
           <EmptyMedia variant="icon">
             <ChartColumnBig />
           </EmptyMedia>
-          <EmptyTitle className="text-base">暂无模型 Token 时序数据</EmptyTitle>
+          <EmptyTitle className="text-base">{t('insight.timeseries.emptyModel')}</EmptyTitle>
         </EmptyHeader>
       </Empty>
     )
@@ -264,6 +268,8 @@ interface InsightTimeseriesPanelsProps {
 }
 
 export function InsightTimeseriesPanels({ controller }: InsightTimeseriesPanelsProps) {
+  const { t } = useTranslation('tool-panel')
+
   if (controller.loading) {
     return <TimeseriesSkeleton />
   }
@@ -272,13 +278,13 @@ export function InsightTimeseriesPanels({ controller }: InsightTimeseriesPanelsP
     <div className="grid gap-4 xl:grid-cols-2">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Token 时序图</CardTitle>
+          <CardTitle className="text-base">{t('insight.timeseries.tokenTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           {controller.error ? (
             <Alert variant="destructive">
               <AlertCircle />
-              <AlertTitle>时序图加载失败</AlertTitle>
+              <AlertTitle>{t('insight.timeseries.loadFailed')}</AlertTitle>
               <AlertDescription>{controller.error}</AlertDescription>
             </Alert>
           ) : (
@@ -293,13 +299,13 @@ export function InsightTimeseriesPanels({ controller }: InsightTimeseriesPanelsP
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">模型 Token 时序图</CardTitle>
+          <CardTitle className="text-base">{t('insight.timeseries.modelTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           {controller.error ? (
             <Alert variant="destructive">
               <AlertCircle />
-              <AlertTitle>时序图加载失败</AlertTitle>
+              <AlertTitle>{t('insight.timeseries.loadFailed')}</AlertTitle>
               <AlertDescription>{controller.error}</AlertDescription>
             </Alert>
           ) : (

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useReducer, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Check, MessageSquare, ChevronLeft, ChevronRight, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -8,8 +9,13 @@ import type { QuestionInfo } from '@/lib/types'
 
 // Constants
 
-const OTHER_LABEL = '其他'
 const MAX_OTHER_CHARS = 500
+
+/**
+ * 「其他」选项在 reducer 内部使用的稳定哨兵值。
+ * 展示文案随语言变化，因此状态里只保存哨兵，渲染时再翻译成 label。
+ */
+const OTHER_OPTION_KEY = '__other__'
 
 // Reducer
 
@@ -34,7 +40,7 @@ type QuestionFlowAction =
 function buildAnswer(selected: Set<string>, otherText: string): string[] {
   const items: string[] = []
   for (const item of selected) {
-    if (item === OTHER_LABEL) {
+    if (item === OTHER_OPTION_KEY) {
       if (otherText.trim()) {
         items.push(otherText.trim())
       }
@@ -54,7 +60,7 @@ function restoreForStep(
   const otherText = otherTextMap.get(step) ?? ''
   const selected = new Set(saved)
   if (otherText) {
-    selected.add(OTHER_LABEL)
+    selected.add(OTHER_OPTION_KEY)
   }
   return { currentSelected: selected, currentOtherText: otherText }
 }
@@ -92,7 +98,7 @@ function questionFlowReducer(
 
       if (nextSelected.has(action.label)) {
         nextSelected.delete(action.label)
-        if (action.label === OTHER_LABEL) {
+        if (action.label === OTHER_OPTION_KEY) {
           return { ...state, currentSelected: nextSelected, currentOtherText: '' }
         }
       } else {
@@ -219,6 +225,7 @@ export function QuestionFlow({
   onSubmit,
   onSkip,
 }: QuestionFlowProps) {
+  const { t } = useTranslation('chat')
   const [state, dispatch] = useReducer(questionFlowReducer, {
     questionStep: 0,
     answersMap: new Map(),
@@ -272,8 +279,8 @@ export function QuestionFlow({
   const isFirstStep = state.questionStep === 0
 
   const hasCurrentAnswer =
-    [...state.currentSelected].filter(s => s !== OTHER_LABEL).length > 0 ||
-    (state.currentSelected.has(OTHER_LABEL) && state.currentOtherText.trim().length > 0)
+    [...state.currentSelected].filter(s => s !== OTHER_OPTION_KEY).length > 0 ||
+    (state.currentSelected.has(OTHER_OPTION_KEY) && state.currentOtherText.trim().length > 0)
 
   // 跟踪是否由用户点击选项触发（而非导航还原），避免返回上一题时自动跳回。
   // 此 effect 必须声明在自动前进 effect 之前，确保导航时 ref 先被置 true。
@@ -291,7 +298,7 @@ export function QuestionFlow({
     if (!currentQuestion) return
     if (isMultiple) return
 
-    const singleSelected = [...state.currentSelected].filter(s => s !== OTHER_LABEL)
+    const singleSelected = [...state.currentSelected].filter(s => s !== OTHER_OPTION_KEY)
     if (singleSelected.length === 0) return
 
     // 导航回已有答案的题目时不应自动跳转
@@ -322,7 +329,7 @@ export function QuestionFlow({
 
   if (!currentQuestion) return null
 
-  const otherSelected = state.currentSelected.has(OTHER_LABEL)
+  const otherSelected = state.currentSelected.has(OTHER_OPTION_KEY)
 
   // 全部答完：自动提交中
   if (state.completed) {
@@ -332,13 +339,13 @@ export function QuestionFlow({
           <div className="mb-3 flex items-center justify-between rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-600">
             <span>{submitError}</span>
             <Button size="sm" variant="ghost" onClick={submitOnce} className="h-7 text-xs">
-              重试
+              {t('questionFlow.retry')}
             </Button>
           </div>
         )}
         <div className="flex items-center justify-center gap-2 rounded-2xl border border-accent/30 bg-accent/[0.03] px-4 py-6 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin text-accent" />
-          <span>已回答完毕，正在提交...</span>
+          <span>{t('questionFlow.submitting')}</span>
         </div>
       </div>
     )
@@ -357,7 +364,7 @@ export function QuestionFlow({
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100">
           <MessageSquare className="h-4 w-4 shrink-0 text-accent" />
           <span className="font-medium text-sm text-foreground/90 truncate min-w-0">
-            {currentQuestion.header || currentQuestion.question || '请选择'}
+            {currentQuestion.header || currentQuestion.question || t('questionFlow.defaultHeader')}
           </span>
 
           <div className="ml-auto flex items-center gap-1 shrink-0">
@@ -393,7 +400,7 @@ export function QuestionFlow({
             <button
               onClick={onSkip}
               disabled={submitting}
-              title="跳过全部"
+              title={t('questionFlow.skipAll')}
               className="ml-1 p-1 rounded-md text-muted-foreground transition-colors hover:text-foreground hover:bg-accent/10 disabled:opacity-50"
             >
               <X className="h-4 w-4" />
@@ -464,7 +471,7 @@ export function QuestionFlow({
               {/* "其他" 选项 */}
               <button
                 key={`opt-${state.questionStep}-other`}
-                onClick={() => handleToggleOptionWithFlag(OTHER_LABEL)}
+                onClick={() => handleToggleOptionWithFlag(OTHER_OPTION_KEY)}
                 className={cn(
                   'w-full rounded-lg px-3.5 py-2.5 text-left transition-all duration-150 text-sm group',
                   'hover:bg-gray-50 active:bg-gray-100',
@@ -496,7 +503,7 @@ export function QuestionFlow({
                         otherSelected ? 'text-foreground' : 'text-foreground/80'
                       )}
                     >
-                      {OTHER_LABEL}
+                      {t('questionFlow.other')}
                     </span>
                     {otherSelected && (
                       <div className="flex-1 min-w-0">
@@ -506,7 +513,7 @@ export function QuestionFlow({
                           onChange={e =>
                             dispatch({ type: 'SET_OTHER_TEXT', value: e.target.value })
                           }
-                          placeholder="请输入..."
+                          placeholder={t('questionFlow.otherPlaceholder')}
                           maxLength={MAX_OTHER_CHARS}
                           autoFocus
                           className={cn(
@@ -531,7 +538,7 @@ export function QuestionFlow({
           <div className="text-xs text-muted-foreground">
             {isMultiple
               ? state.currentSelected.size > 0
-                ? `已选 ${state.currentSelected.size} 项`
+                ? t('questionFlow.selectedCount', { count: state.currentSelected.size })
                 : ''
               : ''}
           </div>
@@ -546,7 +553,7 @@ export function QuestionFlow({
                   disabled={submitting}
                   className="h-8 text-xs text-muted-foreground"
                 >
-                  跳过
+                  {t('questionFlow.skip')}
                 </Button>
                 <Button
                   size="sm"
@@ -554,7 +561,7 @@ export function QuestionFlow({
                   disabled={!hasCurrentAnswer || submitting}
                   className="h-8 text-xs"
                 >
-                  {isLastStep ? '完成' : '下一题'}
+                  {isLastStep ? t('questionFlow.complete') : t('questionFlow.next')}
                 </Button>
               </>
             )}
@@ -567,7 +574,7 @@ export function QuestionFlow({
                 disabled={submitting}
                 className="h-8 text-xs text-muted-foreground"
               >
-                跳过
+                {t('questionFlow.skip')}
               </Button>
             )}
           </div>

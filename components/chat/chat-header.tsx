@@ -2,6 +2,7 @@
 
 import { PanelLeftOpen, Share2, MoreHorizontal, Moon, Sun, Monitor, Settings } from 'lucide-react'
 import { useTheme } from 'next-themes'
+import { useTranslation } from 'react-i18next'
 import { useChatStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,6 +27,7 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({ conversation }: ChatHeaderProps) {
+  const { t } = useTranslation('chat')
   const { theme, setTheme } = useTheme()
   const { isSidebarOpen, toggleSidebar } = useChatStore()
 
@@ -40,12 +42,14 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
                   <PanelLeftOpen className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>展开侧边栏</TooltipContent>
+              <TooltipContent>{t('header.expandSidebar')}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         )}
 
-        <h1 className="text-base font-semibold">{conversation?.title || '新对话'}</h1>
+        <h1 className="text-base font-semibold">
+          {conversation?.title || t('header.newConversation')}
+        </h1>
       </div>
 
       <div className="flex items-center gap-2">
@@ -57,7 +61,7 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
                 <Share2 className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>分享对话</TooltipContent>
+            <TooltipContent>{t('header.share')}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
 
@@ -78,21 +82,21 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
                 ) : (
                   <Monitor className="mr-2 h-4 w-4" />
                 )}
-                主题
+                {t('header.theme')}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
                 <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
                   <DropdownMenuRadioItem value="light">
                     <Sun className="mr-2 h-4 w-4" />
-                    浅色
+                    {t('header.themeLight')}
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="dark">
                     <Moon className="mr-2 h-4 w-4" />
-                    深色
+                    {t('header.themeDark')}
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="system">
                     <Monitor className="mr-2 h-4 w-4" />
-                    跟随系统
+                    {t('header.themeSystem')}
                   </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
@@ -104,7 +108,7 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
               }}
             >
               <Settings className="mr-2 h-4 w-4" />
-              设置
+              {t('header.settings')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

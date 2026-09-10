@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Bot, Check, ChevronDown, Settings, Loader2 } from 'lucide-react'
 import { useChatStore } from '@/lib/store'
 import { AgentStatus } from '@/lib/types'
@@ -24,6 +25,7 @@ interface AgentSelectorProps {
 }
 
 export function AgentSelector({ compact = false }: AgentSelectorProps) {
+  const { t } = useTranslation('chat')
   const [open, setOpen] = useState(false)
   const {
     agents,
@@ -43,11 +45,11 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
   const getStatusText = (status: string) => {
     switch (status) {
       case AgentStatus.RUNNING:
-        return '运行中'
+        return t('agentSelector.status.running')
       case AgentStatus.PAUSED:
-        return '已暂停'
+        return t('agentSelector.status.paused')
       case AgentStatus.ERROR:
-        return '创建/更新失败'
+        return t('agentSelector.status.error')
       default:
         return status
     }
@@ -69,7 +71,12 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
     localStorage.setItem('agentIsCreating', 'true')
     triggerAgentCreate()
 
-    addRightPanelTab({ id: 'agent', name: '智能体', icon: Bot, color: 'text-cyan-500' })
+    addRightPanelTab({
+      id: 'agent',
+      name: t('sidebar.panelTab.agent'),
+      icon: Bot,
+      color: 'text-cyan-500',
+    })
     setActiveRightPanelTab('agent')
 
     if (!isRightPanelOpen) {
@@ -90,7 +97,7 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
             )}
           >
             <span className={cn('truncate', !currentAgent && 'text-muted-foreground')}>
-              {currentAgent ? '@' + currentAgent.name : '选择智能体'}
+              {currentAgent ? '@' + currentAgent.name : t('agentSelector.selectAgent')}
             </span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </button>
@@ -107,7 +114,7 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
             <span
               className={cn('flex-1 text-left truncate', !currentAgent && 'text-muted-foreground')}
             >
-              {currentAgent ? '@' + currentAgent.name : '选择智能体'}
+              {currentAgent ? '@' + currentAgent.name : t('agentSelector.selectAgent')}
             </span>
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           </button>
@@ -121,15 +128,17 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
       >
         <Command value={currentAgentId || undefined}>
           <CommandList>
-            <CommandGroup heading="智能体">
+            <CommandGroup heading={t('agentSelector.heading')}>
               {isAgentsLoading ? (
                 <div className="px-2 py-4 flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />
-                  <span className="text-sm text-muted-foreground">加载中...</span>
+                  <span className="text-sm text-muted-foreground">
+                    {t('agentSelector.loading')}
+                  </span>
                 </div>
               ) : availableAgents.length === 0 ? (
                 <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                  暂无智能体
+                  {t('agentSelector.empty')}
                 </div>
               ) : (
                 availableAgents.map(agent => {
@@ -184,7 +193,7 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
             <CommandGroup>
               <CommandItem onSelect={handleCreateAgent} className="flex items-center gap-1.5">
                 <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="flex-1 truncate min-w-0">创建 Agent</span>
+                <span className="flex-1 truncate min-w-0">{t('agentSelector.createAgent')}</span>
               </CommandItem>
             </CommandGroup>
           </CommandList>

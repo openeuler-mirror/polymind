@@ -1,5 +1,6 @@
 import type React from 'react'
 import type { MCPTool } from '../types'
+import type { Language } from '../i18n/settings'
 
 export function getUrlParam(key: string): string | null {
   if (typeof window === 'undefined') return null
@@ -20,7 +21,7 @@ export function syncUrlParams(agentId?: string, sessionId?: string) {
 
 export interface Settings {
   theme: 'light' | 'dark' | 'system'
-  language: 'zh-CN' | 'en-US'
+  language: Language
 }
 
 export interface Tab {

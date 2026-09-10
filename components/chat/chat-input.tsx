@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Send,
   Paperclip,
@@ -34,6 +35,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput({ onSend }: ChatInputProps) {
+  const { t } = useTranslation('chat')
   const { toast } = useToast()
   const [skills, setSkills] = useState<AgentSkill[]>([])
   const [input, setInput] = useState('')
@@ -288,7 +290,9 @@ export function ChatInput({ onSend }: ChatInputProps) {
         {showSkillSelector && (
           <div className="absolute bottom-full left-0 right-0 px-4 pb-2 z-50">
             <div className="rounded-lg border shadow-md bg-popover text-popover-foreground">
-              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">可用技能</div>
+              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                {t('input.skills.available')}
+              </div>
               <div ref={skillListRef} className="max-h-64 overflow-y-auto p-1 scrollbar-thin">
                 {filteredSkills.map((skill, index) => (
                   <div
@@ -302,7 +306,9 @@ export function ChatInput({ onSend }: ChatInputProps) {
                   </div>
                 ))}
                 {filteredSkills.length === 0 && (
-                  <div className="px-2 py-2 text-xs text-muted-foreground">无匹配技能</div>
+                  <div className="px-2 py-2 text-xs text-muted-foreground">
+                    {t('input.skills.empty')}
+                  </div>
                 )}
               </div>
             </div>
@@ -312,7 +318,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
           <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-primary/5">
             <div className="flex flex-col items-center gap-2 text-primary">
               <Paperclip className="h-8 w-8" />
-              <span className="font-medium">放开以添加文件</span>
+              <span className="font-medium">{t('input.dropToAttach')}</span>
             </div>
           </div>
         )}
@@ -331,7 +337,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
             onKeyDown={handleKeyDown}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
-            placeholder='描述你的任务，输入 "/" 调用技能，Enter 发送'
+            placeholder={t('input.placeholder')}
             className="min-h-[80px] max-h-[200px] resize-none border-0 bg-transparent px-5 py-4 focus-visible:ring-0 shadow-none relative z-20"
             disabled={isStreaming}
           />
@@ -348,14 +354,14 @@ export function ChatInput({ onSend }: ChatInputProps) {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 rounded-full"
-                    aria-label="上传图片或附件"
+                    aria-label={t('input.uploadImageOrAttachment')}
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isStreaming || attachments.length >= 5}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>上传图片或附件</TooltipContent>
+                <TooltipContent>{t('input.uploadImageOrAttachment')}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
@@ -377,7 +383,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
                 }}
               >
                 <StopCircle className="h-4 w-4" />
-                停止生成
+                {t('input.stopGenerating')}
               </Button>
             ) : (
               <TooltipProvider delayDuration={0}>
@@ -391,13 +397,13 @@ export function ChatInput({ onSend }: ChatInputProps) {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 rounded-full"
-                        aria-label="语音输入"
+                        aria-label={t('input.voiceInput')}
                         disabled={isStreaming}
                       >
                         <Mic className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>语音输入</TooltipContent>
+                    <TooltipContent>{t('input.voiceInput')}</TooltipContent>
                   </Tooltip>
 
                   <Tooltip>
@@ -410,11 +416,13 @@ export function ChatInput({ onSend }: ChatInputProps) {
                           disabled={!currentAgentId || (!input.trim() && attachments.length === 0)}
                         >
                           <Send className="h-4 w-4" />
-                          <span className="sr-only">发送</span>
+                          <span className="sr-only">{t('input.send')}</span>
                         </Button>
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent>{currentAgentId ? '发送' : '请先选择智能体'}</TooltipContent>
+                    <TooltipContent>
+                      {currentAgentId ? t('input.send') : t('input.selectAgentFirst')}
+                    </TooltipContent>
                   </Tooltip>
                 </div>
               </TooltipProvider>
@@ -441,6 +449,7 @@ interface AttachmentPreviewProps {
 }
 
 function AttachmentPreview({ file, onRemove }: AttachmentPreviewProps) {
+  const { t } = useTranslation('chat')
   const isImage = file.type.startsWith('image/')
   const Icon = isImage ? ImageIcon : FileText
 
@@ -472,7 +481,7 @@ function AttachmentPreview({ file, onRemove }: AttachmentPreviewProps) {
       <button
         type="button"
         onClick={onRemove}
-        aria-label="移除附件"
+        aria-label={t('input.removeAttachment')}
         className="ml-1 rounded-full p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100"
       >
         <X className="h-3.5 w-3.5" />

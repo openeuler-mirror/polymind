@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -34,6 +35,7 @@ interface AgentCreatePageProps {
 }
 
 export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
+  const { t } = useTranslation('tool-panel')
   const [agentForm, setAgentForm] = useState<{
     name: string
     description: string
@@ -82,11 +84,11 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
 
   const validateAgentName = (name: string) => {
     if (!name.trim()) {
-      setNameError('请输入智能体名称')
+      setNameError(t('agentCreate.nameRequired'))
       return false
     }
     if (existingAgentNames.includes(name.trim())) {
-      setNameError('智能体名称已存在')
+      setNameError(t('agentCreate.nameExists'))
       return false
     }
     setNameError('')
@@ -152,8 +154,8 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
 
     if (!agentForm.modelId) {
       toast({
-        title: '错误',
-        description: '请选择模型配置',
+        title: t('common:status.error'),
+        description: t('agent.toast.modelRequired'),
         variant: 'destructive',
       })
       return
@@ -177,8 +179,8 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
       setCurrentAgent(newAgent.id)
 
       toast({
-        title: '成功',
-        description: '智能体创建成功',
+        title: t('common:status.success'),
+        description: t('agentCreate.createSuccess'),
       })
       // 通知父组件创建成功
       onCreated()
@@ -187,8 +189,8 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
     } catch (err) {
       console.error('Failed to create agent:', err)
       toast({
-        title: '错误',
-        description: '智能体创建失败',
+        title: t('common:status.error'),
+        description: t('agentCreate.createFailed'),
         variant: 'destructive',
       })
     } finally {
@@ -200,14 +202,14 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
     <div className="max-w-2xl mx-auto">
       <Card className="border border-border shadow-sm bg-background w-full cursor-default">
         <CardHeader>
-          <CardTitle>创建智能体</CardTitle>
-          <CardDescription>配置智能体的基本信息和设置</CardDescription>
+          <CardTitle>{t('agentCreate.title')}</CardTitle>
+          <CardDescription>{t('agentCreate.description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleFormSubmit} className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="name" className="text-sm font-medium">
-                智能体名称 <span className="text-destructive">*</span>
+                {t('agentCreate.nameLabel')} <span className="text-destructive">*</span>
               </label>
               <div className="flex items-center space-x-3">
                 <div className="relative">
@@ -260,7 +262,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                     handleFormChange(e)
                     validateAgentName(e.target.value)
                   }}
-                  placeholder="请输入智能体名称"
+                  placeholder={t('agentCreate.namePlaceholder')}
                   required
                   className={`flex-1 ${nameError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                 />
@@ -270,14 +272,14 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
 
             <div className="space-y-2">
               <label htmlFor="description" className="text-sm font-medium">
-                描述
+                {t('agentCreate.descriptionLabel')}
               </label>
               <textarea
                 id="description"
                 name="description"
                 value={agentForm.description}
                 onChange={handleFormChange}
-                placeholder="请输入智能体描述"
+                placeholder={t('agentCreate.descriptionPlaceholder')}
                 className="w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 rows={3}
               />
@@ -285,14 +287,14 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
 
             <div className="space-y-2">
               <label htmlFor="adapterType" className="text-sm font-medium">
-                适配器类型
+                {t('agentCreate.adapterTypeLabel')}
               </label>
               <Select
                 value={agentForm.adapterType}
                 onValueChange={value => setAgentForm(prev => ({ ...prev, adapterType: value }))}
               >
                 <SelectTrigger id="adapterType" className="w-full">
-                  <SelectValue placeholder="选择适配器类型" />
+                  <SelectValue placeholder={t('agentCreate.adapterTypePlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={AdapterType.OPENCLAW}>OpenClaw</SelectItem>
@@ -304,7 +306,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
 
             <div className="space-y-2">
               <label htmlFor="sandboxType" className="text-sm font-medium">
-                沙箱类型
+                {t('agentCreate.sandboxTypeLabel')}
               </label>
               <Select
                 value={agentForm.sandboxType}
@@ -313,10 +315,12 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                 }
               >
                 <SelectTrigger id="sandboxType" className="w-full">
-                  <SelectValue placeholder="选择沙箱类型" />
+                  <SelectValue placeholder={t('agentCreate.sandboxTypePlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={SandboxType.LOCAL_PROCESS}>本地进程</SelectItem>
+                  <SelectItem value={SandboxType.LOCAL_PROCESS}>
+                    {t('agentCreate.sandboxLocalProcess')}
+                  </SelectItem>
                   <SelectItem value={SandboxType.DOCKER}>Docker</SelectItem>
                 </SelectContent>
               </Select>
@@ -324,11 +328,11 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
 
             <div className="space-y-2">
               <label htmlFor="modelId" className="text-sm font-medium">
-                模型配置 <span className="text-destructive">*</span>
+                {t('agent.importDialog.modelLabel')} <span className="text-destructive">*</span>
               </label>
               {!loadingModels && models.length === 0 ? (
                 <div className="flex items-center justify-between p-4 border border-input rounded-md bg-muted/50">
-                  <span className="text-sm text-muted-foreground">暂无模型配置，请先添加模型</span>
+                  <span className="text-sm text-muted-foreground">{t('agent.noModels')}</span>
                   <Button
                     size="sm"
                     variant="outline"
@@ -337,7 +341,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                     }}
                   >
                     <Plus className="w-3 h-3 mr-1" />
-                    添加模型
+                    {t('agentCreate.addModel')}
                   </Button>
                 </div>
               ) : (
@@ -369,10 +373,10 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                           ></path>
                         </svg>
-                        加载中...
+                        {t('common:action.loading')}
                       </div>
                     ) : (
-                      <SelectValue placeholder="请选择模型配置" />
+                      <SelectValue placeholder={t('agent.selectModel')} />
                     )}
                   </SelectTrigger>
                   <SelectContent>
@@ -388,7 +392,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={onBack} disabled={loading}>
-                取消
+                {t('common:action.cancel')}
               </Button>
               <Button type="submit" disabled={loading} className="relative">
                 {loading ? (
@@ -413,10 +417,10 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       ></path>
                     </svg>
-                    创建中...
+                    {t('agentCreate.creating')}
                   </>
                 ) : (
-                  '创建智能体'
+                  t('agentCreate.submit')
                 )}
               </Button>
             </div>
@@ -435,7 +439,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                       style={{ animationDelay: '0.4s' }}
                     ></span>
                   </div>
-                  <span>正在创建智能体，此过程可能需要1-2分钟，请耐心等待...</span>
+                  <span>{t('agentCreate.creatingNotice')}</span>
                 </div>
               </div>
             )}

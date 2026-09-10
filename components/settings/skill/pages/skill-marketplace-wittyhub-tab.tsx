@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
@@ -37,6 +38,7 @@ export function WittyHubMarketplaceTab({
   onPreview: (item: SkillPreviewItem) => void
   onStatsChange?: (count: number) => void
 }) {
+  const { t } = useTranslation('settings')
   const [skills, setSkills] = useState<SkillResponse[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(false)
@@ -104,15 +106,15 @@ export function WittyHubMarketplaceTab({
       } catch (error) {
         console.error('Failed to load wittyhub skills page:', error)
         toast({
-          title: '加载失败',
-          description: extractApiErrorMessage(error, '无法获取 WittyHub 技能列表，请稍后重试。'),
+          title: t('skill.marketplace.toast.loadFailed'),
+          description: extractApiErrorMessage(error, t('skill.marketplace.toast.loadWittyhubDesc')),
           variant: 'destructive',
         })
       } finally {
         setLoadingState(false)
       }
     },
-    [searchTerm, toast]
+    [searchTerm, t, toast]
   )
 
   const { containerRef } = useAutoLoadOnScroll({
@@ -150,16 +152,16 @@ export function WittyHubMarketplaceTab({
           <Input
             value={searchTerm}
             onChange={event => setSearchTerm(event.target.value)}
-            placeholder="搜索 WittyHub 技能"
+            placeholder={t('skill.marketplace.searchWittyhub')}
             className="pl-9"
           />
         </div>
       </div>
 
       {loading && skills.length === 0 ? (
-        <EmptyState text="正在加载 WittyHub 技能..." />
+        <EmptyState text={t('skill.marketplace.loadingWittyhub')} />
       ) : skills.length === 0 ? (
-        <EmptyState text="暂无匹配的 WittyHub 技能。" />
+        <EmptyState text={t('skill.marketplace.emptyWittyhub')} />
       ) : (
         <div ref={containerRef} className="max-h-[calc(100vh-22rem)] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -181,10 +183,10 @@ export function WittyHubMarketplaceTab({
                   }
                   installLabel={
                     installingSkillKey === skill.skill_id
-                      ? '安装中...'
+                      ? t('skill.marketplace.installing')
                       : installedSkillKeys.has(installKey)
-                        ? '已安装'
-                        : '安装'
+                        ? t('skill.marketplace.installed')
+                        : t('skill.marketplace.install')
                   }
                   onInstall={onInstall}
                   onPreview={(nextSkill, nextSource) =>
@@ -196,10 +198,12 @@ export function WittyHubMarketplaceTab({
           </div>
           <div className="flex min-h-10 items-center justify-center py-4 text-sm text-muted-foreground">
             {loadingMore
-              ? '正在加载更多技能...'
+              ? t('skill.marketplace.loadingMoreSkills')
               : hasMore
-                ? '继续向下滚动以加载更多'
-                : `已显示全部 ${total || skills.length} 个技能`}
+                ? t('skill.marketplace.scrollMore')
+                : t('skill.marketplace.allDisplayedSkills', {
+                    total: total || skills.length,
+                  })}
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Plus,
   Edit,
@@ -44,6 +45,7 @@ import { useChatStore } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
 
 export function McpPage() {
+  const { t, i18n } = useTranslation('settings')
   const [servers, setServers] = useState<McpServerResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -90,8 +92,8 @@ export function McpPage() {
     } catch (error) {
       console.error('Failed to load MCP servers:', error)
       toast({
-        title: '加载失败',
-        description: '无法加载 MCP Server 配置列表',
+        title: t('mcp.toast.loadFailed'),
+        description: t('mcp.toast.loadFailedDesc'),
         variant: 'destructive',
       })
     } finally {
@@ -102,8 +104,8 @@ export function McpPage() {
   const handleEnableMcpServer = async (serverId: string) => {
     if (!currentAgentId) {
       toast({
-        title: '请选择 Agent',
-        description: '请先选择一个运行中的 Agent',
+        title: t('mcp.toast.agentRequired'),
+        description: t('mcp.toast.agentRequiredDesc'),
         variant: 'destructive',
       })
       return
@@ -114,15 +116,15 @@ export function McpPage() {
       await agentService.enableMcpServer(currentAgentId, serverId)
       await fetchAgentsWithConversations()
       toast({
-        title: '安装成功',
-        description: 'MCP Server 已成功安装',
+        title: t('mcp.toast.enableSuccess'),
+        description: t('mcp.toast.enableSuccessDesc'),
         variant: 'default',
       })
     } catch (error) {
       console.error('Failed to enable MCP server:', error)
       toast({
-        title: '安装失败',
-        description: '无法安装 MCP Server',
+        title: t('mcp.toast.enableFailed'),
+        description: t('mcp.toast.enableFailedDesc'),
         variant: 'destructive',
       })
     } finally {
@@ -137,8 +139,8 @@ export function McpPage() {
   const handleDisableMcpServer = async (serverId: string) => {
     if (!currentAgentId) {
       toast({
-        title: '请选择 Agent',
-        description: '请先选择一个运行中的 Agent',
+        title: t('mcp.toast.agentRequired'),
+        description: t('mcp.toast.agentRequiredDesc'),
         variant: 'destructive',
       })
       return
@@ -149,15 +151,15 @@ export function McpPage() {
       await agentService.disableMcpServer(currentAgentId, serverId)
       await fetchAgentsWithConversations()
       toast({
-        title: '卸载成功',
-        description: 'MCP Server 已成功卸载',
+        title: t('mcp.toast.disableSuccess'),
+        description: t('mcp.toast.disableSuccessDesc'),
         variant: 'default',
       })
     } catch (error) {
       console.error('Failed to disable MCP server:', error)
       toast({
-        title: '卸载失败',
-        description: '无法卸载 MCP Server',
+        title: t('mcp.toast.disableFailed'),
+        description: t('mcp.toast.disableFailedDesc'),
         variant: 'destructive',
       })
     } finally {
@@ -201,7 +203,7 @@ export function McpPage() {
       setJsonError('')
       return true
     } catch (e) {
-      setJsonError('JSON 解析错误: ' + (e as Error).message)
+      setJsonError(t('mcp.jsonParseError', { message: (e as Error).message }))
       return false
     }
   }
@@ -233,8 +235,10 @@ export function McpPage() {
     } catch (error) {
       console.error('Failed to save MCP server:', error)
       toast({
-        title: '保存失败',
-        description: editingServer ? '无法更新 MCP Server 配置' : '无法创建 MCP Server 配置',
+        title: t('mcp.toast.saveFailed'),
+        description: editingServer
+          ? t('mcp.toast.saveUpdateFailedDesc')
+          : t('mcp.toast.saveCreateFailedDesc'),
         variant: 'destructive',
       })
       setIsSubmitting(false)
@@ -251,8 +255,8 @@ export function McpPage() {
     } catch (error) {
       console.error('Failed to delete MCP server:', error)
       toast({
-        title: '删除失败',
-        description: '无法删除 MCP Server 配置',
+        title: t('mcp.toast.deleteFailed'),
+        description: t('mcp.toast.deleteFailedDesc'),
         variant: 'destructive',
       })
     }
@@ -301,7 +305,7 @@ export function McpPage() {
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString)
-      return date.toLocaleString('zh-CN', {
+      return date.toLocaleString(i18n.language, {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -317,25 +321,27 @@ export function McpPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">MCP Server 配置管理</h2>
+          <h2 className="text-lg font-semibold">{t('mcp.title')}</h2>
         </div>
         <div className="flex items-center gap-4">
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2" onClick={() => handleOpenDialog()}>
                 <Plus className="w-4 h-4" />
-                添加 Server
+                {t('mcp.addServer')}
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
-                <DialogTitle>{editingServer ? '编辑 MCP Server' : '添加 MCP Server'}</DialogTitle>
-                <DialogDescription>请输入 MCP Server 配置的 JSON 格式数据</DialogDescription>
+                <DialogTitle>
+                  {editingServer ? t('mcp.dialog.editTitle') : t('mcp.dialog.addTitle')}
+                </DialogTitle>
+                <DialogDescription>{t('mcp.dialog.description')}</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 mt-4">
                 <div className="space-y-2">
                   <Label htmlFor="jsonInput">
-                    <span className="text-red-500">*</span> JSON 配置
+                    <span className="text-red-500">*</span> {t('mcp.dialog.jsonLabel')}
                   </Label>
                   <Textarea
                     id="jsonInput"
@@ -354,11 +360,11 @@ export function McpPage() {
               <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full mt-6">
                 {isSubmitting
                   ? editingServer
-                    ? '保存中...'
-                    : '添加中...'
+                    ? t('mcp.dialog.submittingEdit')
+                    : t('mcp.dialog.submittingAdd')
                   : editingServer
-                    ? '保存更改'
-                    : '添加 Server'}
+                    ? t('mcp.dialog.confirmEdit')
+                    : t('mcp.dialog.confirmAdd')}
               </Button>
             </DialogContent>
           </Dialog>
@@ -372,9 +378,9 @@ export function McpPage() {
       ) : servers.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">暂无 MCP Server 配置</p>
+            <p className="text-muted-foreground">{t('mcp.empty')}</p>
             <Button variant="outline" className="mt-4" onClick={() => handleOpenDialog()}>
-              添加第一个 Server
+              {t('mcp.addFirstServer')}
             </Button>
           </CardContent>
         </Card>
@@ -406,7 +412,7 @@ export function McpPage() {
                             ) : (
                               <ChevronRight className="w-3 h-3" />
                             )}
-                            <span>查看配置详情</span>
+                            <span>{t('mcp.viewConfigDetail')}</span>
                           </button>
 
                           {isExpanded && (
@@ -445,7 +451,9 @@ export function McpPage() {
                                       </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                      {copiedId === server.id ? '已复制' : '复制配置'}
+                                      {copiedId === server.id
+                                        ? t('common:action.copied')
+                                        : t('mcp.copyConfig')}
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
@@ -469,7 +477,7 @@ export function McpPage() {
                                         }}
                                         className="gap-1"
                                       >
-                                        取消
+                                        {t('common:action.cancel')}
                                       </Button>
                                       <Button
                                         size="sm"
@@ -477,7 +485,7 @@ export function McpPage() {
                                         className="gap-1"
                                       >
                                         <Edit className="w-3 h-3" />
-                                        保存修改
+                                        {t('mcp.saveChanges')}
                                       </Button>
                                     </>
                                   ) : (
@@ -490,7 +498,7 @@ export function McpPage() {
                                       className="gap-1"
                                     >
                                       <Edit className="w-3 h-3" />
-                                      编辑配置
+                                      {t('mcp.editConfig')}
                                     </Button>
                                   )}
                                 </div>
@@ -532,7 +540,7 @@ export function McpPage() {
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            {installedServers.has(server.id) ? '卸载' : '安装'}
+                            {installedServers.has(server.id) ? t('mcp.uninstall') : t('mcp.install')}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -554,25 +562,24 @@ export function McpPage() {
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>确认删除</AlertDialogTitle>
+                                  <AlertDialogTitle>{t('mcp.deleteDialog.title')}</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    确定要删除 MCP Server "{deleteTarget?.name}"
-                                    吗？此操作无法撤销。
+                                    {t('mcp.deleteDialog.description', { name: deleteTarget?.name })}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>取消</AlertDialogCancel>
+                                  <AlertDialogCancel>{t('common:action.cancel')}</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={handleDelete}
                                     className="bg-red-500 hover:bg-red-600"
                                   >
-                                    删除
+                                    {t('common:action.delete')}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
                           </TooltipTrigger>
-                          <TooltipContent>删除</TooltipContent>
+                          <TooltipContent>{t('mcp.delete')}</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </div>

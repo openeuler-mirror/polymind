@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Edit, Trash2, Zap, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -90,6 +91,7 @@ interface Model {
 }
 
 export function ModelPage() {
+  const { t } = useTranslation('settings')
   const [models, setModels] = useState<ModelConfig[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -127,8 +129,8 @@ export function ModelPage() {
     } catch (error) {
       console.error('Failed to load models:', error)
       toast({
-        title: '加载失败',
-        description: '无法加载模型配置列表',
+        title: t('model.toast.loadFailed'),
+        description: t('model.toast.loadFailedDesc'),
         variant: 'destructive',
       })
     } finally {
@@ -191,27 +193,30 @@ export function ModelPage() {
     const errors: typeof formErrors = {}
 
     if (!formData.provider) {
-      errors.provider = '请选择服务商'
+      errors.provider = t('model.validation.providerRequired')
     }
 
     if (formData.provider === ModelProvider.CUSTOM && !formData.compatibility) {
-      errors.compatibility = '请选择 API 格式'
+      errors.compatibility = t('model.validation.compatibilityRequired')
     }
 
     if (!formData.name || !formData.name.trim()) {
-      errors.name = formData.provider === ModelProvider.CUSTOM ? '请输入模型 ID' : '请选择模型'
+      errors.name =
+        formData.provider === ModelProvider.CUSTOM
+          ? t('model.validation.modelIdRequired')
+          : t('model.validation.modelRequired')
     }
 
     // 编辑时 apiKey 留空表示沿用现有密钥（handleSubmit 传 undefined，后端不更新），仅新建时必填。
     if (!editingModel && (!formData.apiKey || !formData.apiKey.trim())) {
-      errors.apiKey = '请输入 API 密钥'
+      errors.apiKey = t('model.validation.apiKeyRequired')
     }
 
     if (
       formData.provider === ModelProvider.CUSTOM &&
       (!formData.apiBaseUrl || !formData.apiBaseUrl.trim())
     ) {
-      errors.apiBaseUrl = '请输入自定义请求地址'
+      errors.apiBaseUrl = t('model.validation.apiBaseUrlRequired')
     }
 
     setFormErrors(errors)
@@ -257,8 +262,10 @@ export function ModelPage() {
     } catch (error) {
       console.error('Failed to save model:', error)
       toast({
-        title: '保存失败',
-        description: editingModel ? '无法更新模型配置' : '无法创建模型配置',
+        title: t('model.toast.saveFailed'),
+        description: editingModel
+          ? t('model.toast.saveUpdateFailedDesc')
+          : t('model.toast.saveCreateFailedDesc'),
         variant: 'destructive',
       })
       setIsSubmitting(false)
@@ -275,8 +282,8 @@ export function ModelPage() {
     } catch (error) {
       console.error('Failed to delete model:', error)
       toast({
-        title: '删除失败',
-        description: '无法删除模型配置',
+        title: t('model.toast.deleteFailed'),
+        description: t('model.toast.deleteFailedDesc'),
         variant: 'destructive',
       })
     }
@@ -322,11 +329,14 @@ export function ModelPage() {
   const defaultSwitchHint = (() => {
     // 启用默认：非当前默认模型 + 已存在有效默认 → 提示将替换
     if (isSetDefault && currentDefaultModel && !isEditingCurrentDefault) {
-      return `保存后，默认模型将从「${currentDefaultModel.name}」切换为「${targetModelName}」。`
+      return t('model.defaultSwitchHint.replace', {
+        from: currentDefaultModel.name,
+        to: targetModelName,
+      })
     }
     // 取消当前默认模型的默认标记 → 提示将无默认
     if (!isSetDefault && isEditingCurrentDefault) {
-      return '关闭后，系统将没有默认模型，智能体可能无法正常使用。'
+      return t('model.defaultSwitchHint.remove')
     }
     return null
   })()
@@ -335,32 +345,34 @@ export function ModelPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">模型配置管理</h2>
-          <p className="text-sm text-muted-foreground mt-1">管理大模型配置，支持多种模型提供商</p>
+          <h2 className="text-lg font-semibold">{t('model.title')}</h2>
+          <p className="text-sm text-muted-foreground mt-1">{t('model.description')}</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2" onClick={() => handleOpenDialog()}>
               <Plus className="w-4 h-4" />
-              添加模型
+              {t('model.addModel')}
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>{editingModel ? '编辑模型配置' : '添加模型配置'}</DialogTitle>
+              <DialogTitle>
+                {editingModel ? t('model.dialog.editTitle') : t('model.dialog.addTitle')}
+              </DialogTitle>
               <DialogDescription></DialogDescription>
             </DialogHeader>
             <div className="space-y-4 mt-4">
               <div className="space-y-2">
                 <Label htmlFor="provider">
-                  <span className="text-red-500">*</span> 服务商
+                  <span className="text-red-500">*</span> {t('model.dialog.providerLabel')}
                 </Label>
                 <Select value={formData.provider} onValueChange={handleProviderChange}>
                   <SelectTrigger
                     id="provider"
                     className={`w-full ${formErrors.provider ? 'border-red-500' : ''}`}
                   >
-                    <SelectValue placeholder="选择服务商" />
+                    <SelectValue placeholder={t('model.dialog.providerPlaceholder')} />
                   </SelectTrigger>
                   <SelectContent>
                     {aiProvidersConfig.providers.map(provider => (
@@ -368,7 +380,9 @@ export function ModelPage() {
                         {provider.name}
                       </SelectItem>
                     ))}
-                    <SelectItem value={ModelProvider.CUSTOM}>自定义配置</SelectItem>
+                    <SelectItem value={ModelProvider.CUSTOM}>
+                      {t('model.dialog.customProvider')}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 {formErrors.provider && (
@@ -379,7 +393,7 @@ export function ModelPage() {
               {formData.provider === ModelProvider.CUSTOM && (
                 <div className="space-y-2">
                   <Label htmlFor="compatibility">
-                    <span className="text-red-500">*</span> API 格式
+                    <span className="text-red-500">*</span> {t('model.dialog.compatibilityLabel')}
                   </Label>
                   <Select
                     value={formData.compatibility}
@@ -395,11 +409,13 @@ export function ModelPage() {
                       id="compatibility"
                       className={`w-full ${formErrors.compatibility ? 'border-red-500' : ''}`}
                     >
-                      <SelectValue placeholder="选择 API 格式" />
+                      <SelectValue placeholder={t('model.dialog.compatibilityPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="openai">OpenAI Chat Completions 格式</SelectItem>
-                      <SelectItem value="anthropic">Anthropic Messages 格式</SelectItem>
+                      <SelectItem value="openai">{t('model.dialog.compatibilityOpenai')}</SelectItem>
+                      <SelectItem value="anthropic">
+                        {t('model.dialog.compatibilityAnthropic')}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   {formErrors.compatibility && (
@@ -410,7 +426,7 @@ export function ModelPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="modelName">
-                  <span className="text-red-500">*</span> 模型
+                  <span className="text-red-500">*</span> {t('model.dialog.modelLabel')}
                 </Label>
                 {formData.provider === ModelProvider.CUSTOM ? (
                   <Input
@@ -420,7 +436,7 @@ export function ModelPage() {
                       setFormData(prev => ({ ...prev, name: e.target.value }))
                       setFormErrors(prev => ({ ...prev, name: undefined }))
                     }}
-                    placeholder="请输入模型 ID"
+                    placeholder={t('model.dialog.modelIdPlaceholder')}
                     className={`w-full ${formErrors.name ? 'border-red-500' : ''}`}
                   />
                 ) : (
@@ -435,7 +451,7 @@ export function ModelPage() {
                       id="modelName"
                       className={`w-full ${formErrors.name ? 'border-red-500' : ''}`}
                     >
-                      <SelectValue placeholder="选择模型" />
+                      <SelectValue placeholder={t('model.dialog.modelPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent side="bottom" className="max-h-[300px]">
                       {getAvailableModelsForProvider(formData.provider).map(modelId => {
@@ -455,7 +471,7 @@ export function ModelPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="apiKey">
-                  <span className="text-red-500">*</span> API密钥
+                  <span className="text-red-500">*</span> {t('model.dialog.apiKeyLabel')}
                 </Label>
                 <Input
                   id="apiKey"
@@ -464,7 +480,11 @@ export function ModelPage() {
                     setFormData(prev => ({ ...prev, apiKey: e.target.value }))
                     setFormErrors(prev => ({ ...prev, apiKey: undefined }))
                   }}
-                  placeholder={editingModel ? '留空则保持现有密钥' : '请输入 API Key'}
+                  placeholder={
+                    editingModel
+                      ? t('model.dialog.apiKeyEditPlaceholder')
+                      : t('model.dialog.apiKeyPlaceholder')
+                  }
                   className={`w-full [-webkit-text-security:disc] ${formErrors.apiKey ? 'border-red-500' : ''}`}
                   type="text"
                   autoComplete="off"
@@ -475,7 +495,7 @@ export function ModelPage() {
               {formData.provider === ModelProvider.CUSTOM && (
                 <div className="space-y-2">
                   <Label htmlFor="apiBaseUrl">
-                    <span className="text-red-500">*</span> 自定义请求地址
+                    <span className="text-red-500">*</span> {t('model.dialog.apiBaseUrlLabel')}
                   </Label>
                   <Input
                     id="apiBaseUrl"
@@ -504,23 +524,23 @@ export function ModelPage() {
                     className="text-sm font-medium"
                     onClick={() => setIsSetDefault(v => !v)}
                   >
-                    设为默认模型
+                    {t('model.dialog.setDefaultLabel')}
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    智能体将优先使用该模型进行对话与任务执行
+                    {t('model.dialog.setDefaultDescription')}
                   </p>
                 </div>
                 <Switch
                   id="set-default"
                   checked={isSetDefault}
                   onCheckedChange={setIsSetDefault}
-                  aria-label="设为默认模型"
+                  aria-label={t('model.dialog.setDefaultLabel')}
                 />
               </div>
               {defaultSwitchHint && (
                 <Alert>
                   <Info className="h-4 w-4" />
-                  <AlertTitle>默认模型将变更</AlertTitle>
+                  <AlertTitle>{t('model.dialog.defaultWillChange')}</AlertTitle>
                   <AlertDescription>{defaultSwitchHint}</AlertDescription>
                 </Alert>
               )}
@@ -529,11 +549,11 @@ export function ModelPage() {
             <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full mt-6">
               {isSubmitting
                 ? editingModel
-                  ? '保存中...'
-                  : '添加中...'
+                  ? t('model.dialog.submittingEdit')
+                  : t('model.dialog.submittingAdd')
                 : editingModel
-                  ? '保存更改'
-                  : '添加模型'}
+                  ? t('model.dialog.confirmEdit')
+                  : t('model.dialog.confirmAdd')}
             </Button>
           </DialogContent>
         </Dialog>
@@ -546,9 +566,9 @@ export function ModelPage() {
       ) : models.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">暂无模型配置</p>
+            <p className="text-muted-foreground">{t('model.empty')}</p>
             <Button variant="outline" className="mt-4" onClick={() => handleOpenDialog()}>
-              添加第一个模型
+              {t('model.addFirstModel')}
             </Button>
           </CardContent>
         </Card>
@@ -573,12 +593,12 @@ export function ModelPage() {
                           <h3 className="font-medium">{modelConfig?.name || model.name}</h3>
                           {model.isDefault && (
                             <Badge variant="secondary" className="text-xs">
-                              默认
+                              {t('model.default')}
                             </Badge>
                           )}
                           {!model.enabled && (
                             <Badge variant="outline" className="text-xs">
-                              已禁用
+                              {t('model.disabled')}
                             </Badge>
                           )}
                         </div>
@@ -600,7 +620,7 @@ export function ModelPage() {
                               <Edit className="w-4 h-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>编辑</TooltipContent>
+                          <TooltipContent>{t('common:action.edit')}</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                       <TooltipProvider>
@@ -621,24 +641,24 @@ export function ModelPage() {
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>确认删除</AlertDialogTitle>
+                                  <AlertDialogTitle>{t('model.deleteDialog.title')}</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    确定要删除模型配置 "{deleteTarget?.name}" 吗？此操作无法撤销。
+                                    {t('model.deleteDialog.description', { name: deleteTarget?.name })}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>取消</AlertDialogCancel>
+                                  <AlertDialogCancel>{t('common:action.cancel')}</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={handleDelete}
                                     className="bg-red-500 hover:bg-red-600"
                                   >
-                                    删除
+                                    {t('common:action.delete')}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
                           </TooltipTrigger>
-                          <TooltipContent>删除</TooltipContent>
+                          <TooltipContent>{t('model.delete')}</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </div>

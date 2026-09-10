@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { User, Settings, Bot, Wrench, Sparkles, Cpu, Info } from 'lucide-react'
 import {
   Select,
@@ -19,6 +20,7 @@ import { ModelPage } from './model/model-page'
 import { McpPage } from './mcp/mcp-page'
 
 export function SettingsPage() {
+  const { t } = useTranslation('settings')
   const { settings, updateSettings, settingsActiveSection, setSettingsActiveSection } =
     useChatStore()
   const { setTheme } = useThemeWithStore()
@@ -35,13 +37,13 @@ export function SettingsPage() {
   const activeSection = localActiveSection
 
   const sections = [
-    { id: 'account', name: '账号', icon: User },
-    { id: 'general', name: '通用', icon: Settings },
-    { id: 'model', name: '模型', icon: Cpu },
-    { id: 'agent', name: '智能体', icon: Bot },
-    { id: 'rules', name: 'Skill', icon: Sparkles },
-    { id: 'mcp', name: 'MCP', icon: Wrench },
-    { id: 'about', name: '关于', icon: Info },
+    { id: 'account', name: t('nav.account'), icon: User },
+    { id: 'general', name: t('nav.general'), icon: Settings },
+    { id: 'model', name: t('nav.model'), icon: Cpu },
+    { id: 'agent', name: t('nav.agent'), icon: Bot },
+    { id: 'rules', name: t('nav.skill'), icon: Sparkles },
+    { id: 'mcp', name: t('nav.mcp'), icon: Wrench },
+    { id: 'about', name: t('nav.about'), icon: Info },
   ]
 
   return (
@@ -79,32 +81,32 @@ export function SettingsPage() {
           {activeSection === 'general' && (
             <div className="space-y-8">
               <div>
-                <h2 className="text-sm font-medium mb-4">基础设置</h2>
+                <h2 className="text-sm font-medium mb-4">{t('general.title')}</h2>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label htmlFor="theme">主题</Label>
-                      <p className="text-xs text-muted-foreground">选择主题</p>
+                      <Label htmlFor="theme">{t('general.theme.label')}</Label>
+                      <p className="text-xs text-muted-foreground">{t('general.theme.description')}</p>
                     </div>
                     <Select
                       value={settings.theme}
                       onValueChange={value => setTheme(value as 'light' | 'dark' | 'system')}
                     >
                       <SelectTrigger id="theme" className="w-40">
-                        <SelectValue placeholder="选择主题" />
+                        <SelectValue placeholder={t('general.theme.placeholder')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="light">浅色</SelectItem>
-                        <SelectItem value="dark">暗色</SelectItem>
-                        <SelectItem value="system">跟随系统</SelectItem>
+                        <SelectItem value="light">{t('general.theme.light')}</SelectItem>
+                        <SelectItem value="dark">{t('general.theme.dark')}</SelectItem>
+                        <SelectItem value="system">{t('general.theme.system')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label htmlFor="language">语言</Label>
+                      <Label htmlFor="language">{t('general.language.label')}</Label>
                       <p className="text-xs text-muted-foreground">
-                        选择您喜欢的按钮标签和应用内其他文本的语言
+                        {t('general.language.description')}
                       </p>
                     </div>
                     <Select
@@ -114,11 +116,11 @@ export function SettingsPage() {
                       }
                     >
                       <SelectTrigger id="language" className="w-40">
-                        <SelectValue placeholder="选择语言" />
+                        <SelectValue placeholder={t('general.language.placeholder')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="zh-CN">简体中文</SelectItem>
-                        <SelectItem value="en-US">English (US)</SelectItem>
+                        <SelectItem value="zh-CN">{t('common:language.zhCN')}</SelectItem>
+                        <SelectItem value="en-US">{t('common:language.enUS')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -139,7 +141,7 @@ export function SettingsPage() {
             activeSection !== 'mcp' && (
               <div className="flex items-center justify-center h-full">
                 <p className="text-muted-foreground">
-                  {sections.find(s => s.id === activeSection)?.name} 页面内容
+                  {sections.find(s => s.id === activeSection)?.name} {t('common:pageContent')}
                 </p>
               </div>
             )}

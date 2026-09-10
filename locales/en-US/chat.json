@@ -1,0 +1,204 @@
+{
+  "sidebar": {
+    "nav": {
+      "newChat": "New Chat",
+      "imChannel": "IM Channels",
+      "agent": "Agents",
+      "scheduledTasks": "Scheduled Tasks"
+    },
+    "section": {
+      "pinned": "Pinned",
+      "regular": "Regular Tasks",
+      "scheduled": "Scheduled Tasks"
+    },
+    "panelTab": {
+      "agent": "Agents",
+      "scheduledTasks": "Scheduled Tasks"
+    },
+    "empty": {
+      "title": "No conversations yet",
+      "description": "Click “New Chat” above to start your first task"
+    },
+    "action": {
+      "searchConversation": "Search conversations",
+      "collapseSidebar": "Collapse sidebar"
+    },
+    "search": {
+      "title": "Search conversations",
+      "placeholder": "Search conversations...",
+      "clear": "Clear search",
+      "clearTitle": "Clear",
+      "empty": "No matching results"
+    },
+    "toast": {
+      "deleteFailedTitle": "Delete failed",
+      "deleteFailedDescription": "The server failed to delete the conversation. Please try again later.",
+      "imChannelTitle": "IM Channels",
+      "imChannelDescription": "IM channel bot features are coming soon"
+    },
+    "untitled": "New Chat",
+    "dateFormat": "MMM d",
+    "scheduledBadge": "Scheduled"
+  },
+  "header": {
+    "newConversation": "New Chat",
+    "expandSidebar": "Expand sidebar",
+    "share": "Share conversation",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "settings": "Settings"
+  },
+  "input": {
+    "placeholder": "Describe your task, type \"/\" to invoke a skill, press Enter to send",
+    "skills": {
+      "available": "Available skills",
+      "empty": "No matching skills"
+    },
+    "dropToAttach": "Drop to add files",
+    "uploadImageOrAttachment": "Upload image or attachment",
+    "voiceInput": "Voice input",
+    "send": "Send",
+    "selectAgentFirst": "Please select an agent first",
+    "stopGenerating": "Stop generating",
+    "removeAttachment": "Remove attachment"
+  },
+  "agentSelector": {
+    "selectAgent": "Select an agent",
+    "heading": "Agents",
+    "loading": "Loading...",
+    "empty": "No agents",
+    "createAgent": "Create Agent",
+    "status": {
+      "running": "Running",
+      "paused": "Paused",
+      "error": "Create/update failed"
+    }
+  },
+  "welcome": {
+    "title": "Welcome to PolyMind",
+    "description": "Pick an Agent template to get started, or just type your question"
+  },
+  "template": {
+    "guide": {
+      "ariaLabel": "Template usage guide",
+      "title": "Try picking a template to start",
+      "description": "Click any template to create the corresponding Agent in one click and start chatting right away.",
+      "hintOnce": "Shown only once",
+      "gotIt": "Got it"
+    },
+    "chips": {
+      "loading": "Loading templates...",
+      "loadFailed": "Failed to load templates, click to retry",
+      "createdAria": "Template {{name}} (created, select this Agent)",
+      "createAria": "Instantiate template {{name}}"
+    }
+  },
+  "rightPanel": {
+    "description": "Use tools to extend your capabilities",
+    "tools": {
+      "editor": "Editor",
+      "document": "Document",
+      "terminal": "Terminal",
+      "browser": "Browser",
+      "codeChange": "Code Changes",
+      "figma": "Figma",
+      "agent": "Agents",
+      "mcp": "MCP",
+      "settings": "Settings"
+    },
+    "toggle": "Toggle tools panel"
+  },
+  "conversation": {
+    "item": {
+      "rename": "Rename",
+      "pin": "Pin conversation",
+      "unpin": "Unpin",
+      "delete": "Delete",
+      "deleteDisabled": "Cannot delete while running"
+    },
+    "scheduledFolder": {
+      "deleteTask": "Delete scheduled task"
+    }
+  },
+  "questionFlow": {
+    "other": "Other",
+    "defaultHeader": "Please select",
+    "skipAll": "Skip all",
+    "otherPlaceholder": "Please enter...",
+    "selectedCount": "{{count}} selected",
+    "skip": "Skip",
+    "complete": "Done",
+    "next": "Next",
+    "retry": "Retry",
+    "submitting": "All answers submitted, submitting..."
+  },
+  "message": {
+    "assistantFallback": "AI Assistant",
+    "completed": "Completed",
+    "completedWithDuration": "Completed {{duration}}",
+    "interrupted": "Thinking interrupted",
+    "usage": {
+      "inputTokens": "Input tokens: {{count}}",
+      "outputTokens": "Output tokens: {{count}}",
+      "cost": "Cost: ${{cost}}"
+    },
+    "action": {
+      "copy": "Copy",
+      "copied": "Copied",
+      "regenerate": "Regenerate"
+    },
+    "codeBlock": {
+      "copy": "Copy",
+      "copied": "Copied"
+    },
+    "mermaid": {
+      "renderFailed": "Failed to render diagram",
+      "rendering": "Rendering diagram..."
+    },
+    "admonition": {
+      "note": "Note",
+      "info": "Info",
+      "tip": "Tip",
+      "warning": "Warning",
+      "caution": "Caution",
+      "danger": "Danger",
+      "important": "Important"
+    },
+    "toolCall": {
+      "viewFile": "View file",
+      "input": "Input",
+      "inputStreaming": "Input (streaming)",
+      "output": "Output",
+      "error": "Error",
+      "status": {
+        "running": "Running",
+        "completed": "Completed",
+        "error": "Error",
+        "pending": "Pending"
+      }
+    },
+    "question": {
+      "skipped": "You skipped this question",
+      "waiting": "Waiting for your answer",
+      "asked": "Asked the user",
+      "pendingAnswer": "Awaiting answer",
+      "unanswered": "(Not answered)"
+    },
+    "streaming": "Generating reply",
+    "thinking": "Deep thinking"
+  },
+  "artifactCard": {
+    "download": "Download",
+    "copy": "Copy"
+  },
+  "chatArea": {
+    "loading": "Loading...",
+    "loadingHistory": "Loading conversation history...",
+    "loadingMore": "Loading earlier messages...",
+    "viewEarlier": "View earlier messages",
+    "reconnectError": "Sorry, there was an error reconnecting the stream. Please refresh and try again.",
+    "sendError": "Sorry, there was an error sending your message. Please try again."
+  }
+}

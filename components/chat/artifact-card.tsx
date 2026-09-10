@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Download, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -16,6 +17,7 @@ import { ARTIFACT_TYPE_META } from '@/components/artifact/artifact-meta'
  * write 失败（status === 'error'）→ 错误态，不提供预览入口。
  */
 export function ArtifactCard({ artifact, agentId }: { artifact: Artifact; agentId?: string }) {
+  const { t } = useTranslation('chat')
   const openArtifactPanel = useChatStore(s => s.openArtifactPanel)
   const [copied, setCopied] = useState(false)
 
@@ -91,7 +93,7 @@ export function ArtifactCard({ artifact, agentId }: { artifact: Artifact; agentI
               <Download className="h-3 w-3" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>下载</TooltipContent>
+          <TooltipContent>{t('artifactCard.download')}</TooltipContent>
         </Tooltip>
         {inline && (
           <Tooltip>
@@ -100,7 +102,7 @@ export function ArtifactCard({ artifact, agentId }: { artifact: Artifact; agentI
                 {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>复制</TooltipContent>
+            <TooltipContent>{t('artifactCard.copy')}</TooltipContent>
           </Tooltip>
         )}
       </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import type { ComponentType } from 'react'
+import { useTranslation } from 'react-i18next'
 import { BookOpen, ExternalLink, FolderOpen, Link2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,8 @@ export function SkillMarketplaceCard({
   onInstall: (skill: SkillResponse) => void | Promise<void>
   onPreview: (skill: SkillResponse, source?: SkillSourceMeta) => void
 }) {
+  const { t } = useTranslation('settings')
+
   return (
     <div
       key={skill.skill_id}
@@ -44,7 +47,7 @@ export function SkillMarketplaceCard({
         <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1 space-y-2">
           <p className="text-sm font-semibold leading-5 break-all">
-            {extractSkillName(skill.skill_name)}
+            {extractSkillName(skill.skill_name, t)}
           </p>
           <SkillOriginBadge sourceType={source?.sourceType} />
         </div>
@@ -52,7 +55,7 @@ export function SkillMarketplaceCard({
 
       <div className="flex-1">
         <p className="min-h-12 line-clamp-2 text-sm leading-6 text-muted-foreground">
-          {extractSkillDescription(skill.metadata) || '暂无描述'}
+          {extractSkillDescription(skill.metadata) || t('skill.marketplace.noDescription')}
         </p>
         <div className="mt-3 flex justify-end gap-3">
           <Button
@@ -70,7 +73,7 @@ export function SkillMarketplaceCard({
             className="h-auto p-0 text-blue-600 hover:text-blue-700"
             onClick={() => onPreview(skill, source)}
           >
-            预览
+            {t('skill.marketplace.preview')}
           </Button>
         </div>
       </div>
@@ -85,6 +88,7 @@ export function SkillMarketplacePreviewDialog({
   previewItem: SkillPreviewItem | null
   onOpenChange: (open: boolean) => void
 }) {
+  const { t } = useTranslation('settings')
   const previewIsRemote = isRemoteSkillSourceType(previewItem?.source?.sourceType)
 
   return (
@@ -94,21 +98,23 @@ export function SkillMarketplacePreviewDialog({
           <div className="space-y-3 pr-8">
             <div className="space-y-2">
               <DialogTitle className="text-base">
-                {previewItem ? extractSkillName(previewItem.skill.skill_name) : '技能预览'}
+                {previewItem
+                  ? extractSkillName(previewItem.skill.skill_name, t)
+                  : t('skill.marketplace.previewTitle')}
               </DialogTitle>
               {previewItem ? <SkillSourceInfo source={previewItem.source} /> : null}
             </div>
             {previewItem?.skill.skill_md_url ? (
               <InfoLine
                 icon={previewIsRemote ? ExternalLink : FolderOpen}
-                label="skill 路径"
+                label={t('skill.marketplace.skillPath')}
                 value={previewItem.skill.skill_md_url}
                 href={previewIsRemote ? previewItem.skill.skill_md_url : undefined}
                 singleLine
                 valueClassName={previewIsRemote ? 'text-blue-600/90' : undefined}
               />
             ) : (
-              <InfoLine icon={FolderOpen} label="skill 路径" value="-" singleLine />
+              <InfoLine icon={FolderOpen} label={t('skill.marketplace.skillPath')} value="-" singleLine />
             )}
           </div>
         </DialogHeader>
@@ -126,11 +132,13 @@ export function EmptyState({ text }: { text: string }) {
 }
 
 function SkillSourceInfo({ source }: { source?: SkillSourceMeta }) {
+  const { t } = useTranslation('settings')
+
   return (
     <div className="space-y-1 text-sm">
       <InfoLine
         icon={isRemoteSkillSourceType(source?.sourceType) ? Link2 : FolderOpen}
-        label="来源"
+        label={t('skill.marketplace.source')}
         value={source?.name || '-'}
       />
     </div>
@@ -138,7 +146,8 @@ function SkillSourceInfo({ source }: { source?: SkillSourceMeta }) {
 }
 
 export function SkillOriginBadge({ sourceType }: { sourceType?: string }) {
-  const badgeMeta = getSkillSourceBadgeMeta(sourceType)
+  const { t } = useTranslation('settings')
+  const badgeMeta = getSkillSourceBadgeMeta(sourceType, t)
 
   return (
     <Badge
@@ -165,6 +174,7 @@ export function InfoLine({
   singleLine?: boolean
   valueClassName?: string
 }) {
+  const { t } = useTranslation('settings')
   const valueClasses = [
     singleLine ? 'inline-block max-w-[24rem] truncate whitespace-nowrap' : 'break-all',
     valueClassName || '',
@@ -176,7 +186,7 @@ export function InfoLine({
     <div className="flex items-start gap-2 text-sm">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
       <div className="flex min-w-0 flex-1 items-start gap-1">
-        <span className="shrink-0 text-muted-foreground">{label}：</span>
+        <span className="shrink-0 text-muted-foreground">{t('common:labelWithColon', { label })}</span>
         {href ? (
           <a
             href={href}

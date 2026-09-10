@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { InsightOverviewSummaryController } from '@/hooks/insight/use-overview'
@@ -27,24 +28,26 @@ interface InsightOverviewSummaryCardsProps {
 }
 
 export function InsightOverviewSummaryCards({ controller }: InsightOverviewSummaryCardsProps) {
+  const { t } = useTranslation('tool-panel')
+
   if (controller.loading) {
     return <SummarySkeleton />
   }
 
   const cards = [
-    { label: '会话数', value: String(controller.summary.sessionCount) },
+    { label: t('insight.summary.sessionCount'), value: String(controller.summary.sessionCount) },
     {
-      label: '输入 Token',
+      label: t('insight.summary.inputTokens'),
       value: formatTokens(controller.summary.totalInputTokens),
       tone: 'text-sky-700',
     },
     {
-      label: '输出 Token',
+      label: t('insight.summary.outputTokens'),
       value: formatTokens(controller.summary.totalOutputTokens),
       tone: 'text-emerald-700',
     },
     {
-      label: '异常中断',
+      label: t('insight.summary.interruptions'),
       value: controller.interruptionCountLoaded
         ? String(controller.summary.interruptionTotal ?? 0)
         : '—',

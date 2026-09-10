@@ -1,6 +1,7 @@
 'use client'
 
 import { ChevronRight, Clock, MoreHorizontal, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import type { Conversation } from '@/lib/types'
 import type { ScheduledTask } from '@/services/scheduled-task-service'
@@ -45,6 +46,7 @@ export function ScheduledTaskFolder({
   onRenameConversation,
   onRequestDeleteTask,
 }: ScheduledTaskFolderProps) {
+  const { t } = useTranslation('chat')
   const open = !collapsed
   const total = conversations.length
 
@@ -99,7 +101,7 @@ export function ScheduledTaskFolder({
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                删除定时任务
+                {t('conversation.scheduledFolder.deleteTask')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

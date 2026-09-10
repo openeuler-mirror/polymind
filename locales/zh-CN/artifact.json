@@ -1,0 +1,44 @@
+{
+  "type": {
+    "html": "HTML 页面",
+    "image": "图片",
+    "video": "视频",
+    "markdown": "文档",
+    "code": "代码",
+    "pdf": "PDF",
+    "unknown": "文件"
+  },
+  "preview": {
+    "title": "产物预览",
+    "emptyDescription": "在对话流中点击产物卡片，即可在此预览内容",
+    "generating": "正在生成 {{name}}…",
+    "errorTitle": "产物生成失败",
+    "errorDescription": "该文件未能成功产出，可查看对话内容或重新生成",
+    "loading": "加载产物内容…",
+    "copy": "复制",
+    "copied": "已复制",
+    "download": "下载",
+    "reload": "重新加载",
+    "unsupported": {
+      "html": "HTML 产物暂无可用地址，请下载后查看",
+      "image": "图片产物暂无可用地址，请下载后查看",
+      "video": "视频产物暂无可用地址，请下载后播放",
+      "markdown": "Markdown 产物暂无可用地址，请下载后查看",
+      "code": "代码产物暂无可用地址，请下载后查看",
+      "pdf": "PDF 产物暂无可用地址，请下载后查看",
+      "unknown": "暂不支持该类型的预览，可下载查看"
+    },
+    "media": {
+      "imageFailed": "图片加载失败，请下载后查看",
+      "videoFailed": "视频加载失败，请下载后播放",
+      "pdfFailed": "PDF 加载失败，请下载后查看"
+    }
+  },
+  "sandbox": {
+    "title": "产物预览",
+    "unresponsiveTitle": "产物未响应",
+    "unresponsiveDescription": "可能陷入死循环或加载超时，可选择继续等待或重新加载",
+    "keepWaiting": "继续等待",
+    "reload": "重新加载"
+  }
+}

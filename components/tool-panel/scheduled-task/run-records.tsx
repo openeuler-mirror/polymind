@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { History, RefreshCw } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -20,6 +21,7 @@ import { getRunStatusMeta } from './utils'
 const PAGE_SIZE = 20
 
 export function RunRecords() {
+  const { t } = useTranslation('tool-panel')
   const tasks = useScheduledTaskStore(s => s.tasks)
   const runsByTask = useScheduledTaskStore(s => s.runsByTask)
   const loading = useScheduledTaskStore(s => s.loading)
@@ -44,26 +46,29 @@ export function RunRecords() {
     return () => unsubscribe()
   }, [subscribe, unsubscribe])
 
-  const loadPage = useCallback(async (targetPage: number) => {
-    const seq = ++historyFetchSeqRef.current
-    setHistoryLoading(true)
-    try {
-      const result = await scheduledTaskService.listRunsPage({
-        limit: PAGE_SIZE,
-        offset: (targetPage - 1) * PAGE_SIZE,
-      })
-      if (seq !== historyFetchSeqRef.current) return
-      setRecords(result.items)
-      setTotal(result.total)
-      setHistoryError(null)
-    } catch (fetchError) {
-      if (seq !== historyFetchSeqRef.current) return
-      console.error('Failed to load run history:', fetchError)
-      setHistoryError('加载执行记录失败')
-    } finally {
-      if (seq === historyFetchSeqRef.current) setHistoryLoading(false)
-    }
-  }, [])
+  const loadPage = useCallback(
+    async (targetPage: number) => {
+      const seq = ++historyFetchSeqRef.current
+      setHistoryLoading(true)
+      try {
+        const result = await scheduledTaskService.listRunsPage({
+          limit: PAGE_SIZE,
+          offset: (targetPage - 1) * PAGE_SIZE,
+        })
+        if (seq !== historyFetchSeqRef.current) return
+        setRecords(result.items)
+        setTotal(result.total)
+        setHistoryError(null)
+      } catch (fetchError) {
+        if (seq !== historyFetchSeqRef.current) return
+        console.error('Failed to load run history:', fetchError)
+        setHistoryError(t('scheduledTask.runs.loadFailed'))
+      } finally {
+        if (seq === historyFetchSeqRef.current) setHistoryLoading(false)
+      }
+    },
+    [t]
+  )
 
   // 数据刷新后页码可能越界，展示与导航时收敛到有效范围。
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -117,8 +122,8 @@ export function RunRecords() {
           <EmptyMedia variant="icon">
             <History className="h-6 w-6" />
           </EmptyMedia>
-          <EmptyTitle>暂无执行记录</EmptyTitle>
-          <EmptyDescription>创建定时任务后，任务的执行结果会汇总展示在这里。</EmptyDescription>
+          <EmptyTitle>{t('scheduledTask.runs.emptyTitle')}</EmptyTitle>
+          <EmptyDescription>{t('scheduledTask.runs.emptyDescription')}</EmptyDescription>
         </EmptyHeader>
       </Empty>
     )
@@ -129,7 +134,9 @@ export function RunRecords() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">共 {total} 条记录</div>
+        <div className="text-sm text-muted-foreground">
+          {t('scheduledTask.runs.totalCount', { count: total })}
+        </div>
         <Button
           variant="outline"
           size="sm"
@@ -137,7 +144,7 @@ export function RunRecords() {
           disabled={refreshing}
         >
           <RefreshCw className={refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-          刷新
+          {t('common:action.refresh')}
         </Button>
       </div>
 
@@ -150,7 +157,7 @@ export function RunRecords() {
       ) : (historyError || error) && records.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>加载失败</EmptyTitle>
+            <EmptyTitle>{t('scheduledTask.empty.loadFailedTitle')}</EmptyTitle>
             <EmptyDescription>{historyError || error}</EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -160,8 +167,8 @@ export function RunRecords() {
             <EmptyMedia variant="icon">
               <History className="h-6 w-6" />
             </EmptyMedia>
-            <EmptyTitle>暂无执行记录</EmptyTitle>
-            <EmptyDescription>任务尚未执行过，或在卡片上点击“立刻执行”触发一次。</EmptyDescription>
+            <EmptyTitle>{t('scheduledTask.runs.emptyTitle')}</EmptyTitle>
+            <EmptyDescription>{t('scheduledTask.runs.notRunYet')}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -193,7 +200,7 @@ export function RunRecords() {
                           className="text-xs text-primary"
                           onClick={() => handleViewConversation(record)}
                         >
-                          查看对话
+                          {t('scheduledTask.runs.viewConversation')}
                         </Button>
                       )}
                       <Badge variant="outline" className={status.className}>
@@ -213,7 +220,7 @@ export function RunRecords() {
           {pageCount > 1 && (
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
-                第 {currentPage} / {pageCount} 页
+                {t('scheduledTask.runs.pageIndicator', { page: currentPage, total: pageCount })}
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -223,7 +230,7 @@ export function RunRecords() {
                   // 基于 currentPage 导航，避免 page state 越界后无法回退。
                   onClick={() => setPage(currentPage - 1)}
                 >
-                  上一页
+                  {t('scheduledTask.runs.prevPage')}
                 </Button>
                 <Button
                   variant="outline"
@@ -231,7 +238,7 @@ export function RunRecords() {
                   disabled={currentPage >= pageCount}
                   onClick={() => setPage(currentPage + 1)}
                 >
-                  下一页
+                  {t('scheduledTask.runs.nextPage')}
                 </Button>
               </div>
             </div>
