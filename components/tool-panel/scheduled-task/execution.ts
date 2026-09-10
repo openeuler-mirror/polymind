@@ -1,4 +1,5 @@
 import { handleStreamEvent } from '@/lib/stream-event-handler'
+import i18n from '@/lib/i18n/config'
 import { useChatStore } from '@/lib/store'
 import { useScheduledTaskStore } from '@/lib/stores/scheduled-task-store'
 import { MessageStatus } from '@/lib/types'
@@ -12,6 +13,7 @@ import {
   type ScheduledTask,
   type ScheduledTaskRun,
 } from '@/services/scheduled-task-service'
+import { formatSchedule } from './utils'
 
 /** 订阅执行事件流时，等待后端建流的总体上限（建流通常在数秒内完成）。 */
 const STREAM_ATTACH_TIMEOUT_MS = 30_000
@@ -206,8 +208,8 @@ export async function triggerScheduledTaskRun(
   const agent = state.agents.find(item => item.id === task.agent_id)
   if (!agent) {
     toast({
-      title: '错误',
-      description: '执行智能体不存在，请先确认任务配置',
+      title: i18n.t('common:status.error'),
+      description: i18n.t('tool-panel:scheduledTask.run.agentNotFound'),
       variant: 'destructive',
     })
     return
@@ -217,9 +219,16 @@ export async function triggerScheduledTaskRun(
   let conversationId: string | null = null
   try {
     // 先建真实会话：任务内容作为用户消息，后续执行过程通过 SSE 实时回流。
-    // agentName 统一用“定时”而非真实 agent 名：与刷新后侧栏摘要条目的兜底一致，
+    // agentName 统一用任务的调度规则描述而非真实 agent 名：与刷新后侧栏摘要条目的兜底一致，
+    // 也与手动触发时侧栏会话条目的展示保持一致。
     const session = await state.createNewSession(task.agent_id)
-    conversationId = state.createLocalConversation(task.agent_id, '定时', session.id)
+    conversationId = state.createLocalConversation(
+      task.agent_id,
+      i18n.t('tool-panel:scheduledTask.run.conversationTitle', {
+        schedule: formatSchedule(task),
+      }),
+      session.id
+    )
     state.setCurrentConversation(conversationId)
     state.addMessage(conversationId, {
       id: generateUUID(),
@@ -250,8 +259,8 @@ export async function triggerScheduledTaskRun(
       // 立即刷新任务列表，让“已跳过”记录尽快出现在执行记录页。
       void useScheduledTaskStore.getState().refresh(true)
       toast({
-        title: '执行已跳过',
-        description: '任务或智能体忙碌，本次未执行，请稍后重试',
+        title: i18n.t('tool-panel:scheduledTask.run.skippedTitle'),
+        description: i18n.t('tool-panel:scheduledTask.run.skippedDescription'),
       })
       return
     }
@@ -260,8 +269,10 @@ export async function triggerScheduledTaskRun(
     // 侧边栏立即按“定时任务”条目展示，不等会话列表轮询。
     state.markConversationScheduled(conversationId, task.id)
     toast({
-      title: '成功',
-      description: `已触发「${task.name}」执行，对话已加入左侧列表`,
+      title: i18n.t('common:status.success'),
+      description: i18n.t('tool-panel:scheduledTask.run.triggeredDescription', {
+        name: task.name,
+      }),
     })
     // 立即拉一次任务列表，让侧栏的定时任务条目尽快出现，不必等 10s 轮询。
     void useScheduledTaskStore.getState().refresh(true)
@@ -285,8 +296,8 @@ export async function triggerScheduledTaskRun(
       void useChatStore.getState().deleteConversation(conversationId)
     }
     toast({
-      title: '错误',
-      description: '触发执行失败',
+      title: i18n.t('common:status.error'),
+      description: i18n.t('tool-panel:scheduledTask.run.triggerFailed'),
       variant: 'destructive',
     })
   }

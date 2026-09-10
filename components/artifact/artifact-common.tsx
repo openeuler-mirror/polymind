@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import type { Artifact } from '@/lib/types'
 import { fetchArtifactText, fetchArtifactBlob } from '@/lib/artifacts'
 
@@ -70,10 +71,11 @@ export function useArtifactMediaSrc(artifact: Artifact, agentId: string) {
 }
 
 export function PreviewLoading() {
+  const { t } = useTranslation('artifact')
   return (
     <div className="flex h-full min-h-40 flex-col items-center justify-center gap-3 p-8 text-center">
       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/50" />
-      <p className="text-sm text-muted-foreground">加载产物内容…</p>
+      <p className="text-sm text-muted-foreground">{t('preview.loading')}</p>
     </div>
   )
 }

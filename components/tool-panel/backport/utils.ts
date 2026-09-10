@@ -1,3 +1,6 @@
+import type { TFunction } from 'i18next'
+
+import i18n from '@/lib/i18n/config'
 import type {
   BackportCommitItem,
   BackportCommitRow,
@@ -11,6 +14,30 @@ import type {
   BackportStage,
 } from '@/lib/backport-types'
 import type { ModelConfig } from '@/lib/types'
+
+const resolveBackportTranslator = (t?: TFunction): TFunction =>
+  (t ?? i18n.getFixedT(null, 'tool-panel')) as TFunction
+
+/** Stable identifiers for long-running operations, used for state comparison across components. */
+export const BACKPORT_OPERATION_IDS = {
+  importCommitsFindPrereqs: 'import_commits_find_prereqs',
+  importExcelFindPrereqs: 'import_excel_find_prereqs',
+  generateConfigAndReport: 'generate_config_and_report',
+  generateExecutionReport: 'generate_execution_report',
+  regenerateExecutionReport: 'regenerate_execution_report',
+  runAll: 'run_all',
+  continueCheck: 'continue_check',
+  refreshGitLog: 'refresh_git_log',
+  readGitShow: 'read_git_show',
+  executeSelected: 'execute_selected',
+  applySingleCommit: 'apply_single_commit',
+  resolveConflictRow: 'resolve_conflict_row',
+  recheckConflict: 'recheck_conflict',
+  resumeRun: 'resume_run',
+} as const
+
+export type BackportOperationId =
+  (typeof BACKPORT_OPERATION_IDS)[keyof typeof BACKPORT_OPERATION_IDS]
 
 export interface BackportModelResolution {
   modelId: string
@@ -97,49 +124,62 @@ export type RowStatusKind =
 
 export function resolveBackportFailureMessage(
   diagnostics: BackportOperationDiagnostics | null | undefined,
-  fallback: string
+  fallback: string,
+  t?: TFunction
 ): string {
+  const translate = resolveBackportTranslator(t)
   if (
     diagnostics?.code === TARGET_REPOSITORY_LOCK_TIMEOUT &&
     diagnostics.retryable === true
   ) {
     const waitText =
       typeof diagnostics.wait_seconds === 'number'
-        ? `已等待 ${Math.round(diagnostics.wait_seconds)} 秒。`
+        ? translate('backport.error.lockTimeoutWait', {
+            seconds: Math.round(diagnostics.wait_seconds),
+          })
         : ''
-    return `目标仓库正被其他任务使用，等待超时。${waitText}请稍后手动重试。`
+    return translate('backport.error.lockTimeout', { waitText })
   }
-  return fallback || diagnostics?.error_text || 'Backport 执行失败'
+  return fallback || diagnostics?.error_text || translate('backport.error.executionFailed')
 }
 
-export function resolveRunSummaryDetectionText(item: BackportRunSummaryCase): string {
-  if (item.detection.state === 'running') return '检测中'
-  if (item.detection.state === 'not_started') return '尚未检测'
+export function resolveRunSummaryDetectionText(
+  item: BackportRunSummaryCase,
+  t?: TFunction
+): string {
+  const translate = resolveBackportTranslator(t)
+  if (item.detection.state === 'running') return translate('backport.runSummary.detection.running')
+  if (item.detection.state === 'not_started')
+    return translate('backport.runSummary.detection.notStarted')
   switch (item.detection.result) {
     case 'clean_apply':
-      return '无冲突，可直接应用'
+      return translate('backport.runSummary.detection.cleanApply')
     case 'conflict':
-      return '存在冲突'
+      return translate('backport.runSummary.detection.conflict')
     case 'equivalent_exists':
-      return '等价已存在'
+      return translate('backport.runSummary.detection.equivalentExists')
     case 'already_present':
-      return '目标分支已包含'
+      return translate('backport.runSummary.detection.alreadyPresent')
     default:
-      return '检测失败'
+      return translate('backport.runSummary.detection.failed')
   }
 }
 
-export function resolveRunSummaryFinalText(item: BackportRunSummaryCase): string {
-  if (item.final.state === 'running') return '应用中'
+export function resolveRunSummaryFinalText(item: BackportRunSummaryCase, t?: TFunction): string {
+  const translate = resolveBackportTranslator(t)
+  if (item.final.state === 'running') return translate('backport.runSummary.final.running')
   if (item.final.result === 'applied') {
     return item.final.applied_commit
-      ? `已应用 · ${item.final.applied_commit.slice(0, 12)}`
-      : '已应用'
+      ? translate('backport.runSummary.final.appliedWithCommit', {
+          commit: item.final.applied_commit.slice(0, 12),
+        })
+      : translate('backport.runSummary.final.applied')
   }
-  if (item.final.result === 'skipped') return '已跳过'
-  if (item.final.result === 'ready_to_apply') return '等待应用'
-  if (item.final.result === 'failed') return '失败'
-  return '尚未完成'
+  if (item.final.result === 'skipped') return translate('backport.runSummary.final.skipped')
+  if (item.final.result === 'ready_to_apply')
+    return translate('backport.runSummary.final.readyToApply')
+  if (item.final.result === 'failed') return translate('backport.runSummary.final.failed')
+  return translate('backport.runSummary.final.unfinished')
 }
 
 const RELEVANT_PATCH_HUNK_CHAR_LIMIT = 1600
@@ -217,24 +257,32 @@ export function resolveCommitTitle(item: BackportCommitItem): string {
   ).trim()
 }
 
-function conflictReportStatusLabel(status: string): string {
+function conflictReportStatusLabel(status: string, t?: TFunction): string {
+  const translate = resolveBackportTranslator(t)
   const normalized = status.trim().toLowerCase()
   const labels: Record<string, string> = {
-    success: '成功',
-    failed: '失败',
-    skipped: '跳过',
-    pending: '等待中',
+    success: translate('backport.conflictReport.status.success'),
+    failed: translate('backport.conflictReport.status.failed'),
+    skipped: translate('backport.conflictReport.status.skipped'),
+    pending: translate('backport.conflictReport.status.pending'),
   }
-  return labels[normalized] || status || '未知'
+  return labels[normalized] || status || translate('backport.common.unknown')
 }
 
-export function buildConflictReportText(rows: BackportCommitRow[], enabled: boolean): string {
+export function buildConflictReportText(
+  rows: BackportCommitRow[],
+  enabled: boolean,
+  t?: TFunction
+): string {
+  const translate = resolveBackportTranslator(t)
   if (!enabled) return ''
 
   const sections = rows
     .map(row => {
       const commit = stringifyValue(row.data.commit || row.data.input_commit).trim()
-      const shortCommit = commit ? commit.slice(0, 12) : '未知 commit'
+      const shortCommit = commit
+        ? commit.slice(0, 12)
+        : translate('backport.conflictReport.unknownCommit')
       const title = resolveCommitTitle(row.data)
       const heading = `${shortCommit}${title ? ` ${title}` : ''}`
       const engine = stringifyValue(row.data.backport_engine).trim().toLowerCase()
@@ -247,13 +295,15 @@ export function buildConflictReportText(rows: BackportCommitRow[], enabled: bool
         const status = stringifyValue(row.data.status).trim().toLowerCase()
         const statusLabel =
           status === 'failed'
-            ? '失败'
+            ? translate('backport.conflictReport.status.failed')
             : Boolean(row.data.equivalent_exists)
-              ? '目标分支中已存在等价实现'
-              : '已生成回移植补丁'
-        const lines = [heading, '', `状态：${statusLabel}`]
-        if (explanation) lines.push('', '迁移说明：', explanation)
-        if (status === 'failed' && error) lines.push('', `错误：${error}`)
+              ? translate('backport.conflictReport.equivalentInTarget')
+              : translate('backport.conflictReport.backportPatchGenerated')
+        const lines = [heading, '', translate('backport.conflictReport.statusLine', { status: statusLabel })]
+        if (explanation)
+          lines.push('', translate('backport.conflictReport.migrationNotes'), explanation)
+        if (status === 'failed' && error)
+          lines.push('', translate('backport.conflictReport.errorLine', { error }))
         return lines.join('\n')
       }
 
@@ -268,16 +318,32 @@ export function buildConflictReportText(rows: BackportCommitRow[], enabled: bool
       const error = stringifyValue(summaryData.error).trim()
 
       if (normalizedStatus === 'success') {
-        return [heading, '', `评分：${score || '-'}`, '', '原因：', reason || '未返回原因'].join(
-          '\n'
-        )
+        return [
+          heading,
+          '',
+          translate('backport.conflictReport.scoreLine', { score: score || '-' }),
+          '',
+          translate('backport.conflictReport.reason'),
+          reason || translate('backport.conflictReport.noReason'),
+        ].join('\n')
       }
 
-      const lines = [heading, '', `状态：${conflictReportStatusLabel(status)}`]
+      const lines = [
+        heading,
+        '',
+        translate('backport.conflictReport.statusLine', {
+          status: conflictReportStatusLabel(status, translate),
+        }),
+      ]
       if (error || normalizedStatus === 'failed') {
-        lines.push('', `错误：${error || '未返回错误信息'}`)
+        lines.push(
+          '',
+          translate('backport.conflictReport.errorLine', {
+            error: error || translate('backport.conflictReport.noError'),
+          })
+        )
       }
-      if (reason) lines.push('', '原因：', reason)
+      if (reason) lines.push('', translate('backport.conflictReport.reason'), reason)
       return lines.join('\n')
     })
     .filter(Boolean)
@@ -404,16 +470,17 @@ export function formatGitDate(value: string): string {
   })
 }
 
-export function stageLabel(stage: BackportStage): string {
+export function stageLabel(stage: BackportStage, t?: TFunction): string {
+  const translate = resolveBackportTranslator(t)
   const map: Record<BackportStage, string> = {
-    idle: '空闲',
-    config_generated: '配置已生成',
-    report_generated: '报告已生成',
-    interactive_editing: '可编辑',
-    executing: '执行中',
-    completed: '已完成',
-    failed: '失败',
-    paused: '已暂停',
+    idle: translate('backport.stage.idle'),
+    config_generated: translate('backport.stage.configGenerated'),
+    report_generated: translate('backport.stage.reportGenerated'),
+    interactive_editing: translate('backport.stage.interactiveEditing'),
+    executing: translate('backport.stage.executing'),
+    completed: translate('backport.stage.completed'),
+    failed: translate('backport.stage.failed'),
+    paused: translate('backport.stage.paused'),
   }
   return map[stage]
 }
@@ -444,32 +511,37 @@ function isCommitLookupFailure(item: BackportCommitItem): boolean {
   return error.includes('无法根据 commit title 找到提交') || error.includes('commit title 为空')
 }
 
-export function resolveBackportProgressText(item: BackportCommitItem): string {
+export function resolveBackportProgressText(item: BackportCommitItem, t?: TFunction): string {
+  const translate = resolveBackportTranslator(t)
   const appliedCommit = stringifyValue(item.applied_commit).trim()
   const status = stringifyValue(item.status).trim().toLowerCase()
   if (appliedCommit) {
     return stringifyValue(item.applied_patch_kind).trim() === 'backported'
-      ? `回移植后已应用到目标仓: ${appliedCommit.slice(0, 12)}`
-      : `已应用到目标仓: ${appliedCommit.slice(0, 12)}`
+      ? translate('backport.progress.appliedBackported', { commit: appliedCommit.slice(0, 12) })
+      : translate('backport.progress.applied', { commit: appliedCommit.slice(0, 12) })
   }
-  if (Boolean(item.equivalent_exists)) return '目标分支中已存在等价实现'
-  if (isSkippedRow(item)) return '当前条目已跳过'
-  if (status === 'pending') return '等待继续检查'
-  if (item.merged_in_target === true) return '目标分支已包含该改动'
+  if (Boolean(item.equivalent_exists)) return translate('backport.progress.equivalentInTarget')
+  if (isSkippedRow(item)) return translate('backport.progress.skipped')
+  if (status === 'pending') return translate('backport.progress.pendingCheck')
+  if (item.merged_in_target === true) return translate('backport.progress.mergedInTarget')
   if (Boolean(item.has_conflict) && hasPatchResource(item, 'backported')) {
-    return '冲突已完成回移植，已生成回移植 Patch，尚未应用'
+    return translate('backport.progress.conflictBackported')
   }
-  if (Boolean(item.has_conflict)) return '检测到冲突，尚未生成可应用的回移植 Patch'
-  if (hasPatchResource(item, 'current')) return '当前 Patch 已就绪，可直接应用'
-  if (hasPatchResource(item, 'original')) return '已保留原始 Patch，可继续处理'
-  return '暂无可用 Patch'
+  if (Boolean(item.has_conflict)) return translate('backport.progress.conflictNoPatch')
+  if (hasPatchResource(item, 'current')) return translate('backport.progress.currentPatchReady')
+  if (hasPatchResource(item, 'original')) return translate('backport.progress.originalPatchKept')
+  return translate('backport.progress.noPatch')
 }
 
-export function resolveStatusMeta(item: BackportCommitItem): {
+export function resolveStatusMeta(
+  item: BackportCommitItem,
+  t?: TFunction
+): {
   kind: RowStatusKind
   label: string
   className: string
 } {
+  const translate = resolveBackportTranslator(t)
   const status = stringifyValue(item.status).trim().toLowerCase()
   const appliedCommit = stringifyValue(item.applied_commit).trim()
   const appliedPatchKind = stringifyValue(item.applied_patch_kind).trim()
@@ -477,7 +549,10 @@ export function resolveStatusMeta(item: BackportCommitItem): {
   if (appliedCommit) {
     return {
       kind: 'success',
-      label: appliedPatchKind === 'backported' ? '回移后合入' : '已合入',
+      label:
+        appliedPatchKind === 'backported'
+          ? translate('backport.status.appliedBackported')
+          : translate('backport.status.applied'),
       className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     }
   }
@@ -485,7 +560,7 @@ export function resolveStatusMeta(item: BackportCommitItem): {
   if (isSkippedRow(item)) {
     return {
       kind: 'skipped',
-      label: '跳过',
+      label: translate('backport.status.skipped'),
       className: 'border-slate-200 bg-slate-50 text-slate-700',
     }
   }
@@ -493,7 +568,7 @@ export function resolveStatusMeta(item: BackportCommitItem): {
   if (Boolean(item.equivalent_exists)) {
     return {
       kind: 'noop',
-      label: '等价已存在',
+      label: translate('backport.status.equivalentExists'),
       className: 'border-sky-200 bg-sky-50 text-sky-700',
     }
   }
@@ -501,7 +576,7 @@ export function resolveStatusMeta(item: BackportCommitItem): {
   if (item.merged_in_target === true) {
     return {
       kind: 'noop',
-      label: '目标已包含',
+      label: translate('backport.status.targetIncluded'),
       className: 'border-sky-200 bg-sky-50 text-sky-700',
     }
   }
@@ -509,7 +584,7 @@ export function resolveStatusMeta(item: BackportCommitItem): {
   if (Boolean(item.empty_patch)) {
     return {
       kind: 'failed',
-      label: '失败',
+      label: translate('common:status.failed'),
       className: 'border-red-200 bg-red-50 text-red-700',
     }
   }
@@ -517,7 +592,7 @@ export function resolveStatusMeta(item: BackportCommitItem): {
   if (hasPatchResource(item, 'backported')) {
     return {
       kind: 'conflict',
-      label: '待应用',
+      label: translate('backport.status.pendingApply'),
       className: 'border-amber-200 bg-amber-50 text-amber-700',
     }
   }
@@ -525,7 +600,7 @@ export function resolveStatusMeta(item: BackportCommitItem): {
   if (status === 'pending') {
     return {
       kind: 'pending',
-      label: '待检查',
+      label: translate('backport.status.pendingCheck'),
       className: 'border-slate-200 bg-slate-50 text-slate-600',
     }
   }
@@ -534,13 +609,13 @@ export function resolveStatusMeta(item: BackportCommitItem): {
     if (isCommitLookupFailure(item)) {
       return {
         kind: 'unmatched',
-        label: '未匹配',
+        label: translate('backport.status.unmatched'),
         className: 'border-orange-200 bg-orange-50 text-orange-700',
       }
     }
     return {
       kind: 'failed',
-      label: '失败',
+      label: translate('common:status.failed'),
       className: 'border-red-200 bg-red-50 text-red-700',
     }
   }
@@ -548,7 +623,7 @@ export function resolveStatusMeta(item: BackportCommitItem): {
   if (item.has_conflict === null || item.has_conflict === undefined) {
     return {
       kind: 'pending',
-      label: '结果未知',
+      label: translate('backport.status.resultUnknown'),
       className: 'border-slate-200 bg-slate-50 text-slate-600',
     }
   }
@@ -556,23 +631,29 @@ export function resolveStatusMeta(item: BackportCommitItem): {
   if (Boolean(item.has_conflict)) {
     return {
       kind: 'conflict',
-      label: hasPatchResource(item, 'backported') ? '待应用' : '冲突',
+      label: hasPatchResource(item, 'backported')
+        ? translate('backport.status.pendingApply')
+        : translate('backport.status.conflict'),
       className: 'border-amber-200 bg-amber-50 text-amber-700',
     }
   }
 
   return {
     kind: 'success',
-    label: '无冲突待合入',
+    label: translate('backport.status.noConflictPendingMerge'),
     className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   }
 }
 
-export function resolveConflictMeta(item: BackportCommitItem): {
+export function resolveConflictMeta(
+  item: BackportCommitItem,
+  t?: TFunction
+): {
   label: string
   className: string
   detail: string
 } {
+  const translate = resolveBackportTranslator(t)
   const method = stringifyValue(item.conflict_check_method).trim()
   const error = stringifyValue(item.conflict_check_error).trim()
   const status = stringifyValue(item.status).trim().toLowerCase()
@@ -581,140 +662,155 @@ export function resolveConflictMeta(item: BackportCommitItem): {
 
   if (appliedCommit) {
     return {
-      label: appliedPatchKind === 'backported' ? '已解冲突' : '无冲突',
+      label:
+        appliedPatchKind === 'backported'
+          ? translate('backport.conflict.resolved')
+          : translate('backport.conflict.none'),
       className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-      detail: resolveBackportProgressText(item),
+      detail: resolveBackportProgressText(item, translate),
     }
   }
 
   if (isSkippedRow(item)) {
     return {
-      label: '已跳过',
+      label: translate('backport.conflict.skipped'),
       className: 'border-slate-200 bg-slate-50 text-slate-700',
-      detail: error || 'Merge commit 已跳过',
+      detail: error || translate('backport.conflict.mergeCommitSkipped'),
     }
   }
 
   if (Boolean(item.equivalent_exists) || item.merged_in_target === true) {
     return {
-      label: '无需处理',
+      label: translate('backport.conflict.noActionNeeded'),
       className: 'border-sky-200 bg-sky-50 text-sky-700',
-      detail: resolveBackportProgressText(item),
+      detail: resolveBackportProgressText(item, translate),
     }
   }
 
   if (Boolean(item.empty_patch)) {
     return {
-      label: '结果异常',
+      label: translate('backport.conflict.abnormalResult'),
       className: 'border-red-200 bg-red-50 text-red-700',
-      detail: error || '未生成可用 Patch，且未确认等价实现',
+      detail: error || translate('backport.conflict.noUsablePatch'),
     }
   }
 
   if (hasPatchResource(item, 'backported')) {
     return {
-      label: '已解冲突',
+      label: translate('backport.conflict.resolved'),
       className: 'border-amber-200 bg-amber-50 text-amber-700',
-      detail: '回移植 Patch 已生成，等待应用',
+      detail: translate('backport.conflict.backportPatchReady'),
     }
   }
 
   if (status === 'pending') {
     return {
-      label: '待检查',
+      label: translate('backport.conflict.pendingCheck'),
       className: 'border-slate-200 bg-slate-50 text-slate-600',
-      detail: '尚未执行冲突检测',
+      detail: translate('backport.conflict.notCheckedYet'),
     }
   }
 
   if (item.has_conflict === null || item.has_conflict === undefined) {
     return {
-      label: '结果未知',
+      label: translate('backport.conflict.resultUnknown'),
       className: 'border-slate-200 bg-slate-50 text-slate-600',
-      detail: '尚未得到明确的冲突检测结果',
+      detail: translate('backport.conflict.noClearResult'),
     }
   }
 
   if (Boolean(item.has_conflict)) {
     return {
-      label: hasPatchResource(item, 'backported') ? '已生成回移植 Patch' : '有冲突',
+      label: hasPatchResource(item, 'backported')
+        ? translate('backport.conflict.backportPatchGenerated')
+        : translate('backport.conflict.hasConflict'),
       className: 'border-amber-200 bg-amber-50 text-amber-700',
-      detail: error || resolveBackportProgressText(item) || method || '冲突检测命中',
+      detail:
+        error ||
+        resolveBackportProgressText(item, translate) ||
+        method ||
+        translate('backport.conflict.checkHit'),
     }
   }
 
   if (error) {
     if (isCommitLookupFailure(item)) {
       return {
-        label: '未匹配',
+        label: translate('backport.conflict.unmatched'),
         className: 'border-orange-200 bg-orange-50 text-orange-700',
         detail: error,
       }
     }
     return {
-      label: '检查失败',
+      label: translate('backport.conflict.checkFailed'),
       className: 'border-red-200 bg-red-50 text-red-700',
       detail: error,
     }
   }
 
   return {
-    label: '无冲突',
+    label: translate('backport.conflict.none'),
     className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     detail: method || 'apply',
   }
 }
 
-export function resolveTargetMeta(item: BackportCommitItem): {
+export function resolveTargetMeta(
+  item: BackportCommitItem,
+  t?: TFunction
+): {
   label: string
   className: string
 } {
+  const translate = resolveBackportTranslator(t)
   if (stringifyValue(item.applied_commit).trim()) {
     return {
-      label: '已合入',
+      label: translate('backport.target.applied'),
       className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     }
   }
   if (isSkippedRow(item)) {
     return {
-      label: '已跳过',
+      label: translate('backport.target.skipped'),
       className: 'border-slate-200 bg-slate-50 text-slate-700',
     }
   }
   if (Boolean(item.equivalent_exists)) {
     return {
-      label: '等价存在',
+      label: translate('backport.target.equivalent'),
       className: 'border-sky-200 bg-sky-50 text-sky-700',
     }
   }
   if (item.merged_in_target === true) {
     return {
-      label: '已存在',
+      label: translate('backport.target.exists'),
       className: 'border-sky-200 bg-sky-50 text-sky-700',
     }
   }
   if (Boolean(item.empty_patch)) {
     return {
-      label: '未合入',
+      label: translate('backport.target.notApplied'),
       className: 'border-red-200 bg-red-50 text-red-700',
     }
   }
   if (item.merged_in_target === false) {
     return {
-      label: '未合入',
+      label: translate('backport.target.notApplied'),
       className: 'border-amber-200 bg-amber-50 text-amber-700',
     }
   }
   return {
-    label: '未检查',
+    label: translate('backport.target.notChecked'),
     className: 'border-slate-200 bg-slate-50 text-slate-700',
   }
 }
 
 export function buildPatchResources(
   item: BackportCommitItem,
-  rowId: string
+  rowId: string,
+  t?: TFunction
 ): BackportPatchResource[] {
+  const translate = resolveBackportTranslator(t)
   const commitId =
     stringifyValue(item.row_id || item.commit || item.input_commit || rowId).trim() || rowId
   const patches = (item.patches as BackportPatchMap | undefined) || {}
@@ -730,21 +826,21 @@ export function buildPatchResources(
   return [
     {
       kind: 'original',
-      label: '原始 Patch',
+      label: translate('backport.patchKind.original'),
       exists: originalMeta?.exists ?? Boolean(originalPath),
       fileId: `${commitId}:original`,
       fileName: originalMeta?.file_name || (originalPath ? fileNameFromPath(originalPath) : ''),
     },
     {
       kind: 'current',
-      label: '当前 Patch',
+      label: translate('backport.patchKind.current'),
       exists: currentMeta?.exists ?? Boolean(currentPath),
       fileId: `${commitId}:current`,
       fileName: currentMeta?.file_name || (currentPath ? fileNameFromPath(currentPath) : ''),
     },
     {
       kind: 'backported',
-      label: '回移植 Patch',
+      label: translate('backport.patchKind.backported'),
       exists: backportedMeta?.exists ?? Boolean(backportedPath),
       fileId: `${commitId}:backported`,
       fileName:
@@ -755,9 +851,11 @@ export function buildPatchResources(
 
 export function buildDisplayPatchResources(
   item: BackportCommitItem,
-  rowId: string
+  rowId: string,
+  t?: TFunction
 ): BackportPatchResource[] {
-  const resources = buildPatchResources(item, rowId)
+  const translate = resolveBackportTranslator(t)
+  const resources = buildPatchResources(item, rowId, translate)
   const original = resources.find(resource => resource.kind === 'original') || resources[0]
   const applicable =
     resources.find(resource => resource.kind === 'backported' && resource.exists) ||
@@ -768,13 +866,13 @@ export function buildDisplayPatchResources(
   if (original) {
     displayResources.push({
       ...original,
-      label: '原始 Patch',
+      label: translate('backport.patchKind.original'),
     })
   }
   if (applicable) {
     displayResources.push({
       ...applicable,
-      label: '当前 Patch',
+      label: translate('backport.patchKind.current'),
       fileId: `${rowId}:applicable:${applicable.kind}`,
     })
   }
@@ -1061,13 +1159,16 @@ export function buildCompactBackportConflictAnalysisMessage({
   workingReportPath,
   row,
   patches,
+  t,
 }: {
   config: BackportConfig
   baseReportPath: string
   workingReportPath: string
   row: BackportCommitRow
   patches: BackportConflictAnalysisPatch[]
+  t?: TFunction
 }): string {
+  const translate = resolveBackportTranslator(t)
   const investigationContext = buildInvestigationContext({
     config,
     baseReportPath,
@@ -1093,7 +1194,7 @@ export function buildCompactBackportConflictAnalysisMessage({
         focusFiles,
         RELEVANT_PATCH_HUNK_CHAR_LIMIT
       )
-    : { text: '未加载到可用 patch hunk。', truncated: false }
+    : { text: translate('backport.analysis.noHunk'), truncated: false }
 
   return `请进入 patch investigation mode，分析这个 Backport / git apply patch 失败原因。
 

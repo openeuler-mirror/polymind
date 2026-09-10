@@ -2,6 +2,9 @@
 
 import type { ElementType, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
+import i18n from '@/lib/i18n/config'
 import { CheckCircle, FolderOpen, Pencil, Plus, RefreshCw, Trash2, Upload, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -58,6 +61,7 @@ const initialFormState: RepoFormState = {
 }
 
 export function SkillRepoManagement() {
+  const { t } = useTranslation('settings')
   const [repos, setRepos] = useState<SkillRepositoryResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -102,14 +106,14 @@ export function SkillRepoManagement() {
     } catch (error) {
       console.error('Failed to fetch skill repos:', error)
       toast({
-        title: '加载失败',
-        description: extractApiErrorMessage(error, '无法获取仓库源列表，请稍后重试。'),
+        title: t('skill.repo.toast.loadFailed'),
+        description: extractApiErrorMessage(error, t('skill.repo.toast.loadFailedDesc')),
         variant: 'destructive',
       })
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [t, toast])
 
   const refreshDiscoverStatuses = useCallback(
     async (silent = false) => {
@@ -120,14 +124,14 @@ export function SkillRepoManagement() {
         console.error('Failed to refresh discover statuses:', error)
         if (!silent) {
           toast({
-            title: '刷新失败',
-            description: extractApiErrorMessage(error, '无法更新扫描状态，请稍后重试。'),
+            title: t('skill.repo.toast.refreshFailed'),
+            description: extractApiErrorMessage(error, t('skill.repo.toast.refreshFailedDesc')),
             variant: 'destructive',
           })
         }
       }
     },
-    [toast]
+    [t, toast]
   )
 
   const resetCreateForm = useCallback(() => {
@@ -180,15 +184,19 @@ export function SkillRepoManagement() {
 
     if (!isZipFile) {
       toast({
-        title: '文件格式错误',
-        description: '仅支持 ZIP 格式的文件。',
+        title: t('skill.repo.toast.fileFormatError'),
+        description: t('skill.repo.toast.fileFormatErrorDesc'),
         variant: 'destructive',
       })
       return false
     }
 
     if (file.size > 50 * 1024 * 1024) {
-      toast({ title: '文件过大', description: '文件大小不能超过 50MB。', variant: 'destructive' })
+      toast({
+        title: t('skill.repo.toast.fileTooLarge'),
+        description: t('skill.repo.toast.fileTooLargeDesc'),
+        variant: 'destructive',
+      })
       return false
     }
 
@@ -201,8 +209,8 @@ export function SkillRepoManagement() {
         setSubmitting(true)
         await skillService.uploadRepoArchive(createForm.uploaded_file)
         toast({
-          title: '创建成功',
-          description: '仓库源已添加，正在扫描技能...',
+          title: t('skill.repo.toast.createSuccess'),
+          description: t('skill.repo.toast.uploadArchiveSuccessDesc'),
         })
         setIsCreateOpen(false)
         resetCreateForm()
@@ -210,8 +218,8 @@ export function SkillRepoManagement() {
       } catch (error) {
         console.error('Failed to upload repo archive:', error)
         toast({
-          title: '上传失败',
-          description: extractApiErrorMessage(error, '文件上传失败，请检查文件后重试。'),
+          title: t('skill.repo.toast.uploadFailed'),
+          description: extractApiErrorMessage(error, t('skill.repo.toast.uploadFailedDesc')),
           variant: 'destructive',
         })
       } finally {
@@ -223,13 +231,13 @@ export function SkillRepoManagement() {
     const request = buildCreatePayload(createForm)
     if (!request) {
       toast({
-        title: '表单不完整',
+        title: t('skill.repo.toast.formIncomplete'),
         description:
           createForm.source_type === 'git'
             ? createForm.url.trim()
-              ? '仓库地址格式无效，请输入有效的 Git 地址（如 https://github.com/... 或 git@...:...）。'
-              : '请填写仓库地址。分支可选填写。'
-            : '请上传 ZIP 压缩包。',
+              ? t('skill.repo.toast.invalidGitUrl')
+              : t('skill.repo.toast.gitUrlRequired')
+            : t('skill.repo.toast.zipRequired'),
         variant: 'destructive',
       })
       return
@@ -239,8 +247,8 @@ export function SkillRepoManagement() {
       setSubmitting(true)
       await skillService.createRepo(request)
       toast({
-        title: '创建成功',
-        description: '仓库源已添加。',
+        title: t('skill.repo.toast.createSuccess'),
+        description: t('skill.repo.toast.createSuccessDesc'),
       })
       setIsCreateOpen(false)
       resetCreateForm()
@@ -248,8 +256,8 @@ export function SkillRepoManagement() {
     } catch (error) {
       console.error('Failed to create repo:', error)
       toast({
-        title: '创建失败',
-        description: extractApiErrorMessage(error, '仓库源创建失败，请检查信息后重试。'),
+        title: t('skill.repo.toast.createFailed'),
+        description: extractApiErrorMessage(error, t('skill.repo.toast.createFailedDesc')),
         variant: 'destructive',
       })
     } finally {
@@ -265,11 +273,11 @@ export function SkillRepoManagement() {
     const request = buildUpdatePayload(editingRepo, editForm)
     if (!request) {
       toast({
-        title: '没有可提交的修改',
+        title: t('skill.repo.toast.noChanges'),
         description:
           editingRepo.source_type === 'git'
-            ? '请修改分支信息后再保存。'
-            : '请修改本地路径后再保存。',
+            ? t('skill.repo.toast.noChangesBranch')
+            : t('skill.repo.toast.noChangesPath'),
       })
       return
     }
@@ -282,14 +290,14 @@ export function SkillRepoManagement() {
       )
       setEditingRepo(null)
       toast({
-        title: '更新成功',
-        description: '仓库源配置已保存。',
+        title: t('skill.repo.toast.updateSuccess'),
+        description: t('skill.repo.toast.updateSuccessDesc'),
       })
     } catch (error) {
       console.error('Failed to update repo:', error)
       toast({
-        title: '更新失败',
-        description: extractApiErrorMessage(error, '仓库源更新失败，请稍后重试。'),
+        title: t('skill.repo.toast.updateFailed'),
+        description: extractApiErrorMessage(error, t('skill.repo.toast.updateFailedDesc')),
         variant: 'destructive',
       })
     } finally {
@@ -298,7 +306,7 @@ export function SkillRepoManagement() {
   }
 
   const handleDelete = async (repo: SkillRepositoryResponse) => {
-    if (!window.confirm('确认删除该仓库源吗？')) {
+    if (!window.confirm(t('skill.repo.confirmDelete'))) {
       return
     }
 
@@ -306,14 +314,14 @@ export function SkillRepoManagement() {
       await skillService.deleteRepo(repo.repo_id)
       setRepos(currentRepos => currentRepos.filter(item => item.repo_id !== repo.repo_id))
       toast({
-        title: '删除成功',
-        description: '仓库源已移除。',
+        title: t('skill.repo.toast.deleteSuccess'),
+        description: t('skill.repo.toast.deleteSuccessDesc'),
       })
     } catch (error) {
       console.error('Failed to delete repo:', error)
       toast({
-        title: '删除失败',
-        description: extractApiErrorMessage(error, '仓库源删除失败，请稍后重试。'),
+        title: t('skill.repo.toast.deleteFailed'),
+        description: extractApiErrorMessage(error, t('skill.repo.toast.deleteFailedDesc')),
         variant: 'destructive',
       })
     }
@@ -326,14 +334,14 @@ export function SkillRepoManagement() {
       await skillService.discoverRepoSkills(repo.repo_id)
       await refreshDiscoverStatuses(true)
       toast({
-        title: '更新已触发',
-        description: '已开始更新该仓库的技能信息。',
+        title: t('skill.repo.toast.discoverTriggered'),
+        description: t('skill.repo.toast.discoverTriggeredDesc'),
       })
     } catch (error) {
       console.error('Failed to discover repo skills:', error)
       toast({
-        title: '更新失败',
-        description: extractApiErrorMessage(error, '无法更新该仓库的技能信息，请稍后重试。'),
+        title: t('skill.repo.toast.updateFailed'),
+        description: extractApiErrorMessage(error, t('skill.repo.toast.discoverFailedDesc')),
         variant: 'destructive',
       })
     } finally {
@@ -347,19 +355,17 @@ export function SkillRepoManagement() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm leading-6 text-muted-foreground">
-        管理技能来源，支持直接新增 Git 源和本地源。
-      </p>
+      <p className="text-sm leading-6 text-muted-foreground">{t('skill.repo.description')}</p>
 
       <div className="grid gap-4 md:grid-cols-2">
         <CreateSourceCard
-          title="新增 Git 源"
-          description="添加远程 Git 仓库地址，分支可按需填写。"
+          title={t('skill.repo.createGitTitle')}
+          description={t('skill.repo.createGitDescription')}
           onClick={() => openCreateDialog('git')}
         />
         <CreateSourceCard
-          title="新增本地源"
-          description="上传本地 ZIP 压缩包，作为技能来源。"
+          title={t('skill.repo.createLocalTitle')}
+          description={t('skill.repo.createLocalDescription')}
           onClick={() => openCreateDialog('local')}
         />
       </div>
@@ -367,11 +373,11 @@ export function SkillRepoManagement() {
       <Card className="border border-border">
         <CardHeader className="gap-1">
           <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
-            <CardTitle>仓库源列表</CardTitle>
+            <CardTitle>{t('skill.repo.listTitle')}</CardTitle>
             <Input
               value={searchTerm}
               onChange={event => setSearchTerm(event.target.value)}
-              placeholder="搜索仓库"
+              placeholder={t('skill.repo.searchPlaceholder')}
               className="max-w-xl"
             />
           </div>
@@ -380,20 +386,20 @@ export function SkillRepoManagement() {
           {loading ? (
             <Card className="border border-dashed border-border">
               <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                正在加载仓库源列表...
+                {t('skill.repo.loading')}
               </CardContent>
             </Card>
           ) : filteredRepos.length === 0 ? (
             <Card className="border border-dashed border-border">
               <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                暂无匹配的仓库源，请先新增 Git 仓库或本地导入源。
+                {t('skill.repo.empty')}
               </CardContent>
             </Card>
           ) : (
             <div className="divide-y divide-border">
               {filteredRepos.map(repo => {
-                const location = getRepositoryLocation(repo)
-                const statusDisplay = getRepositoryStatusDisplay(repo)
+                const location = getRepositoryLocation(repo, t)
+                const statusDisplay = getRepositoryStatusDisplay(repo, t)
                 const isUpdating = updatingRepoIds.has(repo.repo_id)
 
                 return (
@@ -409,7 +415,7 @@ export function SkillRepoManagement() {
                       />
                       <CompactMetaRow>
                         {repo.source_type === 'git' ? (
-                          <CompactMeta label="分支" value={repo.branch || '默认分支'} />
+                          <CompactMeta label={t('skill.repo.branch')} value={repo.branch || t('skill.repo.defaultBranch')} />
                         ) : null}
                         {statusDisplay.mode === 'discovering' ? (
                           <CompactStatus
@@ -429,11 +435,11 @@ export function SkillRepoManagement() {
                         disabled={isUpdating}
                       >
                         <RefreshCw className={cn('mr-2 h-4 w-4', isUpdating && 'animate-spin')} />
-                        更新
+                        {t('skill.repo.action.update')}
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => openEditDialog(repo)}>
                         <Pencil className="mr-2 h-4 w-4" />
-                        编辑
+                        {t('skill.repo.action.edit')}
                       </Button>
                       <Button
                         variant="ghost"
@@ -442,7 +448,7 @@ export function SkillRepoManagement() {
                         onClick={() => void handleDelete(repo)}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        删除
+                        {t('skill.repo.action.delete')}
                       </Button>
                     </div>
                   </div>
@@ -457,39 +463,50 @@ export function SkillRepoManagement() {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {createForm.source_type === 'git' ? '新增 Git 源' : '新增本地源'}
+              {createForm.source_type === 'git'
+                ? t('skill.repo.createGitTitle')
+                : t('skill.repo.createLocalTitle')}
             </DialogTitle>
             <DialogDescription>
               {createForm.source_type === 'git'
-                ? '请填写 Git 仓库地址；如有需要，可补充分支信息。'
-                : '请上传 ZIP 压缩包作为技能来源。'}
+                ? t('skill.repo.createGitDialogDescription')
+                : t('skill.repo.createLocalDialogDescription')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             {createForm.source_type === 'git' ? (
               <>
-                <FormField label="仓库地址" description="请输入可访问的 Git 仓库地址。">
+                <FormField
+                  label={t('skill.repo.field.repoUrl')}
+                  description={t('skill.repo.field.repoUrlDesc')}
+                >
                   <Input
                     value={createForm.url}
                     onChange={event =>
                       setCreateForm(currentForm => ({ ...currentForm, url: event.target.value }))
                     }
-                    placeholder="请输入 Git 仓库 URL"
+                    placeholder={t('skill.repo.field.repoUrlPlaceholder')}
                   />
                 </FormField>
-                <FormField label="分支" description="可选；不填写时使用默认分支。">
+                <FormField
+                  label={t('skill.repo.field.branch')}
+                  description={t('skill.repo.field.branchDesc')}
+                >
                   <Input
                     value={createForm.branch}
                     onChange={event =>
                       setCreateForm(currentForm => ({ ...currentForm, branch: event.target.value }))
                     }
-                    placeholder="例如：main 或 master"
+                    placeholder={t('skill.repo.field.branchPlaceholder')}
                   />
                 </FormField>
               </>
             ) : (
               <>
-                <FormField label="上传压缩包" description="上传包含技能的 ZIP 压缩包。">
+                <FormField
+                  label={t('skill.repo.field.uploadArchive')}
+                  description={t('skill.repo.field.uploadArchiveDesc')}
+                >
                   <div className="mt-2">
                     <div
                       className={cn(
@@ -549,14 +566,14 @@ export function SkillRepoManagement() {
                               {createForm.uploaded_file.name}
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              点击或拖拽更换文件
+                              {t('skill.repo.upload.replaceHint')}
                             </span>
                           </>
                         ) : (
                           <>
                             <Upload className="h-8 w-8" />
-                            <span>点击或拖拽上传 ZIP 文件</span>
-                            <span className="text-xs">最大支持 50MB</span>
+                            <span>{t('skill.repo.upload.hint')}</span>
+                            <span className="text-xs">{t('skill.repo.upload.maxSize')}</span>
                           </>
                         )}
                       </label>
@@ -574,7 +591,7 @@ export function SkillRepoManagement() {
                         }
                       >
                         <X className="mr-1 h-3 w-3" />
-                        移除文件
+                        {t('skill.repo.upload.removeFile')}
                       </Button>
                     )}
                   </div>
@@ -591,14 +608,14 @@ export function SkillRepoManagement() {
               }}
               disabled={submitting}
             >
-              取消
+              {t('common:action.cancel')}
             </Button>
             <Button onClick={() => void handleCreate()} disabled={submitting}>
               {submitting
-                ? '提交中...'
+                ? t('skill.repo.action.submitting')
                 : createForm.source_type === 'git'
-                  ? '创建 Git 源'
-                  : '创建本地源'}
+                  ? t('skill.repo.action.createGit')
+                  : t('skill.repo.action.createLocal')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -607,29 +624,39 @@ export function SkillRepoManagement() {
       <Dialog open={!!editingRepo} onOpenChange={open => !open && setEditingRepo(null)}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>编辑仓库源</DialogTitle>
-            <DialogDescription>您可以在这里调整当前仓库源的关键信息。</DialogDescription>
+            <DialogTitle>{t('skill.repo.editTitle')}</DialogTitle>
+            <DialogDescription>{t('skill.repo.editDescription')}</DialogDescription>
           </DialogHeader>
           {editingRepo ? (
             <div className="space-y-4 pt-2">
-              <FormField label="修改提示">
+              <FormField label={t('skill.repo.field.editHint')}>
                 <Input
-                  value={editingRepo.source_type === 'git' ? '修改Git仓库' : '不可修改'}
+                  value={
+                    editingRepo.source_type === 'git'
+                      ? t('skill.repo.field.editableGit')
+                      : t('skill.repo.field.notEditable')
+                  }
                   disabled
                 />
               </FormField>
               {editingRepo.source_type === 'git' ? (
                 <>
-                  <FormField label="仓库地址" description="当前来源地址仅用于展示。">
+                  <FormField
+                    label={t('skill.repo.field.repoUrl')}
+                    description={t('skill.repo.field.repoUrlReadonlyDesc')}
+                  >
                     <Input value={editingRepo.url || ''} disabled />
                   </FormField>
-                  <FormField label="分支" description="更新后，系统将基于新的分支继续同步内容。">
+                  <FormField
+                    label={t('skill.repo.field.branch')}
+                    description={t('skill.repo.field.branchEditDesc')}
+                  >
                     <Input
                       value={editForm.branch}
                       onChange={event =>
                         setEditForm(currentForm => ({ ...currentForm, branch: event.target.value }))
                       }
-                      placeholder="例如：main"
+                      placeholder={t('skill.repo.field.branchEditPlaceholder')}
                     />
                   </FormField>
                 </>
@@ -638,10 +665,10 @@ export function SkillRepoManagement() {
           ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingRepo(null)} disabled={submitting}>
-              取消
+              {t('common:action.cancel')}
             </Button>
             <Button onClick={() => void handleUpdate()} disabled={submitting || !editingRepo}>
-              {submitting ? '保存中...' : '保存修改'}
+              {submitting ? t('skill.repo.action.saving') : t('skill.repo.action.saveChanges')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -658,26 +685,32 @@ function buildFormStateFromRepository(repo: SkillRepositoryResponse): RepoFormSt
   }
 }
 
-function getRepositoryLocation(repo: SkillRepositoryResponse): RepositoryLocation {
+function getRepositoryLocation(
+  repo: SkillRepositoryResponse,
+  t: TFunction
+): RepositoryLocation {
   if (repo.source_type === 'git') {
     return {
-      label: 'Git 地址',
+      label: t('skill.repo.location.gitUrl'),
       value: repo.url ?? undefined,
     }
   }
 
   return {
     icon: FolderOpen,
-    label: '包名',
+    label: t('skill.repo.location.packageName'),
     value: repo.repo_name ?? undefined,
   }
 }
 
-function getRepositoryStatusDisplay(status?: SkillRepositoryResponse): RepositoryStatusDisplay {
+function getRepositoryStatusDisplay(
+  status: SkillRepositoryResponse | undefined,
+  t: TFunction
+): RepositoryStatusDisplay {
   if (isInProgressStatus(status?.skill_discover_status)) {
     return {
       mode: 'discovering',
-      label: '扫描状态',
+      label: t('skill.repo.status.scanStatus'),
       status: status?.skill_discover_status,
     }
   }
@@ -685,15 +718,18 @@ function getRepositoryStatusDisplay(status?: SkillRepositoryResponse): Repositor
   if (status?.skill_discover_status === 'done') {
     return {
       mode: 'meta',
-      label: '识别技能',
-      value: typeof status.skill_num === 'number' ? `${status.skill_num} 个` : '暂无数据',
+      label: t('skill.repo.status.recognizedSkills'),
+      value:
+        typeof status.skill_num === 'number'
+          ? t('skill.repo.status.skillCount', { count: status.skill_num })
+          : t('common:status.empty'),
     }
   }
 
   return {
     mode: 'meta',
-    label: '扫描状态',
-    value: formatDiscoverStatusText(status?.skill_discover_status),
+    label: t('skill.repo.status.scanStatus'),
+    value: formatDiscoverStatusText(status?.skill_discover_status, t),
   }
 }
 
@@ -711,7 +747,7 @@ function InlineInfo({
       {Icon ? <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /> : null}
       <div className="min-w-0">
         <span className="mr-2 text-muted-foreground">{label}</span>
-        <span className="break-all">{value || '未提供'}</span>
+        <span className="break-all">{value || i18n.t('common:status.notProvided')}</span>
       </div>
     </div>
   )
@@ -737,8 +773,8 @@ function CompactMeta({
   return (
     <div className="flex items-center gap-1.5">
       {Icon ? <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : null}
-      <span>{label}：</span>
-      <span className="break-all">{value || '未提供'}</span>
+      <span>{i18n.t('common:labelWithColon', { label })}</span>
+      <span className="break-all">{value || i18n.t('common:status.notProvided')}</span>
     </div>
   )
 }
@@ -747,7 +783,7 @@ function CompactStatus({ label, status }: { label: string; status?: string }) {
   return (
     <div className="flex items-center gap-1.5">
       <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin text-blue-600" />
-      <span>{label}：</span>
+      <span>{i18n.t('common:labelWithColon', { label })}</span>
       <DiscoverStatusBadge status={status} />
     </div>
   )
@@ -766,18 +802,19 @@ function DiscoverStatusBadge({ status }: { status?: string }) {
   )
 }
 
-function formatDiscoverStatusText(status?: string) {
-  return getDiscoverStatusMeta(status).label
+function formatDiscoverStatusText(status: string | undefined, t: TFunction) {
+  return getDiscoverStatusMeta(status, t).label
 }
 
 function isInProgressStatus(status?: string) {
   return getDiscoverStatusMeta(status).inProgress
 }
 
-function getDiscoverStatusMeta(status?: string) {
+function getDiscoverStatusMeta(status?: string, t?: TFunction) {
+  const translate = t ?? i18n.t.bind(i18n)
   if (status === 'init') {
     return {
-      label: '初始化中',
+      label: translate('skill.repo.discoverStatus.init'),
       className: 'border-blue-200 bg-blue-50 text-blue-700',
       inProgress: true,
     }
@@ -785,7 +822,7 @@ function getDiscoverStatusMeta(status?: string) {
 
   if (status === 'discovering') {
     return {
-      label: '发现中',
+      label: translate('skill.repo.discoverStatus.discovering'),
       className: 'border-blue-200 bg-blue-50 text-blue-700',
       inProgress: true,
     }
@@ -793,7 +830,7 @@ function getDiscoverStatusMeta(status?: string) {
 
   if (status === 'done') {
     return {
-      label: '已完成',
+      label: translate('skill.repo.discoverStatus.done'),
       className: 'border-green-200 bg-green-50 text-green-700',
       inProgress: false,
     }
@@ -801,14 +838,14 @@ function getDiscoverStatusMeta(status?: string) {
 
   if (status === 'failed') {
     return {
-      label: '失败',
+      label: translate('common:status.failed'),
       className: 'border-red-200 bg-red-50 text-red-700',
       inProgress: false,
     }
   }
 
   return {
-    label: '暂无数据',
+    label: translate('common:status.empty'),
     className: 'border-border bg-muted text-muted-foreground',
     inProgress: false,
   }

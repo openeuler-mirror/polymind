@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Loader2, Plus, CheckCircle2, RefreshCw } from 'lucide-react'
 import { agentService } from '@/services/agent-service'
 import { AgentTemplateInfo } from '@/lib/types'
@@ -15,6 +16,7 @@ import { useChatStore } from '@/lib/store'
  * 实例化流程（选中 / 错误分类 / 刷新）与智能体页共用 useTemplateInstantiate。
  */
 export function AgentTemplateChips() {
+  const { t } = useTranslation('chat')
   const [templates, setTemplates] = useState<AgentTemplateInfo[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [templateLoadError, setTemplateLoadError] = useState(false)
@@ -72,7 +74,7 @@ export function AgentTemplateChips() {
     return (
       <div className="flex h-6 items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
-        加载模板中...
+        {t('template.chips.loading')}
       </div>
     )
   }
@@ -85,7 +87,7 @@ export function AgentTemplateChips() {
         className="inline-flex h-6 items-center gap-1.5 rounded-full border border-dashed border-border px-4 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
       >
         <RefreshCw className="h-3.5 w-3.5" />
-        模版加载失败，点击重试
+        {t('template.chips.loadFailed')}
       </button>
     )
   }
@@ -105,8 +107,8 @@ export function AgentTemplateChips() {
             title={template.description || template.name}
             aria-label={
               instantiated
-                ? `模板 ${template.name}（已创建，选中该 Agent）`
-                : `实例化模板 ${template.name}`
+                ? t('template.chips.createdAria', { name: template.name })
+                : t('template.chips.createAria', { name: template.name })
             }
             aria-busy={isInstantiating}
             disabled={disabled}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 
 import {
   AlertDialog,
@@ -29,6 +30,7 @@ interface DeleteScheduledTaskDialogProps {
  * 后端在任务运行中拒绝删除（409 TASK_BUSY）时给出专属提示。
  */
 export function DeleteScheduledTaskDialog({ task, onClose }: DeleteScheduledTaskDialogProps) {
+  const { t } = useTranslation('tool-panel')
   const { toast } = useToast()
   const [deleting, setDeleting] = useState(false)
 
@@ -38,16 +40,20 @@ export function DeleteScheduledTaskDialog({ task, onClose }: DeleteScheduledTask
     try {
       await useScheduledTaskStore.getState().deleteTaskAndPurge(task.id)
       toast({
-        title: '已删除',
-        description: `定时任务「${task.name}」及其会话、执行记录已删除`,
+        title: t('scheduledTask.delete.deletedTitle'),
+        description: t('scheduledTask.delete.deletedDescription', { name: task.name }),
       })
       onClose()
     } catch (error) {
       console.error('Failed to delete scheduled task:', error)
       const isBusy = error instanceof ApiError && error.statusCode === 409
       toast({
-        title: isBusy ? '任务运行中' : '删除失败',
-        description: isBusy ? '该任务正在执行，请稍后再试' : '删除定时任务失败',
+        title: isBusy
+          ? t('scheduledTask.delete.busyTitle')
+          : t('scheduledTask.delete.failedTitle'),
+        description: isBusy
+          ? t('scheduledTask.delete.busyDescription')
+          : t('scheduledTask.delete.failedDescription'),
         variant: 'destructive',
       })
     } finally {
@@ -64,14 +70,18 @@ export function DeleteScheduledTaskDialog({ task, onClose }: DeleteScheduledTask
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>删除定时任务</AlertDialogTitle>
+          <AlertDialogTitle>{t('scheduledTask.delete.dialogTitle')}</AlertDialogTitle>
           <AlertDialogDescription>
-            确定要删除「{task?.name}
-            」吗？删除后任务将不再调度，其全部会话与执行记录将一并删除，且不可恢复。
+            <Trans
+              i18nKey="scheduledTask.delete.dialogDescription"
+              ns="tool-panel"
+              values={{ name: task ? task.name : '' }}
+              shouldUnescape={false}
+            />
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+          <AlertDialogCancel disabled={deleting}>{t('common:action.cancel')}</AlertDialogCancel>
           <AlertDialogAction
             onClick={event => {
               event.preventDefault()
@@ -80,7 +90,7 @@ export function DeleteScheduledTaskDialog({ task, onClose }: DeleteScheduledTask
             disabled={deleting}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {deleting ? '删除中...' : '删除'}
+            {deleting ? t('scheduledTask.delete.deleting') : t('common:action.delete')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

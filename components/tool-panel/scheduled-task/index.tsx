@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ArrowDown, ArrowUp, CalendarClock, Info, Plus, RefreshCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -25,15 +26,16 @@ import { TaskCard } from './task-card'
 
 type TabId = 'tasks' | 'runs'
 
-const TABS: Array<{ id: TabId; label: string }> = [
-  { id: 'tasks', label: '我的定时任务' },
-  { id: 'runs', label: '执行记录' },
+const TABS: Array<{ id: TabId; labelKey: string }> = [
+  { id: 'tasks', labelKey: 'scheduledTask.tabs.tasks' },
+  { id: 'runs', labelKey: 'scheduledTask.tabs.runs' },
 ]
 
 /** 任务卡片网格列：骨架屏与实际列表共用，避免内联样式重复。 */
 const TASK_GRID_STYLE = { gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' } as const
 
 export function ScheduledTaskPage() {
+  const { t } = useTranslation('tool-panel')
   const { toast } = useToast()
   const tasks = useScheduledTaskStore(s => s.tasks)
   const loading = useScheduledTaskStore(s => s.loading)
@@ -77,8 +79,10 @@ export function ScheduledTaskPage() {
     } catch (error) {
       console.error('Failed to toggle scheduled task:', error)
       toast({
-        title: '错误',
-        description: enabled ? '启用任务失败' : '停用任务失败',
+        title: t('common:status.error'),
+        description: enabled
+          ? t('scheduledTask.toast.enableFailed')
+          : t('scheduledTask.toast.disableFailed'),
         variant: 'destructive',
       })
     } finally {
@@ -107,22 +111,20 @@ export function ScheduledTaskPage() {
       <div className="mx-auto w-full max-w-6xl px-6 pb-16 pt-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-foreground">定时任务</h1>
+            <h1 className="text-xl font-semibold text-foreground">{t('scheduledTask.title')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              配置让 Polymind 按计划自动执行的任务，创建后由后端调度器统一运行。
+              {t('scheduledTask.description')}
             </p>
           </div>
           <Button size="sm" className="shrink-0" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
-            新建定时任务
+            {t('scheduledTask.actions.create')}
           </Button>
         </div>
 
         <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>
-            任务创建后由后端调度器按计划自动运行，可随时点击卡片编辑，或在卡片上启停、立即执行、删除；执行结果汇总在“执行记录”标签中。
-          </p>
+          <p>{t('scheduledTask.notice')}</p>
         </div>
 
         <div className="mt-6 flex items-center justify-between gap-4 border-b border-border">
@@ -141,7 +143,7 @@ export function ScheduledTaskPage() {
                   )}
                   onClick={() => setActiveTab(tab.id)}
                 >
-                  {tab.label}
+                  {t(tab.labelKey)}
                   {active && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" />}
                 </button>
               )
@@ -159,7 +161,7 @@ export function ScheduledTaskPage() {
               ) : (
                 <ArrowUp className="h-4 w-4" />
               )}
-              按创建时间排序
+              {t('scheduledTask.actions.sortByCreatedAt')}
             </Button>
           )}
         </div>
@@ -176,13 +178,13 @@ export function ScheduledTaskPage() {
           ) : error && tasks.length === 0 ? (
             <Empty className="py-16">
               <EmptyHeader>
-                <EmptyTitle>加载失败</EmptyTitle>
+                <EmptyTitle>{t('scheduledTask.empty.loadFailedTitle')}</EmptyTitle>
                 <EmptyDescription>{error}</EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
                 <Button variant="outline" onClick={() => void refresh(true)} disabled={loading}>
                   <RefreshCw className={loading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-                  重试
+                  {t('common:action.retry')}
                 </Button>
               </EmptyContent>
             </Empty>
@@ -192,15 +194,15 @@ export function ScheduledTaskPage() {
                 <EmptyMedia variant="icon">
                   <CalendarClock className="h-6 w-6" />
                 </EmptyMedia>
-                <EmptyTitle>暂无定时任务</EmptyTitle>
+                <EmptyTitle>{t('scheduledTask.empty.title')}</EmptyTitle>
                 <EmptyDescription>
-                  创建第一个定时任务，让 Polymind 按计划自动执行。
+                  {t('scheduledTask.empty.description')}
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
                 <Button onClick={() => setCreateOpen(true)}>
                   <Plus className="h-4 w-4" />
-                  新建定时任务
+                  {t('scheduledTask.actions.create')}
                 </Button>
               </EmptyContent>
             </Empty>

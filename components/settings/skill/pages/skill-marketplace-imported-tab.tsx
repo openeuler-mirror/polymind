@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
@@ -40,6 +41,7 @@ export function ImportedMarketplaceTab({
   onPreview: (item: SkillPreviewItem) => void
   onCountChange?: (count: number) => void
 }) {
+  const { t } = useTranslation('settings')
   const [importedSkills, setImportedSkills] = useState<SkillResponse[]>([])
   const [repositories, setRepositories] = useState<SkillRepositoryResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,10 +79,10 @@ export function ImportedMarketplaceTab({
     )
 
     return [
-      { label: '全部仓库', value: SOURCE_FILTER_ALL },
+      { label: t('skill.marketplace.allRepositories'), value: SOURCE_FILTER_ALL },
       ...uniqueSources.map(value => ({ label: value, value })),
     ]
-  }, [importedSkills, sourceByRepoId])
+  }, [importedSkills, sourceByRepoId, t])
 
   const filteredSkills = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase()
@@ -147,14 +149,14 @@ export function ImportedMarketplaceTab({
     } catch (error) {
       console.error('Failed to refresh imported skill marketplace:', error)
       toast({
-        title: '加载失败',
-        description: extractApiErrorMessage(error, '无法获取导入技能列表，请稍后重试。'),
+        title: t('skill.marketplace.toast.loadFailed'),
+        description: extractApiErrorMessage(error, t('skill.marketplace.toast.loadImportedDesc')),
         variant: 'destructive',
       })
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [t, toast])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -177,7 +179,7 @@ export function ImportedMarketplaceTab({
           <div className="flex flex-wrap items-center gap-2">
             <Select value={selectedSource} onValueChange={setSelectedSource}>
               <SelectTrigger className="w-80 shrink-0">
-                <SelectValue placeholder="按仓库筛选" />
+                <SelectValue placeholder={t('skill.marketplace.filterByRepository')} />
               </SelectTrigger>
               <SelectContent>
                 {repositoryOptions.map(option => (
@@ -193,7 +195,7 @@ export function ImportedMarketplaceTab({
             <Input
               value={searchTerm}
               onChange={event => setSearchTerm(event.target.value)}
-              placeholder="搜索导入技能"
+              placeholder={t('skill.marketplace.searchImported')}
               className="pl-9"
             />
           </div>
@@ -201,9 +203,9 @@ export function ImportedMarketplaceTab({
       </div>
 
       {loading ? (
-        <EmptyState text="正在加载导入技能..." />
+        <EmptyState text={t('skill.marketplace.loadingImported')} />
       ) : filteredSkills.length === 0 ? (
-        <EmptyState text="暂无匹配的导入技能记录。" />
+        <EmptyState text={t('skill.marketplace.emptyImported')} />
       ) : (
         <div ref={containerRef} className="max-h-[calc(100vh-22rem)] overflow-y-auto pr-1">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -211,10 +213,10 @@ export function ImportedMarketplaceTab({
               const source = skill.repo_id ? sourceByRepoId.get(skill.repo_id) : undefined
               const installLabel =
                 installingSkillKey === skill.skill_id
-                  ? '安装中...'
+                  ? t('skill.marketplace.installing')
                   : installedSkillIds.has(skill.skill_id)
-                    ? '已安装'
-                    : '安装'
+                    ? t('skill.marketplace.installed')
+                    : t('skill.marketplace.install')
               const installDisabled =
                 !activeAgentId ||
                 !skill.skill_id ||
@@ -238,8 +240,11 @@ export function ImportedMarketplaceTab({
           </div>
           <div className="flex min-h-10 items-center justify-center py-4 text-sm text-muted-foreground">
             {hasMore
-              ? `继续向下滚动以加载更多（已显示 ${visibleSkills.length} / ${filteredSkills.length}）`
-              : `已显示全部 ${filteredSkills.length} 个导入技能`}
+              ? t('skill.marketplace.scrollMoreSummary', {
+                  visible: visibleSkills.length,
+                  total: filteredSkills.length,
+                })
+              : t('skill.marketplace.allDisplayedImported', { total: filteredSkills.length })}
           </div>
         </div>
       )}

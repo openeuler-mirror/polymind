@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { AlertCircle, CircleAlert } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -32,25 +34,25 @@ const TYPE_LABELS: Record<string, string> = {
 
 const SEVERITY_META: Record<
   InterruptionSeverity,
-  { label: string; className: string; titleClassName: string }
+  { labelKey: string; className: string; titleClassName: string }
 > = {
   critical: {
-    label: '严重风险',
+    labelKey: 'insight.interruption.severity.critical',
     className: 'border-red-200 bg-red-50 text-red-700',
     titleClassName: 'text-red-700',
   },
   high: {
-    label: '高风险',
+    labelKey: 'insight.interruption.severity.high',
     className: 'border-orange-200 bg-orange-50 text-orange-700',
     titleClassName: 'text-orange-700',
   },
   medium: {
-    label: '中风险',
+    labelKey: 'insight.interruption.severity.medium',
     className: 'border-amber-200 bg-amber-50 text-amber-700',
     titleClassName: 'text-amber-700',
   },
   low: {
-    label: '低风险',
+    labelKey: 'insight.interruption.severity.low',
     className: 'border-sky-200 bg-sky-50 text-sky-700',
     titleClassName: 'text-sky-700',
   },
@@ -71,9 +73,9 @@ function getTypeLabel(interruptionType: string): string {
   return TYPE_LABELS[interruptionType] ?? interruptionType
 }
 
-function formatDetail(detail: string | null) {
+function formatDetail(detail: string | null, t: TFunction) {
   if (!detail) {
-    return '暂无 detail'
+    return t('insight.interruption.noDetail')
   }
 
   try {
@@ -90,6 +92,7 @@ function InterruptionDetailCard({
   record: InterruptionRecord
   onResolve?: (record: InterruptionRecord) => Promise<void>
 }) {
+  const { t } = useTranslation('tool-panel')
   const severityMeta = SEVERITY_META[record.severity]
   const [resolving, setResolving] = useState(false)
   const [resolveError, setResolveError] = useState<string | null>(null)
@@ -107,7 +110,9 @@ function InterruptionDetailCard({
       await onResolve(record)
       setConfirmOpen(false)
     } catch (error) {
-      setResolveError(error instanceof Error ? error.message : '操作失败，请稍后重试')
+      setResolveError(
+        error instanceof Error ? error.message : t('insight.interruption.resolveFailed')
+      )
     } finally {
       setResolving(false)
     }
@@ -121,7 +126,9 @@ function InterruptionDetailCard({
             <h3 className={cn('text-sm font-semibold', severityMeta.titleClassName)}>
               {getTypeLabel(record.interruption_type)}
             </h3>
-            <Badge className={cn('border', severityMeta.className)}>{severityMeta.label}</Badge>
+            <Badge className={cn('border', severityMeta.className)}>
+              {t(severityMeta.labelKey)}
+            </Badge>
             {record.pid != null ? (
               <Badge variant="outline" className="font-mono text-[11px]">
                 PID {record.pid}
@@ -143,19 +150,23 @@ function InterruptionDetailCard({
               }}
             >
               {resolving ? <Spinner className="mr-2 h-3.5 w-3.5" /> : null}
-              标记已处理
+              {t('insight.interruption.markResolved')}
             </Button>
 
             <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>确认标记为已处理</AlertDialogTitle>
+                  <AlertDialogTitle>
+                    {t('insight.interruption.confirmResolveTitle')}
+                  </AlertDialogTitle>
                   <AlertDialogDescription>
-                    标记为已处理后，此中断事件将不再计入异常统计。
+                    {t('insight.interruption.confirmResolveDescription')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel disabled={resolving}>取消</AlertDialogCancel>
+                  <AlertDialogCancel disabled={resolving}>
+                    {t('common:action.cancel')}
+                  </AlertDialogCancel>
                   <Button
                     type="button"
                     disabled={resolving}
@@ -164,7 +175,7 @@ function InterruptionDetailCard({
                     }}
                   >
                     {resolving ? <Spinner className="mr-2 h-3.5 w-3.5" /> : null}
-                    确认处理
+                    {t('insight.interruption.confirmResolve')}
                   </Button>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -178,7 +189,7 @@ function InterruptionDetailCard({
           Detail
         </div>
         <pre className="whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-4 py-3 text-sm leading-7 text-foreground">
-          {formatDetail(record.detail)}
+          {formatDetail(record.detail, t)}
         </pre>
       </div>
 
@@ -192,6 +203,8 @@ interface InsightInterruptionSheetProps {
 }
 
 export function InsightInterruptionSheet({ controller }: InsightInterruptionSheetProps) {
+  const { t } = useTranslation('tool-panel')
+
   return (
     <Dialog open={controller.sheet.open} onOpenChange={controller.setInterruptionSheetOpen}>
       <DialogContent className="max-w-5xl gap-0 overflow-hidden p-0">
@@ -203,13 +216,13 @@ export function InsightInterruptionSheet({ controller }: InsightInterruptionShee
           {controller.sheet.loading ? (
             <div className="flex min-h-60 items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
               <Spinner className="h-4 w-4" />
-              正在加载异常中断详情...
+              {t('insight.interruption.loadingDetail')}
             </div>
           ) : controller.sheet.error ? (
             <div className="py-4">
               <Alert variant="destructive">
                 <AlertCircle />
-                <AlertTitle>异常中断详情加载失败</AlertTitle>
+                <AlertTitle>{t('insight.interruption.detailLoadFailed')}</AlertTitle>
                 <AlertDescription>{controller.sheet.error}</AlertDescription>
               </Alert>
             </div>
@@ -220,7 +233,7 @@ export function InsightInterruptionSheet({ controller }: InsightInterruptionShee
                   <EmptyMedia variant="icon">
                     <CircleAlert />
                   </EmptyMedia>
-                  <EmptyTitle>没有记录到异常中断</EmptyTitle>
+                  <EmptyTitle>{t('insight.interruption.empty')}</EmptyTitle>
                 </EmptyHeader>
               </Empty>
             </div>

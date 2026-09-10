@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
@@ -36,6 +37,7 @@ function buildInstalledSkillKey(skill: AgentSkillResponse) {
 }
 
 export function SkillMarketplace() {
+  const { t } = useTranslation('settings')
   const currentAgentId = useChatStore(state => state.currentAgentId)
   const agents = useChatStore(state => state.agents)
   const [activeTab, setActiveTab] = useState<string>(MARKETPLACE_TAB_WITTYHUB)
@@ -126,8 +128,8 @@ export function SkillMarketplace() {
     async (skill: SkillResponse) => {
       if (!activeAgentId) {
         toast({
-          title: '未选择 Agent',
-          description: '请先在聊天区选择一个 Agent，再安装技能。',
+          title: t('skill.marketplace.toast.noAgentTitle'),
+          description: t('skill.marketplace.toast.noAgentInstallDesc'),
           variant: 'destructive',
         })
         return
@@ -135,8 +137,8 @@ export function SkillMarketplace() {
 
       if (!skill.skill_id || !skill.skill_name) {
         toast({
-          title: '安装失败',
-          description: '技能信息不完整，无法安装。',
+          title: t('skill.marketplace.toast.installFailed'),
+          description: t('skill.marketplace.toast.incompleteInfo'),
           variant: 'destructive',
         })
         return
@@ -151,8 +153,8 @@ export function SkillMarketplace() {
 
       if (isWittyHubSkill && !wittyHubSourceUrl) {
         toast({
-          title: '安装失败',
-          description: 'WittyHub 技能缺少来源地址，暂时无法安装。',
+          title: t('skill.marketplace.toast.installFailed'),
+          description: t('skill.marketplace.toast.missingSourceUrl'),
           variant: 'destructive',
         })
         return
@@ -164,8 +166,10 @@ export function SkillMarketplace() {
 
       if (alreadyInstalled) {
         toast({
-          title: '已安装',
-          description: `技能 ${extractSkillName(skill.skill_name)} 已安装。`,
+          title: t('skill.marketplace.toast.alreadyInstalled'),
+          description: t('skill.marketplace.toast.alreadyInstalledDesc', {
+            name: extractSkillName(skill.skill_name, t),
+          }),
         })
         return
       }
@@ -185,19 +189,24 @@ export function SkillMarketplace() {
           setInstalledSkillIds(prev => new Set([...prev, skill.skill_id]))
         }
         toast({
-          title: '安装成功',
-          description: `技能 ${extractSkillName(skill.skill_name)} 已安装到当前 Agent。`,
+          title: t('skill.marketplace.toast.installSuccess'),
+          description: t('skill.marketplace.toast.installSuccessDesc', {
+            name: extractSkillName(skill.skill_name, t),
+          }),
         })
       } catch (error) {
         console.error('Failed to install skill:', error)
         toast({
-          title: '安装失败',
+          title: t('skill.marketplace.toast.installFailed'),
           description: extractSkillOperationErrorMessage(error, {
             operation: 'install',
             skillName: skill.skill_name,
             sourceType: isWittyHubSkill ? 'wittyhub' : undefined,
-            sourceLabel: isWittyHubSkill ? 'WittyHub 技能' : '导入技能',
-            fallback: '安装技能失败，请稍后重试。',
+            sourceLabel: isWittyHubSkill
+              ? t('skill.source.wittyhub')
+              : t('skill.source.imported'),
+            fallback: t('skill.marketplace.toast.installFailedDesc'),
+            t,
           }),
           variant: 'destructive',
         })
@@ -205,7 +214,7 @@ export function SkillMarketplace() {
         setInstallingSkillKey(null)
       }
     },
-    [activeAgentId, installedSkillIds, installedWittyHubSkillKeys, toast]
+    [activeAgentId, installedSkillIds, installedWittyHubSkillKeys, t, toast]
   )
 
   return (
@@ -215,10 +224,10 @@ export function SkillMarketplace() {
           <CardHeader className="gap-4">
             <TabsList className="grid h-auto w-full grid-cols-2">
               <TabsTrigger value={MARKETPLACE_TAB_WITTYHUB} className="py-3">
-                WittyHub 技能 {wittyhubSkillCount ? `(${wittyhubSkillCount})` : ''}
+                {t('skill.marketplace.tabWittyhub')} {wittyhubSkillCount ? `(${wittyhubSkillCount})` : ''}
               </TabsTrigger>
               <TabsTrigger value={MARKETPLACE_TAB_IMPORTED} className="py-3">
-                仓库导入技能 ({importedSkillCount})
+                {t('skill.marketplace.tabImported', { count: importedSkillCount })}
               </TabsTrigger>
             </TabsList>
           </CardHeader>

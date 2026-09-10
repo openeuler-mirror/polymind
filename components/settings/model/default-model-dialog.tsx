@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Check, Cpu, Info, Loader2, Plus, PowerOff, RotateCw } from 'lucide-react'
 import {
   Dialog,
@@ -62,6 +63,7 @@ function StateBlock({
  * - 每次打开都现取模型列表，避免"前端以为有默认、后端已删"的缓存错位。
  */
 export function DefaultModelDialog() {
+  const { t } = useTranslation('settings')
   const isOpen = useChatStore(state => state.isDefaultModelDialogOpen)
   const closeDialog = useChatStore(state => state.closeDefaultModelDialog)
   const setHasConfiguredDefaultModel = useChatStore(state => state.setHasConfiguredDefaultModel)
@@ -115,8 +117,8 @@ export function DefaultModelDialog() {
   const hasDisabledDefault = (models ?? []).some(m => m.isDefault && !m.enabled)
 
   const guideText = hasDisabledDefault
-    ? '默认模型已被禁用，请从下方重新选择一个默认模型。'
-    : '为保证智能体正常工作，请先选择一个默认模型。'
+    ? t('defaultModelDialog.guideDisabledDefault')
+    : t('defaultModelDialog.guideSelectDefault')
 
   /** 跳转到设置页的模型配置，并关闭本弹窗（复用设置页导航逻辑，额外确保右栏拉起）。 */
   const navigateToModels = () => {
@@ -136,15 +138,15 @@ export function DefaultModelDialog() {
     setIsSubmitting(true)
     try {
       await modelService.updateModel(selectedModelId, { isDefault: true })
-      toast({ title: '已设为默认模型' })
+      toast({ title: t('defaultModelDialog.toast.success') })
       // 先关弹窗再置位：判定会跳过「弹窗打开中」，否则引导气泡不会立即出现。
       closeDialog()
       setHasConfiguredDefaultModel(true)
     } catch (error) {
       console.error('Failed to set default model:', error)
       toast({
-        title: '设置失败',
-        description: '无法将所选模型设为默认，请稍后重试',
+        title: t('defaultModelDialog.toast.failed'),
+        description: t('defaultModelDialog.toast.failedDesc'),
         variant: 'destructive',
       })
     } finally {
@@ -166,9 +168,9 @@ export function DefaultModelDialog() {
               <Cpu className="h-5 w-5" />
             </div>
             <div className="min-w-0 space-y-1.5 pt-0.5">
-              <DialogTitle>配置默认模型</DialogTitle>
+              <DialogTitle>{t('defaultModelDialog.title')}</DialogTitle>
               <DialogDescription className="text-xs leading-relaxed">
-                智能体需要一个可用的默认模型才能正常对话与执行任务。
+                {t('defaultModelDialog.description')}
               </DialogDescription>
             </div>
           </div>
@@ -178,26 +180,26 @@ export function DefaultModelDialog() {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-xs">正在读取模型配置...</span>
+              <span className="text-xs">{t('defaultModelDialog.loading')}</span>
             </div>
           ) : loadError ? (
             <StateBlock
               icon={<RotateCw className="h-5 w-5" />}
-              title="无法加载模型配置"
-              description="网络或服务异常，请稍后重试。"
+              title={t('defaultModelDialog.loadErrorTitle')}
+              description={t('defaultModelDialog.loadErrorDescription')}
             />
           ) : models.length === 0 ? (
             <StateBlock
               icon={<Cpu className="h-5 w-5" />}
               iconClassName="bg-primary/10 text-primary"
-              title="尚未配置任何模型"
-              description="先添加一个模型配置，智能体才能正常对话与执行任务。"
+              title={t('defaultModelDialog.emptyTitle')}
+              description={t('defaultModelDialog.emptyDescription')}
             />
           ) : enabledModels.length === 0 ? (
             <StateBlock
               icon={<PowerOff className="h-5 w-5" />}
-              title="没有可用的已启用模型"
-              description="请在设置中启用或添加一个模型，才能设置默认模型。"
+              title={t('defaultModelDialog.noEnabledTitle')}
+              description={t('defaultModelDialog.noEnabledDescription')}
             />
           ) : (
             <div className="space-y-3">
@@ -231,7 +233,7 @@ export function DefaultModelDialog() {
                         </span>
                         {model.isDefault && (
                           <Badge variant="secondary" className="shrink-0 px-2 py-0.5 text-[11px]">
-                            当前默认
+                            {t('defaultModelDialog.currentDefault')}
                           </Badge>
                         )}
                         {active && <Check className="h-4 w-4 shrink-0 text-primary" />}
@@ -242,7 +244,7 @@ export function DefaultModelDialog() {
               </RadioGroup>
               <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                <span>保存后该模型将作为新默认模型，其余模型的默认标记会被自动清除。</span>
+                <span>{t('defaultModelDialog.note')}</span>
               </p>
             </div>
           )}
@@ -250,24 +252,26 @@ export function DefaultModelDialog() {
 
         <DialogFooter>
           {isLoading ? null : loadError ? (
-            <Button onClick={handleRetry}>重试</Button>
+            <Button onClick={handleRetry}>{t('defaultModelDialog.action.retry')}</Button>
           ) : models.length === 0 ? (
             <Button className="gap-1.5" onClick={navigateToModels}>
               <Plus className="h-4 w-4" />
-              前往设置添加模型
+              {t('defaultModelDialog.action.goToAddModel')}
             </Button>
           ) : enabledModels.length === 0 ? (
             <Button className="gap-1.5" onClick={navigateToModels}>
               <Plus className="h-4 w-4" />
-              前往设置
+              {t('defaultModelDialog.action.goToSettings')}
             </Button>
           ) : (
             <Button onClick={handleConfirm} disabled={isSubmitting || !selectedModelId}>
-              {isSubmitting ? '设置中...' : '设为默认'}
+              {isSubmitting
+                ? t('defaultModelDialog.action.submitting')
+                : t('defaultModelDialog.action.setDefault')}
             </Button>
           )}
           <Button variant="outline" onClick={closeDialog}>
-            暂不配置
+            {t('defaultModelDialog.action.skip')}
           </Button>
         </DialogFooter>
       </DialogContent>

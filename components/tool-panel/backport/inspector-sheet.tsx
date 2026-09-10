@@ -1,6 +1,7 @@
 'use client'
 
 import { CheckCircle2, Copy, Download, Eye, FileCode2, History, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import {
   Accordion,
@@ -143,7 +144,8 @@ export function InspectorSheet({
   onRefreshCommitMessagePreview,
   onLoadPatchPreview,
 }: InspectorSheetProps) {
-  const patchResources = row ? buildDisplayPatchResources(row.data, row.rowId) : []
+  const { t } = useTranslation('tool-panel')
+  const patchResources = row ? buildDisplayPatchResources(row.data, row.rowId, t) : []
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -157,10 +159,10 @@ export function InspectorSheet({
               <div className="pr-8">
                 <SheetTitle className="text-left text-base text-slate-950">
                   {stringifyValue(row.data.commit || row.data.input_commit).slice(0, 12)} ·{' '}
-                  {resolveCommitTitle(row.data) || '未命名提交'}
+                  {resolveCommitTitle(row.data) || t('backport.inspector.untitledCommit')}
                 </SheetTitle>
                 <SheetDescription className="mt-1 text-left">
-                  “详情预览”展示这一行 commit 的完整信息。
+                  {t('backport.inspector.description')}
                 </SheetDescription>
               </div>
             </SheetHeader>
@@ -174,12 +176,12 @@ export function InspectorSheet({
                 <div className="border-b border-slate-200/80 px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <TabsList className="grid w-full max-w-[680px] grid-cols-6">
-                      <TabsTrigger value="details">详情</TabsTrigger>
-                      <TabsTrigger value="history">历史</TabsTrigger>
+                      <TabsTrigger value="details">{t('backport.inspector.tabDetails')}</TabsTrigger>
+                      <TabsTrigger value="history">{t('backport.inspector.tabHistory')}</TabsTrigger>
                       <TabsTrigger value="patch">Patch</TabsTrigger>
-                      <TabsTrigger value="compare">对比</TabsTrigger>
-                      <TabsTrigger value="manual">手动 Patch</TabsTrigger>
-                      <TabsTrigger value="yaml">原始 YAML</TabsTrigger>
+                      <TabsTrigger value="compare">{t('backport.inspector.tabCompare')}</TabsTrigger>
+                      <TabsTrigger value="manual">{t('backport.inspector.tabManual')}</TabsTrigger>
+                      <TabsTrigger value="yaml">{t('backport.inspector.tabYaml')}</TabsTrigger>
                     </TabsList>
 
                     <div className="flex flex-wrap gap-1.5">
@@ -208,26 +210,31 @@ export function InspectorSheet({
                     <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
                       <div className="mb-3 flex items-center gap-2">
                         <FileCode2 className="h-4 w-4 text-blue-600" />
-                        <h4 className="text-sm font-semibold text-slate-950">基本信息</h4>
+                        <h4 className="text-sm font-semibold text-slate-950">
+                          {t('backport.inspector.basicInfo')}
+                        </h4>
                       </div>
                       <div className="grid gap-3 md:grid-cols-2">
                         <DetailField
-                          label="完整 Commit"
+                          label={t('backport.inspector.fieldFullCommit')}
                           value={stringifyValue(row.data.commit || row.data.input_commit)}
                           mono
                         />
                         <DetailField
-                          label="提交时间"
+                          label={t('backport.inspector.fieldCommittedAt')}
                           value={formatGitDate(stringifyValue(row.data.committed_datetime))}
                         />
                         <DetailField
-                          label="排序标签"
+                          label={t('backport.inspector.fieldSortTag')}
                           value={stringifyValue(row.data.git_describe) || '--'}
                           mono
                         />
-                        <DetailField label="标题" value={resolveCommitTitle(row.data)} />
                         <DetailField
-                          label="目标分支"
+                          label={t('backport.inspector.fieldTitle')}
+                          value={resolveCommitTitle(row.data)}
+                        />
+                        <DetailField
+                          label={t('backport.inspector.fieldTargetBranch')}
                           value={stringifyValue(
                             row.data.target_branch || config.target_release || '--'
                           )}
@@ -268,7 +275,7 @@ export function InspectorSheet({
                             <div className="flex items-center gap-2">
                               <FileCode2 className="h-4 w-4 text-violet-600" />
                               <h4 className="text-sm font-semibold text-slate-950">
-                                Commit Message 预览
+                                {t('backport.inspector.commitMessagePreview')}
                               </h4>
                             </div>
                             <Button
@@ -285,12 +292,12 @@ export function InspectorSheet({
                               {commitMessagePreviewLoading ? (
                                 <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" />
                               ) : null}
-                              刷新预览
+                              {t('backport.inspector.refreshPreview')}
                             </Button>
                           </div>
                           <div className="grid gap-3 md:grid-cols-3">
                             <DetailField
-                              label="来源"
+                              label={t('backport.inspector.fieldSource')}
                               value={stringifyValue(sourceDetection.source) || '--'}
                             />
                             <DetailField
@@ -299,7 +306,7 @@ export function InspectorSheet({
                               mono
                             />
                             <DetailField
-                              label="识别依据"
+                              label={t('backport.inspector.fieldDetectionMethod')}
                               value={stringifyValue(sourceDetection.method) || '--'}
                             />
                           </div>
@@ -310,7 +317,7 @@ export function InspectorSheet({
                           ) : null}
                           {previewStale ? (
                             <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-xs text-sky-900">
-                              模板已变更，此预览可能基于旧模板生成。可刷新当前行预览。
+                              {t('backport.inspector.previewStale')}
                             </div>
                           ) : null}
                           {preview ? (
@@ -325,42 +332,62 @@ export function InspectorSheet({
                     <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
                       <div className="mb-3 flex items-center gap-2">
                         <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                        <h4 className="text-sm font-semibold text-slate-950">检查结果</h4>
+                        <h4 className="text-sm font-semibold text-slate-950">
+                          {t('backport.inspector.checkResult')}
+                        </h4>
                       </div>
                       <div className="grid gap-3 md:grid-cols-2">
-                        <DetailField label="状态" value={resolveStatusMeta(row.data).label} />
-                        <DetailField label="冲突结果" value={resolveConflictMeta(row.data).label} />
                         <DetailField
-                          label="冲突检查方式"
+                          label={t('backport.inspector.fieldStatus')}
+                          value={resolveStatusMeta(row.data, t).label}
+                        />
+                        <DetailField
+                          label={t('backport.inspector.fieldConflictResult')}
+                          value={resolveConflictMeta(row.data, t).label}
+                        />
+                        <DetailField
+                          label={t('backport.inspector.fieldConflictCheckMethod')}
                           value={stringifyValue(row.data.conflict_check_method) || '--'}
                         />
                         <DetailField
-                          label="已应用 Commit"
+                          label={t('backport.inspector.fieldAppliedCommit')}
                           value={stringifyValue(row.data.applied_commit) || '--'}
                           mono
                         />
                         <DetailField
-                          label="回移植进度"
-                          value={resolveBackportProgressText(row.data)}
+                          label={t('backport.inspector.fieldBackportProgress')}
+                          value={resolveBackportProgressText(row.data, t)}
                         />
                         <DetailField
                           label="Merge Commit"
-                          value={Boolean(row.data.is_merge_commit) ? '是' : '否'}
+                          value={Boolean(row.data.is_merge_commit)
+                            ? t('backport.common.yes')
+                            : t('backport.common.no')}
                         />
                         <DetailField
                           label="Empty Patch"
-                          value={Boolean(row.data.empty_patch) ? '是' : '否'}
+                          value={
+                            Boolean(row.data.empty_patch)
+                              ? t('backport.common.yes')
+                              : t('backport.common.no')
+                          }
                         />
                         <DetailField
                           label="Equivalent Exists"
-                          value={Boolean(row.data.equivalent_exists) ? '是' : '否'}
+                          value={
+                            Boolean(row.data.equivalent_exists)
+                              ? t('backport.common.yes')
+                              : t('backport.common.no')
+                          }
                         />
                         <div className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2">
                           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                            目标分支结果
+                            {t('backport.inspector.targetBranchResult')}
                           </div>
                           {isSkippedRow(row.data) ? (
-                            <div className="mt-1 text-sm text-slate-700">已跳过</div>
+                            <div className="mt-1 text-sm text-slate-700">
+                              {t('backport.conflict.skipped')}
+                            </div>
                           ) : (
                             <select
                               value={
@@ -382,9 +409,9 @@ export function InspectorSheet({
                               }
                               className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm"
                             >
-                              <option value="true">已合入</option>
-                              <option value="false">未合入</option>
-                              <option value="none">未设置</option>
+                              <option value="true">{t('backport.filter.merged')}</option>
+                              <option value="false">{t('backport.filter.notMerged')}</option>
+                              <option value="none">{t('backport.filter.notSet')}</option>
                             </select>
                           )}
                         </div>
@@ -427,7 +454,9 @@ export function InspectorSheet({
                     <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
                       <div className="mb-3 flex items-center gap-2">
                         <FileCode2 className="h-4 w-4 text-blue-600" />
-                        <h4 className="text-sm font-semibold text-slate-950">Patch 文件</h4>
+                        <h4 className="text-sm font-semibold text-slate-950">
+                          {t('backport.inspector.patchFiles')}
+                        </h4>
                       </div>
 
                       <div className="grid gap-3 md:grid-cols-2">
@@ -440,7 +469,8 @@ export function InspectorSheet({
                               {resource.label}
                             </div>
                             <div className="mt-1 min-h-8 text-[11px] text-slate-500">
-                              {resource.fileName || `${resource.label} 暂无`}
+                              {resource.fileName ||
+                                t('backport.inspector.patchMissing', { label: resource.label })}
                             </div>
                             <div className="mt-3 flex gap-2">
                               <Button
@@ -453,7 +483,7 @@ export function InspectorSheet({
                                   void onLoadPatchPreview(row, resource)
                                 }}
                               >
-                                查看
+                                {t('backport.inspector.view')}
                               </Button>
                               <Button
                                 variant="outline"
@@ -468,7 +498,7 @@ export function InspectorSheet({
                                   }
                                 }}
                               >
-                                下载
+                                {t('backport.inspector.download')}
                               </Button>
                             </div>
                           </div>
@@ -483,7 +513,7 @@ export function InspectorSheet({
                     >
                       <AccordionItem value="raw-yaml" className="border-0">
                         <AccordionTrigger className="text-sm font-semibold text-slate-950">
-                          原始 YAML 字段
+                          {t('backport.inspector.rawYamlFields')}
                         </AccordionTrigger>
                         <AccordionContent>
                           <pre className="overflow-auto whitespace-pre-wrap break-all rounded-xl border border-slate-200 bg-white p-4 font-mono text-[11px] leading-5 text-slate-800 shadow-inner">
@@ -499,11 +529,11 @@ export function InspectorSheet({
                   {attemptHistoryLoading ? (
                     <div className="flex h-48 items-center justify-center gap-2 text-sm text-slate-500">
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      正在读取检查历史...
+                      {t('backport.inspector.history.loading')}
                     </div>
                   ) : attemptHistory.length === 0 ? (
                     <div className="flex h-48 items-center justify-center text-sm text-slate-500">
-                      当前 commit 暂无已归档的检查记录。
+                      {t('backport.inspector.history.empty')}
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -524,10 +554,11 @@ export function InspectorSheet({
                                   {attempt.execution > 0
                                     ? `Run #${attempt.execution} · `
                                     : `Interaction #${attempt.attempt_number} · `}
-                                  Case 记录
+                                  {t('backport.inspector.history.caseRecord')}
                                 </h4>
                                 <Badge variant="outline">
-                                  {stringifyValue(attemptRow.status) || '未知状态'}
+                                  {stringifyValue(attemptRow.status) ||
+                                    t('backport.inspector.history.unknownStatus')}
                                 </Badge>
                               </div>
                               <span className="text-xs text-slate-500">
@@ -538,7 +569,7 @@ export function InspectorSheet({
                             {conflictText ? (
                               <div className="mt-4">
                                 <div className="text-xs font-medium text-slate-700">
-                                  OpenCode 冲突报告
+                                  {t('backport.inspector.history.opencodeConflictReport')}
                                 </div>
                                 <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-50 p-3 font-mono text-[11px] leading-5 text-slate-800">
                                   {conflictText}
@@ -548,7 +579,9 @@ export function InspectorSheet({
 
                             {attempt.patches.length > 0 ? (
                               <div className="mt-4">
-                                <div className="text-xs font-medium text-slate-700">归档 Patch</div>
+                                <div className="text-xs font-medium text-slate-700">
+                                  {t('backport.inspector.history.archivedPatches')}
+                                </div>
                                 <div className="mt-2 space-y-1">
                                   {attempt.patches.map(patch => (
                                     <div
@@ -583,12 +616,12 @@ export function InspectorSheet({
                 <TabsContent value="patch" className="mt-0 flex-1 overflow-hidden">
                   {!activePatchPreview ? (
                     <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-500">
-                      先从上方按钮选择一个 Patch，再在这里预览 diff、文件列表和 hunk 导航。
+                      {t('backport.inspector.patch.noSelection')}
                     </div>
                   ) : activePatchPreview.status === 'loading' ? (
                     <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-500">
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      正在读取 Patch...
+                      {t('backport.inspector.patch.loading')}
                     </div>
                   ) : activePatchPreview.status === 'error' ? (
                     <div className="flex h-full items-center justify-center px-6">
@@ -617,7 +650,9 @@ export function InspectorSheet({
                               variant="outline"
                               className="border-slate-200 bg-slate-50 text-slate-700"
                             >
-                              影响文件 {activePatchPreview.summary.files.length}
+                              {t('backport.inspector.patch.affectedFiles', {
+                                count: activePatchPreview.summary.files.length,
+                              })}
                             </Badge>
                             <Badge
                               variant="outline"
@@ -643,7 +678,7 @@ export function InspectorSheet({
                               }
                             >
                               <Copy className="mr-1 h-3.5 w-3.5" />
-                              复制 Patch
+                              {t('backport.inspector.patch.copyPatch')}
                             </Button>
                             <Button
                               variant="outline"
@@ -652,7 +687,7 @@ export function InspectorSheet({
                               onClick={() => onDownloadPatch(activePatchPreview)}
                             >
                               <Download className="mr-1 h-3.5 w-3.5" />
-                              下载
+                              {t('backport.inspector.download')}
                             </Button>
                           </div>
                         </div>
@@ -661,11 +696,13 @@ export function InspectorSheet({
                       <div className="grid min-h-0 flex-1 gap-4 p-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
                         <div className="space-y-4 lg:overflow-auto lg:pr-2">
                           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-                            <div className="text-sm font-semibold text-slate-950">文件列表</div>
+                            <div className="text-sm font-semibold text-slate-950">
+                              {t('backport.inspector.patch.fileList')}
+                            </div>
                             <div className="mt-3 space-y-2">
                               {activePatchPreview.summary.files.length === 0 ? (
                                 <div className="text-sm text-slate-500">
-                                  当前 Patch 没有解析出文件变更。
+                                  {t('backport.inspector.patch.noFileChanges')}
                                 </div>
                               ) : (
                                 activePatchPreview.summary.files.map(file => (
@@ -703,10 +740,14 @@ export function InspectorSheet({
                           </div>
 
                           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-                            <div className="text-sm font-semibold text-slate-950">Hunk 导航</div>
+                            <div className="text-sm font-semibold text-slate-950">
+                              {t('backport.inspector.patch.hunkNavigation')}
+                            </div>
                             <div className="mt-3 flex flex-wrap gap-2">
                               {activePatchPreview.summary.hunks.length === 0 ? (
-                                <div className="text-sm text-slate-500">当前 Patch 没有 hunk。</div>
+                                <div className="text-sm text-slate-500">
+                                  {t('backport.inspector.patch.noHunks')}
+                                </div>
                               ) : (
                                 activePatchPreview.summary.hunks.map((hunk, index) => (
                                   <Button
@@ -773,8 +814,7 @@ export function InspectorSheet({
                 <TabsContent value="compare" className="mt-0 flex-1 overflow-hidden">
                   {!compareLeftResource?.exists || !compareRightResource?.exists ? (
                     <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-500">
-                      当前条目缺少可对比的 Patch。建议至少保留“原始 Patch”和“待应用
-                      Patch”再查看这里。
+                      {t('backport.inspector.compare.missingPatches')}
                     </div>
                   ) : (
                     <div className="flex h-full flex-col">
@@ -782,14 +822,14 @@ export function InspectorSheet({
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <div className="text-base font-semibold text-slate-950">
-                              Patch 对比 ·{' '}
+                              {t('backport.inspector.compare.title')} ·{' '}
                               {stringifyValue(row.data.commit || row.data.input_commit).slice(
                                 0,
                                 12
                               )}
                             </div>
                             <div className="mt-1 text-sm text-slate-500">
-                              左侧是源提交生成的原始 patch，右侧是当前点击“尝试应用”会使用的 patch。
+                              {t('backport.inspector.compare.description')}
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2 text-[11px] text-slate-500">
@@ -797,13 +837,13 @@ export function InspectorSheet({
                               variant="outline"
                               className="border-slate-200 bg-slate-50 text-slate-700"
                             >
-                              原始 Patch
+                              {t('backport.patchKind.original')}
                             </Badge>
                             <Badge
                               variant="outline"
                               className="border-blue-200 bg-blue-50 text-blue-700"
                             >
-                              待应用 Patch
+                              {t('backport.inspector.compare.pendingApplyPatch')}
                             </Badge>
                           </div>
                         </div>
@@ -835,7 +875,7 @@ export function InspectorSheet({
                                   <div className="mt-1 text-[11px] text-slate-500">
                                     {preview?.status === 'ready'
                                       ? preview.response.file_name
-                                      : resource?.fileName || '未加载'}
+                                      : resource?.fileName || t('backport.inspector.compare.notLoaded')}
                                   </div>
                                 </div>
                                 {preview?.status === 'ready' ? (
@@ -844,7 +884,9 @@ export function InspectorSheet({
                                       variant="outline"
                                       className="border-slate-200 bg-slate-50 text-slate-700"
                                     >
-                                      文件 {preview.summary.files.length}
+                                      {t('backport.inspector.patch.fileCount', {
+                                        count: preview.summary.files.length,
+                                      })}
                                     </Badge>
                                     <Badge
                                       variant="outline"
@@ -866,7 +908,9 @@ export function InspectorSheet({
                             {preview?.status === 'loading' || !preview ? (
                               <div className="flex flex-1 items-center justify-center gap-2 px-6 text-sm text-slate-500">
                                 <RefreshCw className="h-4 w-4 animate-spin" />
-                                正在读取 {resource?.label || 'Patch'}...
+                                {t('backport.inspector.compare.loading', {
+                                  label: resource?.label || 'Patch',
+                                })}
                               </div>
                             ) : preview.status === 'error' ? (
                               <div className="flex flex-1 items-center justify-center px-6">
@@ -879,12 +923,12 @@ export function InspectorSheet({
                                 <div className="space-y-4 lg:overflow-auto lg:pr-2">
                                   <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4">
                                     <div className="text-sm font-semibold text-slate-950">
-                                      文件列表
+                                      {t('backport.inspector.patch.fileList')}
                                     </div>
                                     <div className="mt-3 space-y-2">
                                       {preview.summary.files.length === 0 ? (
                                         <div className="text-sm text-slate-500">
-                                          这个 Patch 没有解析出文件变更。
+                                          {t('backport.inspector.patch.noFileChanges')}
                                         </div>
                                       ) : (
                                         preview.summary.files.map(file => (
@@ -955,31 +999,35 @@ export function InspectorSheet({
                     <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
-                          <h4 className="text-sm font-semibold text-slate-950">手动 Patch</h4>
+                          <h4 className="text-sm font-semibold text-slate-950">
+                            {t('backport.inspector.manual.title')}
+                          </h4>
                           <p className="mt-1 text-xs text-slate-500">
-                            当前会在目标仓目录执行 git apply --check，通过后再执行 git apply。
+                            {t('backport.inspector.manual.description')}
                           </p>
                         </div>
                         <Badge
                           variant="outline"
                           className="border-slate-200 bg-slate-50 text-slate-700"
                         >
-                          {config.target_path || '未配置目标仓'}
+                          {config.target_path || t('backport.inspector.manual.noTargetRepo')}
                         </Badge>
                       </div>
 
                       <Textarea
                         value={manualPatchText}
                         onChange={event => onManualPatchTextChange(event.target.value)}
-                        placeholder="把大模型修改后的 patch 粘贴到这里..."
+                        placeholder={t('backport.inspector.manual.placeholder')}
                         className="min-h-[360px] resize-y font-mono text-[11px] leading-5"
                       />
 
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                         <div className="text-xs text-slate-500">
                           {manualPatchText.trim()
-                            ? `当前输入 ${manualPatchText.length} 字符`
-                            : '粘贴 patch 后先检查是否能干净应用'}
+                            ? t('backport.inspector.manual.charCount', {
+                                count: manualPatchText.length,
+                              })
+                            : t('backport.inspector.manual.checkHint')}
                         </div>
                         <div className="flex gap-2">
                           <Button
@@ -995,7 +1043,7 @@ export function InspectorSheet({
                             {manualPatchLoading === 'check' ? (
                               <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
                             ) : null}
-                            检查冲突
+                            {t('backport.inspector.manual.checkConflict')}
                           </Button>
                           <Button
                             size="sm"
@@ -1011,7 +1059,7 @@ export function InspectorSheet({
                             {manualPatchLoading === 'apply' ? (
                               <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
                             ) : null}
-                            应用到目标仓
+                            {t('backport.inspector.manual.applyToTarget')}
                           </Button>
                         </div>
                       </div>
@@ -1035,7 +1083,9 @@ export function InspectorSheet({
                                 : 'border-red-200 bg-white text-red-700'
                             )}
                           >
-                            {manualPatchResult.status === 'success' ? '成功' : '失败'}
+                            {manualPatchResult.status === 'success'
+                              ? t('common:status.success')
+                              : t('common:status.failed')}
                           </Badge>
                           <div className="text-sm font-semibold text-slate-950">
                             {manualPatchResult.summary || '--'}
@@ -1045,7 +1095,7 @@ export function InspectorSheet({
                           {manualPatchResult.manual_patch?.stderr ||
                             manualPatchResult.manual_patch?.stdout ||
                             manualPatchResult.diagnostics?.error_text ||
-                            '无额外输出'}
+                            t('backport.inspector.manual.noOutput')}
                         </pre>
                       </div>
                     ) : null}
@@ -1062,7 +1112,7 @@ export function InspectorSheet({
           </>
         ) : (
           <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-500">
-            先在表格里选择一条 commit，再查看详情、Patch 预览或原始 YAML。
+            {t('backport.inspector.noRowSelected')}
           </div>
         )}
       </SheetContent>

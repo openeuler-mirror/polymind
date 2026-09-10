@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
 import { RotateCw, TimerOff } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 
 /**
@@ -178,6 +179,7 @@ function SandboxFrame({
   const [timedOut, setTimedOut] = useState(false)
   const [pendingExtend, setPendingExtend] = useState(0)
   const receivedReadyRef = useRef(false)
+  const { t } = useTranslation('artifact')
 
   // 超时兜底：内容/重建/延长操作变化后，10s 内未收到 sandbox-ready → 判定为未加载/死循环。
   useEffect(() => {
@@ -222,18 +224,18 @@ function SandboxFrame({
       <div className="flex h-full min-h-40 w-full flex-col items-center justify-center gap-3 rounded-md border border-dashed p-6 text-center">
         <TimerOff className="h-6 w-6 text-muted-foreground/50" />
         <div className="space-y-1">
-          <p className="text-sm font-medium">产物未响应</p>
+          <p className="text-sm font-medium">{t('sandbox.unresponsiveTitle')}</p>
           <p className="text-xs text-muted-foreground">
-            可能陷入死循环或加载超时，可选择继续等待或重新加载
+            {t('sandbox.unresponsiveDescription')}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleKeepWaiting}>
-            继续等待
+            {t('sandbox.keepWaiting')}
           </Button>
           <Button variant="outline" size="sm" onClick={handleReload}>
             <RotateCw className="h-3.5 w-3.5" />
-            重新加载
+            {t('sandbox.reload')}
           </Button>
         </div>
       </div>
@@ -243,7 +245,7 @@ function SandboxFrame({
   return (
     <iframe
       key={`${loadKey}:${reloadKey}`}
-      title="产物预览"
+      title={t('sandbox.title')}
       className="h-full w-full border-0 bg-white"
       sandbox={SANDBOX_TOKEN}
       srcDoc={srcdoc}

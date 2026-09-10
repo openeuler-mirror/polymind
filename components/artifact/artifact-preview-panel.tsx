@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Copy, Check, Download, RefreshCw, Package, FileWarning } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -101,9 +102,11 @@ function ArtifactToolbar({
   onRefresh: () => void
 }) {
   const [copied, setCopied] = useState(false)
+  const { t } = useTranslation('artifact')
   const inline = isInlineArtifact(artifact)
   const canDownload = inline || !!(agentId && artifact.relativePath)
   const typeMeta = ARTIFACT_TYPE_META[artifact.type] || ARTIFACT_TYPE_META.unknown
+  const typeLabel = t(`type.${ARTIFACT_TYPE_META[artifact.type] ? artifact.type : 'unknown'}`)
   const sizeText = formatSize(artifact.size)
 
   const handleCopy = async () => {
@@ -132,7 +135,7 @@ function ArtifactToolbar({
           <span className="truncate text-sm font-medium">{artifact.name}</span>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span>{ARTIFACT_TYPE_META[artifact.type].label}</span>
+          <span>{typeLabel}</span>
           {sizeText && (
             <>
               <span>·</span>
@@ -151,17 +154,17 @@ function ArtifactToolbar({
         {showRefresh && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={onRefresh} aria-label="重新加载">
+              <Button variant="ghost" size="icon-sm" onClick={onRefresh} aria-label={t('preview.reload')}>
                 <RefreshCw className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>重新加载</TooltipContent>
+            <TooltipContent>{t('preview.reload')}</TooltipContent>
           </Tooltip>
         )}
         {inline && (
           <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={handleCopy}>
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? '已复制' : '复制'}
+            {copied ? t('preview.copied') : t('preview.copy')}
           </Button>
         )}
         <Button
@@ -172,7 +175,7 @@ function ArtifactToolbar({
           onClick={() => downloadArtifact(artifact, agentId)}
         >
           <Download className="h-3.5 w-3.5" />
-          下载
+          {t('preview.download')}
         </Button>
       </div>
     </div>
@@ -180,6 +183,7 @@ function ArtifactToolbar({
 }
 
 function ArtifactLoading({ artifact }: { artifact: Artifact }) {
+  const { t } = useTranslation('artifact')
   const typeMeta = ARTIFACT_TYPE_META[artifact.type] || ARTIFACT_TYPE_META.unknown
   return (
     <div className="flex h-full flex-col">
@@ -192,7 +196,9 @@ function ArtifactLoading({ artifact }: { artifact: Artifact }) {
       </div>
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8">
         <typeMeta.icon className="h-8 w-8 text-muted-foreground/30" />
-        <p className="text-sm text-muted-foreground">正在生成 {artifact.name}…</p>
+        <p className="text-sm text-muted-foreground">
+          {t('preview.generating', { name: artifact.name })}
+        </p>
         <div className="w-full max-w-sm space-y-2">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />
@@ -203,25 +209,27 @@ function ArtifactLoading({ artifact }: { artifact: Artifact }) {
 }
 
 function ArtifactEmptyState() {
+  const { t } = useTranslation('artifact')
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted/60">
         <Package className="h-6 w-6 text-muted-foreground/50" />
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium">产物预览</p>
-        <p className="text-xs text-muted-foreground">在对话流中点击产物卡片，即可在此预览内容</p>
+        <p className="text-sm font-medium">{t('preview.title')}</p>
+        <p className="text-xs text-muted-foreground">{t('preview.emptyDescription')}</p>
       </div>
     </div>
   )
 }
 
 function ArtifactErrorState() {
+  const { t } = useTranslation('artifact')
   return (
     <div className="flex h-full min-h-40 flex-col items-center justify-center gap-2 p-6 text-center">
       <FileWarning className="h-8 w-8 text-red-500" />
-      <p className="text-sm font-medium">产物生成失败</p>
-      <p className="text-xs text-muted-foreground">该文件未能成功产出，可查看对话内容或重新生成</p>
+      <p className="text-sm font-medium">{t('preview.errorTitle')}</p>
+      <p className="text-xs text-muted-foreground">{t('preview.errorDescription')}</p>
     </div>
   )
 }
@@ -235,6 +243,7 @@ function ArtifactRenderer({
   agentId?: string
   reloadKey: number
 }) {
+  const { t } = useTranslation('artifact')
   if (artifact.status === 'error') return <ArtifactErrorState />
 
   switch (artifact.type) {
@@ -249,33 +258,33 @@ function ArtifactRenderer({
           />
         )
       }
-      return <UnsupportedHint text="HTML 产物暂无可用地址，请下载后查看" />
+      return <UnsupportedHint text={t('preview.unsupported.html')} />
     case 'image':
       if (agentId && artifact.relativePath) {
         return <ImagePreview key={artifact.id} artifact={artifact} agentId={agentId} />
       }
-      return <UnsupportedHint text="图片产物暂无可用地址，请下载后查看" />
+      return <UnsupportedHint text={t('preview.unsupported.image')} />
     case 'video':
       if (agentId && artifact.relativePath) {
         return <VideoPreview key={artifact.id} artifact={artifact} agentId={agentId} />
       }
-      return <UnsupportedHint text="视频产物暂无可用地址，请下载后播放" />
+      return <UnsupportedHint text={t('preview.unsupported.video')} />
     case 'markdown':
       if (artifact.content != null || (agentId && artifact.relativePath)) {
         return <MarkdownPreview key={artifact.id} artifact={artifact} agentId={agentId} />
       }
-      return <UnsupportedHint text="Markdown 产物暂无可用地址，请下载后查看" />
+      return <UnsupportedHint text={t('preview.unsupported.markdown')} />
     case 'code':
       if (artifact.content != null || (agentId && artifact.relativePath)) {
         return <CodePreview key={artifact.id} artifact={artifact} agentId={agentId} />
       }
-      return <UnsupportedHint text="代码产物暂无可用地址，请下载后查看" />
+      return <UnsupportedHint text={t('preview.unsupported.code')} />
     case 'pdf':
       if (agentId && artifact.relativePath) {
         return <PdfPreview key={artifact.id} artifact={artifact} agentId={agentId} />
       }
-      return <UnsupportedHint text="PDF 产物暂无可用地址，请下载后查看" />
+      return <UnsupportedHint text={t('preview.unsupported.pdf')} />
     default:
-      return <UnsupportedHint text="暂不支持该类型的预览，可下载查看" />
+      return <UnsupportedHint text={t('preview.unsupported.unknown')} />
   }
 }

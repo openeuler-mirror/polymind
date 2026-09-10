@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslation } from 'react-i18next'
 import { Clock, Loader2, MoreVertical, Pencil, Play, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -23,13 +24,16 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, pending, onToggle, onRun, onDelete, onEdit }: TaskCardProps) {
+  const { t } = useTranslation('tool-panel')
   const scheduleText = formatSchedule(task)
   // 执行中状态以后端 run 记录为准，不依赖会话消息流状态，避免 SSE 挂流/轮询
   // 间隙造成“UI 显示已结束但后端实际仍在运行”的误判。
   const isRunning = task.recent_runs.some(run => run.status === 'running')
   const scheduleTitle = [
-    task.cron_expr ? `Cron：${task.cron_expr}` : null,
-    `时区：${task.timezone}`,
+    task.cron_expr
+      ? t('scheduledTask.card.cronTitle', { expression: task.cron_expr })
+      : null,
+    t('scheduledTask.card.timezoneTitle', { timezone: task.timezone }),
   ]
     .filter(Boolean)
     .join(' · ')
@@ -44,7 +48,7 @@ export function TaskCard({ task, pending, onToggle, onRun, onDelete, onEdit }: T
             checked={task.enabled}
             disabled={pending}
             onCheckedChange={checked => onToggle(task, checked)}
-            aria-label={task.enabled ? '停用任务' : '启用任务'}
+            aria-label={task.enabled ? t('scheduledTask.card.disableTask') : t('scheduledTask.card.enableTask')}
           />
           {pending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         </div>
@@ -52,17 +56,17 @@ export function TaskCard({ task, pending, onToggle, onRun, onDelete, onEdit }: T
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
               <MoreVertical className="h-4 w-4" />
-              <span className="sr-only">任务操作</span>
+              <span className="sr-only">{t('scheduledTask.card.actions')}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuItem onClick={() => onRun(task)} disabled={pending || isRunning}>
               <Play className="mr-2 h-4 w-4" />
-              立刻执行
+              {t('scheduledTask.card.runNow')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onEdit(task)}>
               <Pencil className="mr-2 h-4 w-4" />
-              编辑任务
+              {t('scheduledTask.card.editTask')}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => onDelete(task)}
@@ -70,7 +74,7 @@ export function TaskCard({ task, pending, onToggle, onRun, onDelete, onEdit }: T
               className="text-destructive focus:text-destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              删除任务
+              {t('scheduledTask.card.deleteTask')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -79,7 +83,7 @@ export function TaskCard({ task, pending, onToggle, onRun, onDelete, onEdit }: T
       <button
         type="button"
         onClick={() => onEdit(task)}
-        aria-label={`编辑任务 ${task.name}`}
+        aria-label={t('scheduledTask.card.editTaskWithName', { name: task.name })}
         className="mt-4 flex min-w-0 flex-1 flex-col rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       >
         <span className="block w-full truncate text-base font-medium text-foreground">
@@ -87,7 +91,7 @@ export function TaskCard({ task, pending, onToggle, onRun, onDelete, onEdit }: T
         </span>
 
         <span className="mt-2 line-clamp-2 block min-h-10 w-full text-sm leading-5 text-muted-foreground">
-          {task.content || '暂无描述'}
+          {task.content || t('scheduledTask.card.noDescription')}
         </span>
 
         <span className="mt-4 flex w-full items-center justify-between gap-3 border-t pt-3">

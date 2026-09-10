@@ -1,0 +1,44 @@
+{
+  "type": {
+    "html": "HTML Page",
+    "image": "Image",
+    "video": "Video",
+    "markdown": "Document",
+    "code": "Code",
+    "pdf": "PDF",
+    "unknown": "File"
+  },
+  "preview": {
+    "title": "Artifact Preview",
+    "emptyDescription": "Click an artifact card in the conversation to preview its content here",
+    "generating": "Generating {{name}}…",
+    "errorTitle": "Artifact generation failed",
+    "errorDescription": "This file could not be generated. Check the conversation or try generating it again.",
+    "loading": "Loading artifact content…",
+    "copy": "Copy",
+    "copied": "Copied",
+    "download": "Download",
+    "reload": "Reload",
+    "unsupported": {
+      "html": "No available address for this HTML artifact. Please download it to view.",
+      "image": "No available address for this image artifact. Please download it to view.",
+      "video": "No available address for this video artifact. Please download it to play.",
+      "markdown": "No available address for this Markdown artifact. Please download it to view.",
+      "code": "No available address for this code artifact. Please download it to view.",
+      "pdf": "No available address for this PDF artifact. Please download it to view.",
+      "unknown": "Preview is not supported for this type. Please download it to view."
+    },
+    "media": {
+      "imageFailed": "Failed to load the image. Please download it to view.",
+      "videoFailed": "Failed to load the video. Please download it to play.",
+      "pdfFailed": "Failed to load the PDF. Please download it to view."
+    }
+  },
+  "sandbox": {
+    "title": "Artifact Preview",
+    "unresponsiveTitle": "Artifact is not responding",
+    "unresponsiveDescription": "It may be stuck in an infinite loop or timed out. You can keep waiting or reload.",
+    "keepWaiting": "Keep waiting",
+    "reload": "Reload"
+  }
+}

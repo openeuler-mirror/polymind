@@ -1,6 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { Download, FileText, RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -46,24 +48,29 @@ function AgentInfoCard({
   doc,
   idLabel,
   idValue,
+  t,
 }: {
   doc: AtifDocument
   idLabel: string
   idValue: string
+  t: TFunction
 }) {
   const toolCount = doc.agent.tool_definitions?.length ?? 0
 
   return (
     <Card className="gap-4 py-4 xl:col-span-2">
       <CardHeader className="pb-1 pt-1">
-        <CardTitle className="text-base">Agent 信息</CardTitle>
+        <CardTitle className="text-base">{t('insight.atif.agentInfo')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 pb-2 pt-1 text-sm">
         {[
-          { label: '名称', value: doc.agent.name },
-          { label: '版本', value: doc.agent.version },
-          { label: '模型', value: doc.agent.model_name ?? '—' },
-          { label: '工具定义', value: `${toolCount} 个` },
+          { label: t('insight.atif.fields.name'), value: doc.agent.name },
+          { label: t('insight.atif.fields.version'), value: doc.agent.version },
+          { label: t('insight.atif.fields.model'), value: doc.agent.model_name ?? '—' },
+          {
+            label: t('insight.atif.fields.toolDefinitions'),
+            value: t('insight.atif.toolCount', { count: toolCount }),
+          },
           { label: idLabel, value: idValue },
         ].map(({ label, value }) => (
           <div key={label} className="flex items-center justify-between gap-3">
@@ -100,6 +107,7 @@ function AtifQueryCard({
     initialTarget?.source ?? 'session'
   )
   const [queryId, setQueryId] = useState(initialTarget?.id ?? '')
+  const { t } = useTranslation('tool-panel')
 
   const handleLoad = () => {
     const nextId = queryId.trim()
@@ -122,11 +130,13 @@ function AtifQueryCard({
   return (
     <Card className="gap-4 py-4">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">轨迹查询</CardTitle>
+        <CardTitle className="text-base">{t('insight.atif.queryTitle')}</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-3 pt-0 lg:grid-cols-[180px_minmax(0,1fr)_120px]">
         <div className="space-y-2">
-          <div className="text-xs font-medium text-muted-foreground">查询类型</div>
+          <div className="text-xs font-medium text-muted-foreground">
+            {t('insight.atif.queryType')}
+          </div>
           <Select
             value={querySource}
             onValueChange={value => {
@@ -157,18 +167,22 @@ function AtifQueryCard({
                 handleLoad()
               }
             }}
-            placeholder={querySource === 'session' ? '输入 Session ID' : '输入 Conversation ID'}
+            placeholder={
+              querySource === 'session'
+                ? t('insight.atif.inputSessionId')
+                : t('insight.atif.inputConversationId')
+            }
           />
         </div>
 
         <div className="space-y-2">
-          <div className="text-xs font-medium text-muted-foreground">查询</div>
+          <div className="text-xs font-medium text-muted-foreground">{t('insight.atif.query')}</div>
           <div className="flex gap-2">
             <Button className="flex-1" onClick={handleLoad} disabled={!queryId.trim()}>
-              查询
+              {t('insight.atif.query')}
             </Button>
             <Button variant="outline" onClick={handleReset} disabled={!queryId && !initialTarget}>
-              清空
+              {t('insight.atif.clear')}
             </Button>
           </div>
         </div>
@@ -185,6 +199,7 @@ export function InsightAtifPanel({
   onSelectTarget: (target: InsightAtifTarget | null) => void
 }) {
   const { doc, loading, error, refresh, downloadJson } = useInsightAtif(target)
+  const { t } = useTranslation('tool-panel')
 
   const computedMetrics = useMemo(() => {
     if (!doc) {
@@ -226,7 +241,7 @@ export function InsightAtifPanel({
       <Card className="overflow-hidden">
         <CardHeader className="space-y-3 pb-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <CardTitle className="text-base">轨迹详情</CardTitle>
+            <CardTitle className="text-base">{t('insight.atif.traceDetail')}</CardTitle>
 
             <div className="flex flex-wrap items-center gap-2">
               {target ? (
@@ -237,13 +252,13 @@ export function InsightAtifPanel({
                   disabled={loading}
                 >
                   <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-                  刷新
+                  {t('common:action.refresh')}
                 </Button>
               ) : null}
               {doc ? (
                 <Button size="sm" onClick={downloadJson}>
                   <Download className="h-4 w-4" />
-                  导出 JSON
+                  {t('insight.atif.exportJson')}
                 </Button>
               ) : null}
             </div>
@@ -256,38 +271,38 @@ export function InsightAtifPanel({
                 <EmptyMedia variant="icon">
                   <FileText />
                 </EmptyMedia>
-                <EmptyTitle>请输入查询条件</EmptyTitle>
+                <EmptyTitle>{t('insight.atif.enterQuery')}</EmptyTitle>
               </EmptyHeader>
             </Empty>
           </CardContent>
         ) : loading ? (
           <CardContent className="flex min-h-[320px] items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
             <Spinner className="h-4 w-4" />
-            正在加载轨迹详情...
+            {t('insight.atif.loadingDetail')}
           </CardContent>
         ) : error ? (
           <CardContent className="pb-6">
             <Alert variant="destructive">
-              <AlertTitle>轨迹详情加载失败</AlertTitle>
+              <AlertTitle>{t('insight.atif.detailLoadFailed')}</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           </CardContent>
         ) : doc ? (
           <CardContent className="space-y-4 pb-6">
             <div className="grid gap-4 lg:grid-cols-5">
-              <AgentInfoCard doc={doc} idLabel={targetIdLabel} idValue={targetIdValue} />
+              <AgentInfoCard doc={doc} idLabel={targetIdLabel} idValue={targetIdValue} t={t} />
               <MetricCard
-                label="总步骤数"
+                label={t('insight.atif.totalSteps')}
                 value={String(computedMetrics?.steps ?? doc.steps.length)}
                 color="text-indigo-600"
               />
               <MetricCard
-                label="总输入 Token"
+                label={t('insight.atif.totalInputTokens')}
                 value={fmtTokens(computedMetrics?.prompt ?? 0)}
                 color="text-sky-600"
               />
               <MetricCard
-                label="总输出 Token"
+                label={t('insight.atif.totalOutputTokens')}
                 value={fmtTokens(computedMetrics?.completion ?? 0)}
                 color="text-emerald-600"
               />
@@ -295,14 +310,16 @@ export function InsightAtifPanel({
 
             <div>
               <div className="mb-4 flex items-end justify-between gap-3">
-                <h2 className="text-lg font-semibold text-foreground">交互轨迹</h2>
+                <h2 className="text-lg font-semibold text-foreground">
+                  {t('insight.atif.interactionTrace')}
+                </h2>
                 <DetailPill value={shortId(targetIdValue, 28)} mono />
               </div>
 
               {doc.steps.length === 0 ? (
                 <Card>
                   <CardContent className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-                    当前轨迹暂无步骤数据
+                    {t('insight.atif.emptySteps')}
                   </CardContent>
                 </Card>
               ) : (

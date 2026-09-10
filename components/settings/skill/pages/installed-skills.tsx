@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { BookOpen, ExternalLink, FolderOpen, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -34,6 +35,7 @@ import {
 const INSTALLED_BATCH_SIZE = 24
 
 export function InstalledSkills() {
+  const { t } = useTranslation('settings')
   const currentAgentId = useChatStore(state => state.currentAgentId)
   const agents = useChatStore(state => state.agents)
   const [installedSkills, setInstalledSkills] = useState<AgentSkillResponse[]>([])
@@ -56,10 +58,10 @@ export function InstalledSkills() {
     const uniqueSourceTypes = Array.from(new Set(mergedSkills.map(skill => skill.source_type)))
 
     return [
-      { label: '全部来源', value: 'all' },
-      ...uniqueSourceTypes.map(value => ({ label: formatSkillSourceLabel(value), value })),
+      { label: t('skill.installed.allSources'), value: 'all' },
+      ...uniqueSourceTypes.map(value => ({ label: formatSkillSourceLabel(value, t), value })),
     ]
-  }, [mergedSkills])
+  }, [mergedSkills, t])
 
   const filteredSkills = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase()
@@ -119,15 +121,15 @@ export function InstalledSkills() {
       } catch (error) {
         console.error('Failed to load installed skills:', error)
         toast({
-          title: '加载失败',
-          description: extractApiErrorMessage(error, '无法获取已安装技能列表，请稍后重试。'),
+          title: t('skill.installed.toast.loadFailed'),
+          description: extractApiErrorMessage(error, t('skill.installed.toast.loadFailedDesc')),
           variant: 'destructive',
         })
       } finally {
         setLoading(false)
       }
     },
-    [toast]
+    [t, toast]
   )
 
   useEffect(() => {
@@ -154,14 +156,14 @@ export function InstalledSkills() {
       const synced = await skillService.syncInstalledSkills(activeAgentId)
       setInstalledSkills(synced)
       toast({
-        title: '刷新成功',
-        description: '已同步并更新当前 Agent 的已安装技能列表。',
+        title: t('skill.installed.toast.refreshSuccess'),
+        description: t('skill.installed.toast.refreshSuccessDesc'),
       })
     } catch (error) {
       console.error('Failed to sync installed skills:', error)
       toast({
-        title: '刷新失败',
-        description: extractApiErrorMessage(error, '同步已安装技能失败，请稍后重试。'),
+        title: t('skill.installed.toast.refreshFailed'),
+        description: extractApiErrorMessage(error, t('skill.installed.toast.refreshFailedDesc')),
         variant: 'destructive',
       })
     } finally {
@@ -172,8 +174,8 @@ export function InstalledSkills() {
   const handleUninstallSkill = async (skill: AgentSkillResponse) => {
     if (!activeAgentId) {
       toast({
-        title: '未选择 Agent',
-        description: '请先在聊天区选择一个 Agent，再卸载技能。',
+        title: t('skill.installed.toast.noAgentTitle'),
+        description: t('skill.installed.toast.noAgentUninstallDesc'),
         variant: 'destructive',
       })
       return
@@ -185,19 +187,22 @@ export function InstalledSkills() {
       setInstalledSkills(prev => prev.filter(item => item.skill_id !== skill.skill_id))
       setPreviewSkill(prev => (prev?.skill_id === skill.skill_id ? null : prev))
       toast({
-        title: '卸载成功',
-        description: `技能 ${extractSkillName(skill.skill_name)} 已从当前 Agent 卸载。`,
+        title: t('skill.installed.toast.uninstallSuccess'),
+        description: t('skill.installed.toast.uninstallSuccessDesc', {
+          name: extractSkillName(skill.skill_name, t),
+        }),
       })
     } catch (error) {
       console.error('Failed to uninstall skill:', error)
       toast({
-        title: '卸载失败',
+        title: t('skill.installed.toast.uninstallFailed'),
         description: extractSkillOperationErrorMessage(error, {
           operation: 'uninstall',
           skillName: skill.skill_name,
           sourceType: skill.source_type,
           runtimeSource: skill.skill_source,
-          fallback: '卸载技能失败，请稍后重试。',
+          fallback: t('skill.installed.toast.uninstallFailedDesc'),
+          t,
         }),
         variant: 'destructive',
       })
@@ -211,15 +216,16 @@ export function InstalledSkills() {
       <Card className="border border-border">
         <CardHeader className="gap-1">
           <div className="space-y-1">
-            <CardTitle>已安装</CardTitle>
-            <CardDescription>
-              统一查看当前 Agent 已安装技能（含内置和通过Polymind安装）。
-            </CardDescription>
+            <CardTitle>{t('skill.installed.title')}</CardTitle>
+            <CardDescription>{t('skill.installed.description')}</CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <SummaryTag label="已安装技能" value={`${mergedSkills.length}`} />
             <SummaryTag
-              label="来源类型"
+              label={t('skill.installed.summarySkills')}
+              value={`${mergedSkills.length}`}
+            />
+            <SummaryTag
+              label={t('skill.installed.summarySourceTypes')}
               value={`${new Set(mergedSkills.map(item => item.source_type)).size}`}
             />
           </div>
@@ -232,7 +238,7 @@ export function InstalledSkills() {
             <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:max-w-4xl">
               <Select value={selectedSourceType} onValueChange={setSelectedSourceType}>
                 <SelectTrigger className="w-full shrink-0 sm:w-52 lg:w-48">
-                  <SelectValue placeholder="来源类型" />
+                  <SelectValue placeholder={t('skill.installed.sourceType')} />
                 </SelectTrigger>
                 <SelectContent>
                   {sourceOptions.map(option => (
@@ -247,7 +253,7 @@ export function InstalledSkills() {
                 <Input
                   value={searchTerm}
                   onChange={event => setSearchTerm(event.target.value)}
-                  placeholder="搜索技能"
+                  placeholder={t('skill.installed.searchPlaceholder')}
                   className="pl-9"
                 />
               </div>
@@ -255,22 +261,22 @@ export function InstalledSkills() {
                 variant="outline"
                 onClick={() => void handleRefresh()}
                 disabled={!activeAgentId || loading}
-                title="同步已安装技能"
+                title={t('skill.installed.syncTitle')}
                 className="shrink-0"
               >
                 <RefreshCw className={`mr-1 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                同步已安装技能
+                {t('skill.installed.sync')}
               </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {!activeAgentId ? (
-            <EmptyState text="请先在聊天区选择一个 Agent。" />
+            <EmptyState text={t('skill.installed.emptyNoAgent')} />
           ) : loading ? (
-            <EmptyState text="正在加载已安装技能..." />
+            <EmptyState text={t('skill.installed.loading')} />
           ) : filteredSkills.length === 0 ? (
-            <EmptyState text="暂无匹配的已安装技能。" />
+            <EmptyState text={t('skill.installed.empty')} />
           ) : (
             <div ref={containerRef} className="max-h-[calc(100vh-22rem)] overflow-y-auto pr-1">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -282,16 +288,17 @@ export function InstalledSkills() {
                     <div className="mb-3 flex items-start gap-2">
                       <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                       <p className="text-sm font-semibold leading-5 break-all">
-                        {extractSkillName(skill.skill_name)}
+                        {extractSkillName(skill.skill_name, t)}
                       </p>
                     </div>
 
                     <div className="flex-1">
                       <p className="min-h-12 line-clamp-2 text-sm leading-6 text-muted-foreground">
-                        {extractSkillDescription(skill.metadata) || '暂无描述'}
+                        {extractSkillDescription(skill.metadata) ||
+                          t('skill.marketplace.noDescription')}
                       </p>
                       <div className="mt-2 flex items-center gap-2 text-xs leading-5 text-muted-foreground">
-                        <span>来源类型</span>
+                        <span>{t('skill.installed.sourceType')}</span>
                         <SkillOriginBadge sourceType={skill.source_type} />
                       </div>
                       <div className="mt-3 flex justify-end gap-3">
@@ -303,7 +310,9 @@ export function InstalledSkills() {
                           disabled={uninstallingSkillId === skill.skill_id || !activeAgentId}
                         >
                           <Trash2 className="mr-1 h-3.5 w-3.5" />
-                          {uninstallingSkillId === skill.skill_id ? '卸载中...' : '卸载'}
+                          {uninstallingSkillId === skill.skill_id
+                            ? t('skill.installed.uninstalling')
+                            : t('skill.installed.uninstall')}
                         </Button>
                         <Button
                           variant="link"
@@ -311,7 +320,7 @@ export function InstalledSkills() {
                           className="h-auto p-0 text-blue-600 hover:text-blue-700"
                           onClick={() => setPreviewSkill(skill)}
                         >
-                          预览
+                          {t('skill.marketplace.preview')}
                         </Button>
                       </div>
                     </div>
@@ -320,8 +329,11 @@ export function InstalledSkills() {
               </div>
               <div className="flex min-h-10 items-center justify-center py-4 text-sm text-muted-foreground">
                 {hasMore
-                  ? `继续向下滚动以加载更多（已显示 ${visibleSkills.length} / ${filteredSkills.length}）`
-                  : `已显示全部 ${filteredSkills.length} 个已安装技能`}
+                  ? t('skill.installed.scrollMoreSummary', {
+                      visible: visibleSkills.length,
+                      total: filteredSkills.length,
+                    })
+                  : t('skill.installed.allDisplayedInstalled', { total: filteredSkills.length })}
               </div>
             </div>
           )}
@@ -333,18 +345,20 @@ export function InstalledSkills() {
           <DialogHeader className="gap-3">
             <div className="space-y-3 pr-8">
               <DialogTitle className="text-base">
-                {previewSkill ? extractSkillName(previewSkill.skill_name) : '技能预览'}
+                {previewSkill
+                  ? extractSkillName(previewSkill.skill_name, t)
+                  : t('skill.marketplace.previewTitle')}
               </DialogTitle>
               {previewSkill ? (
                 <div className="space-y-1 text-sm">
                   <InfoLine
                     icon={FolderOpen}
-                    label="来源类型"
-                    value={formatSkillSourceLabel(previewSkill.source_type)}
+                    label={t('skill.installed.sourceType')}
+                    value={formatSkillSourceLabel(previewSkill.source_type, t)}
                   />
                   <InfoLine
                     icon={previewSkill.skill_md_url ? ExternalLink : FolderOpen}
-                    label="skill 路径"
+                    label={t('skill.marketplace.skillPath')}
                     value={previewSkill.skill_md_url || previewSkill.relative_path || '-'}
                     href={
                       previewSkill.skill_md_url && isHttpUrl(previewSkill.skill_md_url)

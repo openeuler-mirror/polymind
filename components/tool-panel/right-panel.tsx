@@ -1,6 +1,7 @@
 'use client'
 
 import type { ComponentType } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   X,
   Bot,
@@ -45,13 +46,16 @@ const PANEL_PAGES: Record<string, ComponentType> = {
 }
 
 function PanelContent({ tabId, tabName }: { tabId: string; tabName?: string }) {
+  const { t } = useTranslation('tool-panel')
   const Page = PANEL_PAGES[tabId]
   if (Page) return <Page />
   return (
     <div className="p-4">
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <p className="text-sm text-muted-foreground">这里是 {tabName} 页面</p>
+          <p className="text-sm text-muted-foreground">
+            {t('rightPanel.pagePlaceholder', { name: tabName })}
+          </p>
         </div>
       </div>
     </div>
@@ -59,6 +63,7 @@ function PanelContent({ tabId, tabName }: { tabId: string; tabName?: string }) {
 }
 
 export function RightPanel() {
+  const { t } = useTranslation('tool-panel')
   const {
     isRightPanelOpen,
     toggleRightPanel,
@@ -71,27 +76,33 @@ export function RightPanel() {
   } = useChatStore()
 
   const tools = [
-    { id: 'agent', name: '智能体', icon: Bot, color: 'text-cyan-500' },
-    { id: 'insight', name: '监测系统', icon: Activity, color: 'text-emerald-500' },
+    { id: 'agent', name: t('rightPanel.tools.agent'), icon: Bot, color: 'text-cyan-500' },
+    { id: 'insight', name: t('rightPanel.tools.insight'), icon: Activity, color: 'text-emerald-500' },
     { id: 'cve', name: 'CVE', icon: Bug, color: 'text-rose-500' },
     { id: 'backport', name: 'Backport', icon: Wrench, color: 'text-blue-500' },
-    { id: 'scheduled-tasks', name: '定时任务', icon: Clock, color: 'text-violet-500' },
-    { id: 'artifacts', name: '产物', icon: Package, color: 'text-orange-500' },
+    { id: 'scheduled-tasks', name: t('rightPanel.tools.scheduledTasks'), icon: Clock, color: 'text-violet-500' },
+    { id: 'artifacts', name: t('rightPanel.tools.artifacts'), icon: Package, color: 'text-orange-500' },
     {
       id: 'settings',
-      name: '设置',
+      name: t('rightPanel.tools.settings'),
       icon: Settings,
       color: 'text-gray-500',
       settingsSection: 'general',
     },
     {
       id: 'skills',
-      name: '技能',
+      name: t('rightPanel.tools.skills'),
       icon: Sparkles,
       color: 'text-amber-500',
       settingsSection: 'rules',
     },
-    { id: 'model', name: '模型', icon: Cpu, color: 'text-indigo-500', settingsSection: 'model' },
+    {
+      id: 'model',
+      name: t('rightPanel.tools.model'),
+      icon: Cpu,
+      color: 'text-indigo-500',
+      settingsSection: 'model',
+    },
   ]
 
   const handleToolClick = (tool: {
@@ -150,7 +161,7 @@ export function RightPanel() {
                 onClick={() => setActiveRightPanelTab(tab.id)}
               >
                 <Icon className={`h-4 w-4 ${color}`} />
-                <span>{tab.name}</span>
+                <span>{tool?.name ?? tab.name}</span>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -181,7 +192,11 @@ export function RightPanel() {
                   </DropdownMenuItem>
                 ))}
               {tools.filter(tool => !rightPanelTabs.some(tab => tab.id === tool.id)).length ===
-                0 && <div className="px-4 py-2 text-sm text-muted-foreground">所有工具已打开</div>}
+                0 && (
+                <div className="px-4 py-2 text-sm text-muted-foreground">
+                  {t('rightPanel.allToolsOpen')}
+                </div>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -199,7 +214,7 @@ export function RightPanel() {
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="w-full max-w-xs">
             <div className="text-center mb-8">
-              <p className="text-sm text-muted-foreground">使用工具，扩展更多能力</p>
+              <p className="text-sm text-muted-foreground">{t('rightPanel.emptyHint')}</p>
             </div>
             <div className="grid grid-cols-3 gap-4">
               {tools.map(tool => (
@@ -222,6 +237,7 @@ export function RightPanel() {
 }
 
 export function RightPanelToggle() {
+  const { t } = useTranslation('tool-panel')
   const { isRightPanelOpen, toggleRightPanel } = useChatStore()
 
   return (
@@ -232,7 +248,7 @@ export function RightPanelToggle() {
       className={cn('transition-colors', 'hover:bg-accent')}
     >
       {isRightPanelOpen ? <ChevronRight className="h-5 w-5" /> : <LayoutGrid className="h-5 w-5" />}
-      <span className="sr-only">切换工具面板</span>
+      <span className="sr-only">{t('rightPanel.toggle')}</span>
     </Button>
   )
 }

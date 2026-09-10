@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Search,
   Filter,
@@ -58,17 +59,26 @@ import { useChatStore } from '@/lib/store'
 
 /** 参考样式：胶囊型状态徽标（含脉冲圆点）。 */
 function StatusBadge({ status, className }: { status: string; className?: string }) {
+  const { t } = useTranslation('tool-panel')
   const s = status.toLowerCase()
   const config =
     s === AgentStatus.RUNNING
-      ? { dot: 'bg-success', cls: 'bg-success/10 text-success', label: '运行中' }
+      ? {
+          dot: 'bg-success',
+          cls: 'bg-success/10 text-success',
+          label: t('agent.status.running'),
+        }
       : s === AgentStatus.PAUSED
-        ? { dot: 'bg-warning', cls: 'bg-warning/10 text-warning', label: '已暂停' }
+        ? {
+            dot: 'bg-warning',
+            cls: 'bg-warning/10 text-warning',
+            label: t('agent.status.paused'),
+          }
         : s === AgentStatus.ERROR
           ? {
               dot: 'bg-destructive',
               cls: 'bg-destructive/10 text-destructive',
-              label: '创建/更新失败',
+              label: t('agent.status.createFailed'),
             }
           : {
               dot: 'bg-muted-foreground',
@@ -145,6 +155,7 @@ function SectionHeader({ icon, title }: { icon?: ReactNode; title: string }) {
  * - 右边缘毛玻璃遮罩同样只在右侧仍有内容时出现。
  */
 function TemplateCarousel({ children }: { children: ReactNode }) {
+  const { t } = useTranslation('tool-panel')
   const viewportRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
@@ -203,7 +214,7 @@ function TemplateCarousel({ children }: { children: ReactNode }) {
       {/* 左右翻页按钮：常驻 DOM，无未显示内容时用 visibility 隐藏（不卸载、不 disabled） */}
       <button
         type="button"
-        aria-label="向左滚动"
+        aria-label={t('agent.scrollLeft')}
         onClick={() => pageBy(-1)}
         className={cn(
           'absolute left-1 top-1/2 z-20 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent',
@@ -214,7 +225,7 @@ function TemplateCarousel({ children }: { children: ReactNode }) {
       </button>
       <button
         type="button"
-        aria-label="向右滚动"
+        aria-label={t('agent.scrollRight')}
         onClick={() => pageBy(1)}
         className={cn(
           'absolute right-1 top-1/2 z-20 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent',
@@ -241,6 +252,8 @@ function FeatureCard({
   disabled: boolean
   onClick: () => void
 }) {
+  const { t } = useTranslation('tool-panel')
+
   return (
     <div
       role="button"
@@ -248,8 +261,8 @@ function FeatureCard({
       aria-disabled={disabled}
       aria-label={
         instantiated
-          ? `模板 ${template.name}（已创建，选中该 Agent）`
-          : `实例化模板 ${template.name}`
+          ? t('agent.template.ariaInstantiated', { name: template.name })
+          : t('agent.template.ariaInstantiate', { name: template.name })
       }
       onClick={disabled ? undefined : onClick}
       onKeyDown={e => {
@@ -284,7 +297,7 @@ function FeatureCard({
           aria-hidden
         />
         <div className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
-          <Sparkles className="h-3 w-3" /> 精选推荐
+          <Sparkles className="h-3 w-3" /> {t('agent.template.featured')}
         </div>
         <span className="absolute right-2.5 top-2.5 rounded-md bg-black/20 px-1.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm">
           v{template.version}
@@ -299,7 +312,7 @@ function FeatureCard({
       {/* 正文：描述 + 技能标签 */}
       <div className="flex flex-1 flex-col p-3">
         <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-          {template.description || '无描述'}
+          {template.description || t('agent.noDescription')}
         </p>
         <div className="mt-2.5 flex flex-wrap gap-1">
           {template.skills.slice(0, 3).map(skill => (
@@ -321,19 +334,19 @@ function FeatureCard({
       {/* 底部：数量 + 动作（一键创建 / 已创建 / 实例化中） */}
       <div className="flex items-center justify-between gap-2 border-t border-border/70 px-3 py-2">
         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <Bot className="h-3.5 w-3.5" /> {template.skillCount} 项技能
+          <Bot className="h-3.5 w-3.5" /> {t('agent.skillCount', { count: template.skillCount })}
         </span>
         {instantiated ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2.5 py-0.5 text-xs text-success">
-            <Check className="h-3.5 w-3.5" /> 已创建
+            <Check className="h-3.5 w-3.5" /> {t('agent.template.created')}
           </span>
         ) : isInstantiating ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs text-primary">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> 实例化中
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('agent.template.instantiating')}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-0.5 text-xs text-primary-foreground transition-colors group-hover:bg-primary/90">
-            一键创建 <ArrowUpRight className="h-3.5 w-3.5" />
+            {t('agent.template.oneClickCreate')} <ArrowUpRight className="h-3.5 w-3.5" />
           </span>
         )}
       </div>
@@ -355,6 +368,7 @@ function AgentCard({
   onResume: () => void
   onDelete: () => void
 }) {
+  const { t } = useTranslation('tool-panel')
   const running = agent.status.toLowerCase() === 'running'
   const hasSkills = (agent.skills?.length ?? 0) > 0
   return (
@@ -372,7 +386,7 @@ function AgentCard({
             <StatusBadge status={agent.status} />
           </div>
           <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-            {agent.description || '无描述'}
+            {agent.description || t('agent.noDescription')}
           </p>
         </div>
       </div>
@@ -384,7 +398,7 @@ function AgentCard({
         {hasSkills && (
           <>
             <span>·</span>
-            <span>{agent.skills?.length} 技能</span>
+            <span>{t('agent.skillCount', { count: agent.skills?.length ?? 0 })}</span>
           </>
         )}
       </div>
@@ -406,7 +420,7 @@ function AgentCard({
             ) : (
               <Pause className="h-3 w-3" />
             )}
-            暂停
+            {t('agent.action.pause')}
           </Button>
         ) : (
           <Button
@@ -424,7 +438,7 @@ function AgentCard({
             ) : (
               <Play className="h-3 w-3" />
             )}
-            启动
+            {t('agent.action.start')}
           </Button>
         )}
         <div className="flex-1" />
@@ -437,7 +451,7 @@ function AgentCard({
             onDelete()
           }}
         >
-          <Trash2 className="h-3 w-3" /> 删除
+          <Trash2 className="h-3 w-3" /> {t('common:action.delete')}
         </Button>
       </div>
     </div>
@@ -445,6 +459,7 @@ function AgentCard({
 }
 
 export function AgentPage() {
+  const { t } = useTranslation('tool-panel')
   // Agent 列表以全局 store 为唯一来源：与模版墙（agent-template-chips）、侧边栏共享，
   // 任一处的新增/删除/状态变更都会立即反映到其它视图。
   const agents = useChatStore(state => state.agents)
@@ -495,8 +510,8 @@ export function AgentPage() {
       setAgents(data)
     } catch (err) {
       toast({
-        title: '错误',
-        description: '获取智能体列表失败',
+        title: t('common:status.error'),
+        description: t('agent.toast.fetchAgentsFailed'),
         variant: 'destructive',
       })
       console.error('Failed to fetch agents:', err)
@@ -564,7 +579,7 @@ export function AgentPage() {
         if (result.error) {
           console.log('Pause agent error:', result.error)
           toast({
-            title: '错误',
+            title: t('common:status.error'),
             description: result.error,
             variant: 'destructive',
           })
@@ -580,7 +595,7 @@ export function AgentPage() {
         if (result.error) {
           console.log('Resume agent error:', result.error)
           toast({
-            title: '错误',
+            title: t('common:status.error'),
             description: result.error,
             variant: 'destructive',
           })
@@ -596,8 +611,8 @@ export function AgentPage() {
         // 从全局 store 移除：同步到 conversation-sidebar 与模版墙（「已创建」状态回退）
         removeAgent(agentId)
         toast({
-          title: '成功',
-          description: 'Agent 已删除',
+          title: t('common:status.success'),
+          description: t('agent.toast.deleteSuccess'),
         })
         setDeleteAgentId(null)
         setIsDeleting(false)
@@ -605,8 +620,8 @@ export function AgentPage() {
     } catch (err) {
       console.error(`Failed to ${action} agent:`, err)
       toast({
-        title: '错误',
-        description: '操作失败',
+        title: t('common:status.error'),
+        description: t('agent.toast.actionFailed'),
         variant: 'destructive',
       })
       if (action === 'delete') {
@@ -624,8 +639,8 @@ export function AgentPage() {
   const handleImportFromHub = async () => {
     if (!importForm.gitUrl.trim()) {
       toast({
-        title: '错误',
-        description: '请输入Git仓库地址',
+        title: t('common:status.error'),
+        description: t('agent.toast.gitUrlRequired'),
         variant: 'destructive',
       })
       return
@@ -633,8 +648,8 @@ export function AgentPage() {
 
     if (!importForm.modelId) {
       toast({
-        title: '错误',
-        description: '请选择模型配置',
+        title: t('common:status.error'),
+        description: t('agent.toast.modelRequired'),
         variant: 'destructive',
       })
       return
@@ -654,8 +669,8 @@ export function AgentPage() {
       addAgent(newAgent)
       setCurrentAgent(newAgent.id)
       toast({
-        title: '成功',
-        description: '从AgentHub导入智能体成功',
+        title: t('common:status.success'),
+        description: t('agent.toast.importSuccess'),
       })
       setImportForm({ gitUrl: '', branch: 'main', modelId: '' })
       setImportOpen(false)
@@ -663,8 +678,8 @@ export function AgentPage() {
     } catch (err) {
       console.error('Failed to import agent from hub:', err)
       toast({
-        title: '错误',
-        description: '从AgentHub导入智能体失败',
+        title: t('common:status.error'),
+        description: t('agent.toast.importFailed'),
         variant: 'destructive',
       })
     } finally {
@@ -689,12 +704,12 @@ export function AgentPage() {
 
   const filterLabel =
     filter === AgentStatus.RUNNING
-      ? '运行中'
+      ? t('agent.status.running')
       : filter === AgentStatus.ERROR
-        ? '创建/更新失败'
+        ? t('agent.status.createFailed')
         : filter === AgentStatus.PAUSED
-          ? '已暂停'
-          : '全部状态'
+          ? t('agent.status.paused')
+          : t('agent.filter.allStatus')
 
   // 处理返回按钮
   const handleBack = () => {
@@ -720,10 +735,10 @@ export function AgentPage() {
                   variant="ghost"
                   size="sm"
                   onClick={handleBack}
-                  aria-label="返回智能体列表"
+                  aria-label={t('agent.backToAgentList')}
                   className="-ml-2 h-8 gap-1 px-2 text-muted-foreground hover:text-foreground"
                 >
-                  <ChevronLeft className="h-4 w-4" /> 返回
+                  <ChevronLeft className="h-4 w-4" /> {t('common:action.back')}
                 </Button>
               </div>
               <AgentCreatePage onBack={handleBack} onCreated={handleAgentCreated} />
@@ -735,7 +750,7 @@ export function AgentPage() {
                 <div className="mb-4">
                   <SectionHeader
                     icon={<Sparkles className="h-4 w-4 text-primary" />}
-                    title="精选智能体"
+                    title={t('agent.featuredTitle')}
                   />
                 </div>
 
@@ -754,7 +769,7 @@ export function AgentPage() {
                         ></span>
                       </div>
                       <span>
-                        正在创建「{instantiatingTemplate}」，此过程可能需要1-2分钟，请耐心等待...
+                        {t('agent.instantiatingNotice', { name: instantiatingTemplate })}
                       </span>
                     </div>
                   </div>
@@ -764,24 +779,24 @@ export function AgentPage() {
                   <Empty className="border border-dashed border-border">
                     <EmptyHeader>
                       <Spinner className="h-4 w-4" />
-                      <EmptyDescription>加载推荐智能体中...</EmptyDescription>
+                      <EmptyDescription>{t('agent.loadingTemplates')}</EmptyDescription>
                     </EmptyHeader>
                   </Empty>
                 ) : templateLoadError ? (
                   <Empty className="border border-dashed border-border">
                     <EmptyHeader>
-                      <EmptyDescription>无法加载推荐智能体。</EmptyDescription>
+                      <EmptyDescription>{t('agent.templateLoadFailed')}</EmptyDescription>
                     </EmptyHeader>
                     <EmptyContent>
                       <Button variant="outline" size="sm" onClick={fetchTemplates}>
-                        <RefreshCw className="h-3 w-3" /> 重试
+                        <RefreshCw className="h-3 w-3" /> {t('common:action.retry')}
                       </Button>
                     </EmptyContent>
                   </Empty>
                 ) : templates.length === 0 ? (
                   <Empty className="border border-dashed border-border">
                     <EmptyHeader>
-                      <EmptyDescription>暂无推荐智能体</EmptyDescription>
+                      <EmptyDescription>{t('agent.emptyTemplates')}</EmptyDescription>
                     </EmptyHeader>
                   </Empty>
                 ) : (
@@ -810,13 +825,13 @@ export function AgentPage() {
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <SectionHeader
                     icon={<Bot className="h-4 w-4 text-primary" />}
-                    title="我的智能体"
+                    title={t('agent.myAgentsTitle')}
                   />
                   <div className="flex items-center gap-2">
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
-                        placeholder="搜索 Agent..."
+                        placeholder={t('agent.searchPlaceholder')}
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                         className="pl-8 w-40"
@@ -838,24 +853,24 @@ export function AgentPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => setFilter('all')}>
-                          全部状态
+                          {t('agent.filter.allStatus')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setFilter(AgentStatus.RUNNING)}>
-                          运行中
+                          {t('agent.status.running')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setFilter(AgentStatus.ERROR)}>
-                          创建/更新失败
+                          {t('agent.status.createFailed')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setFilter(AgentStatus.PAUSED)}>
-                          已暂停
+                          {t('agent.status.paused')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-                      <Download className="h-4 w-4" /> 导入
+                      <Download className="h-4 w-4" /> {t('agent.import')}
                     </Button>
                     <Button size="sm" onClick={() => setIsCreating(true)}>
-                      <Plus className="h-4 w-4" /> 创建
+                      <Plus className="h-4 w-4" /> {t('agent.create')}
                     </Button>
                   </div>
                 </div>
@@ -864,13 +879,13 @@ export function AgentPage() {
                   <Empty className="border border-dashed border-border">
                     <EmptyHeader>
                       <Spinner className="h-4 w-4" />
-                      <EmptyDescription>加载中...</EmptyDescription>
+                      <EmptyDescription>{t('common:action.loading')}</EmptyDescription>
                     </EmptyHeader>
                   </Empty>
                 ) : filteredAgents.length === 0 ? (
                   <Empty className="border border-dashed border-border">
                     <EmptyHeader>
-                      <EmptyDescription>暂无以当前筛选条件匹配的智能体</EmptyDescription>
+                      <EmptyDescription>{t('agent.emptyFiltered')}</EmptyDescription>
                     </EmptyHeader>
                   </Empty>
                 ) : (
@@ -900,13 +915,13 @@ export function AgentPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认删除 Agent</AlertDialogTitle>
+            <AlertDialogTitle>{t('agent.deleteDialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              此操作将永久删除该 Agent，所有相关配置和运行数据都将丢失，无法恢复。
+              {t('agent.deleteDialog.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t('common:action.cancel')}</AlertDialogCancel>
             <Button
               variant="destructive"
               disabled={isDeleting}
@@ -915,10 +930,10 @@ export function AgentPage() {
               {isDeleting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  删除中...
+                  {t('agent.deleteDialog.deleting')}
                 </>
               ) : (
-                '确认删除'
+                t('agent.deleteDialog.confirm')
               )}
             </Button>
           </AlertDialogFooter>
@@ -929,15 +944,15 @@ export function AgentPage() {
       <AlertDialog open={importOpen} onOpenChange={setImportOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>从 AgentHub 导入</AlertDialogTitle>
+            <AlertDialogTitle>{t('agent.importDialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              从远程 Git 仓库导入 Agent 模板，解析 agent.yaml 后自动创建 Agent。
+              {t('agent.importDialog.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label htmlFor="gitUrl" className="text-sm font-medium">
-                Git 仓库地址 <span className="text-destructive">*</span>
+                {t('agent.importDialog.gitUrlLabel')} <span className="text-destructive">*</span>
               </label>
               <Input
                 id="gitUrl"
@@ -949,7 +964,7 @@ export function AgentPage() {
             </div>
             <div className="space-y-2">
               <label htmlFor="branch" className="text-sm font-medium">
-                分支
+                {t('agent.importDialog.branchLabel')}
               </label>
               <Input
                 id="branch"
@@ -961,11 +976,13 @@ export function AgentPage() {
             </div>
             <div className="space-y-2">
               <label htmlFor="modelId" className="text-sm font-medium">
-                模型配置 <span className="text-destructive">*</span>
+                {t('agent.importDialog.modelLabel')} <span className="text-destructive">*</span>
               </label>
               {!loadingModels && models.length === 0 ? (
                 <div className="p-4 border border-input rounded-md bg-muted/50">
-                  <span className="text-sm text-muted-foreground">暂无模型配置，请先添加模型</span>
+                  <span className="text-sm text-muted-foreground">
+                    {t('agent.noModels')}
+                  </span>
                 </div>
               ) : (
                 <Select
@@ -977,10 +994,10 @@ export function AgentPage() {
                     {loadingModels ? (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        加载中...
+                        {t('common:action.loading')}
                       </div>
                     ) : (
-                      <SelectValue placeholder="请选择模型配置" />
+                      <SelectValue placeholder={t('agent.selectModel')} />
                     )}
                   </SelectTrigger>
                   <SelectContent>
@@ -1009,21 +1026,21 @@ export function AgentPage() {
                     style={{ animationDelay: '0.4s' }}
                   ></span>
                 </div>
-                <span>正在从 AgentHub 导入智能体，此过程可能需要1-2分钟，请耐心等待...</span>
+                <span>{t('agent.importingNotice')}</span>
               </div>
             </div>
           )}
 
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isImporting}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={isImporting}>{t('common:action.cancel')}</AlertDialogCancel>
             <Button disabled={isImporting} onClick={handleImportFromHub}>
               {isImporting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  导入中...
+                  {t('agent.importing')}
                 </>
               ) : (
-                '导入'
+                t('agent.import')
               )}
             </Button>
           </AlertDialogFooter>

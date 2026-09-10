@@ -2,6 +2,8 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { FileUp, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -36,7 +38,10 @@ interface CommitImportDialogProps {
   onConfirm: (entries: BackportCommitImportEntry[]) => void
 }
 
-function validateEntries(entries: BackportCommitImportPreviewRow[]): BackportCommitImportIssue[] {
+function validateEntries(
+  entries: BackportCommitImportPreviewRow[],
+  t: TFunction
+): BackportCommitImportIssue[] {
   const issues: BackportCommitImportIssue[] = []
   const titlesByCommit = new Map<string, string>()
   entries.forEach((entry, index) => {
@@ -47,22 +52,26 @@ function validateEntries(entries: BackportCommitImportPreviewRow[]): BackportCom
       issues.push({
         row,
         field: 'commit_id',
-        message: 'commit_id 必须是至少 7 位的十六进制 Git SHA',
+        message: t('backport.import.issue.shaInvalid'),
       })
     }
     if (!title) {
-      issues.push({ row, field: 'commit_title', message: 'commit_title 不能为空' })
+      issues.push({ row, field: 'commit_title', message: t('backport.import.issue.titleEmpty') })
     } else if (/\r|\n/.test(title)) {
-      issues.push({ row, field: 'commit_title', message: 'commit_title 必须为单行文本' })
+      issues.push({ row, field: 'commit_title', message: t('backport.import.issue.titleSingleLine') })
     }
     const previous = titlesByCommit.get(commit.toLowerCase())
     if (previous !== undefined && previous !== title) {
-      issues.push({ row, field: 'commit_id', message: '同一 commit_id 的 commit_title 必须一致' })
+      issues.push({
+        row,
+        field: 'commit_id',
+        message: t('backport.import.issue.titleMismatch'),
+      })
     }
     if (commit) titlesByCommit.set(commit.toLowerCase(), title)
   })
-  if (entries.length === 0) issues.push({ message: '至少保留一条提交' })
-  if (entries.length > 5000) issues.push({ message: '提交数不能超过 5,000 条' })
+  if (entries.length === 0) issues.push({ message: t('backport.import.issue.atLeastOne') })
+  if (entries.length > 5000) issues.push({ message: t('backport.import.issue.tooMany') })
   return issues
 }
 
@@ -80,6 +89,7 @@ function normalizedEntries(entries: BackportCommitImportEntry[]): BackportCommit
 }
 
 export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImportDialogProps) {
+  const { t } = useTranslation('tool-panel')
   const [text, setText] = useState('')
   const [delimiter, setDelimiter] = useState<'csv' | 'tsv'>('csv')
   const [entries, setEntries] = useState<EditableCommitImportPreviewEntry[]>([])
@@ -92,7 +102,7 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
   const createEntry = (entry: BackportCommitImportPreviewRow) =>
     createEditableCommitImportPreviewEntry(nextClientId.current++, entry)
 
-  const localIssues = useMemo(() => validateEntries(entries), [entries])
+  const localIssues = useMemo(() => validateEntries(entries, t), [entries, t])
   const allIssues = [...sourceIssues, ...localIssues]
 
   const applyPreview = (preview: BackportCommitImportPreview) => {
@@ -112,14 +122,14 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
 
   const previewText = async () => {
     if (new TextEncoder().encode(text).byteLength > MAX_IMPORT_BYTES) {
-      setRequestError('粘贴内容不能超过 1 MiB。')
+      setRequestError(t('backport.import.error.textTooLarge'))
       return
     }
     setLoading(true)
     try {
       applyPreview(await backportService.previewCommitImportText(text, delimiter))
     } catch (cause) {
-      setRequestError(cause instanceof Error ? cause.message : '解析提交文本失败')
+      setRequestError(cause instanceof Error ? cause.message : t('backport.import.error.parseText'))
     } finally {
       setLoading(false)
     }
@@ -128,18 +138,18 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
   const previewFile = async (file: File | undefined) => {
     if (!file) return
     if (!file.name.toLowerCase().endsWith('.csv')) {
-      setRequestError('仅支持 .csv 文件；TSV 请使用粘贴导入。')
+      setRequestError(t('backport.import.error.csvOnly'))
       return
     }
     if (file.size > MAX_IMPORT_BYTES) {
-      setRequestError('文件不能超过 1 MiB。')
+      setRequestError(t('backport.import.error.fileTooLarge'))
       return
     }
     setLoading(true)
     try {
       applyPreview(await backportService.previewCommitImportFile(file))
     } catch (cause) {
-      setRequestError(cause instanceof Error ? cause.message : '上传 CSV 失败')
+      setRequestError(cause instanceof Error ? cause.message : t('backport.import.error.uploadCsv'))
     } finally {
       setLoading(false)
     }
@@ -169,35 +179,31 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>导入 Backport 提交</DialogTitle>
-          <DialogDescription>
-            可上传浏览器所在机器的 CSV，或粘贴 CSV/TSV。每行必须为提交 ID、标题两列； 推荐使用
-            commit_id、commit_title，也兼容 commit hash、commit、hash、sha 及 title、subject、patch
-            title。确认后会替换当前提交清单。
-          </DialogDescription>
+          <DialogTitle>{t('backport.import.title')}</DialogTitle>
+          <DialogDescription>{t('backport.import.description')}</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-2 rounded-md border p-3">
-            <p className="text-sm font-medium">上传 CSV</p>
+            <p className="text-sm font-medium">{t('backport.import.uploadCsv')}</p>
             <Input
               type="file"
               accept=".csv,text/csv"
               disabled={loading}
               onChange={event => void previewFile(event.target.files?.[0])}
             />
-            <p className="text-xs text-muted-foreground">浏览器本机文件，最大 1 MiB。</p>
+            <p className="text-xs text-muted-foreground">{t('backport.import.localFileHint')}</p>
           </div>
           <div className="space-y-2 rounded-md border p-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium">粘贴表格文本</p>
+              <p className="text-sm font-medium">{t('backport.import.pasteText')}</p>
               <select
                 className="h-8 rounded-md border bg-background px-2 text-xs"
                 value={delimiter}
                 onChange={event => setDelimiter(event.target.value as 'csv' | 'tsv')}
               >
-                <option value="csv">CSV（逗号）</option>
-                <option value="tsv">TSV（Tab）</option>
+                <option value="csv">{t('backport.import.delimiterCsv')}</option>
+                <option value="tsv">{t('backport.import.delimiterTsv')}</option>
               </select>
             </div>
             <Textarea
@@ -219,7 +225,7 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
               ) : (
                 <FileUp className="mr-1 h-4 w-4" />
               )}
-              解析预览
+              {t('backport.import.parsePreview')}
             </Button>
           </div>
         </div>
@@ -227,11 +233,11 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
         {requestError ? <p className="text-sm text-destructive">{requestError}</p> : null}
         {allIssues.length ? (
           <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-            <p className="font-medium">请修正或删除全部无效行后再确认：</p>
+            <p className="font-medium">{t('backport.import.fixIssues')}</p>
             <ul className="mt-1 list-disc pl-5">
               {allIssues.map((issue, index) => (
                 <li key={`${issue.row || 'global'}-${index}`}>
-                  {issue.row ? `第 ${issue.row} 行：` : ''}
+                  {issue.row ? t('backport.import.rowPrefix', { row: issue.row }) : ''}
                   {issue.message}
                 </li>
               ))}
@@ -255,7 +261,9 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
                       )
                     }}
                   >
-                    删除{issue.row ? `第 ${issue.row} 行` : '此错误'}
+                    {issue.row
+                      ? t('backport.import.deleteRow', { row: issue.row })
+                      : t('backport.import.deleteError')}
                   </Button>
                 ))}
               </div>
@@ -266,7 +274,7 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
           <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
             {warnings.map((warning, index) => (
               <p key={`${warning.row || 'global'}-${index}`}>
-                {warning.row ? `第 ${warning.row} 行：` : ''}
+                {warning.row ? t('backport.import.rowPrefix', { row: warning.row }) : ''}
                 {warning.message}
               </p>
             ))}
@@ -276,7 +284,9 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
         {entries.length ? (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">可编辑预览（{entries.length} 条）</p>
+              <p className="text-sm font-medium">
+                {t('backport.import.editablePreview', { count: entries.length })}
+              </p>
               <Button
                 type="button"
                 size="sm"
@@ -286,7 +296,7 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
                 }
               >
                 <Plus className="mr-1 h-4 w-4" />
-                新增
+                {t('backport.import.add')}
               </Button>
             </div>
             <div className="space-y-2">
@@ -317,7 +327,7 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
                         setSourceIssues(current => current.filter(issue => issue.row !== sourceRow))
                       }
                     }}
-                    title="删除此行"
+                    title={t('backport.import.deleteThisRow')}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -329,14 +339,14 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            取消
+            {t('common:action.cancel')}
           </Button>
           <Button
             type="button"
             onClick={confirm}
             disabled={loading || allIssues.length > 0 || entries.length === 0}
           >
-            确认并替换提交清单
+            {t('backport.import.confirmReplace')}
           </Button>
         </DialogFooter>
       </DialogContent>

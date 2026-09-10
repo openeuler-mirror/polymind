@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   PanelLeftClose,
   MessageSquarePlus,
@@ -12,6 +13,9 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { enUS, zhCN, type Locale } from 'date-fns/locale'
+import type { TFunction } from 'i18next'
+import i18n from '@/lib/i18n/config'
 import { useChatStore } from '@/lib/store'
 import { MessageStatus, type Conversation } from '@/lib/types'
 import {
@@ -38,6 +42,8 @@ import { ScheduledTaskFolder } from './scheduled-task-folder'
 import { SidebarSection } from './sidebar-section'
 
 export function ConversationSidebar() {
+  const { t, i18n } = useTranslation('chat')
+  const dateLocale = i18n.language.startsWith('zh') ? zhCN : enUS
   const [isHydrated, setIsHydrated] = useState(false)
   const [deleteTaskTarget, setDeleteTaskTarget] = useState<ScheduledTask | null>(null)
   const [searchDialogOpen, setSearchDialogOpen] = useState(false)
@@ -99,8 +105,8 @@ export function ConversationSidebar() {
 
   const notifyDeleteFailed = () =>
     toast({
-      title: '删除失败',
-      description: '服务端会话删除未成功，请稍后重试',
+      title: t('sidebar.toast.deleteFailedTitle'),
+      description: t('sidebar.toast.deleteFailedDescription'),
       variant: 'destructive',
     })
 
@@ -189,12 +195,12 @@ export function ConversationSidebar() {
       const summaries = summaryConversationsByTask[task.id] ?? []
       for (const summary of summaries) {
         if (!localSessionIds.has(summary.id)) {
-          list.push(summaryToConversation(task, summary))
+          list.push(summaryToConversation(task, summary, t))
         }
       }
     }
     return list
-  }, [conversations, scheduledTasks, summaryConversationsByTask])
+  }, [conversations, scheduledTasks, summaryConversationsByTask, t])
 
   const dialogQuery = searchKeyword.trim()
 
@@ -261,7 +267,7 @@ export function ConversationSidebar() {
         ...summaries
           // 已有本地会话的摘要按 sessionId 去重（本地条目更实时，优先渲染）。
           .filter(summary => !localSessionIds.has(summary.id))
-          .map(summary => summaryToConversation(task, summary)),
+          .map(summary => summaryToConversation(task, summary, t)),
       ])
       if (entries.length === 0) continue
       const runningSessionIds = new Set(
@@ -284,7 +290,7 @@ export function ConversationSidebar() {
     }
     folders.sort((a, b) => folderLatestTime(b) - folderLatestTime(a))
     return folders
-  }, [conversations, scheduledTasks, summaryConversationsByTask])
+  }, [conversations, scheduledTasks, summaryConversationsByTask, t])
 
   const scheduledEntryCount = scheduledFolders.reduce((sum, f) => sum + f.conversations.length, 0)
   const totalCount = groups.pinned.length + groups.regular.length + scheduledEntryCount
@@ -310,10 +316,15 @@ export function ConversationSidebar() {
   // 顶部导航项：仅「智能体 / 定时任务」映射到右侧面板 tab，高亮直接跟随面板真实状态；
   // 「新对话」是动作、「IM 频道」是占位，都不持有选中态，避免导航高亮与真实视图不一致。
   const navItems: { id: string; label: string; icon: LucideIcon; panelTabId: string | null }[] = [
-    { id: 'chat', label: '新对话', icon: MessageSquarePlus, panelTabId: null },
-    { id: 'im', label: 'IM 频道', icon: MessageCircle, panelTabId: null },
-    { id: 'agent', label: '智能体', icon: Bot, panelTabId: 'agent' },
-    { id: 'scheduled-tasks', label: '定时任务', icon: Clock, panelTabId: 'scheduled-tasks' },
+    { id: 'chat', label: t('sidebar.nav.newChat'), icon: MessageSquarePlus, panelTabId: null },
+    { id: 'im', label: t('sidebar.nav.imChannel'), icon: MessageCircle, panelTabId: null },
+    { id: 'agent', label: t('sidebar.nav.agent'), icon: Bot, panelTabId: 'agent' },
+    {
+      id: 'scheduled-tasks',
+      label: t('sidebar.nav.scheduledTasks'),
+      icon: Clock,
+      panelTabId: 'scheduled-tasks',
+    },
   ]
 
   // 打开右侧面板并确保可见（agent / scheduled-tasks）。
@@ -347,18 +358,23 @@ export function ConversationSidebar() {
     if (navId === 'chat') {
       startNewTask()
     } else if (navId === 'agent') {
-      openRightPanelTab({ id: 'agent', name: '智能体', icon: Bot, color: 'text-cyan-500' })
+      openRightPanelTab({
+        id: 'agent',
+        name: t('sidebar.panelTab.agent'),
+        icon: Bot,
+        color: 'text-cyan-500',
+      })
     } else if (navId === 'scheduled-tasks') {
       openRightPanelTab({
         id: 'scheduled-tasks',
-        name: '定时任务',
+        name: t('sidebar.panelTab.scheduledTasks'),
         icon: Clock,
         color: 'text-violet-500',
       })
     } else if (navId === 'im') {
       toast({
-        title: 'IM 频道',
-        description: 'IM 频道机器人功能即将上线',
+        title: t('sidebar.toast.imChannelTitle'),
+        description: t('sidebar.toast.imChannelDescription'),
       })
     }
   }
@@ -378,8 +394,8 @@ export function ConversationSidebar() {
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            aria-label="搜索对话"
-            title="搜索对话"
+            aria-label={t('sidebar.action.searchConversation')}
+            title={t('sidebar.action.searchConversation')}
             onClick={() => {
               setSearchKeyword('')
               setSearchDialogOpen(true)
@@ -391,9 +407,9 @@ export function ConversationSidebar() {
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            aria-label="收起侧边栏"
+            aria-label={t('sidebar.action.collapseSidebar')}
             onClick={toggleSidebar}
-            title="收起侧边栏"
+            title={t('sidebar.action.collapseSidebar')}
           >
             <PanelLeftClose className="h-4 w-4" />
           </Button>
@@ -436,9 +452,9 @@ export function ConversationSidebar() {
               <MessageSquarePlus className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-medium">还没有对话</p>
+              <p className="text-sm font-medium">{t('sidebar.empty.title')}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                点击上方“新对话”开始你的第一个任务
+                {t('sidebar.empty.description')}
               </p>
             </div>
           </div>
@@ -446,7 +462,7 @@ export function ConversationSidebar() {
           <>
             {groups.pinned.length > 0 && (
               <SidebarSection
-                label="已置顶"
+                label={t('sidebar.section.pinned')}
                 collapsed={sidebarSectionsCollapsed.pinned}
                 onToggle={() => toggleSidebarSection('pinned')}
               >
@@ -456,7 +472,7 @@ export function ConversationSidebar() {
 
             {groups.regular.length > 0 && (
               <SidebarSection
-                label="普通任务"
+                label={t('sidebar.section.regular')}
                 collapsed={sidebarSectionsCollapsed.regular}
                 onToggle={() => toggleSidebarSection('regular')}
               >
@@ -476,7 +492,7 @@ export function ConversationSidebar() {
 
             {scheduledFolders.length > 0 && (
               <SidebarSection
-                label="定时任务"
+                label={t('sidebar.section.scheduled')}
                 collapsed={sidebarSectionsCollapsed.scheduled}
                 onToggle={() => toggleSidebarSection('scheduled')}
               >
@@ -520,24 +536,24 @@ export function ConversationSidebar() {
               : 'grid-rows-[auto] h-auto'
           )}
         >
-          <DialogTitle className="sr-only">搜索对话内容</DialogTitle>
+          <DialogTitle className="sr-only">{t('sidebar.search.title')}</DialogTitle>
 
           <div className="flex items-center gap-3 border-b border-border px-5 py-4">
             <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
             <input
               autoFocus
-              aria-label="搜索对话内容"
+              aria-label={t('sidebar.search.title')}
               value={searchKeyword}
               onChange={e => setSearchKeyword(e.target.value)}
-              placeholder="搜索对话内容..."
+              placeholder={t('sidebar.search.placeholder')}
               className="flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
             />
             <button
               type="button"
-              aria-label="清空搜索内容"
+              aria-label={t('sidebar.search.clear')}
               onClick={() => setSearchKeyword('')}
               className="text-muted-foreground transition-colors hover:text-foreground"
-              title="清空"
+              title={t('sidebar.search.clearTitle')}
             >
               <X className="h-5 w-5" />
             </button>
@@ -550,7 +566,7 @@ export function ConversationSidebar() {
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted text-muted-foreground">
                     <Search className="h-7 w-7" />
                   </div>
-                  <p className="text-sm text-muted-foreground">暂无相关结果</p>
+                  <p className="text-sm text-muted-foreground">{t('sidebar.search.empty')}</p>
                 </div>
               ) : (
                 <ul className="space-y-1">
@@ -575,7 +591,7 @@ export function ConversationSidebar() {
                               {conversation.title}
                             </span>
                             <span className="ml-auto shrink-0 text-xs text-muted-foreground/60">
-                              {formatConversationDate(conversation.updatedAt)}
+                              {formatConversationDate(conversation.updatedAt, dateLocale)}
                             </span>
                           </div>
                           <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
@@ -598,18 +614,19 @@ export function ConversationSidebar() {
 /** 后端会话摘要 → 侧栏 Conversation 形态（不进 chat-store，仅供渲染/交互）。 */
 function summaryToConversation(
   task: ScheduledTask,
-  summary: ScheduledTaskConversation
+  summary: ScheduledTaskConversation,
+  t: TFunction
 ): Conversation {
   return {
     // 摘要条目无本地 id，以 sessionId 充当渲染 key；选中/删除/重命名按 sessionId 分支。
     id: summary.id,
-    title: summary.title || '新对话',
+    title: summary.title || t('sidebar.untitled'),
     messages: [],
     createdAt: new Date(summary.created_at),
     updatedAt: new Date(summary.updated_at),
     agentId: task.agent_id,
     // 与手动触发时的本地会话保持一致（见 execution.ts），执行前后徽标统一显示“定时”。
-    agentName: '定时',
+    agentName: t('sidebar.scheduledBadge'),
     sessionId: summary.id,
     scheduledTaskId: task.id,
     // run 被 max_run_records 裁剪后 last_run_status 为 null，兜底显示为已完成。
@@ -632,10 +649,10 @@ function folderLatestTime(folder: { conversations: Conversation[] }): number {
 }
 
 /** 安全格式化会话日期：兼容 Date 与 ISO 字符串，非法日期返回空串避免 date-fns 抛错。 */
-function formatConversationDate(date: Date): string {
+function formatConversationDate(date: Date, locale: Locale): string {
   const ts = new Date(date).getTime()
   if (!Number.isFinite(ts)) return ''
-  return format(new Date(date), 'M月d日')
+  return format(new Date(date), i18n.t('chat:sidebar.dateFormat'), { locale })
 }
 
 /** 搜索索引条目：正文原文 + 已小写正文，搜索判定与预览共用，避免重复计算。 */

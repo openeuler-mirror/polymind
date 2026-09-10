@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { formatDistanceToNow } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
+import { enUS, zhCN } from 'date-fns/locale'
 import {
   AlertCircle,
   CircleCheck,
@@ -90,6 +91,8 @@ export function ConversationItem({
   agentBadgeClassName,
   className,
 }: ConversationItemProps) {
+  const { t, i18n } = useTranslation('chat')
+  const dateLocale = i18n.language.startsWith('zh') ? zhCN : enUS
   const [isEditing, setIsEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(conversation.title)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -192,7 +195,7 @@ export function ConversationItem({
           <span className="shrink-0 text-[11px] text-muted-foreground/60">
             {formatDistanceToNow(conversation.updatedAt, {
               addSuffix: true,
-              locale: zhCN,
+              locale: dateLocale,
             })}
           </span>
         </div>
@@ -218,22 +221,22 @@ export function ConversationItem({
           <DropdownMenuContent side="right" align="end">
             <DropdownMenuItem onClick={handleStartRename}>
               <PencilLine className="mr-2 h-4 w-4" />
-              重命名
+              {t('conversation.item.rename')}
             </DropdownMenuItem>
             {showPinAction && (
               <DropdownMenuItem onClick={onTogglePin}>
                 <Pin className="mr-2 h-4 w-4" />
-                {conversation.pinned ? '取消固定' : '固定对话'}
+                {conversation.pinned ? t('conversation.item.unpin') : t('conversation.item.pin')}
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
               onClick={onDelete}
               disabled={disableDelete}
-              title={disableDelete ? '执行中不可删除' : undefined}
+              title={disableDelete ? t('conversation.item.deleteDisabled') : undefined}
               className="text-destructive focus:text-destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              删除
+              {t('conversation.item.delete')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

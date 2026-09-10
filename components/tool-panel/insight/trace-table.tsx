@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslation } from 'react-i18next'
 import { AlertCircle, ChevronDown, ChevronRight, FileText, MessageSquareText } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -87,10 +88,12 @@ function OverviewTableSkeleton() {
 function InterruptionCountCell({
   count,
   loaded,
+  detailLabel,
   onClick,
 }: {
   count?: SessionInterruptionCount | ConversationInterruptionCount
   loaded: boolean
+  detailLabel: string
   onClick?: () => void
 }) {
   if (!loaded) {
@@ -122,7 +125,7 @@ function InterruptionCountCell({
       }}
     >
       <AlertCircle className="h-3.5 w-3.5" />
-      详情
+      {detailLabel}
       <span className="rounded-full bg-background/70 px-1.5 py-0.5 font-mono text-[11px] leading-none">
         {total}
       </span>
@@ -147,11 +150,13 @@ function TraceSubtable({
   onOpenConversationInterruptions: (trace: TraceSummary) => void
   onOpenAtif: (target: InsightAtifTarget) => void
 }) {
+  const { t } = useTranslation('tool-panel')
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground">
         <Spinner className="h-4 w-4" />
-        加载对话轨迹中...
+        {t('insight.trace.loadingTraces')}
       </div>
     )
   }
@@ -160,7 +165,7 @@ function TraceSubtable({
     return (
       <Alert variant="destructive" className="rounded-none border-0">
         <AlertCircle />
-        <AlertTitle>对话轨迹加载失败</AlertTitle>
+        <AlertTitle>{t('insight.trace.traceLoadFailed')}</AlertTitle>
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     )
@@ -174,7 +179,7 @@ function TraceSubtable({
             <EmptyMedia variant="icon">
               <MessageSquareText />
             </EmptyMedia>
-            <EmptyTitle className="text-base">当前会话暂无对话轨迹</EmptyTitle>
+            <EmptyTitle className="text-base">{t('insight.trace.emptyTraces')}</EmptyTitle>
           </EmptyHeader>
         </Empty>
       </div>
@@ -188,12 +193,12 @@ function TraceSubtable({
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead>Conversation ID</TableHead>
-              <TableHead className="min-w-[260px]">用户请求</TableHead>
-              <TableHead>输入</TableHead>
-              <TableHead>输出</TableHead>
-              <TableHead>异常中断</TableHead>
-              <TableHead className="w-24">详情</TableHead>
-              <TableHead>开始时间</TableHead>
+              <TableHead className="min-w-[260px]">{t('insight.trace.columns.userQuery')}</TableHead>
+              <TableHead>{t('insight.trace.columns.input')}</TableHead>
+              <TableHead>{t('insight.trace.columns.output')}</TableHead>
+              <TableHead>{t('insight.trace.columns.interruptions')}</TableHead>
+              <TableHead className="w-24">{t('insight.trace.columns.detail')}</TableHead>
+              <TableHead>{t('insight.trace.columns.startTime')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -204,7 +209,9 @@ function TraceSubtable({
                 </TableCell>
                 <TableCell className="max-w-[340px] whitespace-normal text-sm text-foreground">
                   {trace.user_query || (
-                    <span className="text-muted-foreground">暂无用户请求摘要</span>
+                    <span className="text-muted-foreground">
+                      {t('insight.trace.noUserQuerySummary')}
+                    </span>
                   )}
                 </TableCell>
                 <TableCell className="text-sm font-medium text-sky-700">
@@ -217,6 +224,7 @@ function TraceSubtable({
                   <InterruptionCountCell
                     count={conversationInterruptionCounts[trace.conversation_id]}
                     loaded={conversationInterruptionCountsLoaded}
+                    detailLabel={t('insight.trace.columns.detail')}
                     onClick={() => {
                       onOpenConversationInterruptions(trace)
                     }}
@@ -236,7 +244,7 @@ function TraceSubtable({
                     }}
                   >
                     <FileText className="h-3.5 w-3.5" />
-                    详情
+                    {t('insight.trace.columns.detail')}
                   </Button>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
@@ -280,6 +288,8 @@ function SessionRow({
   onOpenConversationInterruptions: (trace: TraceSummary) => void
   onOpenAtif: (target: InsightAtifTarget) => void
 }) {
+  const { t } = useTranslation('tool-panel')
+
   return (
     <>
       <TableRow
@@ -304,7 +314,9 @@ function SessionRow({
           <IdPill value={session.session_id} maxLength={22} />
         </TableCell>
         <TableCell className="text-sm">
-          {session.agent_name || <span className="text-muted-foreground">未标记</span>}
+          {session.agent_name || (
+            <span className="text-muted-foreground">{t('insight.trace.unassigned')}</span>
+          )}
         </TableCell>
         <TableCell>
           {session.model ? (
@@ -326,6 +338,7 @@ function SessionRow({
           <InterruptionCountCell
             count={sessionInterruptionCount}
             loaded={sessionInterruptionCountsLoaded}
+            detailLabel={t('insight.trace.columns.detail')}
             onClick={() => {
               onOpenSessionInterruptions(session)
             }}
@@ -345,7 +358,7 @@ function SessionRow({
             }}
           >
             <FileText className="h-3.5 w-3.5" />
-            详情
+            {t('insight.trace.columns.detail')}
           </Button>
         </TableCell>
         <TableCell className="text-xs text-muted-foreground">
@@ -385,14 +398,16 @@ export function InsightTraceTable({
   status,
   onOpenAtif,
 }: InsightTraceTableProps) {
+  const { t } = useTranslation('tool-panel')
+
   return (
     <Card className="overflow-hidden">
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <CardTitle className="text-base">会话列表</CardTitle>
+          <CardTitle className="text-base">{t('insight.trace.sessionListTitle')}</CardTitle>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {status.refreshing ? <Spinner className="h-4 w-4" /> : null}共{' '}
-            {sessionsController.sessions.length} 条
+            {status.refreshing ? <Spinner className="h-4 w-4" /> : null}
+            {t('insight.trace.totalSessions', { count: sessionsController.sessions.length })}
           </div>
         </div>
       </CardHeader>
@@ -400,7 +415,7 @@ export function InsightTraceTable({
         {status.error ? (
           <Alert variant="destructive">
             <AlertCircle />
-            <AlertTitle>会话列表加载失败</AlertTitle>
+            <AlertTitle>{t('insight.trace.sessionListLoadFailed')}</AlertTitle>
             <AlertDescription>{status.error}</AlertDescription>
           </Alert>
         ) : status.loading ? (
@@ -411,7 +426,7 @@ export function InsightTraceTable({
               <EmptyMedia variant="icon">
                 <MessageSquareText />
               </EmptyMedia>
-              <EmptyTitle>当前没有可展示的会话</EmptyTitle>
+              <EmptyTitle>{t('insight.trace.emptySessions')}</EmptyTitle>
             </EmptyHeader>
           </Empty>
         ) : (
@@ -423,13 +438,13 @@ export function InsightTraceTable({
                     <TableHead className="w-12" />
                     <TableHead>Session ID</TableHead>
                     <TableHead>Agent</TableHead>
-                    <TableHead>模型</TableHead>
-                    <TableHead>对话数</TableHead>
-                    <TableHead>输入</TableHead>
-                    <TableHead>输出</TableHead>
-                    <TableHead>异常中断</TableHead>
-                    <TableHead className="w-24">详情</TableHead>
-                    <TableHead>最近活动</TableHead>
+                    <TableHead>{t('insight.trace.columns.model')}</TableHead>
+                    <TableHead>{t('insight.trace.columns.conversationCount')}</TableHead>
+                    <TableHead>{t('insight.trace.columns.input')}</TableHead>
+                    <TableHead>{t('insight.trace.columns.output')}</TableHead>
+                    <TableHead>{t('insight.trace.columns.interruptions')}</TableHead>
+                    <TableHead className="w-24">{t('insight.trace.columns.detail')}</TableHead>
+                    <TableHead>{t('insight.trace.columns.lastActivity')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -476,12 +491,14 @@ export function InsightTraceTable({
             {sessionsController.sessionTotalPages > 1 ? (
               <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-xs text-muted-foreground">
-                  显示 {sessionsController.sessionPage * sessionsController.pageSize + 1}-
-                  {Math.min(
-                    (sessionsController.sessionPage + 1) * sessionsController.pageSize,
-                    sessionsController.sessions.length
-                  )}{' '}
-                  / {sessionsController.sessions.length}
+                  {t('insight.trace.showing', {
+                    from: sessionsController.sessionPage * sessionsController.pageSize + 1,
+                    to: Math.min(
+                      (sessionsController.sessionPage + 1) * sessionsController.pageSize,
+                      sessionsController.sessions.length
+                    ),
+                    total: sessionsController.sessions.length,
+                  })}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -494,7 +511,7 @@ export function InsightTraceTable({
                       )
                     }
                   >
-                    上一页
+                    {t('insight.trace.previousPage')}
                   </Button>
                   <Button
                     variant="outline"
@@ -511,7 +528,7 @@ export function InsightTraceTable({
                       )
                     }
                   >
-                    下一页
+                    {t('insight.trace.nextPage')}
                   </Button>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { FileCode2, GitBranch, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -56,20 +57,21 @@ export function SupportPanel({
   onLoadGitLog,
   onLoadGitShow,
 }: SupportPanelProps) {
+  const { t } = useTranslation('tool-panel')
   return (
     <Card className="overflow-hidden">
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <CardTitle className="text-base">辅助信息</CardTitle>
+            <CardTitle className="text-base">{t('backport.support.title')}</CardTitle>
             <CardDescription className="truncate">
               {supportTab === 'timeline'
-                ? '记录操作轨迹与报错信息'
+                ? t('backport.support.description.timeline')
                 : supportTab === 'summary'
-                  ? '按 Commit 汇总检测、处理和最终结果'
+                  ? t('backport.support.description.summary')
                   : supportTab === 'conflict-report'
-                    ? '汇总当前 report 中已生成的冲突报告'
-                    : `目标仓目录：${targetPath || '--'}`}
+                    ? t('backport.support.description.conflictReport')
+                    : t('backport.support.description.git', { path: targetPath || '--' })}
             </CardDescription>
           </div>
 
@@ -81,7 +83,7 @@ export function SupportPanel({
                 className="h-7 px-3"
                 onClick={() => onSupportTabChange('timeline')}
               >
-                执行记录
+                {t('backport.support.tabTimeline')}
               </Button>
               <Button
                 variant={supportTab === 'summary' ? 'secondary' : 'ghost'}
@@ -89,7 +91,7 @@ export function SupportPanel({
                 className="h-7 px-3"
                 onClick={() => onSupportTabChange('summary')}
               >
-                运行总览
+                {t('backport.support.tabSummary')}
               </Button>
               <Button
                 variant={supportTab === 'conflict-report' ? 'secondary' : 'ghost'}
@@ -97,7 +99,7 @@ export function SupportPanel({
                 className="h-7 px-3"
                 onClick={() => onSupportTabChange('conflict-report')}
               >
-                冲突报告
+                {t('backport.support.tabConflictReport')}
               </Button>
               <Button
                 variant={supportTab === 'git' ? 'secondary' : 'ghost'}
@@ -132,7 +134,7 @@ export function SupportPanel({
           <div className="max-h-[360px] space-y-2 overflow-auto pr-2">
             {timeline.length === 0 ? (
               <div className="rounded-md border border-dashed px-3 py-10 text-center text-xs text-muted-foreground">
-                还没有执行记录
+                {t('backport.support.timeline.empty')}
               </div>
             ) : (
               timeline.map(entry => (
@@ -176,7 +178,7 @@ export function SupportPanel({
           <div className="max-h-[460px] space-y-3 overflow-auto pr-2">
             {!executionSummary ? (
               <div className="rounded-md border border-dashed px-3 py-10 text-center text-xs text-muted-foreground">
-                暂无一键运行总览
+                {t('backport.support.summary.empty')}
               </div>
             ) : (
               <>
@@ -186,32 +188,33 @@ export function SupportPanel({
                     <strong className="text-slate-900">{executionSummary.counts.total}</strong>
                   </span>
                   <span>
-                    已应用{' '}
+                    {t('backport.support.summary.applied')}{' '}
                     <strong className="text-slate-900">{executionSummary.counts.applied}</strong>
                   </span>
                   <span>
-                    直接应用{' '}
+                    {t('backport.support.summary.directApplied')}{' '}
                     <strong className="text-slate-900">
                       {executionSummary.counts.direct_applied}
                     </strong>
                   </span>
                   <span>
-                    解冲突后应用{' '}
+                    {t('backport.support.summary.conflictResolved')}{' '}
                     <strong className="text-slate-900">
                       {executionSummary.counts.conflict_resolved}
                     </strong>
                   </span>
                   <span>
-                    等价存在{' '}
+                    {t('backport.support.summary.equivalentExists')}{' '}
                     <strong className="text-slate-900">
                       {executionSummary.counts.equivalent_exists}
                     </strong>
                   </span>
                   <span>
-                    失败 <strong className="text-red-700">{executionSummary.counts.failed}</strong>
+                    {t('backport.support.summary.failed')}{' '}
+                    <strong className="text-red-700">{executionSummary.counts.failed}</strong>
                   </span>
                   <span>
-                    未处理{' '}
+                    {t('backport.support.summary.unprocessed')}{' '}
                     <strong className="text-slate-900">
                       {executionSummary.counts.unprocessed}
                     </strong>
@@ -238,7 +241,9 @@ export function SupportPanel({
                       <div className="px-3 py-2 text-xs">
                         <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 py-1.5">
                           <span className="text-slate-500">
-                            {unchecked ? '检测状态' : '检测结论'}
+                            {unchecked
+                              ? t('backport.support.summary.detectionStatus')
+                              : t('backport.support.summary.detectionConclusion')}
                           </span>
                           <span
                             className={cn(
@@ -252,13 +257,15 @@ export function SupportPanel({
                                     : 'text-emerald-700'
                             )}
                           >
-                            {resolveRunSummaryDetectionText(item)}
+                            {resolveRunSummaryDetectionText(item, t)}
                           </span>
                         </div>
                         {!unchecked ? (
                           <>
                             <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 border-t border-dashed py-1.5">
-                              <span className="text-slate-500">最终结果</span>
+                              <span className="text-slate-500">
+                                {t('backport.support.summary.finalResult')}
+                              </span>
                               <span
                                 className={cn(
                                   'font-medium',
@@ -269,12 +276,14 @@ export function SupportPanel({
                                       : 'text-slate-700'
                                 )}
                               >
-                                {resolveRunSummaryFinalText(item)}
+                                {resolveRunSummaryFinalText(item, t)}
                               </span>
                             </div>
                             {item.handling.report ? (
                               <div className="mt-1 border-l-2 border-slate-300 bg-slate-50 px-2.5 py-2 text-[11px] leading-5 text-slate-600">
-                                <span className="font-medium text-slate-700">解冲突报告：</span>
+                                <span className="font-medium text-slate-700">
+                                  {t('backport.support.summary.conflictResolutionReport')}
+                                </span>
                                 {item.handling.report}
                               </div>
                             ) : null}
@@ -297,7 +306,7 @@ export function SupportPanel({
               />
             ) : (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-3 py-10 text-center text-xs text-slate-500">
-                当前 report 暂无冲突报告
+                {t('backport.support.conflictReport.empty')}
               </div>
             )}
           </div>
@@ -313,7 +322,7 @@ export function SupportPanel({
               <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
                 <div className="flex items-center gap-2 border-b bg-slate-50/90 px-3 py-2 text-[11px] font-semibold text-slate-700">
                   <FileCode2 className="h-3.5 w-3.5 text-blue-500" />
-                  提交列表
+                  {t('backport.support.git.commitList')}
                   <span className="ml-auto rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-600">
                     {gitLogEntries.length}
                   </span>
@@ -321,7 +330,9 @@ export function SupportPanel({
                 <div className="max-h-[320px] overflow-auto">
                   {gitLogEntries.length === 0 ? (
                     <div className="px-3 py-10 text-center text-xs text-muted-foreground">
-                      {gitLogLoading ? '正在读取 git log...' : '暂无 git log 数据'}
+                      {gitLogLoading
+                        ? t('backport.support.git.loadingLog')
+                        : t('backport.support.git.noLogData')}
                     </div>
                   ) : (
                     gitLogEntries.map(entry => (
@@ -368,7 +379,11 @@ export function SupportPanel({
               <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
                 <div className="flex items-center gap-2 border-b bg-slate-50/90 px-3 py-2 text-[11px] font-semibold text-slate-700">
                   <FileCode2 className="h-3.5 w-3.5 text-blue-500" />
-                  {selectedGitEntry ? `提交详情 ${selectedGitEntry.shortHash}` : '提交详情'}
+                  {selectedGitEntry
+                    ? t('backport.support.git.commitDetailWithHash', {
+                        hash: selectedGitEntry.shortHash,
+                      })
+                    : t('backport.support.git.commitDetail')}
                 </div>
                 <div className="max-h-[320px] overflow-auto px-3 py-3">
                   {selectedGitEntry ? (
@@ -395,7 +410,7 @@ export function SupportPanel({
 
                   {gitShowLoading ? (
                     <div className="py-10 text-center text-xs text-muted-foreground">
-                      正在读取提交详情...
+                      {t('backport.support.git.loadingDetail')}
                     </div>
                   ) : gitShowContent ? (
                     <pre className="whitespace-pre-wrap break-all rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] leading-5 text-slate-700">
@@ -403,7 +418,7 @@ export function SupportPanel({
                     </pre>
                   ) : (
                     <div className="py-10 text-center text-xs text-muted-foreground">
-                      请选择左侧提交查看详情
+                      {t('backport.support.git.selectCommit')}
                     </div>
                   )}
                 </div>

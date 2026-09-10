@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { PanelLeftOpen } from 'lucide-react'
 import { useChatStore } from '@/lib/store'
 import { MessageList } from './message-list'
@@ -25,6 +26,7 @@ import { handleStreamEvent } from '@/lib/stream-event-handler'
 const NEAR_BOTTOM_THRESHOLD = 80
 
 export function ChatArea() {
+  const { t } = useTranslation('chat')
   const [initialResolved, setInitialResolved] = useState(false)
   const {
     conversations,
@@ -465,7 +467,7 @@ export function ChatArea() {
         <div className="flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <p className="text-sm">加载中...</p>
+            <p className="text-sm">{t('chatArea.loading')}</p>
           </div>
         </div>
       </div>
@@ -486,7 +488,7 @@ export function ChatArea() {
                       <PanelLeftOpen className="h-5 w-5" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>展开侧边栏</TooltipContent>
+                  <TooltipContent>{t('header.expandSidebar')}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
@@ -519,7 +521,7 @@ export function ChatArea() {
         <div className="flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <p className="text-sm">加载历史会话中...</p>
+            <p className="text-sm">{t('chatArea.loadingHistory')}</p>
           </div>
         </div>
         <div className="p-4">
@@ -540,7 +542,9 @@ export function ChatArea() {
         {loadingMore && (
           <div className="flex items-center justify-center py-3">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <span className="ml-2 text-xs text-muted-foreground">加载更早的消息...</span>
+            <span className="ml-2 text-xs text-muted-foreground">
+              {t('chatArea.loadingMore')}
+            </span>
           </div>
         )}
         {currentConversation?.hasMore && !loadingMore && (
@@ -549,7 +553,7 @@ export function ChatArea() {
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               onClick={loadMore}
             >
-              查看更早的消息
+              {t('chatArea.viewEarlier')}
             </button>
           </div>
         )}

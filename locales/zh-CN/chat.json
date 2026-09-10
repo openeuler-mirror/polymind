@@ -1,0 +1,204 @@
+{
+  "sidebar": {
+    "nav": {
+      "newChat": "新对话",
+      "imChannel": "IM 频道",
+      "agent": "智能体",
+      "scheduledTasks": "定时任务"
+    },
+    "section": {
+      "pinned": "已置顶",
+      "regular": "普通任务",
+      "scheduled": "定时任务"
+    },
+    "panelTab": {
+      "agent": "智能体",
+      "scheduledTasks": "定时任务"
+    },
+    "empty": {
+      "title": "还没有对话",
+      "description": "点击上方“新对话”开始你的第一个任务"
+    },
+    "action": {
+      "searchConversation": "搜索对话",
+      "collapseSidebar": "收起侧边栏"
+    },
+    "search": {
+      "title": "搜索对话内容",
+      "placeholder": "搜索对话内容...",
+      "clear": "清空搜索内容",
+      "clearTitle": "清空",
+      "empty": "暂无相关结果"
+    },
+    "toast": {
+      "deleteFailedTitle": "删除失败",
+      "deleteFailedDescription": "服务端会话删除未成功，请稍后重试",
+      "imChannelTitle": "IM 频道",
+      "imChannelDescription": "IM 频道机器人功能即将上线"
+    },
+    "untitled": "新对话",
+    "dateFormat": "M月d日",
+    "scheduledBadge": "定时"
+  },
+  "header": {
+    "newConversation": "新对话",
+    "expandSidebar": "展开侧边栏",
+    "share": "分享对话",
+    "theme": "主题",
+    "themeLight": "浅色",
+    "themeDark": "深色",
+    "themeSystem": "跟随系统",
+    "settings": "设置"
+  },
+  "input": {
+    "placeholder": "描述你的任务，输入 \"/\" 调用技能，Enter 发送",
+    "skills": {
+      "available": "可用技能",
+      "empty": "无匹配技能"
+    },
+    "dropToAttach": "放开以添加文件",
+    "uploadImageOrAttachment": "上传图片或附件",
+    "voiceInput": "语音输入",
+    "send": "发送",
+    "selectAgentFirst": "请先选择智能体",
+    "stopGenerating": "停止生成",
+    "removeAttachment": "移除附件"
+  },
+  "agentSelector": {
+    "selectAgent": "选择智能体",
+    "heading": "智能体",
+    "loading": "加载中...",
+    "empty": "暂无智能体",
+    "createAgent": "创建 Agent",
+    "status": {
+      "running": "运行中",
+      "paused": "已暂停",
+      "error": "创建/更新失败"
+    }
+  },
+  "welcome": {
+    "title": "欢迎使用 PolyMind",
+    "description": "选择一个 Agent 模版快速开始，或直接输入你的问题"
+  },
+  "template": {
+    "guide": {
+      "ariaLabel": "模版使用引导",
+      "title": "试试点一个模版开始",
+      "description": "点任意模版即可一键创建对应的 Agent，并直接开始对话。",
+      "hintOnce": "仅提示一次",
+      "gotIt": "知道了"
+    },
+    "chips": {
+      "loading": "加载模板中...",
+      "loadFailed": "模版加载失败，点击重试",
+      "createdAria": "模板 {{name}}（已创建，选中该 Agent）",
+      "createAria": "实例化模板 {{name}}"
+    }
+  },
+  "rightPanel": {
+    "description": "使用工具，扩展更多能力",
+    "tools": {
+      "editor": "编辑器",
+      "document": "文档",
+      "terminal": "终端",
+      "browser": "浏览器",
+      "codeChange": "代码变更",
+      "figma": "Figma",
+      "agent": "智能体",
+      "mcp": "MCP",
+      "settings": "设置"
+    },
+    "toggle": "切换工具面板"
+  },
+  "conversation": {
+    "item": {
+      "rename": "重命名",
+      "pin": "固定对话",
+      "unpin": "取消固定",
+      "delete": "删除",
+      "deleteDisabled": "执行中不可删除"
+    },
+    "scheduledFolder": {
+      "deleteTask": "删除定时任务"
+    }
+  },
+  "questionFlow": {
+    "other": "其他",
+    "defaultHeader": "请选择",
+    "skipAll": "跳过全部",
+    "otherPlaceholder": "请输入...",
+    "selectedCount": "已选 {{count}} 项",
+    "skip": "跳过",
+    "complete": "完成",
+    "next": "下一题",
+    "retry": "重试",
+    "submitting": "已回答完毕，正在提交..."
+  },
+  "message": {
+    "assistantFallback": "AI 助手",
+    "completed": "已完成",
+    "completedWithDuration": "已完成 {{duration}}",
+    "interrupted": "思考已中断",
+    "usage": {
+      "inputTokens": "输入 tokens: {{count}}",
+      "outputTokens": "输出 tokens: {{count}}",
+      "cost": "成本: ${{cost}}"
+    },
+    "action": {
+      "copy": "复制",
+      "copied": "已复制",
+      "regenerate": "重新生成"
+    },
+    "codeBlock": {
+      "copy": "复制",
+      "copied": "已复制"
+    },
+    "mermaid": {
+      "renderFailed": "渲染流程图失败",
+      "rendering": "渲染流程图..."
+    },
+    "admonition": {
+      "note": "提示",
+      "info": "信息",
+      "tip": "技巧",
+      "warning": "警告",
+      "caution": "注意",
+      "danger": "危险",
+      "important": "重要"
+    },
+    "toolCall": {
+      "viewFile": "查看文件",
+      "input": "输入",
+      "inputStreaming": "输入（流式）",
+      "output": "输出",
+      "error": "错误",
+      "status": {
+        "running": "运行中",
+        "completed": "已完成",
+        "error": "出错",
+        "pending": "待执行"
+      }
+    },
+    "question": {
+      "skipped": "您跳过了此问题",
+      "waiting": "等待你的回答",
+      "asked": "向用户提问",
+      "pendingAnswer": "待回答",
+      "unanswered": "（未作答）"
+    },
+    "streaming": "生成回复中",
+    "thinking": "深度思考"
+  },
+  "artifactCard": {
+    "download": "下载",
+    "copy": "复制"
+  },
+  "chatArea": {
+    "loading": "加载中...",
+    "loadingHistory": "加载历史会话中...",
+    "loadingMore": "加载更早的消息...",
+    "viewEarlier": "查看更早的消息",
+    "reconnectError": "抱歉，重新连接流式响应时出错，请刷新后重试。",
+    "sendError": "抱歉，发送消息时出错，请重试。"
+  }
+}
