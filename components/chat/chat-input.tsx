@@ -46,6 +46,8 @@ export function ChatInput({ onSend }: ChatInputProps) {
   const [selectedSkillIndex, setSelectedSkillIndex] = useState(0)
 
   const { currentConversationId, conversations, stopStreaming, currentAgentId } = useChatStore()
+  const composerPrefill = useChatStore(state => state.composerPrefill)
+  const consumeComposerPrefill = useChatStore(state => state.consumeComposerPrefill)
   const refreshScheduled = useScheduledTaskStore(s => s.refresh)
 
   const fetchSkills = useCallback(async () => {
@@ -119,6 +121,30 @@ export function ChatInput({ onSend }: ChatInputProps) {
       item?.scrollIntoView({ block: 'nearest' })
     }
   }, [selectedSkillIndex])
+
+  // 消费「一次性待填文本」（模版墙的默认提问等入口写入 store）：
+  // - 无论最终填不填都立刻取走，避免输入框稍后清空/重挂载时被「迟到」灌入；
+  useEffect(() => {
+    if (!composerPrefill) return
+    const pending = composerPrefill
+    consumeComposerPrefill()
+    if (textareaRef.current?.value) {
+      toast({
+        title: t('template.chips.prefillSkippedTitle'),
+        description: t('template.chips.prefillSkippedDesc'),
+      })
+      return
+    }
+    setInput(pending)
+    // 光标落到文本末尾：用户可以立刻补充条件或直接回车发送。
+    // 必须等本轮提交（DOM value 已更新）后再设光标，否则会被自动重置到开头。
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(pending.length, pending.length)
+    })
+  }, [composerPrefill, consumeComposerPrefill, toast, t])
 
   // 处理选择skill
   const handleSelectSkill = useCallback((skill: AgentSkill) => {

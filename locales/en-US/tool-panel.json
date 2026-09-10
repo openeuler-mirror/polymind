@@ -992,8 +992,6 @@
     "importingNotice": "Importing the agent from AgentHub. This may take 1-2 minutes, please wait...",
     "importing": "Importing...",
     "backToAgentList": "Back to agent list",
-    "scrollLeft": "Scroll left",
-    "scrollRight": "Scroll right",
     "noModels": "No model configuration yet. Please add a model first.",
     "selectModel": "Select a model configuration",
     "filter": {

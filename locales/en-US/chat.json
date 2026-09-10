@@ -84,7 +84,7 @@
     "guide": {
       "ariaLabel": "Template usage guide",
       "title": "Try picking a template to start",
-      "description": "Click any template to create the corresponding Agent in one click and start chatting right away.",
+      "description": "Click any template to create its Agent in one click; if the template ships a default question, it's filled into the input box for you.",
       "hintOnce": "Shown only once",
       "gotIt": "Got it"
     },
@@ -92,7 +92,10 @@
       "loading": "Loading templates...",
       "loadFailed": "Failed to load templates, click to retry",
       "createdAria": "Template {{name}} (created, select this Agent)",
-      "createAria": "Instantiate template {{name}}"
+      "createAria": "Instantiate template {{name}}",
+      "willFill": "Click to fill in this question: {{prompt}}",
+      "prefillSkippedTitle": "Template question not filled in",
+      "prefillSkippedDesc": "The input box already has content, so your draft was left untouched. Clear the input box and click the template again to fill it in."
     }
   },
   "rightPanel": {

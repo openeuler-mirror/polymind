@@ -520,6 +520,8 @@ export interface AgentTemplateInfo {
   skills: string[]
   /** 模板 skill 来源仓库的 commit hash；离线或未预热时为 null */
   sourceCommit: string | null
+  /** 模板声明的默认使用提问（给用户直接用），对应后端 `default_prompt` */
+  defaultPrompt: string | null
 }
 
 // ============================================

@@ -19,7 +19,9 @@
     "search": "Search",
     "loading": "Loading...",
     "submit": "Submit",
-    "reset": "Reset"
+    "reset": "Reset",
+    "scrollLeft": "Scroll left",
+    "scrollRight": "Scroll right"
   },
   "status": {
     "success": "Success",
