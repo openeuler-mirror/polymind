@@ -46,6 +46,7 @@ import {
   Compatibility,
 } from '@/lib/types'
 import { useToast } from '@/hooks/use-toast'
+import { useChatStore } from '@/lib/store'
 import aiProvidersConfig from '@/lib/ai-providers-config.json'
 
 interface Provider {
@@ -246,6 +247,10 @@ export function ModelPage() {
           isDefault: isSetDefault,
         }
         await modelService.createModel(request)
+      }
+      // 在设置页把某个模型设为默认，同样算「配置过默认模型」。
+      if (isSetDefault) {
+        useChatStore.getState().setHasConfiguredDefaultModel(true)
       }
       handleCloseDialog()
       loadModels()

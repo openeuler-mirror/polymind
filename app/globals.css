@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(0.98 0 0);
+  --background: oklch(0.99 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -16,6 +16,11 @@
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.94 0 0);
   --muted-foreground: oklch(0.45 0 0);
+  --process-foreground: oklch(0.54 0 0);
+  --success: oklch(0.55 0.15 150);
+  --warning: oklch(0.62 0.13 75);
+  --user-bubble: oklch(0.96 0.025 250);
+  --on-gradient: oklch(0.25 0 0);
   --accent: oklch(0.8 0.1 260);
   --accent-foreground: oklch(0.145 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -29,11 +34,11 @@
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
   --radius: 0.75rem;
-  --sidebar: oklch(0.97 0 0);
+  --sidebar: oklch(0.96 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.45 0.2 260);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.94 0 0);
+  --sidebar-accent: oklch(0.92 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.9 0 0);
   --sidebar-ring: oklch(0.45 0.2 260);
@@ -52,6 +57,10 @@
   --secondary-foreground: oklch(0.95 0 0);
   --muted: oklch(0.22 0 0);
   --muted-foreground: oklch(0.65 0 0);
+  --process-foreground: oklch(0.595 0 0);
+  --success: oklch(0.72 0.16 150);
+  --warning: oklch(0.78 0.14 75);
+  --user-bubble: oklch(0.65 0.2 260 / 0.2);
   --accent: oklch(0.3 0.1 260);
   --accent-foreground: oklch(0.95 0 0);
   --destructive: oklch(0.55 0.22 25);
@@ -89,6 +98,11 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-process-foreground: var(--process-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-user-bubble: var(--user-bubble);
+  --color-on-gradient: var(--on-gradient);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -177,6 +191,82 @@
 
 .animate-blink {
   animation: blink 1s infinite;
+}
+
+.shimmer {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* 静息态底字变淡，扫光窗口经过处显示原色 → 「聚焦扫过」观感。
+   静息态长期处于低对比度（占位引导文字，流式中），用 0.45 兼顾可读性与「变淡」诉求 */
+.shimmer__base {
+  color: currentColor;
+  opacity: 0.45;
+}
+
+.shimmer__window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 55%;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  will-change: transform;
+  animation: shimmer-window 1.6s linear infinite;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 35%, #000 65%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 35%, #000 65%, transparent);
+}
+
+.shimmer__copy {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  white-space: nowrap;
+  color: currentColor;
+  opacity: 1;
+  will-change: transform;
+  animation: shimmer-copy 1.6s linear infinite;
+}
+
+/* 窗口宽 55%：起始 -100%（右缘贴左边界）→ 75% 时 55%*182%≈100%（左缘扫出右边界），
+   副本以等量反向位移抵消，字形始终不动（对齐偏差实测 ≤0.02px） */
+@keyframes shimmer-window {
+  0% {
+    transform: translateX(-100%);
+  }
+  75% {
+    transform: translateX(181.8%);
+  }
+  100% {
+    transform: translateX(181.8%);
+  }
+}
+
+@keyframes shimmer-copy {
+  0% {
+    transform: translateX(55%);
+  }
+  75% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer__window {
+    display: none;
+  }
+  /* 扫光层隐藏后底字会一直停在低透明度，需恢复原色，否则动效敏感用户看到的是"变灰"的文字 */
+  .shimmer__base {
+    opacity: 1;
+  }
 }
 
 /* Message streaming animation */

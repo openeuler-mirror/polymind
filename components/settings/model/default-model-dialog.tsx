@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Cpu, Plus, PowerOff, RotateCw } from 'lucide-react'
+import { Check, Cpu, Info, Loader2, Plus, PowerOff, RotateCw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -14,11 +14,45 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { modelService } from '@/services/model-service'
 import { ModelConfig } from '@/lib/types'
 import { useChatStore } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
+import { cn } from '@/lib/utils'
+
+/** 空/异常态统一样式：圆形图标 + 标题 + 说明 + 可选操作。 */
+function StateBlock({
+  icon,
+  iconClassName,
+  title,
+  description,
+}: {
+  icon: React.ReactNode
+  iconClassName?: string
+  title: string
+  description?: string
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-4 text-center">
+      <div
+        className={cn(
+          'flex h-12 w-12 items-center justify-center rounded-full',
+          iconClassName ?? 'bg-muted text-muted-foreground'
+        )}
+      >
+        {icon}
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-medium">{title}</p>
+        {description && (
+          <p className="mx-auto max-w-[280px] text-xs leading-relaxed text-muted-foreground">
+            {description}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
 
 /**
  * 默认模型首检弹窗。
@@ -30,6 +64,7 @@ import { useToast } from '@/hooks/use-toast'
 export function DefaultModelDialog() {
   const isOpen = useChatStore(state => state.isDefaultModelDialogOpen)
   const closeDialog = useChatStore(state => state.closeDefaultModelDialog)
+  const setHasConfiguredDefaultModel = useChatStore(state => state.setHasConfiguredDefaultModel)
   const { toast } = useToast()
 
   // models === null 表示正在加载（尚未取回任何数据）
@@ -78,7 +113,6 @@ export function DefaultModelDialog() {
   // 仅列出已启用的模型作为可候选的默认模型；禁用模型无法成为有效默认。
   const enabledModels = (models ?? []).filter(m => m.enabled)
   const hasDisabledDefault = (models ?? []).some(m => m.isDefault && !m.enabled)
-  const isSelectable = !isLoading && !loadError && enabledModels.length > 0
 
   const guideText = hasDisabledDefault
     ? '默认模型已被禁用，请从下方重新选择一个默认模型。'
@@ -103,7 +137,9 @@ export function DefaultModelDialog() {
     try {
       await modelService.updateModel(selectedModelId, { isDefault: true })
       toast({ title: '已设为默认模型' })
+      // 先关弹窗再置位：判定会跳过「弹窗打开中」，否则引导气泡不会立即出现。
       closeDialog()
+      setHasConfiguredDefaultModel(true)
     } catch (error) {
       console.error('Failed to set default model:', error)
       toast({
@@ -123,104 +159,116 @@ export function DefaultModelDialog() {
         if (!open) closeDialog()
       }}
     >
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="sm:max-w-[460px]">
         <DialogHeader>
-          <DialogTitle>配置默认模型</DialogTitle>
-          <DialogDescription>
-            智能体需要一个可用的默认模型才能正常对话与执行任务。
-          </DialogDescription>
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Cpu className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 space-y-1.5 pt-0.5">
+              <DialogTitle>配置默认模型</DialogTitle>
+              <DialogDescription className="text-xs leading-relaxed">
+                智能体需要一个可用的默认模型才能正常对话与执行任务。
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-4 mt-1 min-h-[120px]">
+        <div className="min-h-[150px]">
           {isLoading ? (
-            <div className="flex items-center justify-center py-10">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-xs">正在读取模型配置...</span>
             </div>
           ) : loadError ? (
-            <div className="flex flex-col items-center gap-3 py-4 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                <RotateCw className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground">无法加载模型配置，请稍后重试。</p>
-              <Button variant="outline" size="sm" onClick={handleRetry}>
-                重试
-              </Button>
-            </div>
+            <StateBlock
+              icon={<RotateCw className="h-5 w-5" />}
+              title="无法加载模型配置"
+              description="网络或服务异常，请稍后重试。"
+            />
           ) : models.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-4 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                <Cpu className="h-7 w-7 text-primary" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">尚未配置任何模型</p>
-                <p className="text-sm text-muted-foreground max-w-[260px]">
-                  先添加一个模型配置，智能体才能正常对话与执行任务。
-                </p>
-              </div>
-              <Button className="mt-2 gap-1.5" onClick={navigateToModels}>
-                <Plus className="h-4 w-4" />
-                前往设置添加模型
-              </Button>
-            </div>
+            <StateBlock
+              icon={<Cpu className="h-5 w-5" />}
+              iconClassName="bg-primary/10 text-primary"
+              title="尚未配置任何模型"
+              description="先添加一个模型配置，智能体才能正常对话与执行任务。"
+            />
           ) : enabledModels.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-4 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-                <PowerOff className="h-7 w-7 text-muted-foreground" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">没有可用的已启用模型</p>
-                <p className="text-sm text-muted-foreground max-w-[260px]">
-                  请在设置中启用或添加一个模型，才能设置默认模型。
-                </p>
-              </div>
-              <Button className="mt-2 gap-1.5" onClick={navigateToModels}>
-                <Plus className="h-4 w-4" />
-                前往设置
-              </Button>
-            </div>
+            <StateBlock
+              icon={<PowerOff className="h-5 w-5" />}
+              title="没有可用的已启用模型"
+              description="请在设置中启用或添加一个模型，才能设置默认模型。"
+            />
           ) : (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">{guideText}</p>
-              <RadioGroup value={selectedModelId} onValueChange={setSelectedModelId}>
-                {enabledModels.map(model => (
-                  <div
-                    key={model.id}
-                    className={`flex items-center gap-3 rounded-md border p-3 transition-colors hover:bg-accent/50 ${
-                      selectedModelId === model.id ? 'border-primary' : ''
-                    }`}
-                  >
-                    <RadioGroupItem value={model.id} id={`default-model-${model.id}`} />
-                    <Label
-                      htmlFor={`default-model-${model.id}`}
-                      className="flex-1 cursor-pointer text-sm font-normal"
+              <p className="text-xs leading-relaxed text-muted-foreground">{guideText}</p>
+              <RadioGroup
+                value={selectedModelId}
+                onValueChange={setSelectedModelId}
+                className="max-h-[264px] gap-2 overflow-y-auto scrollbar-thin pr-0.5"
+              >
+                {enabledModels.map(model => {
+                  const active = selectedModelId === model.id
+                  return (
+                    <div
+                      key={model.id}
+                      className={cn(
+                        'flex items-center gap-3 rounded-xl border p-3 transition-colors',
+                        active ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent/50'
+                      )}
                     >
-                      {model.name}
-                    </Label>
-                    {model.isDefault && (
-                      <Badge variant="secondary" className="text-xs">
-                        默认
-                      </Badge>
-                    )}
-                  </div>
-                ))}
+                      <RadioGroupItem value={model.id} id={`default-model-${model.id}`} />
+                      {/* 整行点击交给原生 label：无需在非交互容器上挂 onClick，键盘/读屏语义天然正确 */}
+                      <Label
+                        htmlFor={`default-model-${model.id}`}
+                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 font-normal"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm">{model.name}</span>
+                          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                            {model.provider}
+                          </span>
+                        </span>
+                        {model.isDefault && (
+                          <Badge variant="secondary" className="shrink-0 px-2 py-0.5 text-[11px]">
+                            当前默认
+                          </Badge>
+                        )}
+                        {active && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                      </Label>
+                    </div>
+                  )
+                })}
               </RadioGroup>
-              <Separator className="my-1" />
-              <p className="text-xs text-muted-foreground">
-                保存后该模型将作为新默认模型，其余模型的默认标记会被自动清除。
+              <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>保存后该模型将作为新默认模型，其余模型的默认标记会被自动清除。</span>
               </p>
             </div>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={closeDialog}>
-            暂不配置
-          </Button>
-          {isSelectable && (
+          {isLoading ? null : loadError ? (
+            <Button onClick={handleRetry}>重试</Button>
+          ) : models.length === 0 ? (
+            <Button className="gap-1.5" onClick={navigateToModels}>
+              <Plus className="h-4 w-4" />
+              前往设置添加模型
+            </Button>
+          ) : enabledModels.length === 0 ? (
+            <Button className="gap-1.5" onClick={navigateToModels}>
+              <Plus className="h-4 w-4" />
+              前往设置
+            </Button>
+          ) : (
             <Button onClick={handleConfirm} disabled={isSubmitting || !selectedModelId}>
               {isSubmitting ? '设置中...' : '设为默认'}
             </Button>
           )}
+          <Button variant="outline" onClick={closeDialog}>
+            暂不配置
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

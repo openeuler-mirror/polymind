@@ -8,9 +8,22 @@ import {
   Message,
   Artifact,
   ArtifactType,
+  EventItem,
 } from '@/lib/types'
 import { SessionStatus, MessageStatus } from '@/lib/types'
 import { normalizeArtifactType, resolveArtifactType } from '@/lib/artifacts'
+import { coalesceStreamEvents } from '@/lib/stream-event-handler'
+
+/**
+ * 已完成消息的 toolCall 强制标记为 completed，避免服务端返回的中间状态导致 UI 显示错误。
+ */
+function normalizeFinishedToolCallStatus(toolCall: any, isFinished: boolean) {
+  if (!toolCall) return undefined
+  if (isFinished && toolCall.status === 'running') {
+    return { ...toolCall, status: 'completed' as const }
+  }
+  return toolCall
+}
 
 /**
  * 会话服务类 - 负责会话的创建和管理
@@ -117,13 +130,8 @@ class SessionService {
   public transformMessage(msg: any): Message {
     const isFinished = msg.status && msg.status !== MessageStatus.GENERATING
     // 已完成消息的 toolCall 强制标记为 completed，避免服务端返回的中间状态导致 UI 显示错误
-    const normalizeToolCallStatus = (toolCall: any) => {
-      if (!toolCall) return undefined
-      if (isFinished && toolCall.status === 'running') {
-        return { ...toolCall, status: 'completed' as const }
-      }
-      return toolCall
-    }
+    const normalizeToolCallStatus = (toolCall: any) =>
+      normalizeFinishedToolCallStatus(toolCall, !!isFinished)
 
     return {
       id: msg.id,
@@ -141,33 +149,39 @@ class SessionService {
         | undefined,
       questionAnswers: msg.questionAnswers ?? msg.question_answers ?? null,
       artifacts: (msg.artifacts ?? msg.artifact_events ?? []).map(this.transformArtifact),
-      events: (msg.events || [])
-        .filter((evt: any) => {
-          // 非生成中的消息（completed / interrupted / error）：过滤掉 delta 事件
-          if (
-            msg.status &&
-            msg.status !== 'generating' &&
-            (evt.type === 'message.delta' || evt.type === 'artifact.delta')
-          )
-            return false
-          // 过滤掉空内容的 delta 事件
-          if (evt.type === 'message.delta' && !evt.delta && !evt.content) return false
-          return true
-        })
-        .map((evt: any) => ({
-          type: evt.type,
-          content: evt.content || evt.delta || '',
-          timestamp:
-            typeof evt.timestamp === 'number'
-              ? evt.timestamp
-              : evt.timestamp
-                ? new Date(evt.timestamp).getTime()
-                : Date.now(),
-          toolCall: normalizeToolCallStatus(evt.toolCall),
-          payload: evt.payload,
-        })),
+      events: this.transformEvents(msg, !!isFinished),
       usage: msg.usage,
     }
+  }
+
+  /**
+   * 转换后端消息事件。
+   * - 生成中的消息：保留原始 delta 事件（流式渲染需要逐段增量）；
+   * - 已结束的消息：收敛 delta 事件为「文本段」（见 coalesceStreamEvents），
+   *   让正文在时间线上保留分段位置，供「已完成」折叠只保留最后一段正文。
+   */
+  private transformEvents(msg: any, isFinished: boolean): EventItem[] {
+    const events: EventItem[] = (msg.events || [])
+      .filter((evt: any) => {
+        // 过滤掉空内容的 delta 事件
+        if (evt.type === 'message.delta' && !evt.delta && !evt.content) return false
+        return true
+      })
+      .map((evt: any) => ({
+        type: evt.type,
+        content: evt.content || evt.delta || '',
+        timestamp:
+          typeof evt.timestamp === 'number'
+            ? evt.timestamp
+            : evt.timestamp
+              ? new Date(evt.timestamp).getTime()
+              : Date.now(),
+        toolCall: normalizeFinishedToolCallStatus(evt.toolCall, isFinished),
+        payload: evt.payload,
+      }))
+
+    const isGenerating = !msg.status || msg.status === MessageStatus.GENERATING
+    return isGenerating ? events : coalesceStreamEvents(events, msg.content || '')
   }
 
   /**

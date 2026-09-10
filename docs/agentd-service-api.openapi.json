@@ -72,6 +72,135 @@
         "security": []
       }
     },
+    "/agent-templates": {
+      "get": {
+        "summary": "列出预置 Agent 模板",
+        "deprecated": false,
+        "description": "列出本地预置 Agent 模板（只读，零网络、零 DB，离线可用）。source_commit 为模板 skill 来源仓库的 commit，未预热或离线时为 null",
+        "tags": ["Agents"],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功获取预置模板列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentTemplate"
+                  }
+                },
+                "example": [
+                  {
+                    "name": "app-perf-optimizer",
+                    "description": "应用层性能优化",
+                    "version": "1.0.0",
+                    "skill_count": 5,
+                    "skills": ["app-profile", "flamegraph-analyze"],
+                    "source_commit": "8f2c1a9"
+                  }
+                ]
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
+    "/agent-templates/{name}/instantiate": {
+      "post": {
+        "summary": "一键实例化预置模板",
+        "deprecated": false,
+        "description": "按模板名称创建 Agent（安装模板定义的 skills 与 system prompt）。默认模型不可用时返回 400；同名 Agent 已存在时返回 409，错误体 error.details.agent_id 为已存在的 Agent ID",
+        "tags": ["Agents"],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "模板名称（模板目录名，也是实例化后的 Agent 名称）"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstantiateAgentTemplateRequest"
+              },
+              "example": {
+                "model_id": "your-model-id",
+                "sandbox_type": "local_process"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "成功实例化模板",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                },
+                "example": {
+                  "id": "agent-uuid",
+                  "name": "app-perf-optimizer",
+                  "description": "应用层性能优化",
+                  "sandbox_type": "local_process",
+                  "adapter_type": "openclaw",
+                  "status": "running",
+                  "sandbox_id": null,
+                  "workspace_path": "/path/to/workspace",
+                  "idle_timeout_seconds": 300,
+                  "has_scheduled_tasks": false,
+                  "model_id": "your-model-id",
+                  "mcp_server_list": [],
+                  "created_at": "2026-04-10T12:00:00",
+                  "updated_at": "2026-04-10T12:00:00",
+                  "default_session_id": "session-uuid",
+                  "process_port": 8000
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "默认模型不可用或请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "模板不存在"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict",
+            "description": "同名 Agent 已存在（error.code = AGENT_ALREADY_INSTANTIATED）"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
     "/agents": {
       "get": {
         "summary": "列出所有 Agent",
@@ -3023,6 +3152,55 @@
           }
         },
         "required": ["git_url", "sandbox_type", "adapter_type", "idle_timeout_seconds"]
+      },
+      "AgentTemplate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "模板名称（唯一，也是实例化后的 Agent 名称）"
+          },
+          "description": {
+            "type": "string",
+            "description": "模板描述"
+          },
+          "version": {
+            "type": "string",
+            "description": "模板版本，缺省 1.0.0"
+          },
+          "skill_count": {
+            "type": "integer",
+            "description": "顶层 skill 数量（嵌套载荷不计）"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "顶层 skill 名称列表"
+          },
+          "source_commit": {
+            "type": "string",
+            "nullable": true,
+            "description": "模板 skill 来源仓库的 commit hash；离线或未预热时为 null"
+          }
+        },
+        "required": ["name", "description", "version", "skill_count", "skills", "source_commit"]
+      },
+      "InstantiateAgentTemplateRequest": {
+        "type": "object",
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "description": "模型 ID，必须是已启用且为默认的模型"
+          },
+          "sandbox_type": {
+            "type": "string",
+            "enum": ["docker", "local_process", "e2b"],
+            "description": "沙箱类型，前端固定传 local_process"
+          }
+        },
+        "required": ["model_id", "sandbox_type"]
       },
       "SessionResponse": {
         "type": "object",

@@ -35,25 +35,13 @@ jest.mock('@/app/config', () => ({
 }))
 
 import { create } from 'zustand'
-import { createChatSlice, type ChatSlice } from '../chat-store'
-import { createAgentSlice, type AgentSlice } from '../agent-store'
-import { createConnectionSlice, type ConnectionSlice } from '../connection-store'
-import { createSettingsSlice, type SettingsSlice } from '../settings-store'
-import { createUISlice, type UISlice } from '../ui-store'
+import { createStoreShape, type StoreState } from '../store-shape'
 import { MessageStatus, SessionStatus } from '../../types'
 import { sessionService } from '@/services/session-service'
 import { messageService } from '@/services/message-service'
 import { CACHE_KEYS, cacheDelete } from '../../cache'
 
-type TestState = ChatSlice & AgentSlice & ConnectionSlice & SettingsSlice & UISlice
-
-const useTestStore = create<TestState>()((...a) => ({
-  ...createChatSlice(...a),
-  ...createAgentSlice(...a),
-  ...createConnectionSlice(...a),
-  ...createSettingsSlice(...a),
-  ...createUISlice(...a),
-}))
+const useTestStore = create<StoreState>()(createStoreShape)
 
 function seedConversation(overrides: Record<string, any> = {}) {
   const conv = {

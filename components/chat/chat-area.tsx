@@ -1,13 +1,19 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { PanelLeftOpen } from 'lucide-react'
 import { useChatStore } from '@/lib/store'
 import { MessageList } from './message-list'
-import { ChatInput, PromptSuggestion } from './chat-input'
+import { ChatInput } from './chat-input'
 import { ChatHeader } from './chat-header'
+import { RightPanelToggle } from '../tool-panel'
 import { WelcomeScreen } from './welcome-screen'
+import { AgentTemplateChips } from './agent-template-chips'
+import { TemplateGuideBubble } from './template-guide-bubble'
 import { QuestionFlow } from './question-flow'
 import { useQuestionFlow } from '@/hooks/use-question-flow'
+import { Button } from '@/components/ui/button'
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import type { Message } from '@/lib/types'
 import { MessageStatus } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
@@ -15,9 +21,11 @@ import { sessionService } from '@/services/session-service'
 import { messageService } from '@/services/message-service'
 import { handleStreamEvent } from '@/lib/stream-event-handler'
 
+/** 距底部小于该距离视为「接近底部」，用于流式期间是否继续贴底跟随 */
+const NEAR_BOTTOM_THRESHOLD = 80
+
 export function ChatArea() {
   const [initialResolved, setInitialResolved] = useState(false)
-  const [presetPrompts, setPresetPrompts] = useState<PromptSuggestion[]>([])
   const {
     conversations,
     currentConversationId,
@@ -26,6 +34,8 @@ export function ChatArea() {
     deleteMessage,
     setStreaming,
     loadMoreMessages,
+    isSidebarOpen,
+    toggleSidebar,
   } = useChatStore()
 
   // 问题模式 hook
@@ -38,27 +48,6 @@ export function ChatArea() {
     submitting: submittingQuestions,
     submitError,
   } = useQuestionFlow()
-
-  // 添加预设提示词
-  const handleAddPresetPrompt = useCallback((prompt: PromptSuggestion) => {
-    setPresetPrompts(prev => {
-      // 避免重复添加
-      if (prev.some(p => p.id === prompt.id)) {
-        return prev
-      }
-      return [...prev, prompt]
-    })
-  }, [])
-
-  // 删除预设提示词
-  const handleRemovePresetPrompt = useCallback((promptId: string) => {
-    setPresetPrompts(prev => prev.filter(p => p.id !== promptId))
-  }, [])
-
-  // 清空所有预设提示词
-  const handleClearPresetPrompts = useCallback(() => {
-    setPresetPrompts([])
-  }, [])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -87,6 +76,8 @@ export function ChatArea() {
   const loadedSessionIds = useRef<Set<string>>(new Set())
   const skipAutoScroll = useRef(false)
   const scrollHeightBeforeLoad = useRef(0)
+  // 用户是否已上滚离开底部阈值（流式期间暂停贴底跟随）
+  const userScrolledAway = useRef(false)
 
   // 用 ref 存储 scroll handler 需要的值，handleScroll 内部通过 ref 读取最新数据
   const scrollCtx = useRef({
@@ -189,10 +180,12 @@ export function ChatArea() {
     })
   }, [loadMoreMessages])
 
-  // 滚动到顶部时自动加载更早的消息
+  // 滚动处理：顶部时加载更早消息；同时记录用户是否已上滚离开底部阈值
   const handleScroll = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_THRESHOLD
+    userScrolledAway.current = !nearBottom
     if (el.scrollTop > 5) return
     loadMore()
   }, [loadMore])
@@ -303,8 +296,13 @@ export function ChatArea() {
       }
       return
     }
+
+    // 流式生成期间贴底跟随；用户已上滚离开底部阈值则暂停跟随，避免抢走阅读位置
+    if (currentConversation?.isStreaming && userScrolledAway.current) {
+      return
+    }
     scrollToBottom()
-  }, [messages])
+  }, [messages, currentConversation?.isStreaming])
 
   const handleSendMessage = async (content: string, attachments?: File[]) => {
     let convId = currentConversationId
@@ -476,17 +474,40 @@ export function ChatArea() {
 
   if (messages.length === 0 && !loadingMessages) {
     return (
-      <div className="flex h-full flex-col bg-background">
-        <ChatHeader conversation={currentConversation} />
-        <WelcomeScreen onAddPrompt={handleAddPresetPrompt} />
-        <div className="border-t border-border p-4">
-          <ChatInput
-            onSend={handleSendMessage}
-            presetPrompts={presetPrompts}
-            onRemovePresetPrompt={handleRemovePresetPrompt}
-            onClearPresetPrompts={handleClearPresetPrompts}
-          />
+      <div className="relative flex h-full flex-col bg-background">
+        <div className="flex h-16 shrink-0 items-center justify-between pl-6 pr-4">
+          <div className="flex items-center gap-4">
+            {/* 侧边栏收起时展示展开按钮，方便用户重新打开侧边栏 */}
+            {!isSidebarOpen && (
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={toggleSidebar}>
+                      <PanelLeftOpen className="h-5 w-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>展开侧边栏</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+          <RightPanelToggle />
         </div>
+        {/* 标题 + 模版 + 对话框整体居中：宽度由外层 max-w-3xl 决定，内层不再放宽 */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
+          <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center gap-6 px-4 pb-48">
+            <WelcomeScreen />
+            <div className="w-full">
+              {/* 模版墙由页面按「欢迎态」决定是否挂载，输入框组件本身不感知页面状态 */}
+              <div className="mb-3 w-full">
+                <AgentTemplateChips />
+              </div>
+              <ChatInput onSend={handleSendMessage} />
+            </div>
+          </div>
+        </div>
+        {/* 首次配置完默认模型后的模版引导气泡（锚点为模版墙，仅欢迎态挂载） */}
+        <TemplateGuideBubble />
       </div>
     )
   }
@@ -501,13 +522,8 @@ export function ChatArea() {
             <p className="text-sm">加载历史会话中...</p>
           </div>
         </div>
-        <div className="border-t border-border p-4">
-          <ChatInput
-            onSend={handleSendMessage}
-            presetPrompts={presetPrompts}
-            onRemovePresetPrompt={handleRemovePresetPrompt}
-            onClearPresetPrompts={handleClearPresetPrompts}
-          />
+        <div className="p-4">
+          <ChatInput onSend={handleSendMessage} />
         </div>
       </div>
     )
@@ -544,7 +560,7 @@ export function ChatArea() {
           agentId={currentConversation?.agentId}
         />
       </div>
-      <div className="border-t border-border p-4">
+      <div className="p-4">
         {hasActiveQuestions && activeQuestions && activeQuestionId ? (
           <QuestionFlow
             questions={activeQuestions}
@@ -555,12 +571,7 @@ export function ChatArea() {
             onSkip={handleSkipQuestions}
           />
         ) : (
-          <ChatInput
-            onSend={handleSendMessage}
-            presetPrompts={presetPrompts}
-            onRemovePresetPrompt={handleRemovePresetPrompt}
-            onClearPresetPrompts={handleClearPresetPrompts}
-          />
+          <ChatInput onSend={handleSendMessage} />
         )}
       </div>
     </div>
