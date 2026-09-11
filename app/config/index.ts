@@ -1,9 +1,10 @@
 // 统一配置管理
 // 这是项目唯一的运行时配置定义点。
 // 新增 NEXT_PUBLIC_* 环境变量时只需修改：
-//   1. PUBLIC_ENV_KEYS 数组（添加 key）
+//   1. desktop/src/public-env-keys.json（添加 key，这是唯一真相源）
 //   2. appConfig 中对应的 getter（添加读取逻辑）
 // layout.tsx 和 bin/start.js 均从此模块导入，无需手动同步。
+import PUBLIC_ENV_KEYS_JSON from '../../desktop/src/public-env-keys.json'
 
 // 声明全局配置类型
 declare global {
@@ -27,20 +28,18 @@ function getConfigValue(key: string): string | undefined {
 
 /**
  * 所有需要注入到客户端运行时的 NEXT_PUBLIC_* 环境变量 key 列表。
+ *
+ * 本数组的唯一真相源是 `desktop/src/public-env-keys.json`，此处只做转出。
+ *
+ *   这份列表有三个消费方 —— ① app/layout.tsx（构建期内联）、
+ *   ② desktop/build-renderer.mjs（构建期清空，阻断开发机地址被烘焙）、
+ *   ③ desktop/src/runtime-config.js（**运行时**过滤要注入页面的变量）。
+ *   前两个在构建期跑在仓库里，随便读哪都能读到；但 ③ 是在用户机器上运行的，
+ *   而 RPM 只把 `desktop/src/` 原样装进 /opt/polymind/desktop/app/（见 polymind.spec），
+ *   清单必须待在这棵树里才不会"打包后就找不到"。
+ *   三个消费方共用同一份文件，加 key 时不存在"改了两处、漏了第三处"的静默漂移。
  */
-export const PUBLIC_ENV_KEYS = [
-  'NEXT_PUBLIC_AGENTD_API_URL',
-  'NEXT_PUBLIC_WS_URL',
-  'NEXT_PUBLIC_API_TIMEOUT',
-  'NEXT_PUBLIC_MAX_RECONNECT_ATTEMPTS',
-  'NEXT_PUBLIC_RECONNECT_INTERVAL',
-  'NEXT_PUBLIC_APP_NAME',
-  'NEXT_PUBLIC_APP_VERSION',
-  'NEXT_PUBLIC_DEBUG',
-  'NEXT_PUBLIC_AUTH_TOKEN',
-  'NEXT_PUBLIC_USE_MOCK_DATA',
-  'NEXT_WITTYHUB_API_URL',
-] as const
+export const PUBLIC_ENV_KEYS: readonly string[] = PUBLIC_ENV_KEYS_JSON
 
 /**
  * 应用配置接口

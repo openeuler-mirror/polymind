@@ -1,0 +1,18 @@
+{
+  "name": "polymind-desktop",
+  "version": "0.0.1",
+  "private": true,
+  "description": "PolyMind 桌面端：自包含（app:// 静态托管 + 内置 /api 代理）。设 POLYMIND_DESKTOP_URL 可改为加载外部前门",
+  "main": "src/main.js",
+  "scripts": {
+    "build:renderer": "node build-renderer.mjs",
+    "start": "electron .",
+    "start:dev": "POLYMIND_DESKTOP_DEVTOOLS=1 electron .",
+    "smoke": "POLYMIND_DESKTOP_SMOKE=1 electron .",
+    "smoke:probe": "POLYMIND_DESKTOP_SMOKE=1 POLYMIND_DESKTOP_TRANSPORT_PROBE=1 POLYMIND_DESKTOP_PROTOCOL_PROBE=1 electron .",
+    "fixture": "node tools/sse-fixture-server.mjs"
+  },
+  "devDependencies": {
+    "electron": "^44.3.0"
+  }
+}

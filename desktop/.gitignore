@@ -1,0 +1,7 @@
+node_modules/
+smoke.png
+smoke.json
+dist/
+poc-evidence/
+# 静态导出产物（由 build-renderer.mjs 生成，不入库）
+renderer/

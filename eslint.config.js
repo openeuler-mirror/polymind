@@ -10,6 +10,8 @@ const eslintConfig = defineConfig([
   ...nextTs,
   globalIgnores([
     '.next/**',
+    // POLYMIND_BUILD_TARGET=static 的导出目录（desktop/build-renderer.mjs 的输入）。
+    '.next-export/**',
     'out/**',
     'build/**',
     'next-env.d.ts',
@@ -19,6 +21,10 @@ const eslintConfig = defineConfig([
     'bin/**',
     '.agents/**',
     'components/ui/**',
+    // desktop 下由脚本生成的产物 / 本地证据，不参与 lint
+    'desktop/renderer/**',
+    'desktop/dist/**',
+    'desktop/poc-evidence/**',
     '**/*.md',
     '**/*.yml',
     '**/*.yaml',
@@ -44,6 +50,22 @@ const eslintConfig = defineConfig([
       'react-hooks/immutability': 'warn',
       'react-hooks/refs': 'warn',
     },
+  },
+  {
+    // desktop/ 是 Electron 侧的独立小程序，**不是** Next 应用的一部分：
+    //   · 主进程/预加载脚本是 Node CommonJS（require + module.exports），
+    //     走 bundler 语境会刷一屏 @typescript-eslint/no-require-imports；
+    //   · build-renderer.mjs / tools/*.mjs 是 ESM，按 module 解析。
+    // 这里只声明"运行环境"，不额外加规则，避免 desktop 出现两套风格要求。
+    files: ['desktop/**/*.js'],
+    languageOptions: { sourceType: 'commonjs' },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
+    files: ['desktop/**/*.mjs'],
+    languageOptions: { sourceType: 'module' },
   },
   prettierConfig,
 ])
