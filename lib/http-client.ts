@@ -25,7 +25,8 @@ class HttpClient {
         req => {
           // 通过统一配置模块读取 auth token，确保运行时动态配置生效
           const authToken = appConfig.auth.token
-          console.log('Auth Token:', authToken ? '存在' : '不存在', authToken)
+          // 注意：这里绝不能打印 authToken 本身。桌面端会把渲染进程的 console
+          // 收进冒烟日志并落盘，打印明文等于把凭据写进证据文件。
           if (authToken) {
             return {
               ...req,

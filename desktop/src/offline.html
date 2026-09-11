@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+    />
+    <title>PolyMind</title>
+    <style>
+      body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #1a1a1a;
+        color: #e5e5e5;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Noto Sans CJK SC',
+          sans-serif;
+      }
+      .card {
+        max-width: 680px;
+        padding: 40px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 12px;
+      }
+      code {
+        background: #2a2a2a;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+      ul {
+        line-height: 1.9;
+        color: #b3b3b3;
+        font-size: 14px;
+      }
+      .mode {
+        color: #7aa2f7;
+        font-size: 13px;
+      }
+      .reason {
+        color: #8a8a8a;
+        font-size: 13px;
+      }
+      /* 仅 connecting 阶段显示；offline 阶段整组隐藏 */
+      #spinner {
+        display: none;
+        margin: 18px 0 4px;
+        height: 4px;
+        width: 320px;
+        max-width: 100%;
+        background: #2a2a2a;
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      #spinner i {
+        display: block;
+        height: 100%;
+        width: 40%;
+        background: #7aa2f7;
+        border-radius: 2px;
+        animation: slide 1.15s ease-in-out infinite;
+      }
+      @keyframes slide {
+        0% {
+          transform: translateX(-105%);
+        }
+        100% {
+          transform: translateX(255%);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #spinner i {
+          animation: none;
+          width: 100%;
+        }
+      }
+      .connecting #spinner {
+        display: block;
+      }
+      .connecting #hints,
+      .connecting .mode,
+      .connecting .reason {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card" id="card">
+      <h1 id="title">无法连接到 PolyMind 服务</h1>
+      <p id="lead">桌面端在 <code id="target"></code> 上探测不到服务。</p>
+      <div id="spinner"><i></i></div>
+      <p class="mode">加载方式：<code id="mode"></code></p>
+      <ul id="hints"></ul>
+      <p class="reason">错误：<span id="reason"></span></p>
+    </div>
+    <script>
+      // 同一块牌子两种状态：phase=connecting（探活期间先上屏，避免用户面对迟迟不出现的
+      // 黑窗口）/ phase=offline（默认，探活失败后的可操作提示）。合成一个文件是为了让
+      // "启动期"只有一条样式来源，不必维护两个几乎相同的页面。
+      const q = new URLSearchParams(location.search)
+      // form 由主进程给出：embedded = 本地静态前端（默认），external = POLYMIND_DESKTOP_URL 覆盖。
+      const form = q.get('form') === 'external' ? 'external' : 'embedded'
+      const target = q.get('target') || '-'
+      const phase = q.get('phase') === 'connecting' ? 'connecting' : 'offline'
+
+      // detail 来自查询串，进 innerHTML 前必须转义（本页 CSP 允许内联脚本，漏掉即注入点）。
+      // 静态 hints 里的 <b>/<code> 是有意保留的排版标签，所以只转义来自查询串的部分。
+      const esc = s =>
+        String(s).replace(
+          /[&<>"']/g,
+          c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+        )
+
+      document.getElementById('title').textContent = 'PolyMind'
+      document.getElementById('target').textContent = target
+      document.getElementById('mode').textContent =
+        form === 'embedded'
+          ? 'embedded（自包含，本地静态前端）'
+          : 'external（POLYMIND_DESKTOP_URL 覆盖）'
+
+      if (phase === 'connecting') {
+        const secs = q.get('timeout')
+        document.title = 'PolyMind 正在启动'
+        document.getElementById('card').classList.add('connecting')
+        document.getElementById('title').textContent = '正在连接 PolyMind 服务…'
+        document.getElementById('lead').innerHTML =
+          '正在探测 <code>' +
+          esc(target) +
+          '</code>' +
+          (secs ? '，最长等待 ' + esc(secs) + ' 秒' : '') +
+          '。'
+      } else {
+        document.getElementById('reason').textContent = q.get('reason') || '-'
+
+        // 两种加载方式"挂在哪一环"完全不同，提示必须分开给，否则等于让用户瞎猜
+        const HINTS = {
+          embedded: [
+            '静态前端已经在本机就绪，缺的是<b>后端</b>：请确认 <code>witty-backend.service</code> 已启动并在监听 8000',
+            '查看后端状态：<code>systemctl status witty-backend</code>',
+            '若后端不在默认地址，用 <code>POLYMIND_DESKTOP_API_TARGET</code> 指定',
+            '<b>自包含形态不需要 nginx，也不需要 Node/Next 服务端。</b>',
+          ],
+          external: [
+            '本次由 <code>POLYMIND_DESKTOP_URL</code> 指定了外部地址，探的是这个前门',
+            '请确认该地址上的服务已启动（<code>./start.sh status</code> 或 systemd 服务）',
+            '若使用开发模式，请确认 <code>next dev</code> 已在对应端口监听',
+            '不想加载外部前门时<b>取消该变量</b>，即回到内置的自包含前端',
+          ],
+        }
+        const hints = HINTS[form].slice()
+        // 探活在启动时只做一次，把"怎么再来一次"说清楚，省得用户去猜要不要重装
+        hints.push('服务起来之后<b>重新打开一次桌面端</b>即可重试（启动时探活一次）')
+        const detail = q.get('detail')
+        if (detail) hints.unshift(esc(detail))
+        document.getElementById('hints').innerHTML = hints.map(h => '<li>' + h + '</li>').join('')
+      }
+    </script>
+  </body>
+</html>

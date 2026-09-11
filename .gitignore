@@ -5,6 +5,7 @@
 
 # Build outputs
 /.next/
+/.next-export/
 /out/
 /build/
 /dist/
