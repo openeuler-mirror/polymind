@@ -3183,6 +3183,11 @@
             "type": "string",
             "nullable": true,
             "description": "模板 skill 来源仓库的 commit hash；离线或未预热时为 null"
+          },
+          "default_prompt": {
+            "type": "string",
+            "nullable": true,
+            "description": "模板声明的默认使用提问（来自模板的 prompt.default）；未声明时可能为 null 或缺失，前端两种都按「未声明」处理。点击模版后据此填入输入框，不做自动发送"
           }
         },
         "required": ["name", "description", "version", "skill_count", "skills", "source_commit"]

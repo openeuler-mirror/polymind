@@ -10,6 +10,28 @@ import {
 import { AgentStatus, AdapterType, SandboxType } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
 
+/** 默认提问的长度上限（字符数） */
+const MAX_DEFAULT_PROMPT_LENGTH = 1000
+
+/**
+ * 归一化模板声明的默认提问（后端 `default_prompt`）：
+ * 只有非空白、且不超过长度上限的字符串才算「已声明」，
+ * 其余（缺失 / null / 空串 / 脏类型 / 超长）一律 null。
+ */
+export function normalizeDefaultPrompt(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (trimmed.length > MAX_DEFAULT_PROMPT_LENGTH) {
+    // 不截断：半截提问会被用户直接发出去，按「未声明」处理更安全
+    console.warn(
+      `Ignoring agent template default_prompt longer than ${MAX_DEFAULT_PROMPT_LENGTH} chars`
+    )
+    return null
+  }
+  return trimmed
+}
+
 class AgentService {
   public async createAgent(request: CreateAgentRequest): Promise<Agent> {
     const backendRequest: Record<string, any> = {
@@ -244,6 +266,9 @@ class AgentService {
       skillCount: template.skill_count ?? template.skillCount ?? 0,
       skills: Array.isArray(template.skills) ? template.skills : [],
       sourceCommit: template.source_commit ?? template.sourceCommit ?? null,
+      // 空白串按「未声明」处理：后端契约里缺省就是 null，空串只可能是脏数据，
+      // 前端拿到空串会填出一个「看起来没反应」的输入框。
+      defaultPrompt: normalizeDefaultPrompt(template.default_prompt ?? template.defaultPrompt),
     }
   }
 

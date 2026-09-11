@@ -5,8 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { Loader2, Plus, CheckCircle2, RefreshCw } from 'lucide-react'
 import { agentService } from '@/services/agent-service'
 import { AgentTemplateInfo } from '@/lib/types'
-import { isTemplateInstantiated } from '@/lib/agent-template-utils'
+import { isTemplateInstantiated, orderTemplatesWithPinnedFirst } from '@/lib/agent-template-utils'
 import { useTemplateInstantiate } from '@/hooks/use-template-instantiate'
+import { ScrollCarousel } from '@/components/common/scroll-carousel'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
 
@@ -24,6 +25,7 @@ export function AgentTemplateChips() {
   // Agent 列表以全局 store 为唯一来源：智能体页的删除/新增/暂停都会同步到 store，
   // 模版墙据此实时更新「已创建」状态，避免两处各持副本导致状态不一致。
   const agents = useChatStore(state => state.agents)
+  const prefillComposer = useChatStore(state => state.prefillComposer)
   const reportTemplateWall = useChatStore(state => state.reportTemplateWall)
   const setTemplateHintAnchor = useChatStore(state => state.setTemplateHintAnchor)
   const dismissTemplateHint = useChatStore(state => state.dismissTemplateHint)
@@ -33,7 +35,9 @@ export function AgentTemplateChips() {
       setTemplatesLoading(true)
       setTemplateLoadError(false)
       const data = await agentService.getAgentTemplates()
-      setTemplates(data)
+      // 展示顺序在此处定版：模版墙的渲染顺序与上报给 store 的 names 顺序同源，
+      // 置顶模版（如 os-perf-optimizer）存在时固定排第一，其余保持后端顺序。
+      setTemplates(orderTemplatesWithPinnedFirst(data))
     } catch (err) {
       console.error('Failed to fetch agent templates:', err)
       setTemplateLoadError(true)
@@ -68,6 +72,9 @@ export function AgentTemplateChips() {
     const outcome = await instantiateTemplate(template)
     // 新建成功后模版列表本身不变，重取一次以防后端刷新了模板元数据
     if (outcome === 'instantiated') fetchTemplates()
+    // 只有确实选中了 Agent（新建成功 / 命中既有）才填默认提问
+    if (outcome !== 'instantiated' && outcome !== 'already-instantiated') return
+    if (template.defaultPrompt) prefillComposer(template.defaultPrompt)
   }
 
   if (templatesLoading) {
@@ -95,16 +102,22 @@ export function AgentTemplateChips() {
   if (templates.length === 0) return null
 
   return (
-    <div ref={attachTemplateHintAnchor} className="flex flex-wrap items-center gap-2">
+    <ScrollCarousel ref={attachTemplateHintAnchor} leftMask>
       {templates.map(template => {
         const instantiated = isTemplateInstantiated(agents, template)
         const isInstantiating = instantiatingTemplate === template.name
         const disabled = instantiatingTemplate !== null
+        // 带默认提问的模版点击后会把提问填进输入框：在原生 tooltip 里先说清楚「会填什么」
+        const chipTitle = template.defaultPrompt
+          ? `${template.description || template.name}\n\n${t('template.chips.willFill', {
+              prompt: template.defaultPrompt,
+            })}`
+          : template.description || template.name
         return (
           <button
             key={template.name}
             type="button"
-            title={template.description || template.name}
+            title={chipTitle}
             aria-label={
               instantiated
                 ? t('template.chips.createdAria', { name: template.name })
@@ -130,6 +143,6 @@ export function AgentTemplateChips() {
           </button>
         )
       })}
-    </div>
+    </ScrollCarousel>
   )
 }

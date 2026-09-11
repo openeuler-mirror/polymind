@@ -1010,8 +1010,6 @@
     "importingNotice": "正在从 AgentHub 导入智能体，此过程可能需要1-2分钟，请耐心等待...",
     "importing": "导入中...",
     "backToAgentList": "返回智能体列表",
-    "scrollLeft": "向左滚动",
-    "scrollRight": "向右滚动",
     "noModels": "暂无模型配置，请先添加模型",
     "selectModel": "请选择模型配置",
     "filter": {

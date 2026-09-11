@@ -174,6 +174,30 @@ describe('UISlice', () => {
     })
   })
 
+  describe('Composer prefill', () => {
+    it('should default to no pending text', () => {
+      expect(useTestStore.getState().composerPrefill).toBeNull()
+    })
+
+    it('should keep the text until the composer consumes it', () => {
+      useTestStore.getState().prefillComposer('帮我做一次系统巡检')
+      expect(useTestStore.getState().composerPrefill).toBe('帮我做一次系统巡检')
+    })
+
+    it('should clear the text once consumed, so it only applies once', () => {
+      useTestStore.getState().prefillComposer('帮我做一次系统巡检')
+      useTestStore.getState().consumeComposerPrefill()
+      expect(useTestStore.getState().composerPrefill).toBeNull()
+    })
+
+    it('should accept a later text after the previous one was consumed', () => {
+      useTestStore.getState().prefillComposer('第一条')
+      useTestStore.getState().consumeComposerPrefill()
+      useTestStore.getState().prefillComposer('第二条')
+      expect(useTestStore.getState().composerPrefill).toBe('第二条')
+    })
+  })
+
   describe('Sidebar sections', () => {
     it('should toggle a section collapse state', () => {
       useTestStore.getState().toggleSidebarSection('scheduled')

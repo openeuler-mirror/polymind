@@ -84,7 +84,7 @@
     "guide": {
       "ariaLabel": "模版使用引导",
       "title": "试试点一个模版开始",
-      "description": "点任意模版即可一键创建对应的 Agent，并直接开始对话。",
+      "description": "点任意模版即可一键创建对应的 Agent；模板带默认提问时，还会自动填入输入框。",
       "hintOnce": "仅提示一次",
       "gotIt": "知道了"
     },
@@ -92,7 +92,10 @@
       "loading": "加载模板中...",
       "loadFailed": "模版加载失败，点击重试",
       "createdAria": "模板 {{name}}（已创建，选中该 Agent）",
-      "createAria": "实例化模板 {{name}}"
+      "createAria": "实例化模板 {{name}}",
+      "willFill": "点击将填入提问：{{prompt}}",
+      "prefillSkippedTitle": "未填入模板提问",
+      "prefillSkippedDesc": "输入框里已有内容，没有覆盖你的草稿。清空输入框后重新点击该模版即可填入。"
     }
   },
   "rightPanel": {

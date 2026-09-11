@@ -70,6 +70,17 @@ export interface UISlice {
   toggleScheduledTaskFolder: (taskId: string) => void
   /** 任务删除后清理其文件夹折叠状态，避免 localStorage 残留死键。 */
   clearScheduledTaskFolderCollapsed: (taskId: string) => void
+
+  /**
+   * 一次性待填入聊天输入框的文本（如模版墙点击后的「默认提问」）。
+   * 生命周期只有「入口写入 → 输入框消费后立即清空」一种：常驻会把输入框内容
+   * 变成全局状态，还会在输入框重挂载（切换会话、回到欢迎态）时重复灌入旧文本。
+   */
+  composerPrefill: string | null
+  /** 请求把一段文本填入聊天输入框（一次性，由输入框消费后清空）。 */
+  prefillComposer: (text: string) => void
+  /** 输入框取走待填文本后清空，保证同一段文本只生效一次。 */
+  consumeComposerPrefill: () => void
 }
 
 type UISliceData = Pick<
@@ -84,6 +95,7 @@ type UISliceData = Pick<
   | 'selectedArtifactId'
   | 'sidebarSectionsCollapsed'
   | 'scheduledTaskFoldersCollapsed'
+  | 'composerPrefill'
 >
 
 /**
@@ -102,6 +114,7 @@ export function createDefaultUISliceData(): UISliceData {
     selectedArtifactId: null,
     sidebarSectionsCollapsed: { pinned: false, regular: false, scheduled: false },
     scheduledTaskFoldersCollapsed: {},
+    composerPrefill: null,
   }
 }
 
@@ -197,6 +210,9 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
         return { scheduledTaskFoldersCollapsed: next }
       })
     },
+    prefillComposer: text => set({ composerPrefill: text }),
+    consumeComposerPrefill: () => set({ composerPrefill: null }),
+
     clearScheduledTaskFolderCollapsed: taskId => {
       set(state => {
         if (!(taskId in state.scheduledTaskFoldersCollapsed)) return state

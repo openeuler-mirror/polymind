@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -18,7 +18,6 @@ import {
   Sparkles,
   ArrowUpRight,
   ChevronLeft,
-  ChevronRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,12 +44,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader } from '@/components/ui/empty'
+import { ScrollCarousel } from '@/components/common/scroll-carousel'
 import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/hooks/use-toast'
 import { agentService } from '@/services/agent-service'
 import { modelService } from '@/services/model-service'
 import { AgentStatus, ModelConfig, AgentTemplateInfo, Agent } from '@/lib/types'
-import { isTemplateInstantiated } from '@/lib/agent-template-utils'
+import { isTemplateInstantiated, orderTemplatesWithPinnedFirst } from '@/lib/agent-template-utils'
 import { formatDateTime } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
 import { useTemplateInstantiate } from '@/hooks/use-template-instantiate'
@@ -145,95 +145,6 @@ function SectionHeader({ icon, title }: { icon?: ReactNode; title: string }) {
         </span>
       )}
       <h3 className="text-xl font-semibold tracking-tight">{title}</h3>
-    </div>
-  )
-}
-
-/**
- * 精选智能体横向滚动容器：
- * - 隐藏原生滚动条，改用左右翻页按钮；
- * - 右边缘毛玻璃遮罩同样只在右侧仍有内容时出现。
- */
-function TemplateCarousel({ children }: { children: ReactNode }) {
-  const { t } = useTranslation('tool-panel')
-  const viewportRef = useRef<HTMLDivElement>(null)
-  const trackRef = useRef<HTMLDivElement>(null)
-  const [canScrollLeft, setCanScrollLeft] = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(false)
-
-  const syncScrollState = useCallback(() => {
-    const el = viewportRef.current
-    if (!el) return
-    const maxScroll = el.scrollWidth - el.clientWidth
-    setCanScrollLeft(el.scrollLeft > 1)
-    setCanScrollRight(el.scrollLeft < maxScroll - 1)
-  }, [])
-
-  // 用 ResizeObserver 代替同步 setState：视口尺寸或内容宽度变化后自动重算按钮可见性
-  useEffect(() => {
-    const viewport = viewportRef.current
-    const track = trackRef.current
-    if (!viewport) return
-    viewport.addEventListener('scroll', syncScrollState, { passive: true })
-    const observer = new ResizeObserver(syncScrollState)
-    observer.observe(viewport)
-    if (track) observer.observe(track)
-    return () => {
-      viewport.removeEventListener('scroll', syncScrollState)
-      observer.disconnect()
-    }
-  }, [syncScrollState])
-
-  const pageBy = (direction: 1 | -1) => {
-    const el = viewportRef.current
-    if (!el) return
-    // 一次翻约一屏（略小于一屏，露出下一张卡片的边，提示还有更多）
-    const step = Math.max(el.clientWidth * 0.85, 260)
-    el.scrollBy({ left: direction * step, behavior: 'smooth' })
-  }
-
-  return (
-    <div className="relative">
-      <div
-        ref={viewportRef}
-        className="overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        <div ref={trackRef} className="flex gap-4">
-          {children}
-        </div>
-      </div>
-
-      {/* 右边缘毛玻璃遮罩：仅在右侧还有未显示内容时出现 */}
-      {canScrollRight && (
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12">
-          <div className="absolute inset-0 backdrop-blur-md [mask-image:linear-gradient(to_left,black,transparent)]" />
-          <div className="absolute inset-0 bg-gradient-to-l from-background via-background/60 to-transparent" />
-        </div>
-      )}
-
-      {/* 左右翻页按钮：常驻 DOM，无未显示内容时用 visibility 隐藏（不卸载、不 disabled） */}
-      <button
-        type="button"
-        aria-label={t('agent.scrollLeft')}
-        onClick={() => pageBy(-1)}
-        className={cn(
-          'absolute left-1 top-1/2 z-20 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent',
-          !canScrollLeft && 'invisible'
-        )}
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        aria-label={t('agent.scrollRight')}
-        onClick={() => pageBy(1)}
-        className={cn(
-          'absolute right-1 top-1/2 z-20 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent',
-          !canScrollRight && 'invisible'
-        )}
-      >
-        <ChevronRight className="h-4 w-4" />
-      </button>
     </div>
   )
 }
@@ -526,7 +437,9 @@ export function AgentPage() {
       setTemplatesLoading(true)
       setTemplateLoadError(false)
       const data = await agentService.getAgentTemplates()
-      setTemplates(data)
+      // 与模版墙同源排序：置顶模版（如 os-perf-optimizer）固定排第一，
+      // 否则同一个模版在「精选智能体」和输入框上方的模版墙会排在不同位置。
+      setTemplates(orderTemplatesWithPinnedFirst(data))
     } catch (err) {
       console.error('Failed to fetch agent templates:', err)
       setTemplateLoadError(true)
@@ -768,9 +681,7 @@ export function AgentPage() {
                           style={{ animationDelay: '0.4s' }}
                         ></span>
                       </div>
-                      <span>
-                        {t('agent.instantiatingNotice', { name: instantiatingTemplate })}
-                      </span>
+                      <span>{t('agent.instantiatingNotice', { name: instantiatingTemplate })}</span>
                     </div>
                   </div>
                 )}
@@ -800,7 +711,7 @@ export function AgentPage() {
                     </EmptyHeader>
                   </Empty>
                 ) : (
-                  <TemplateCarousel>
+                  <ScrollCarousel>
                     {templates.map(template => {
                       const instantiated = isTemplateInstantiated(agents, template)
                       const isInstantiating = instantiatingTemplate === template.name
@@ -816,7 +727,7 @@ export function AgentPage() {
                         />
                       )
                     })}
-                  </TemplateCarousel>
+                  </ScrollCarousel>
                 )}
               </section>
 
@@ -916,9 +827,7 @@ export function AgentPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('agent.deleteDialog.title')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('agent.deleteDialog.description')}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{t('agent.deleteDialog.description')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>{t('common:action.cancel')}</AlertDialogCancel>
@@ -945,9 +854,7 @@ export function AgentPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('agent.importDialog.title')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('agent.importDialog.description')}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{t('agent.importDialog.description')}</AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -980,9 +887,7 @@ export function AgentPage() {
               </label>
               {!loadingModels && models.length === 0 ? (
                 <div className="p-4 border border-input rounded-md bg-muted/50">
-                  <span className="text-sm text-muted-foreground">
-                    {t('agent.noModels')}
-                  </span>
+                  <span className="text-sm text-muted-foreground">{t('agent.noModels')}</span>
                 </div>
               ) : (
                 <Select
@@ -1032,7 +937,9 @@ export function AgentPage() {
           )}
 
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isImporting}>{t('common:action.cancel')}</AlertDialogCancel>
+            <AlertDialogCancel disabled={isImporting}>
+              {t('common:action.cancel')}
+            </AlertDialogCancel>
             <Button disabled={isImporting} onClick={handleImportFromHub}>
               {isImporting ? (
                 <>
