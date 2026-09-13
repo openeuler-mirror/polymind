@@ -14,7 +14,6 @@ import {
   FileText,
   Image as ImageIcon,
   Loader2,
-  CheckCircle2,
   Info,
   AlertTriangle,
   Lightbulb,
@@ -25,6 +24,13 @@ import {
   Cpu,
   MessageSquare,
   CircleSlash,
+  Search,
+  Globe,
+  FolderOpen,
+  FileEdit,
+  FilePlus,
+  ListTodo,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react'
 import mermaid from 'mermaid'
@@ -37,6 +43,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { MarkdownContent } from '@/components/markdown/markdown-content'
 import type { Message, ToolCall, Attachment, EventItem, QuestionInfo } from '@/lib/types'
 import { formatToolOutput } from '@/lib/format-utils'
+import { describeToolCall, previewToolOutput, type ToolCallKind } from '@/lib/tool-call-display'
 import { resolveCodeLanguage } from '@/lib/artifacts'
 import { ArtifactCard } from './artifact-card'
 import { ShimmerText } from '@/components/ui/shimmer-text'
@@ -214,13 +221,13 @@ const MessageItem = memo(function MessageItem({
               // 折叠态：只保留最后一段正文，其余过程模块（含中途正文）收进「已完成」内部
               if (!showProcess && groupIndex !== collapsedDeltaIndex) return null
               if (group.type === 'thinking-group') {
-                const isLastGroup = groupIndex === groups.length - 1
-                const thinkingCompleted = !!message.content || !isLastGroup || !message.isStreaming
+                // 思考段仍在生成 ⟺ 它是最后一个分组且消息仍在流式输出。
+                const thinkingActive = !!message.isStreaming && groupIndex === groups.length - 1
                 return (
                   <ThinkingGroup
                     key={`thinking-group-${groupIndex}`}
                     events={group.events ?? []}
-                    completed={thinkingCompleted}
+                    completed={!thinkingActive}
                   />
                 )
               } else if (group.type === 'delta-group') {
@@ -311,12 +318,8 @@ const MessageItem = memo(function MessageItem({
         {message.usage && (
           <div className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
             <div className="flex flex-wrap gap-2">
-              <span>
-                {t('message.usage.inputTokens', { count: message.usage.inputTokens })}
-              </span>
-              <span>
-                {t('message.usage.outputTokens', { count: message.usage.outputTokens })}
-              </span>
+              <span>{t('message.usage.inputTokens', { count: message.usage.inputTokens })}</span>
+              <span>{t('message.usage.outputTokens', { count: message.usage.outputTokens })}</span>
               <span>{t('message.usage.cost', { cost: message.usage.totalCost || 0 })}</span>
             </div>
           </div>
@@ -528,9 +531,7 @@ function MermaidChart({ chart }: { chart: string }) {
     return (
       <div className="mb-2 flex items-center justify-center rounded-lg bg-muted p-4">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">
-          {t('message.mermaid.rendering')}
-        </span>
+        <span className="ml-2 text-sm text-muted-foreground">{t('message.mermaid.rendering')}</span>
       </div>
     )
   }
@@ -658,7 +659,6 @@ function Admonition({ children, type }: { children: React.ReactNode; type?: stri
 function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   const { t } = useTranslation('chat')
   const isRunning = toolCall.status === 'running'
-  const isCompleted = toolCall.status === 'completed'
   const [isExpanded, setIsExpanded] = useState(false)
 
   // 处理换行符，确保在 HTML 中正确显示
@@ -667,62 +667,62 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
     return text.split('\\n').join('\n')
   }
 
-  const formattedOutput = toolCall.output ? formatToolOutput(toolCall.output) : null
+  // 输出：终态 output 优先；执行中只有增量 outputRaw（tool.call.delta 边跑边推）
+  const rawOutput = toolCall.output ?? toolCall.outputRaw
+  const formattedOutput = rawOutput ? formatToolOutput(rawOutput) : null
   const displayOutput = formattedOutput ? formatForDisplay(formattedOutput) : null
 
-  const statusConfig = {
-    running: {
-      icon: Loader2,
-      iconClass: 'animate-spin text-primary',
-      label: t('message.toolCall.status.running'),
-      labelClass: 'bg-primary/10 text-primary',
-    },
-    completed: {
-      icon: CheckCircle2,
-      iconClass: 'text-accent',
-      label: t('message.toolCall.status.completed'),
-      labelClass: 'bg-accent/10 text-accent',
-    },
-    error: {
-      icon: AlertCircle,
-      iconClass: 'text-destructive',
-      label: t('message.toolCall.status.error'),
-      labelClass: 'bg-destructive/10 text-destructive',
-    },
-    pending: {
-      icon: Wrench,
-      iconClass: 'text-muted-foreground',
-      label: t('message.toolCall.status.pending'),
-      labelClass: 'bg-muted text-muted-foreground',
-    },
+  // 工具行图标的配色只由状态决定（图标本身由工具类别决定）
+  const statusIconClass: Record<string, string> = {
+    running: 'animate-spin text-primary',
+    completed: 'text-accent',
+    error: 'text-destructive',
+    pending: 'text-muted-foreground',
   }
+  const iconClass = statusIconClass[toolCall.status] || statusIconClass.pending
 
-  const config = statusConfig[toolCall.status] || statusConfig.pending
-  const StatusIcon = config.icon
-
-  // 根据工具名称映射不同的图标，未知工具默认用 Wrench
-  const toolIconMap: Record<string, LucideIcon> = {
+  // 图标按工具「类别」映射（read/exec/编辑/搜索…），未知工具默认用 Wrench
+  const toolIconByKind: Partial<Record<ToolCallKind, LucideIcon>> = {
     read: BookOpen,
     exec: SquareTerminal,
-    process: Cpu,
+    edit: FileEdit,
+    write: FilePlus,
+    search: Search,
+    list: FolderOpen,
+    web: Globe,
+    delegate: Cpu,
+    question: MessageSquare,
+    todo: ListTodo,
+    skill: Sparkles,
   }
-  const ToolIcon = toolIconMap[toolCall.name] || Wrench
+  // 一行描述「这一步做了什么」：标签（类别）+ 目标（入参摘要）
+  const description = describeToolCall(toolCall)
+  const ToolIcon = toolIconByKind[description.kind] || Wrench
+  const toolLabel = description.labelKey
+    ? t(description.labelKey, { defaultValue: toolCall.name })
+    : toolCall.name
 
-  // 提取文件路径（用于 read 工具）
-  const getReadFilePath = (): string | null => {
-    if (toolCall.name !== 'read' || !toolCall.input) return null
-    const input = toolCall.input as Record<string, unknown>
-    return (input.file_path as string) || (input.path as string) || null
-  }
-  const readFilePath = getReadFilePath()
-
-  // 提取命令文本（用于 exec 工具）
+  // 提取命令文本（用于 exec 工具展开面板的终端视图）。
+  // 按归一化类别判断，`bash` / `run_command` 等别名同样能命中。
   const getExecCommand = (): string | null => {
-    if (toolCall.name !== 'exec' || !toolCall.input) return null
+    if (description.kind !== 'exec' || !toolCall.input) return null
     const input = toolCall.input as Record<string, unknown>
     return (input.command as string) || null
   }
   const execCommand = getExecCommand()
+
+  // 折叠态下的一行结果预览：错误必显示，正常结果只在「短输出」时显示，
+  // 让用户不必展开就知道这一步产出了什么（长输出仍走展开面板）。
+  const errorText = toolCall.error
+    ? typeof toolCall.error === 'string'
+      ? toolCall.error
+      : JSON.stringify(toolCall.error)
+    : ''
+  const inlineNote = isRunning
+    ? null
+    : toolCall.status === 'error'
+      ? (previewToolOutput(errorText) ?? null)
+      : previewToolOutput(displayOutput)
 
   return (
     <div className="text-sm text-process-foreground">
@@ -735,21 +735,23 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-flex">
-                <ToolIcon className={cn('h-3.5 w-3.5 shrink-0', config.iconClass)} />
+                <ToolIcon className={cn('h-3.5 w-3.5 shrink-0', iconClass)} />
               </span>
             </TooltipTrigger>
-            {toolCall.name === 'read' && (
+            {description.kind === 'read' && (
               <TooltipContent>{t('message.toolCall.viewFile')}</TooltipContent>
             )}
           </Tooltip>
         </TooltipProvider>
-        <span className="font-mono text-xs font-medium truncate max-w-[70%]">
-          {toolCall.name === 'exec'
-            ? isExpanded
-              ? toolCall.name
-              : execCommand || toolCall.name
-            : readFilePath || toolCall.name}
-        </span>
+        <span className="shrink-0 text-xs font-medium">{toolLabel}</span>
+        {description.target && (
+          <>
+            <span className="shrink-0 text-xs text-process-foreground/40">·</span>
+            <span className="min-w-0 max-w-[70%] truncate font-mono text-xs text-process-foreground/90">
+              {description.target}
+            </span>
+          </>
+        )}
         {toolCall.duration && (
           <span className="text-xs text-process-foreground/70 shrink-0 font-mono">
             {(toolCall.duration / 1000).toFixed(1)}s
@@ -763,6 +765,18 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
           )}
         />
       </button>
+
+      {/* 结果预览：单行短内容 / 错误信息，避免用户必须展开才能知道这一步的产出 */}
+      {!isExpanded && inlineNote && (
+        <div
+          className={cn(
+            'ml-5 truncate pl-0 text-xs',
+            toolCall.status === 'error' ? 'text-destructive' : 'text-process-foreground/60'
+          )}
+        >
+          {inlineNote}
+        </div>
+      )}
 
       {/* Expandable content */}
       {isExpanded && (
@@ -791,11 +805,11 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
           ) : toolCall.name === 'exec' ? (
             // exec 工具：终端风格
             <div className="bg-zinc-950 rounded-md p-3 font-mono text-xs leading-relaxed space-y-2">
-              {(execCommand || toolCall.inputRaw) && (
+              {execCommand && (
                 <div className="flex items-start gap-2">
                   <span className="text-green-400 shrink-0 select-none">$</span>
                   <span className="text-zinc-100 whitespace-pre-wrap break-words">
-                    {formatForDisplay(execCommand || toolCall.inputRaw || '')}
+                    {formatForDisplay(execCommand)}
                   </span>
                 </div>
               )}
@@ -824,16 +838,6 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
                         ? toolCall.input
                         : JSON.stringify(toolCall.input, null, 2)
                     )}
-                  </pre>
-                </div>
-              ) : toolCall.inputRaw ? (
-                // tool.call.delta 流式累积的原始内容
-                <div>
-                  <div className="text-process-foreground mb-1 font-medium">
-                    {t('message.toolCall.inputStreaming')}
-                  </div>
-                  <pre className="text-muted-foreground bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words font-mono leading-relaxed">
-                    {toolCall.inputRaw}
                   </pre>
                 </div>
               ) : null}
@@ -900,7 +904,16 @@ function QuestionFlowBlock({
   }
 
   const [statusExpanded, setStatusExpanded] = useState(false)
-  const [cardExpanded, setCardExpanded] = useState(status === 'replied')
+  // 展开态由「提问状态 + 用户覆盖」派生：已作答默认展开（答案和原问题都要看得见），
+  // 手动开合只对当前状态生效，状态从 pending 变为 replied 后自动展开。
+  const [manualCard, setManualCard] = useState<{
+    status: 'pending' | 'replied' | 'rejected'
+    expanded: boolean
+  } | null>(null)
+  const cardExpanded =
+    manualCard && manualCard.status === status ? manualCard.expanded : status === 'replied'
+
+  const toggleCard = () => setManualCard({ status, expanded: !cardExpanded })
 
   // 已跳过
   if (status === 'rejected') {
@@ -955,11 +968,19 @@ function QuestionFlowBlock({
       {/* 提问卡片行：向用户提问 */}
       <div>
         <button
-          onClick={() => setCardExpanded(!cardExpanded)}
-          className="group/mod flex items-center gap-1.5 text-sm text-process-foreground transition-colors duration-150 hover:text-foreground"
+          onClick={toggleCard}
+          className="group/mod flex min-w-0 max-w-full items-center gap-1.5 text-sm text-process-foreground transition-colors duration-150 hover:text-foreground"
         >
           <MessageSquare className="h-3.5 w-3.5 shrink-0" />
-          <span>{t('message.question.asked')}</span>
+          <span className="shrink-0">{t('message.question.asked')}</span>
+          {questions?.[0] && (
+            <>
+              <span className="shrink-0 text-process-foreground/40">·</span>
+              <span className="min-w-0 max-w-[60%] truncate text-process-foreground/90">
+                {questions[0].header || questions[0].question}
+              </span>
+            </>
+          )}
           <ChevronRight
             className={cn(
               'h-3.5 w-3.5 shrink-0 transition-all duration-150',
@@ -973,20 +994,32 @@ function QuestionFlowBlock({
             {questions && questions.length > 0 ? (
               questions.map((q, i) => {
                 const ans = answers?.[i] ?? []
+                // header 通常是短标题，question 是完整问题；两者一致时不重复展示
+                const showHeader = !!q.header && q.header !== q.question
                 return (
-                  <div key={i}>
-                    <div className="text-sm text-process-foreground">{q.header || q.question}</div>
-                    {ans.length > 0 ? (
-                      <div className="mt-0.5 text-sm font-semibold text-foreground">
-                        {ans.join('、')}
-                      </div>
-                    ) : (
-                      <div className="mt-0.5 text-sm text-process-foreground/80">
-                        {waiting
-                          ? t('message.question.pendingAnswer')
-                          : t('message.question.unanswered')}
-                      </div>
+                  <div key={i} className="space-y-1">
+                    {showHeader && (
+                      <div className="truncate text-xs text-process-foreground/70">{q.header}</div>
                     )}
+                    {q.question && (
+                      <div className="text-sm leading-relaxed text-foreground/90">{q.question}</div>
+                    )}
+                    <div className="flex items-start gap-2">
+                      <span className="shrink-0 pt-px text-xs text-process-foreground/60">
+                        {t('message.question.answer')}
+                      </span>
+                      {ans.length > 0 ? (
+                        <span className="text-sm font-semibold text-foreground">
+                          {ans.join('、')}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-process-foreground/80">
+                          {waiting
+                            ? t('message.question.pendingAnswer')
+                            : t('message.question.unanswered')}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )
               })
@@ -1017,8 +1050,14 @@ const StreamingIndicator = memo(function StreamingIndicator({ text }: { text?: s
 
 function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: boolean }) {
   const { t } = useTranslation('chat')
-  const [expanded, setExpanded] = useState(!completed)
   const scrollRef = useRef<HTMLDivElement>(null)
+  // 展开态由「阶段 + 用户覆盖」派生，不用 effect 同步 state，避免级联渲染：
+  // - 生成中（completed=false）默认展开，思考完毕自动闭合；
+  // - 用户手动开合只对当前阶段生效，阶段切换后回到自动跟随。
+  const [manual, setManual] = useState<{ completed: boolean; expanded: boolean } | null>(null)
+  const expanded = manual && manual.completed === completed ? manual.expanded : !completed
+
+  const toggle = () => setManual({ completed, expanded: !expanded })
 
   // 流式输出时保持滚动到底部
   useEffect(() => {
@@ -1030,7 +1069,7 @@ function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: 
   return (
     <div>
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={toggle}
         className="group/mod flex items-center gap-1.5 text-sm text-process-foreground transition-colors duration-150 hover:text-foreground"
       >
         {completed ? (

@@ -114,8 +114,11 @@ export interface ToolCall {
   name: string
   status: 'pending' | 'running' | 'completed' | 'error'
   input?: Record<string, unknown>
-  /** tool.call.delta 流式累积的原始内容（参数/输出片段） */
-  inputRaw?: string
+  /**
+   * tool.call.delta 流式累积的增量输出（后端在工具执行过程中边跑边推）。
+   * 终态 output 到达后即被取代，仅用于「执行中」的实时展示。
+   */
+  outputRaw?: string
   output?: unknown
   error?: string
   duration?: number

@@ -1,5 +1,5 @@
-import { coalesceStreamEvents } from '../stream-event-handler'
-import type { EventItem } from '../types'
+import { applyToolCallDelta, coalesceStreamEvents } from '../stream-event-handler'
+import type { EventItem, Message } from '../types'
 
 const delta = (content: string, timestamp = 1): EventItem => ({
   type: 'message.delta',
@@ -55,5 +55,39 @@ describe('coalesceStreamEvents', () => {
     const events = [delta('正文'), tool('t1')]
 
     expect(coalesceStreamEvents(events)).toEqual(events)
+  })
+})
+
+describe('applyToolCallDelta', () => {
+  const runningMessage = (): Message => ({
+    id: 'm1',
+    role: 'assistant',
+    content: '',
+    timestamp: new Date('2026-01-01T00:00:00Z'),
+    toolCalls: [{ id: 'call-1', name: 'exec', status: 'running' }],
+    events: [
+      {
+        type: 'tool.call.started',
+        content: '正在调用工具：exec',
+        timestamp: 1,
+        toolCall: { id: 'call-1', name: 'exec', status: 'running' },
+      },
+    ],
+  })
+
+  it('累积到 outputRaw（不是 inputRaw）', () => {
+    const first = applyToolCallDelta(runningMessage(), 'line 1\n', 'call-1')
+    const second = applyToolCallDelta({ ...runningMessage(), ...first }, 'line 2\n', 'call-1')
+
+    expect(second.toolCalls?.[0].outputRaw).toBe('line 1\nline 2\n')
+    // 增量输出不再落到入参字段上（回归：曾被写进 inputRaw，被当成命令渲染）
+    expect(Object.keys(second.toolCalls?.[0] ?? {})).not.toContain('inputRaw')
+    // 时间线上的工具调用事件同步更新，否则折叠态展示不到增量
+    expect(second.events?.[0].toolCall?.outputRaw).toBe('line 1\nline 2\n')
+  })
+
+  it('找不到对应 tool.call.started 时丢弃增量', () => {
+    // 没有归属就没有可渲染位置；静默丢弃而不是新建事件
+    expect(applyToolCallDelta(runningMessage(), 'orphan', 'call-unknown')).toEqual({})
   })
 })

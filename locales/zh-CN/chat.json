@@ -172,9 +172,21 @@
     "toolCall": {
       "viewFile": "查看文件",
       "input": "输入",
-      "inputStreaming": "输入（流式）",
       "output": "输出",
       "error": "错误",
+      "names": {
+        "read": "读取",
+        "write": "写入",
+        "edit": "编辑",
+        "exec": "运行",
+        "search": "搜索",
+        "list": "查找",
+        "question": "提问",
+        "todo": "任务",
+        "web": "联网",
+        "delegate": "委派",
+        "skill": "技能"
+      },
       "status": {
         "running": "运行中",
         "completed": "已完成",
@@ -187,7 +199,8 @@
       "waiting": "等待你的回答",
       "asked": "向用户提问",
       "pendingAnswer": "待回答",
-      "unanswered": "（未作答）"
+      "unanswered": "（未作答）",
+      "answer": "回答"
     },
     "streaming": "生成回复中",
     "thinking": "深度思考"
