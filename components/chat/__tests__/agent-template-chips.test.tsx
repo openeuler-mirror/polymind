@@ -7,12 +7,12 @@ import { useChatStore } from '@/lib/store'
 import { modelService } from '@/services/model-service'
 import type { Agent, AgentTemplateInfo } from '@/lib/types'
 
-/** os-perf-optimizer 声明的默认提问（后端 default_prompt），app-perf-optimizer 未声明。 */
+/** oeAware-os-perf-optimizer 声明的默认提问（后端 default_prompt），app-perf-optimizer 未声明。 */
 const OS_DEFAULT_PROMPT = '帮我做一次 OS 层性能体检：先采集系统数据，再给出调优方案。'
 
 const mockTemplates: AgentTemplateInfo[] = [
   {
-    name: 'app-perf-optimizer',
+    name: 'oeAware-app-perf-optimizer',
     description: '应用层性能优化',
     version: '1.0.0',
     skillCount: 5,
@@ -21,7 +21,7 @@ const mockTemplates: AgentTemplateInfo[] = [
     defaultPrompt: null,
   },
   {
-    name: 'os-perf-optimizer',
+    name: 'oeAware-os-perf-optimizer',
     description: 'OS 层性能调优',
     version: '1.0.0',
     skillCount: 13,
@@ -34,7 +34,7 @@ const mockTemplates: AgentTemplateInfo[] = [
 const mockAgents: Agent[] = [
   {
     id: 'agent-1',
-    name: 'app-perf-optimizer',
+    name: 'oeAware-app-perf-optimizer',
     description: '',
     adapterType: 'opencode',
     sandboxType: 'local_process',
@@ -48,7 +48,7 @@ const mockAgents: Agent[] = [
 /** 实例化未创建过的模版时后端返回的新 Agent。 */
 const instantiatedAgent: Agent = {
   id: 'agent-2',
-  name: 'os-perf-optimizer',
+  name: 'oeAware-os-perf-optimizer',
   description: '',
   adapterType: 'opencode',
   sandboxType: 'local_process',
@@ -121,16 +121,16 @@ describe('AgentTemplateChips 与全局 store 的模版状态一致性', () => {
 
     await waitFor(() => expect(useChatStore.getState().agents).toHaveLength(1))
 
-    expect(await screen.findByRole('button', { name: /app-perf-optimizer/ })).toBeTruthy()
-    expect(chipLabel('app-perf-optimizer')).toContain('已创建')
-    expect(chipLabel('os-perf-optimizer')).toContain('实例化模板')
+    expect(await screen.findByRole('button', { name: /oeAware-app-perf-optimizer/ })).toBeTruthy()
+    expect(chipLabel('oeAware-app-perf-optimizer')).toContain('已创建')
+    expect(chipLabel('oeAware-os-perf-optimizer')).toContain('实例化模板')
   })
 
   it('智能体页删除该 agent 后，模版墙状态同步回退为「未创建」', async () => {
     renderChips()
 
     await waitFor(() => expect(useChatStore.getState().agents).toHaveLength(1))
-    expect(chipLabel('app-perf-optimizer')).toContain('已创建')
+    expect(chipLabel('oeAware-app-perf-optimizer')).toContain('已创建')
 
     // 智能体页删除 agent 走的是同一个 store action（removeAgent）
     act(() => {
@@ -138,11 +138,11 @@ describe('AgentTemplateChips 与全局 store 的模版状态一致性', () => {
     })
 
     await waitFor(() => {
-      expect(chipLabel('app-perf-optimizer')).toContain('实例化模板')
+      expect(chipLabel('oeAware-app-perf-optimizer')).toContain('实例化模板')
     })
   })
 
-  it('os-perf-optimizer 存在时排在模版墙第一位（后端顺序中它在最后）', async () => {
+  it('oeAware-os-perf-optimizer 存在时排在模版墙第一位（后端顺序中它在最后）', async () => {
     renderChips()
 
     const track = await waitFor(() => {
@@ -151,11 +151,11 @@ describe('AgentTemplateChips 与全局 store 的模版状态一致性', () => {
       return node as HTMLElement
     })
 
-    // 后端返回顺序为 [app-perf-optimizer, os-perf-optimizer]，置顶后应反转
+    // 后端返回顺序为 [oeAware-app-perf-optimizer, oeAware-os-perf-optimizer]，置顶后应反转
     const chipNames = within(track)
       .getAllByRole('button')
       .map(button => button.textContent)
-    expect(chipNames).toEqual(['os-perf-optimizer', 'app-perf-optimizer'])
+    expect(chipNames).toEqual(['oeAware-os-perf-optimizer', 'oeAware-app-perf-optimizer'])
   })
 
   // 切到 en-US：翻页按钮文案由 ScrollCarousel 内部取 common 命名空间
@@ -182,7 +182,7 @@ describe('AgentTemplateChips 点击后填入模板默认提问', () => {
 
   it('实例化出 Agent 后，把 default_prompt 写入待填文本', async () => {
     renderChips()
-    const chip = await screen.findByRole('button', { name: /os-perf-optimizer/ })
+    const chip = await screen.findByRole('button', { name: /oeAware-os-perf-optimizer/ })
 
     await act(async () => {
       chip.click()
@@ -197,7 +197,7 @@ describe('AgentTemplateChips 点击后填入模板默认提问', () => {
 
   it('模版未声明 default_prompt 时不改动输入框（仅选中 Agent）', async () => {
     renderChips()
-    const chip = await screen.findByRole('button', { name: /app-perf-optimizer/ })
+    const chip = await screen.findByRole('button', { name: /oeAware-app-perf-optimizer/ })
 
     await act(async () => {
       chip.click()
@@ -210,7 +210,7 @@ describe('AgentTemplateChips 点击后填入模板默认提问', () => {
   it('没有可用默认模型（实例化未成功）时不填提问，避免填了也发不出去', async () => {
     ;(modelService.getModels as jest.Mock).mockResolvedValueOnce([])
     renderChips()
-    const chip = await screen.findByRole('button', { name: /os-perf-optimizer/ })
+    const chip = await screen.findByRole('button', { name: /oeAware-os-perf-optimizer/ })
 
     await act(async () => {
       chip.click()

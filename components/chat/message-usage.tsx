@@ -144,7 +144,9 @@ export const MessageUsageBadge = memo(function MessageUsageBadge({
           <span>{t('message.usage.badge', { tokens: formatCompactTokens(total) })}</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 p-3 text-xs">
+      {/* 明细从徽标**上方**弹出：操作行在消息最底部，向下容易顶到视口边缘被裁切。
+          Radix 仍会在上方空间不足时自动翻转到下方。 */}
+      <PopoverContent side="top" align="start" sideOffset={6} className="w-64 p-3 text-xs">
         <div className="flex items-center justify-between gap-3 border-b border-border pb-2">
           <span className="text-muted-foreground">{t('message.usage.title')}</span>
           <span className="font-medium">{exactTokens(total)} tok</span>
