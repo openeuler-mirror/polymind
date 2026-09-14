@@ -1618,10 +1618,14 @@ class SandboxType(str, Enum):
 | `message.completed`       | assistant 输出完成       | `text`                                                      |
 | `tool.call.started`       | 工具调用开始               | `tool_name`, `tool_call_id`, `arguments`, `stage`           |
 | `tool.call.response`      | 工具调用结果/过程输出          | `tool_name`, `tool_call_id`, `content`, `is_error`, `stage` |
-| `usage.updated`           | 用量更新                 | `input_tokens`, `output_tokens`, `total_cost`               |
+| `session.usage`           | 本轮 token 用量（跨 step 累计） | `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `reasoning_tokens`, `total_tokens`, `total_cost`（可选） |
 | `session.runtime.changed` | runtime session 标识变化 | runtime 原始字段                                                |
 | `stream.error`            | 运行时流异常               | `code`, `message`                                           |
 | `client.error`            | 客户端事件错误              | `code`, `message`, `details`                                |
+
+> `session.usage` 表示**本轮**（跨 step 累计）的 token 用量增量，每轮仅一条，且早于
+> `message.completed` / `turn.completed` 下发（agentd 见到终止事件即结束本轮转发）。
+> `total_cost` 仅在 runtime 提供时出现（dsh 不提供，前端此时不渲染成本）。
 
 #### SessionEventPage
 

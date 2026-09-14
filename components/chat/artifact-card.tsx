@@ -15,6 +15,9 @@ import { ARTIFACT_TYPE_META } from '@/components/artifact/artifact-meta'
  * 产物卡片（ADR-D6）：折叠态常显在助手消息正文下方，点击打开右侧产物面板并选中。
  * 参考文件小卡样式：类型图标 + 文件名 + 文件大小，不显示徽标。
  * write 失败（status === 'error'）→ 错误态，不提供预览入口。
+ *
+ * 悬停用**具名** group（group/artifact）：下载/复制按钮只在鼠标移入本卡片时出现，
+ * 既不被外层消息的悬停（复制/重新生成行）连带点亮，也不受同排其他产物卡片影响。
  */
 export function ArtifactCard({ artifact, agentId }: { artifact: Artifact; agentId?: string }) {
   const { t } = useTranslation('chat')
@@ -66,7 +69,7 @@ export function ArtifactCard({ artifact, agentId }: { artifact: Artifact; agentI
         }
       }}
       className={cn(
-        'group flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm',
+        'group/artifact flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm',
         'transition-colors hover:border-primary/40 hover:bg-muted/70',
         artifact.status === 'error' && 'cursor-default'
       )}
@@ -80,7 +83,8 @@ export function ArtifactCard({ artifact, agentId }: { artifact: Artifact; agentI
           </span>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+      {/* focus-within：键盘 Tab 进入卡片/按钮时同样可见 */}
+      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/artifact:opacity-100">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

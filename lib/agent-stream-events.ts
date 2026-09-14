@@ -220,7 +220,7 @@ export function handleAgentStreamEvent({
     case 'artifact.completed':
       handleArtifactEvent(eventData, store.updateMessage, conversationId, nextAssistantMessageId)
       break
-    case 'usage.updated':
+    case 'session.usage':
       if (eventData.payload) {
         store.updateMessage(
           conversationId,

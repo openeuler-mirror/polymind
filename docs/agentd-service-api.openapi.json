@@ -3274,7 +3274,7 @@
               "message.completed",
               "tool.call.started",
               "tool.call.response",
-              "usage.updated",
+              "session.usage",
               "session.runtime.changed",
               "stream.error",
               "client.error"

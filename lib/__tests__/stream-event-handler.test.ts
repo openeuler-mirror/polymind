@@ -1,4 +1,8 @@
-import { applyToolCallDelta, coalesceStreamEvents } from '../stream-event-handler'
+import {
+  applyToolCallDelta,
+  applyUsageUpdated,
+  coalesceStreamEvents,
+} from '../stream-event-handler'
 import type { EventItem, Message } from '../types'
 
 const delta = (content: string, timestamp = 1): EventItem => ({
@@ -89,5 +93,46 @@ describe('applyToolCallDelta', () => {
   it('找不到对应 tool.call.started 时丢弃增量', () => {
     // 没有归属就没有可渲染位置；静默丢弃而不是新建事件
     expect(applyToolCallDelta(runningMessage(), 'orphan', 'call-unknown')).toEqual({})
+  })
+})
+
+describe('applyUsageUpdated', () => {
+  it('把后端扁平 snake_case 载荷映射成 camelCase 用量', () => {
+    const result = applyUsageUpdated({
+      input_tokens: 2171,
+      output_tokens: 36,
+      cache_read_tokens: 2432,
+      reasoning_tokens: 34,
+      total_tokens: 4639,
+      total_cost: 0.0012,
+    })
+
+    expect(result).toEqual({
+      usage: {
+        inputTokens: 2171,
+        outputTokens: 36,
+        cacheReadTokens: 2432,
+        reasoningTokens: 34,
+        totalTokens: 4639,
+        totalCost: 0.0012,
+      },
+    })
+  })
+
+  it('未提供的字段不写入（dsh 无成本时不能显示 $0）', () => {
+    const result = applyUsageUpdated({ input_tokens: 10, output_tokens: 5, total_tokens: 15 })
+
+    expect(result.usage).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
+    expect(result.usage?.totalCost).toBeUndefined()
+  })
+
+  it('保留 0 值字段（缓存未命中是有效信息）', () => {
+    const result = applyUsageUpdated({ cache_read_tokens: 0, output_tokens: 5 })
+
+    expect(result.usage?.cacheReadTokens).toBe(0)
+  })
+
+  it('载荷里没有可识别字段时清空 usage（不渲染空用量块）', () => {
+    expect(applyUsageUpdated({})).toEqual({ usage: undefined })
   })
 })

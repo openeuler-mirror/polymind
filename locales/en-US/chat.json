@@ -143,9 +143,15 @@
     "completedWithDuration": "Completed {{duration}}",
     "interrupted": "Thinking interrupted",
     "usage": {
-      "inputTokens": "Input tokens: {{count}}",
-      "outputTokens": "Output tokens: {{count}}",
-      "cost": "Cost: ${{cost}}"
+      "title": "Turn usage",
+      "badge": "Usage {{tokens}} tok",
+      "cacheHitRate": "Cache hit rate",
+      "uncachedInput": "Uncached input",
+      "cacheRead": "Cache read",
+      "cacheWrite": "Cache write",
+      "output": "Output",
+      "outputWithReasoning": "{{count}} tok ({{reasoning}} tok reasoning)",
+      "costLabel": "Cost"
     },
     "action": {
       "copy": "Copy",
