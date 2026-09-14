@@ -336,14 +336,14 @@ export function QuestionFlow({
     return (
       <div className="mx-auto max-w-4xl">
         {submitError && (
-          <div className="mb-3 flex items-center justify-between rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-600">
+          <div className="mb-3 flex items-center justify-between rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
             <span>{submitError}</span>
             <Button size="sm" variant="ghost" onClick={submitOnce} className="h-7 text-xs">
               {t('questionFlow.retry')}
             </Button>
           </div>
         )}
-        <div className="flex items-center justify-center gap-2 rounded-2xl border border-accent/30 bg-accent/[0.03] px-4 py-6 text-sm text-muted-foreground">
+        <div className="flex items-center justify-center gap-2 rounded-2xl border border-accent/30 bg-accent/5 px-4 py-6 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin text-accent" />
           <span>{t('questionFlow.submitting')}</span>
         </div>
@@ -355,13 +355,13 @@ export function QuestionFlow({
   return (
     <div className="mx-auto max-w-4xl">
       {submitError && (
-        <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-600">
+        <div className="mb-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
           {submitError}
         </div>
       )}
-      <div className="rounded-2xl bg-white shadow-sm ring-1 ring-black/[0.06]">
+      <div className="rounded-2xl bg-card shadow-sm ring-1 ring-border">
         {/* 问题导航头部 */}
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100">
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
           <MessageSquare className="h-4 w-4 shrink-0 text-accent" />
           <span className="font-medium text-sm text-foreground/90 truncate min-w-0">
             {currentQuestion.header || currentQuestion.question || t('questionFlow.defaultHeader')}
@@ -426,9 +426,9 @@ export function QuestionFlow({
                     onClick={() => handleToggleOptionWithFlag(option.label)}
                     className={cn(
                       'w-full rounded-lg px-3.5 py-2.5 text-left transition-all duration-150 text-sm group',
-                      'hover:bg-gray-50 active:bg-gray-100',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-1',
-                      isSelected && 'bg-accent/[0.06]'
+                      'hover:bg-accent/10 active:bg-accent/20 dark:hover:bg-accent/20 dark:active:bg-accent/30',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                      isSelected && 'bg-accent/15 dark:bg-accent/35'
                     )}
                   >
                     <div className="flex items-center gap-2.5">
@@ -437,8 +437,8 @@ export function QuestionFlow({
                           'flex shrink-0 items-center justify-center border-2 transition-all duration-150',
                           isMultiple ? 'h-4 w-4 rounded' : 'h-4 w-4 rounded-full',
                           isSelected
-                            ? 'border-accent bg-accent text-white scale-100'
-                            : 'border-gray-300 group-hover:border-gray-400'
+                            ? 'border-accent bg-accent text-accent-foreground scale-100'
+                            : 'border-muted-foreground/40 group-hover:border-muted-foreground/60'
                         )}
                       >
                         {isSelected &&
@@ -458,7 +458,7 @@ export function QuestionFlow({
                           {option.label}
                         </span>
                         {option.description && (
-                          <span className="text-xs text-[#777] leading-relaxed truncate">
+                          <span className="text-xs text-muted-foreground leading-relaxed truncate">
                             {option.description}
                           </span>
                         )}
@@ -474,9 +474,9 @@ export function QuestionFlow({
                 onClick={() => handleToggleOptionWithFlag(OTHER_OPTION_KEY)}
                 className={cn(
                   'w-full rounded-lg px-3.5 py-2.5 text-left transition-all duration-150 text-sm group',
-                  'hover:bg-gray-50 active:bg-gray-100',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-1',
-                  otherSelected && 'bg-accent/[0.06]'
+                  'hover:bg-accent/10 active:bg-accent/20 dark:hover:bg-accent/20 dark:active:bg-accent/30',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                  otherSelected && 'bg-accent/15 dark:bg-accent/35'
                 )}
               >
                 <div className="flex items-center gap-2.5">
@@ -485,8 +485,8 @@ export function QuestionFlow({
                       'flex shrink-0 items-center justify-center border-2 transition-all duration-150',
                       isMultiple ? 'h-4 w-4 rounded' : 'h-4 w-4 rounded-full',
                       otherSelected
-                        ? 'border-accent bg-accent text-white scale-100'
-                        : 'border-gray-300 group-hover:border-gray-400'
+                        ? 'border-accent bg-accent text-accent-foreground scale-100'
+                        : 'border-muted-foreground/40 group-hover:border-muted-foreground/60'
                     )}
                   >
                     {otherSelected &&
@@ -517,7 +517,7 @@ export function QuestionFlow({
                           maxLength={MAX_OTHER_CHARS}
                           autoFocus
                           className={cn(
-                            'w-full bg-transparent border-b border-gray-300 px-1 py-0.5 text-sm',
+                            'w-full bg-transparent border-b border-muted-foreground/40 px-1 py-0.5 text-sm',
                             'placeholder:text-muted-foreground/40',
                             'focus:outline-none focus:border-accent',
                             'transition-colors duration-150'
@@ -534,7 +534,7 @@ export function QuestionFlow({
         </div>
 
         {/* 底部操作栏 */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100">
+        <div className="flex items-center justify-between px-4 py-2.5 border-t border-border">
           <div className="text-xs text-muted-foreground">
             {isMultiple
               ? state.currentSelected.size > 0

@@ -20,7 +20,11 @@ import { MessageStatus } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
 import { sessionService } from '@/services/session-service'
 import { messageService } from '@/services/message-service'
-import { handleStreamEvent } from '@/lib/stream-event-handler'
+import {
+  handleStreamEvent,
+  hasTerminalEvent,
+  settleUnfinishedMessage,
+} from '@/lib/stream-event-handler'
 
 /** 距底部小于该距离视为「接近底部」，用于流式期间是否继续贴底跟随 */
 const NEAR_BOTTOM_THRESHOLD = 80
@@ -206,14 +210,21 @@ export function ChatArea() {
     const msgId = streamingMsg.id
     let cancelled = false
 
-    updateMessage(currentConversationId, msgId, {
-      content: '',
-      events: [],
-    })
+    // ⚠️ 这里**不能**先清空 content/events。旧实现清空后再去重连：一旦后端已经
+    // 没有活动流（例如任务在断连收尾时被标记 interrupted，或后端重启过），
+    // reconnect 会立刻空着结束——正文被清掉、消息又永远停在"生成回复中"，
+    // 用户看到的就是"之前生成的内容全没了"。正文保留 + 结束时落定状态即可。
     setStreaming(currentConversationId, true)
 
     const MAX_RETRIES = 3
     const BASE_DELAY = 1000
+
+    // 重连流正常结束（或空结束）时把消息落定：只有收到 message.completed /
+    // turn.completed 才算本轮真正跑完，否则视为"已停止生成"。
+    const settleIfUnfinished = (events: Array<{ type?: string }> | undefined) => {
+      if (hasTerminalEvent(events)) return
+      settleUnfinishedMessage(updateMessage, setStreaming, currentConversationId, msgId)
+    }
 
     const attemptReconnect = (attempt: number) => {
       if (cancelled) return
@@ -222,8 +233,10 @@ export function ChatArea() {
           if (cancelled) return
           handleStreamEvent(eventData, currentConversationId, msgId, updateMessage, setStreaming)
         })
-        .then(() => {
-          if (!cancelled) reconnectRetryRef.current = 0
+        .then(events => {
+          if (cancelled) return
+          reconnectRetryRef.current = 0
+          settleIfUnfinished(events)
         })
         .catch(err => {
           if (cancelled) return
@@ -233,13 +246,8 @@ export function ChatArea() {
             reconnectTimerRef.current = setTimeout(() => attemptReconnect(attempt + 1), delay)
           } else {
             console.error('Reconnect stream failed after max retries')
-            updateMessage(currentConversationId, msgId, {
-              isStreaming: false,
-              status: MessageStatus.ERROR,
-              content:
-                'Sorry, there was an error reconnecting the stream. Please refresh and try again.',
-            })
-            setStreaming(currentConversationId, false)
+            // 重连彻底失败也要落定，且**保留**已有正文（不要用一句英文错误把它盖掉）。
+            settleIfUnfinished(undefined)
           }
         })
     }
@@ -392,7 +400,7 @@ export function ChatArea() {
         let assistantMessage: Message | null = null
 
         // 发送消息到 agent，使用实时回调处理流式事件
-        await sendMessageToAgent(agentId, sessionId, content, eventData => {
+        const streamedEvents = await sendMessageToAgent(agentId, sessionId, content, eventData => {
           // 当收到第一个事件时，删除思考中消息并创建实际的助手消息
           if (!assistantMessageId) {
             // 删除思考中消息
@@ -426,6 +434,14 @@ export function ChatArea() {
             )
           }
         })
+
+        // 兜底：流结束仍未收到终态事件（断连收尾 / 空流 / 后端已无活动流），
+        // 不能把消息留在 isStreaming —— 否则界面永远停在"生成回复中"。
+        if (!hasTerminalEvent(streamedEvents)) {
+          const pendingId = assistantMessageId ?? thinkingMessageId
+          locallyCreatedMessageIds.current.delete(pendingId)
+          settleUnfinishedMessage(updateMessage, setStreaming, convId, pendingId)
+        }
       } catch (error) {
         console.error('Failed to send message:', error)
         deleteMessage(convId, thinkingMessageId)

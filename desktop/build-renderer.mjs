@@ -6,6 +6,9 @@
  *   node build-renderer.mjs                 # 构建 + 收集
  *   node build-renderer.mjs --skip-build    # 只收集（复用上一次的 .next-export/）
  *
+ * 除了"搬文件"，本脚本还会对收集到的 CSS 做一处**桌面端专属**改写：
+ * 剥掉 @media (hover: hover) 外壳（原因见 patchHoverMedia）。
+ *
  * 关于构建期环境变量：app/layout.tsx 会把构建时 process.env 里的 window.__APP_CONFIG__
  * 内联进 HTML，而仓库根目录的 .env 会被 Next 自动加载，从而把开发机地址**烘焙进产物**。
  * 桌面端要求配置在**运行时**决定（见 src/runtime-config.js），所以这里统一清空这些 key；
@@ -100,6 +103,108 @@ function collect(exportDir) {
   log(`已收集 ${path.relative(REPO_ROOT, exportDir)}/ → desktop/renderer/`)
 }
 
+/** 只匹配"纯粹就是 hover 能力查询"的媒体查询；带 and / 逗号的组合一律不碰。 */
+const HOVER_ONLY_MEDIA = /^\s*\(\s*(?:any-)?hover\s*:\s*hover\s*\)\s*$/
+
+/** 从 css[open] 处的 '{' 找到配对的 '}'，返回该 '}' 的下标。 */
+function matchBrace(css, open) {
+  let depth = 0
+  for (let i = open; i < css.length; i++) {
+    if (css[i] === '{') depth++
+    else if (css[i] === '}') {
+      depth--
+      if (depth === 0) return i
+    }
+  }
+  throw new Error(`CSS 花括号不配对（位置 ${open}）`)
+}
+
+/**
+ * 把 @media (hover: hover){ ... } 的外壳剥掉，内容原样上提。
+ *
+ * 为什么要动上游产物：Tailwind v4 的 hover 变体（含 group-hover / peer-hover）统一编译成
+ * `@media (hover: hover){ &:hover }`，这层媒体查询问的是**设备能力**而不是"鼠标此刻在不在上面"。
+ * Chromium 在不少 Linux 环境里会把这个能力判成 none —— 只要它把输入设备归类成触摸设备
+ * （典型如虚拟机里的绝对定位指针 "QEMU USB Tablet"，或带触摸屏的机器），就返回
+ * hover:none / pointer:coarse。此时 `:hover` 状态本身照常工作，但所有 hover: 工具类都不再生效：
+ * 消息下方"复制 / 重新生成 / 用量"这类悬停才出现的操作行永远不显示（网页端正常是因为
+ * 浏览器不同或机器不同）。桌面壳永远是"有鼠标的桌面"，这层能力查询没有意义，所以剥掉。
+ *
+ * 只处理参数**恰好**是 hover 能力查询的块；`@media (hover: hover) and (min-width: 768px)`
+ * 这类组合查询保持原样（避免误删别的条件），并计入 skipped 供日志暴露。
+ */
+function unwrapHoverMedia(css) {
+  let out = ''
+  let i = 0
+  let unwrapped = 0
+  let skipped = 0
+  for (;;) {
+    const at = css.indexOf('@media', i)
+    if (at === -1) {
+      out += css.slice(i)
+      break
+    }
+    // 读媒体查询参数：到深度为 0 的 '{' 为止
+    let j = at + '@media'.length
+    let depth = 0
+    for (; j < css.length; j++) {
+      const ch = css[j]
+      if (ch === '(') depth++
+      else if (ch === ')') depth--
+      else if (ch === '{' && depth === 0) break
+    }
+    const params = css.slice(at + '@media'.length, j)
+    if (HOVER_ONLY_MEDIA.test(params)) {
+      const end = matchBrace(css, j)
+      out += css.slice(i, at) + css.slice(j + 1, end)
+      unwrapped += 1
+      i = end + 1
+    } else {
+      if (params.includes('hover')) skipped += 1
+      out += css.slice(i, j + 1)
+      i = j + 1
+    }
+  }
+  return { css: out, unwrapped, skipped }
+}
+
+/** 对收集后的 renderer/ 里每个 CSS 文件做一遍 hover 媒体查询剥离，原地写回。 */
+function patchHoverMedia() {
+  const targets = []
+  const stack = [OUT_DIR]
+  while (stack.length) {
+    const cur = stack.pop()
+    for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
+      const p = path.join(cur, entry.name)
+      if (entry.isDirectory()) stack.push(p)
+      else if (entry.isFile() && entry.name.endsWith('.css')) targets.push(p)
+    }
+  }
+
+  let files = 0
+  let unwrapped = 0
+  let skipped = 0
+  for (const file of targets) {
+    const before = fs.readFileSync(file, 'utf8')
+    const res = unwrapHoverMedia(before)
+    skipped += res.skipped
+    if (res.unwrapped === 0) continue
+    fs.writeFileSync(file, res.css)
+    files += 1
+    unwrapped += res.unwrapped
+  }
+
+  if (unwrapped === 0) {
+    log('未发现 @media (hover: hover)：上游可能已自行处理，桌面端无需改写')
+  } else {
+    log(`已剥离 ${unwrapped} 处 @media (hover: hover)（${files} 个 CSS 文件）`)
+  }
+  if (skipped > 0) {
+    // 不判失败：组合查询本就该原样保留。但值得记一笔，方便排查"某处悬停仍不生效"。
+    log(`注意：${skipped} 处含 hover 的组合媒体查询被原样保留（非纯能力查询）`)
+  }
+}
+
 function report(exportDir) {
   const size = dirSize(OUT_DIR)
   const top = fs
@@ -149,6 +254,7 @@ function main() {
 
   const exportDir = locateExport()
   collect(exportDir)
+  patchHoverMedia()
   const info = report(exportDir)
 
   // 硬性校验：renderer 必须能独立成立，否则 app:// 下必然白屏

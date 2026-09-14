@@ -2,7 +2,10 @@ import {
   applyToolCallDelta,
   applyUsageUpdated,
   coalesceStreamEvents,
+  hasTerminalEvent,
+  settleUnfinishedMessage,
 } from '../stream-event-handler'
+import { MessageStatus } from '../types'
 import type { EventItem, Message } from '../types'
 
 const delta = (content: string, timestamp = 1): EventItem => ({
@@ -134,5 +137,74 @@ describe('applyUsageUpdated', () => {
 
   it('载荷里没有可识别字段时清空 usage（不渲染空用量块）', () => {
     expect(applyUsageUpdated({})).toEqual({ usage: undefined })
+  })
+})
+
+describe('hasTerminalEvent', () => {
+  it('只有 message.completed / turn.completed 算本轮跑完', () => {
+    expect(hasTerminalEvent(undefined)).toBe(false)
+    expect(hasTerminalEvent([])).toBe(false)
+    expect(hasTerminalEvent([{ type: 'message.delta' }])).toBe(false)
+    expect(hasTerminalEvent([{ type: 'stream.error' }])).toBe(false)
+    expect(hasTerminalEvent([{ type: 'message.delta' }, { type: 'message.completed' }])).toBe(true)
+    expect(hasTerminalEvent([{ type: 'turn.completed' }])).toBe(true)
+  })
+})
+
+describe('settleUnfinishedMessage', () => {
+  const streamingMessage = (): Message => ({
+    id: 'm1',
+    role: 'assistant',
+    content: '已经生成的内容',
+    timestamp: new Date(1),
+    isStreaming: true,
+    status: MessageStatus.GENERATING,
+    events: [
+      { type: 'message.delta', content: '已经生成', timestamp: 1 },
+      { type: 'message.delta', content: '的内容', timestamp: 2 },
+    ],
+  })
+
+  it('落定成 interrupted 并保留已生成的正文（不能清空）', () => {
+    let message = streamingMessage()
+    const streamingCalls: Array<[string | null, boolean]> = []
+    const updateMessage = (
+      _conversationId: string,
+      _messageId: string,
+      updates: Partial<Message> | ((m: Message) => Partial<Message>)
+    ) => {
+      message = { ...message, ...(typeof updates === 'function' ? updates(message) : updates) }
+    }
+
+    settleUnfinishedMessage(
+      updateMessage,
+      (cId, streaming) => streamingCalls.push([cId, streaming]),
+      'conv-1',
+      'm1'
+    )
+
+    expect(message.isStreaming).toBe(false)
+    expect(message.status).toBe(MessageStatus.INTERRUPTED)
+    expect(message.content).toBe('已经生成的内容')
+    expect(message.events).toEqual([
+      { type: 'message.delta', content: '已经生成的内容', timestamp: 1 },
+    ])
+    expect(streamingCalls).toEqual([['conv-1', false]])
+  })
+
+  it('已经是结束态的消息不动它（不覆盖 completed/error 的结果）', () => {
+    let message: Message = { ...streamingMessage(), isStreaming: false }
+    const updateMessage = (
+      _conversationId: string,
+      _messageId: string,
+      updates: Partial<Message> | ((m: Message) => Partial<Message>)
+    ) => {
+      message = { ...message, ...(typeof updates === 'function' ? updates(message) : updates) }
+    }
+
+    settleUnfinishedMessage(updateMessage, () => {}, 'conv-1', 'm1')
+
+    expect(message.isStreaming).toBe(false)
+    expect(message.status).toBe(MessageStatus.GENERATING)
   })
 })
