@@ -13,7 +13,8 @@
     },
     "panelTab": {
       "agent": "智能体",
-      "scheduledTasks": "定时任务"
+      "scheduledTasks": "定时任务",
+      "imChannel": "IM 频道"
     },
     "empty": {
       "title": "还没有对话",
@@ -32,9 +33,7 @@
     },
     "toast": {
       "deleteFailedTitle": "删除失败",
-      "deleteFailedDescription": "服务端会话删除未成功，请稍后重试",
-      "imChannelTitle": "IM 频道",
-      "imChannelDescription": "IM 频道机器人功能即将上线"
+      "deleteFailedDescription": "服务端会话删除未成功，请稍后重试"
     },
     "untitled": "新对话",
     "dateFormat": "M月d日",

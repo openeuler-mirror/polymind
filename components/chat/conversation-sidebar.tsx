@@ -9,6 +9,7 @@ import {
   MessageCircle,
   Clock,
   Bot,
+  MessagesSquare,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -313,11 +314,11 @@ export function ConversationSidebar() {
     return null
   }
 
-  // 顶部导航项：仅「智能体 / 定时任务」映射到右侧面板 tab，高亮直接跟随面板真实状态；
-  // 「新对话」是动作、「IM 频道」是占位，都不持有选中态，避免导航高亮与真实视图不一致。
+  // 顶部导航项：映射到右侧面板 tab，高亮直接跟随面板真实状态；
+  // 「新对话」是动作，不持有选中态，避免导航高亮与真实视图不一致。
   const navItems: { id: string; label: string; icon: LucideIcon; panelTabId: string | null }[] = [
     { id: 'chat', label: t('sidebar.nav.newChat'), icon: MessageSquarePlus, panelTabId: null },
-    { id: 'im', label: t('sidebar.nav.imChannel'), icon: MessageCircle, panelTabId: null },
+    { id: 'im', label: t('sidebar.nav.imChannel'), icon: MessageCircle, panelTabId: 'channels' },
     { id: 'agent', label: t('sidebar.nav.agent'), icon: Bot, panelTabId: 'agent' },
     {
       id: 'scheduled-tasks',
@@ -372,9 +373,11 @@ export function ConversationSidebar() {
         color: 'text-violet-500',
       })
     } else if (navId === 'im') {
-      toast({
-        title: t('sidebar.toast.imChannelTitle'),
-        description: t('sidebar.toast.imChannelDescription'),
+      openRightPanelTab({
+        id: 'channels',
+        name: t('sidebar.panelTab.imChannel'),
+        icon: MessagesSquare,
+        color: 'text-teal-500',
       })
     }
   }

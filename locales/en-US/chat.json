@@ -13,7 +13,8 @@
     },
     "panelTab": {
       "agent": "Agents",
-      "scheduledTasks": "Scheduled Tasks"
+      "scheduledTasks": "Scheduled Tasks",
+      "imChannel": "IM Channel"
     },
     "empty": {
       "title": "No conversations yet",
@@ -32,9 +33,7 @@
     },
     "toast": {
       "deleteFailedTitle": "Delete failed",
-      "deleteFailedDescription": "The server failed to delete the conversation. Please try again later.",
-      "imChannelTitle": "IM Channels",
-      "imChannelDescription": "IM channel bot features are coming soon"
+      "deleteFailedDescription": "The server failed to delete the conversation. Please try again later."
     },
     "untitled": "New Chat",
     "dateFormat": "MMM d",
