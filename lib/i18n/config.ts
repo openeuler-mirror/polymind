@@ -19,12 +19,14 @@ import zhCNSettings from '@/locales/zh-CN/settings.json'
 import zhCNChat from '@/locales/zh-CN/chat.json'
 import zhCNToolPanel from '@/locales/zh-CN/tool-panel.json'
 import zhCNArtifact from '@/locales/zh-CN/artifact.json'
+import zhCNChannel from '@/locales/zh-CN/channel.json'
 
 import enUSCommon from '@/locales/en-US/common.json'
 import enUSSettings from '@/locales/en-US/settings.json'
 import enUSChat from '@/locales/en-US/chat.json'
 import enUSToolPanel from '@/locales/en-US/tool-panel.json'
 import enUSArtifact from '@/locales/en-US/artifact.json'
+import enUSChannel from '@/locales/en-US/channel.json'
 
 const resources = {
   'zh-CN': {
@@ -33,6 +35,7 @@ const resources = {
     chat: zhCNChat,
     'tool-panel': zhCNToolPanel,
     artifact: zhCNArtifact,
+    channel: zhCNChannel,
   },
   'en-US': {
     common: enUSCommon,
@@ -40,6 +43,7 @@ const resources = {
     chat: enUSChat,
     'tool-panel': enUSToolPanel,
     artifact: enUSArtifact,
+    channel: enUSChannel,
   },
 } as const
 

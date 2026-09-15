@@ -1247,7 +1247,8 @@
       "artifacts": "产物",
       "settings": "设置",
       "skills": "技能",
-      "model": "模型"
+      "model": "模型",
+      "channels": "IM 频道"
     }
   }
 }

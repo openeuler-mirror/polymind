@@ -16,6 +16,7 @@ export const namespaces = [
   'chat',
   'tool-panel',
   'artifact',
+  'channel',
 ] as const
 
 export type Namespace = (typeof namespaces)[number]

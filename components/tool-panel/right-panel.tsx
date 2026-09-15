@@ -16,6 +16,7 @@ import {
   Activity,
   Clock,
   Package,
+  MessagesSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,6 +33,7 @@ import { CvePage } from './cve-page'
 import { BackportPage } from './backport-page'
 import { InsightPage } from './insight-page'
 import { ScheduledTaskPage } from './scheduled-task'
+import { ChannelPage } from './channel'
 import { ArtifactPreviewPanel } from '@/components/artifact/artifact-preview-panel'
 
 /** 右侧面板注册表：新增面板只需在这里注册一行，避免逐层嵌套三元。 */
@@ -42,6 +44,7 @@ const PANEL_PAGES: Record<string, ComponentType> = {
   cve: CvePage,
   backport: BackportPage,
   'scheduled-tasks': ScheduledTaskPage,
+  channels: ChannelPage,
   artifacts: ArtifactPreviewPanel,
 }
 
@@ -77,11 +80,32 @@ export function RightPanel() {
 
   const tools = [
     { id: 'agent', name: t('rightPanel.tools.agent'), icon: Bot, color: 'text-cyan-500' },
-    { id: 'insight', name: t('rightPanel.tools.insight'), icon: Activity, color: 'text-emerald-500' },
+    {
+      id: 'insight',
+      name: t('rightPanel.tools.insight'),
+      icon: Activity,
+      color: 'text-emerald-500',
+    },
     { id: 'cve', name: 'CVE', icon: Bug, color: 'text-rose-500' },
     { id: 'backport', name: 'Backport', icon: Wrench, color: 'text-blue-500' },
-    { id: 'scheduled-tasks', name: t('rightPanel.tools.scheduledTasks'), icon: Clock, color: 'text-violet-500' },
-    { id: 'artifacts', name: t('rightPanel.tools.artifacts'), icon: Package, color: 'text-orange-500' },
+    {
+      id: 'scheduled-tasks',
+      name: t('rightPanel.tools.scheduledTasks'),
+      icon: Clock,
+      color: 'text-violet-500',
+    },
+    {
+      id: 'channels',
+      name: t('rightPanel.tools.channels'),
+      icon: MessagesSquare,
+      color: 'text-teal-500',
+    },
+    {
+      id: 'artifacts',
+      name: t('rightPanel.tools.artifacts'),
+      icon: Package,
+      color: 'text-orange-500',
+    },
     {
       id: 'settings',
       name: t('rightPanel.tools.settings'),

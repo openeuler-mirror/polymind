@@ -1229,7 +1229,8 @@
       "artifacts": "Artifacts",
       "settings": "Settings",
       "skills": "Skills",
-      "model": "Models"
+      "model": "Models",
+      "channels": "IM Channel"
     }
   }
 }
