@@ -160,9 +160,9 @@ export function handleAgentStreamEvent({
       }
       break
     case 'tool.call.delta': {
-      // 工具调用参数/内容流式输出：累积到对应运行中工具调用事件的 inputRaw
+      // 工具执行增量输出（stdout 等）：累积到对应运行中工具调用的 outputRaw
       const payload = eventData.payload
-      const delta = payload?.delta ?? payload?.arguments_delta
+      const delta = payload?.delta
       const toolCallId = payload?.tool_call_id
       if (delta && toolCallId) {
         store.updateMessage(

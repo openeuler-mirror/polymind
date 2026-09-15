@@ -172,9 +172,21 @@
     "toolCall": {
       "viewFile": "View file",
       "input": "Input",
-      "inputStreaming": "Input (streaming)",
       "output": "Output",
       "error": "Error",
+      "names": {
+        "read": "Read",
+        "write": "Write",
+        "edit": "Edit",
+        "exec": "Run",
+        "search": "Search",
+        "list": "List",
+        "question": "Ask",
+        "todo": "Todo",
+        "web": "Web",
+        "delegate": "Delegate",
+        "skill": "Skill"
+      },
       "status": {
         "running": "Running",
         "completed": "Completed",
@@ -187,7 +199,8 @@
       "waiting": "Waiting for your answer",
       "asked": "Asked the user",
       "pendingAnswer": "Awaiting answer",
-      "unanswered": "(Not answered)"
+      "unanswered": "(Not answered)",
+      "answer": "Answer"
     },
     "streaming": "Generating reply",
     "thinking": "Deep thinking"

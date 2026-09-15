@@ -137,7 +137,9 @@ export function applyThinkingDelta(
   return { events }
 }
 
-// 累积 tool.call.delta 到消息的 events 和 toolCalls 中，实现工具调用参数流式展示。
+// 累积 tool.call.delta 到消息的 events 和 toolCalls 中，实现工具增量输出的流式展示。
+// 载荷契约（后端 runtime_base.tool_call_delta_event）：{ tool_call_id, delta }。
+// 找不到对应 tool.call.started 的增量直接丢弃 —— 没有归属就没有可渲染的位置。
 export function applyToolCallDelta(
   m: Message,
   delta: string,
@@ -159,13 +161,13 @@ export function applyToolCallDelta(
     ...target,
     toolCall: {
       ...tc,
-      inputRaw: (tc.inputRaw || '') + delta,
+      outputRaw: (tc.outputRaw || '') + delta,
     },
   }
   return {
     events,
     toolCalls: (m.toolCalls || []).map(tc =>
-      tc.id === toolCallId ? { ...tc, inputRaw: (tc.inputRaw || '') + delta } : tc
+      tc.id === toolCallId ? { ...tc, outputRaw: (tc.outputRaw || '') + delta } : tc
     ),
   }
 }
@@ -593,9 +595,9 @@ export function handleStreamEvent(
       }
       break
     case 'tool.call.delta': {
-      // 工具调用参数/内容流式输出：累积到对应运行中工具调用事件的 inputRaw
+      // 工具执行增量输出（stdout 等）：累积到对应运行中工具调用的 outputRaw
       const payload = eventData.payload
-      const delta = payload?.delta ?? payload?.arguments_delta
+      const delta = payload?.delta
       const toolCallId = payload?.tool_call_id
       if (delta && toolCallId) {
         updateMessage(conversationId, messageId, (m: Message) =>
