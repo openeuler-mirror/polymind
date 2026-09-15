@@ -1,8 +1,10 @@
 import type { MutableRefObject } from 'react'
 import type {
   Message,
+  MessageUsage,
   QuestionInfo,
   QuestionAskedPayload,
+  SessionUsagePayload,
   ToolCall,
   Artifact,
   EventItem,
@@ -260,19 +262,21 @@ export function applyToolCallStarted(
   }
 }
 
-// usage.updated：构建 usage 更新对象。
-export function applyUsageUpdated(payload: {
-  input_tokens?: number
-  output_tokens?: number
-  total_cost?: number
-}): Pick<Message, 'usage'> {
-  return {
-    usage: {
-      inputTokens: payload.input_tokens,
-      outputTokens: payload.output_tokens,
-      totalCost: payload.total_cost,
-    },
-  }
+// session.usage：把事件载荷（扁平 snake_case）映射成 Message.usage（camelCase）。
+// 载荷里没出现的字段不写入（而不是写 0），UI 据此隐藏未提供的项（如 dsh 无成本）。
+// 覆盖语义：后端每轮只下发一条已累计的用量事件。
+export function applyUsageUpdated(payload: SessionUsagePayload): Pick<Message, 'usage'> {
+  const usage: MessageUsage = {}
+  if (typeof payload.input_tokens === 'number') usage.inputTokens = payload.input_tokens
+  if (typeof payload.output_tokens === 'number') usage.outputTokens = payload.output_tokens
+  if (typeof payload.cache_read_tokens === 'number')
+    usage.cacheReadTokens = payload.cache_read_tokens
+  if (typeof payload.cache_write_tokens === 'number')
+    usage.cacheWriteTokens = payload.cache_write_tokens
+  if (typeof payload.reasoning_tokens === 'number') usage.reasoningTokens = payload.reasoning_tokens
+  if (typeof payload.total_tokens === 'number') usage.totalTokens = payload.total_tokens
+  if (typeof payload.total_cost === 'number') usage.totalCost = payload.total_cost
+  return { usage: Object.keys(usage).length > 0 ? usage : undefined }
 }
 
 // 按 id 去重合并产物到 message.artifacts（started 建初态，completed 写终态）。
@@ -520,6 +524,39 @@ export function applyStreamError(m: Message): Partial<Message> {
   }
 }
 
+/** 事件序列里是否出现了终态事件（这一轮真正跑完的标志）。 */
+export function hasTerminalEvent(events: Array<{ type?: string }> | undefined): boolean {
+  return (events || []).some(e => e?.type === 'message.completed' || e?.type === 'turn.completed')
+}
+
+/**
+ * 流已经结束、但没收到终态事件时把消息落定。
+ *
+ * 触发场景：消费端 ws 被掐断后后端只推了一条 stream.error 就结束、后端重启过、
+ * 或 reconnect 因为没有活动流而立刻空着返回。此时消息若还留着 isStreaming，
+ * 界面就会永远显示"生成回复中"。
+ *
+ * ⚠️ 必须**保留**已有正文：正文是后端 checkpoint 落过库的内容，之前重连前先
+ * 清空 content/events 的做法正是用户看到的"之前生成中的记录全没了"。
+ */
+export function settleUnfinishedMessage(
+  updateMessage: UpdateMessageFn,
+  setStreaming: (conversationId: string | null, streaming: boolean) => void,
+  conversationId: string,
+  messageId: string
+): void {
+  updateMessage(conversationId, messageId, (m: Message) =>
+    m.isStreaming
+      ? {
+          isStreaming: false,
+          status: MessageStatus.INTERRUPTED,
+          events: coalesceStreamEvents(m.events || [], m.content || ''),
+        }
+      : {}
+  )
+  setStreaming(conversationId, false)
+}
+
 export function formatDisplayText(payload: any): string {
   if (payload.display_text) {
     return payload.display_text
@@ -642,7 +679,7 @@ export function handleStreamEvent(
     case 'artifact.completed':
       handleArtifactEvent(eventData, updateMessage, conversationId, messageId)
       break
-    case 'usage.updated':
+    case 'session.usage':
       if (eventData.payload) {
         updateMessage(conversationId, messageId, applyUsageUpdated(eventData.payload))
       }

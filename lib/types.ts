@@ -25,7 +25,7 @@ export interface EventItem {
     | 'message.delta'
     | 'message.completed'
     | 'turn.completed'
-    | 'usage.updated'
+    | 'session.usage'
     | 'session.runtime.changed'
     | 'stream.error'
     | 'client.error'
@@ -97,13 +97,41 @@ export interface Message {
   questionStatus?: 'pending' | 'replied' | 'rejected'
   /** 用户对提问的回答（与 question 数组按下标对应） */
   questionAnswers?: string[][] | null
-  usage?: {
-    inputTokens?: number
-    outputTokens?: number
-    totalCost?: number
-  }
+  /**
+   * 本轮 token 用量（REST 响应里的 camelCase 形态，与 SessionUsagePayload 一一对应）。
+   * 语义：本轮（跨 step 累计）的增量，不是会话累计值。
+   */
+  usage?: MessageUsage
   /** 该消息产出的可视化产物（卡片/预览面板渲染） */
   artifacts?: Artifact[]
+}
+
+/**
+ * 一轮对话的 token 用量（REST 响应里的 camelCase 形态）。
+ * 缺项表示上游未提供（例如 dsh 不返回成本），UI 据此隐藏该项而非显示 0。
+ */
+export interface MessageUsage {
+  inputTokens?: number
+  outputTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  reasoningTokens?: number
+  totalTokens?: number
+  totalCost?: number
+}
+
+/**
+ * ``session.usage`` 事件 payload（后端载荷契约：扁平 snake_case）。
+ * 事件每轮只在终止事件之前下发一条，且已在后端跨 step 累计。
+ */
+export interface SessionUsagePayload {
+  input_tokens?: number
+  output_tokens?: number
+  cache_read_tokens?: number
+  cache_write_tokens?: number
+  reasoning_tokens?: number
+  total_tokens?: number
+  total_cost?: number
 }
 
 /**

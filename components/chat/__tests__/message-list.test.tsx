@@ -1,7 +1,8 @@
 /** @jest-environment jsdom */
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MessageList } from '@/components/chat/message-list'
-import type { Message } from '@/lib/types'
+import { cacheHitRate, formatCompactTokens } from '@/components/chat/message-usage'
+import type { Artifact, Message } from '@/lib/types'
 
 jest.mock('mermaid', () => ({
   __esModule: true,
@@ -290,5 +291,130 @@ describe('MessageList 工具调用行', () => {
 
     expect(screen.getByText('输出')).toBeTruthy()
     expect(screen.getByText('applying patch...')).toBeTruthy()
+  })
+})
+
+describe('MessageList 本轮用量', () => {
+  const usage: Message['usage'] = {
+    inputTokens: 94460,
+    outputTokens: 83484,
+    cacheReadTokens: 11684480,
+    cacheWriteTokens: 0,
+    reasoningTokens: 43660,
+    totalTokens: 11862424,
+    totalCost: 0.0042,
+  }
+
+  it('完成后在复制/重新生成同排展示紧凑用量，点击展开明细', () => {
+    render(<MessageList messages={[{ ...makeMessage(undefined, '正文'), usage }]} />)
+
+    const badge = screen.getByRole('button', { name: /用量 11\.9M tok/ })
+    fireEvent.click(badge)
+
+    expect(screen.getByText('本轮用量')).toBeTruthy()
+    expect(screen.getByText('11,862,424 tok')).toBeTruthy()
+    expect(screen.getByText('99.2%')).toBeTruthy()
+    expect(screen.getByText('94,460 tok')).toBeTruthy()
+    expect(screen.getByText('11,684,480 tok')).toBeTruthy()
+    expect(screen.getByText('83,484 tok（其中推理 43,660 tok）')).toBeTruthy()
+    // 小额成本保留 4 位小数，避免显示成 $0.00
+    expect(screen.getByText('$0.0042')).toBeTruthy()
+    // 缓存写为 0 时不占位
+    expect(screen.queryByText('缓存写入')).toBeNull()
+  })
+
+  it('流式期间不展示用量（后端跨 step 累计，收尾才完整）', () => {
+    render(
+      <MessageList messages={[{ ...makeMessage(undefined, '正文'), usage, isStreaming: true }]} />
+    )
+
+    expect(screen.queryByRole('button', { name: /用量/ })).toBeNull()
+  })
+
+  it('没有用量时不渲染徽标', () => {
+    render(<MessageList messages={[makeMessage(undefined, '正文')]} />)
+
+    expect(screen.queryByRole('button', { name: /用量/ })).toBeNull()
+  })
+
+  it('上游只给总量时不渲染明细行', () => {
+    render(
+      <MessageList
+        messages={[{ ...makeMessage(undefined, '正文'), usage: { totalTokens: 500 } }]}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /用量 500 tok/ }))
+
+    expect(screen.getByText('500 tok')).toBeTruthy()
+    expect(screen.queryByText('缓存命中')).toBeNull()
+    expect(screen.queryByText('成本')).toBeNull()
+  })
+})
+
+describe('MessageList 悬停显隐', () => {
+  const usage: Message['usage'] = { inputTokens: 94460, outputTokens: 83484, totalTokens: 11862424 }
+
+  it('用量徽标与复制/重新生成同层淡入淡出：悬停消息时才一起出现', () => {
+    render(<MessageList messages={[{ ...makeMessage(undefined, '正文'), usage }]} />)
+
+    const badge = screen.getByRole('button', { name: /用量 11\.9M tok/ })
+    // 徽标与复制/重新生成共用具名 group 容器：一次悬停同时显隐，二者显示逻辑对称
+    const hoverLayer = badge.closest('[class*="group-hover/msg:"]')
+    expect(hoverLayer).toBeTruthy()
+    expect(hoverLayer?.querySelectorAll('button').length).toBe(3)
+    expect(hoverLayer?.className).toContain('opacity-0')
+  })
+
+  const artifacts: Artifact[] = [
+    {
+      id: 'a1',
+      name: 'snake.html',
+      type: 'html',
+      status: 'ready',
+      version: 1,
+      relativePath: 'snake.html',
+      size: 7065,
+    },
+    {
+      id: 'a2',
+      name: 'report.md',
+      type: 'markdown',
+      status: 'ready',
+      version: 1,
+      relativePath: 'report.md',
+      size: 2048,
+    },
+  ]
+
+  it('产物卡片按钮只跟本卡片的悬停：不被消息悬停或相邻卡片连带点亮', () => {
+    render(<MessageList messages={[{ ...makeMessage(undefined, '正文'), artifacts }]} />)
+
+    const cards = document.querySelectorAll('[class~="group/artifact"]')
+    expect(cards.length).toBe(2)
+
+    for (const card of Array.from(cards)) {
+      const actions = card.querySelector('[class*="group-hover/artifact:"]')
+      expect(actions?.className).toContain('opacity-0')
+      // 具名 group：只响应本卡片自身的悬停，而不是外层消息的 group
+      expect(actions?.className).toContain('group-hover/artifact:opacity-100')
+      expect(actions?.className).not.toContain('group-hover:opacity-100')
+    }
+  })
+})
+
+describe('用量格式化', () => {
+  it('万以下保留千分位，万/百万才缩写', () => {
+    expect(formatCompactTokens(999)).toBe('999')
+    expect(formatCompactTokens(9999)).toBe('9,999')
+    expect(formatCompactTokens(19954)).toBe('20.0K')
+    expect(formatCompactTokens(11862424)).toBe('11.9M')
+  })
+
+  it('缓存命中率在缺项或除零时返回 null', () => {
+    expect(cacheHitRate({ cacheReadTokens: 19840, inputTokens: 140 })).toBe('99.3%')
+    expect(cacheHitRate({ cacheReadTokens: 0, inputTokens: 0 })).toBeNull()
+    expect(cacheHitRate({ cacheReadTokens: 10 })).toBeNull()
+    expect(cacheHitRate({ inputTokens: 10 })).toBeNull()
   })
 })

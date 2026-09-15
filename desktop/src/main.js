@@ -28,6 +28,20 @@ const { resolveRuntimeConfig } = require('./runtime-config')
  * （desktop/src 与 desktop/renderer 同级拷贝），默认值就是唯一正确值。
  */
 const RENDERER_DIR = path.join(__dirname, '..', 'renderer')
+/**
+ * 窗口图标（Linux 上就是 X11 的 _NET_WM_ICON）。
+ *
+ * 面板/程序坞上显示哪个图标有两条**独立**的路径：① 按 WM_CLASS 关联到 polymind.desktop，
+ * 再取桌面项里的 Icon（GNOME Shell / dash-to-dock 的主路径）；② 直接读窗口自己的
+ * _NET_WM_ICON。Electron 不显式给 icon 时**根本不会写 _NET_WM_ICON**（实测 xprop 报
+ * "not found"），所以关联一旦失配，面板上就只剩一个默认的空白图标 —— 现象正是
+ * "应用列表里有图标，点开之后下栏是默认图标"。两条路都铺好，缺哪条都不至于掉回默认图标。
+ *
+ * 用 256×256 的产物而不是 public/icon.png：后者是 11112×11112，解成位图约占 470 MiB，
+ * 拿它当窗口图标等于每次开窗白吃一大块内存。该文件随包安装（见 polymind.spec %install：
+ * desktop/assets → <app>/assets，同一份 PNG 还会装进 hicolor/256x256/apps/polymind.png）。
+ */
+const WINDOW_ICON = path.join(__dirname, '..', 'assets', 'icon.png')
 const API_TARGET = process.env.POLYMIND_DESKTOP_API_TARGET || 'http://127.0.0.1:8000'
 const ENABLE_CSP = process.env.POLYMIND_DESKTOP_CSP === '1'
 
@@ -241,6 +255,8 @@ function createWindow() {
     show: false,
     backgroundColor: '#1a1a1a',
     title: 'PolyMind',
+    // 缺失时退回到"不设图标"，而不是让 Electron 拿一个空路径去解码：见 WINDOW_ICON 注释
+    icon: fs.existsSync(WINDOW_ICON) ? WINDOW_ICON : undefined,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

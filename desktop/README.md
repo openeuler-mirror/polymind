@@ -76,6 +76,51 @@ POLYMIND_DESKTOP_URL=http://127.0.0.1:3000 npm start
 | SPA 路径回退 | 无 http 语义 | 与 http 一致 |
 | 暴露真实文件系统路径 | 会 | 不会 |
 
+### 为什么桌面端要剥掉 `@media (hover: hover)`
+
+Tailwind v4 把 `hover:` 变体（含 `group-hover:` / `peer-hover:`）统一编译成
+`@media (hover: hover){ &:hover }`。这层媒体查询问的是**设备能力**，不是"鼠标此刻在不在上面"。
+Chromium 在不少 Linux 环境下会把它判成 `none` —— 只要它把输入设备归类成触摸设备（典型是虚拟机里的
+绝对定位指针，如 `QEMU USB Tablet`，或带触摸屏的机器），就返回 `hover: none` / `pointer: coarse`。
+此时 `:hover` 状态本身照常工作，但**所有** `hover:` 工具类都不再生效：消息下方的
+「复制 / 重新生成 / 用量」这类悬停才出现的操作行永远不显示，而网页端（别的浏览器/别的机器）看着一切正常。
+
+桌面壳永远是"有鼠标的桌面"，这层能力查询没有意义，所以 `build-renderer.mjs` 在收集产物时把它的外壳剥掉
+（只处理参数恰好是 `(hover: hover)` / `(any-hover: hover)` 的块；`@media (hover: hover) and (min-width: …)`
+这类组合查询原样保留，并在日志里报数）。日志会写明剥离了几处：
+
+```
+[build-renderer] 已剥离 7 处 @media (hover: hover)（1 个 CSS 文件）
+```
+
+> 复现与证据：真实环境（Electron 44 + 这台机器 `hover: none`）下，同一份产物 CSS
+> 剥壳前悬停消息 → 操作行 `opacity: 0` / `pointer-events: none`（按钮不出现），
+> 剥壳后 → `opacity: 1` / `pointer-events: auto`。
+> 冒烟报告里的 `probe.hoverCapability` 会同时记下环境侧（`hoverHover`）与产物侧
+> （`mediaGatedHoverRules`）的证据。
+
+### 任务栏/程序坞的图标靠什么对上
+
+Linux 上"应用列表里的图标"和"运行中窗口的图标"是**两条独立的查找路径**。两条都失配时，窗口就会掉到
+默认图标上 —— 现象是"应用列表里图标正常，点开之后下栏显示的是默认图标"（实测环境 openEuler 25.09 +
+GNOME Shell 49.9）：
+
+| 路径 | 依据 | 本包里的取值 |
+|---|---|---|
+| 窗口 → 桌面项 | GNOME Shell 拿窗口的 `WM_CLASS` 去匹配各桌面项的 `StartupWMClass`（`<WM_CLASS>.desktop` 同名匹配是另一条兜底） | `polymind.desktop` 里 `StartupWMClass=polymind-desktop` |
+| 窗口自身 | 窗口的 `_NET_WM_ICON`：Alt-Tab 预览、以及不做桌面项匹配的 WM（KDE/XFCE 等）用它 | 主进程 `BrowserWindow({ icon })` → `desktop/assets/icon.png` |
+
+**`WM_CLASS` 不是启动参数能改的。** 实测 `--class=` / `--wm-class=` / `--name=` 三个都无效
+（`xprop` 里始终是同一个值），`app.setName()` 同样无效 —— 它在 Electron 读完 `package.json` 之后才被调用。
+Electron 只认 `desktop/package.json` 的 `name`，所以：
+
+> ⚠️ **`desktop/package.json` 的 `name` 与桌面项的 `StartupWMClass` 必须一致**（当前两边都是
+> `polymind-desktop`）。改了其中一处，窗口就会掉回默认图标。不要把它们改成 `PolyMind` ——
+> 那只是窗口标题，跟 `WM_CLASS` 无关，1.0.1-15 的 `--class=PolyMind` 就是这么失效的。
+
+> ⚠️ 窗口图标的路径要指向 `desktop/assets/icon.png`（256×256，19 KiB），**不要**指向
+> `public/icon.png`：后者是 11112×11112，解成位图约 470 MiB。
+
 ---
 
 ## 三、环境变量
@@ -211,6 +256,11 @@ xvfb-run -a --server-args="-screen 0 1440x900x24" ./node_modules/.bin/electron .
 `configInjected === 0`）：构建期 `NEXT_PUBLIC_*` 被刻意清空，注入失败时页面拿到的是空配置，
 表现是"能打开但所有接口静默失败"，比直接报错难查得多，所以宁可让它红。
 
+另一条硬失败项是 **`hover-affordances-gated`**：环境不上报 `(hover: hover)`（虚拟机 / 触摸屏的
+Chromium 会这样）而产物里仍有被 `@media (hover: hover)` 包裹的规则 —— 见上文
+「为什么桌面端要剥掉 `@media (hover: hover)`」。它同样属于"页面看着正常、实际不可用"：
+悬停才出现的按钮全部不显示。命中即说明产物没走 `build-renderer.mjs` 的剥壳步骤。
+
 > 实现上必须用 `app.exit(code)`：实测 `app.quit()` **不会**把 `process.exitCode` 带出去 ——
 > 负向测试明明报告了 `failures`，进程仍以 0 退出，CI 会假绿。
 
@@ -273,7 +323,8 @@ URL 查询串里的凭据参数），所以就算渲染进程打印了凭据，�
 
 ```
 desktop/
-├── build-renderer.mjs           # 静态导出 + 收集到 renderer/
+├── assets/                      # 打包用静态资源：窗口图标 icon.png（256×256，见 assets/README.md）
+├── build-renderer.mjs           # 静态导出 + 收集到 renderer/（并剥掉 @media (hover: hover) 外壳）
 ├── package.json                 # 独立依赖，不污染前端 pnpm 依赖树
 ├── renderer/                    # （构建产物，gitignore）app:// 托管的静态站点
 ├── poc-evidence/                # （本地产物，gitignore）冒烟证据：截图 + JSON 报告

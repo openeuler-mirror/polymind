@@ -142,9 +142,15 @@
     "completedWithDuration": "已完成 {{duration}}",
     "interrupted": "思考已中断",
     "usage": {
-      "inputTokens": "输入 tokens: {{count}}",
-      "outputTokens": "输出 tokens: {{count}}",
-      "cost": "成本: ${{cost}}"
+      "title": "本轮用量",
+      "badge": "用量 {{tokens}} tok",
+      "cacheHitRate": "缓存命中",
+      "uncachedInput": "未缓存输入",
+      "cacheRead": "缓存读取",
+      "cacheWrite": "缓存写入",
+      "output": "输出",
+      "outputWithReasoning": "{{count}} tok（其中推理 {{reasoning}} tok）",
+      "costLabel": "成本"
     },
     "action": {
       "copy": "复制",

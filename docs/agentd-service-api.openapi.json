@@ -92,7 +92,7 @@
                 },
                 "example": [
                   {
-                    "name": "app-perf-optimizer",
+                    "name": "oeAware-app-perf-optimizer",
                     "description": "应用层性能优化",
                     "version": "1.0.0",
                     "skill_count": 5,
@@ -157,7 +157,7 @@
                 },
                 "example": {
                   "id": "agent-uuid",
-                  "name": "app-perf-optimizer",
+                  "name": "oeAware-app-perf-optimizer",
                   "description": "应用层性能优化",
                   "sandbox_type": "local_process",
                   "adapter_type": "openclaw",
@@ -3274,7 +3274,7 @@
               "message.completed",
               "tool.call.started",
               "tool.call.response",
-              "usage.updated",
+              "session.usage",
               "session.runtime.changed",
               "stream.error",
               "client.error"

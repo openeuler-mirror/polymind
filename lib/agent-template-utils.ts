@@ -12,7 +12,7 @@ export function isTemplateInstantiated(agents: Agent[], template: AgentTemplateI
 /**
  * 需要置顶展示的模版名，按数组顺序即为展示顺序。
  */
-export const PINNED_TEMPLATE_NAMES = ['os-perf-optimizer']
+export const PINNED_TEMPLATE_NAMES = ['oeAware-os-perf-optimizer']
 
 /**
  * 把置顶模版排到最前面，其余模版保持后端返回的相对顺序（稳定排序）。

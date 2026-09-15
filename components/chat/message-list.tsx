@@ -46,6 +46,7 @@ import { formatToolOutput } from '@/lib/format-utils'
 import { describeToolCall, previewToolOutput, type ToolCallKind } from '@/lib/tool-call-display'
 import { resolveCodeLanguage } from '@/lib/artifacts'
 import { ArtifactCard } from './artifact-card'
+import { MessageUsageBadge } from './message-usage'
 import { ShimmerText } from '@/components/ui/shimmer-text'
 import {
   getMessageEventGroups,
@@ -96,7 +97,10 @@ const MessageItem = memo(function MessageItem({
   const [copied, setCopied] = useState(false)
   // 回答完毕后，过程模块（深度思考/工具调用/提问）折叠在「已完成」耗时行下
   const [processExpanded, setProcessExpanded] = useState(false)
+  // 用量弹层展开期间强制显示操作行：否则鼠标移开后徽标淡出，弹层会「悬空」
+  const [usageOpen, setUsageOpen] = useState(false)
   const isUser = message.role === 'user'
+  const usage = message.usage
 
   // 派生状态：当前消息是否有等待回答的提问（此时不显示"生成回复中"加载态）
   const hasPendingQuestion =
@@ -161,7 +165,7 @@ const MessageItem = memo(function MessageItem({
   }
 
   return (
-    <div className={cn('group animate-message-in', isUser && 'flex flex-row-reverse')}>
+    <div className={cn('group/msg animate-message-in', isUser && 'flex flex-row-reverse')}>
       <div className={cn('flex flex-col gap-1', isUser ? 'max-w-[80%] items-end' : 'w-full')}>
         {/* 助手消息头部：头像 + 名称 */}
         {!isUser && (
@@ -305,7 +309,8 @@ const MessageItem = memo(function MessageItem({
             </>
           )}
 
-        {/* 产物卡片：常显在正文下方（ADR-D6），不随过程模块折叠 */}
+        {/* 产物卡片：常显在正文下方（ADR-D6），不随过程模块折叠；
+            卡片内的下载/复制按钮只在悬停**该卡片**时出现（具名 group，见 ArtifactCard） */}
         {!isUser && message.artifacts && message.artifacts.length > 0 && (
           <div className="grid grid-cols-2 gap-2">
             {message.artifacts.map(artifact => (
@@ -314,21 +319,11 @@ const MessageItem = memo(function MessageItem({
           </div>
         )}
 
-        {/* Usage Information */}
-        {message.usage && (
-          <div className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-            <div className="flex flex-wrap gap-2">
-              <span>{t('message.usage.inputTokens', { count: message.usage.inputTokens })}</span>
-              <span>{t('message.usage.outputTokens', { count: message.usage.outputTokens })}</span>
-              <span>{t('message.usage.cost', { cost: message.usage.totalCost || 0 })}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Timestamp & Actions */}
+        {/* Timestamp & Actions
+            mt-2 + 父级 gap-1 = 12px：与「已完成 → 正文」同量级的留白，避免操作行贴着产物卡片/正文。 */}
         <div
           className={cn(
-            'flex items-center gap-2 text-xs text-muted-foreground',
+            'mt-2 flex items-center gap-2 text-xs text-muted-foreground',
             isUser && 'flex-row-reverse'
           )}
         >
@@ -336,36 +331,51 @@ const MessageItem = memo(function MessageItem({
             {format(message.timestamp, 'HH:mm', { locale: zhCN })}
           </span>
 
+          {/* 复制/重新生成与用量共用一层淡入淡出：悬停本条消息（group/msg）时才出现，
+              两者显示逻辑保持对称；键盘 Tab 聚焦（focus-within）时同样可见。
+              弹层展开期间（usageOpen）强制可见，避免鼠标移开后徽标消失、弹层「悬空」。 */}
           {!message.isStreaming && (
-            <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <TooltipProvider delayDuration={0}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
-                      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{t('message.action.copy')}</TooltipContent>
-                </Tooltip>
+            <div
+              className={cn(
+                'flex items-center gap-2 transition-opacity',
+                !usageOpen &&
+                  'pointer-events-none opacity-0 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/msg:pointer-events-auto group-hover/msg:opacity-100'
+              )}
+            >
+              <div className="flex items-center gap-1">
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
+                        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t('message.action.copy')}</TooltipContent>
+                  </Tooltip>
 
-                {!isUser && (
-                  <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => onRegenerate?.(message.id)}
-                        >
-                          <RefreshCw className="h-3 w-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>{t('message.action.regenerate')}</TooltipContent>
-                    </Tooltip>
-                  </>
-                )}
-              </TooltipProvider>
+                  {!isUser && (
+                    <>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => onRegenerate?.(message.id)}
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t('message.action.regenerate')}</TooltipContent>
+                      </Tooltip>
+                    </>
+                  )}
+                </TooltipProvider>
+              </div>
+
+              {/* 本轮用量：与复制/重新生成同排，点击展开明细。
+                  流式期间不展示 —— 用量在后端跨 step 累计，收尾才完整。 */}
+              {usage && <MessageUsageBadge usage={usage} onOpenChange={setUsageOpen} />}
             </div>
           )}
         </div>
