@@ -32,6 +32,21 @@ export function normalizeDefaultPrompt(value: unknown): string | null {
   return trimmed
 }
 
+/**
+ * 从 API 异常里取出「能给用户看」的信息：
+ * 优先服务端给的 message，其次只附错误码，都没有才用调用方给的兜底文案。
+ * （`ApiError.details` 就是失败响应体，形如 `{error: {code, message, details}}`。）
+ */
+function describeAgentActionError(err: unknown, fallback: string): string {
+  const details = (err as { details?: any } | null | undefined)?.details
+  const envelope = details?.error ?? details
+  const message = envelope?.message
+  if (typeof message === 'string' && message.trim()) return message
+  const code = envelope?.code
+  if (typeof code === 'string' && code.trim()) return `${fallback}（${code}）`
+  return fallback
+}
+
 class AgentService {
   public async createAgent(request: CreateAgentRequest): Promise<Agent> {
     const backendRequest: Record<string, any> = {
@@ -175,55 +190,34 @@ class AgentService {
     return this.transformAgent(response)
   }
 
+  /** 暂停 agent（状态一律以服务端返回为准）。 */
   public async pauseAgent(agentId: string): Promise<{ agent?: Agent; error?: string }> {
-    try {
-      const response = await httpClient.post<any>(`/agents/${agentId}/pause`)
-      if (!response) {
-        return { error: 'Invalid API response' }
-      }
-      if (response.success !== undefined && !response.success) {
-        return { error: '暂停失败，请稍后重试' }
-      }
-      const agentData = response.data || response
-      if (agentData && typeof agentData === 'object' && agentData.id) {
-        const agent = this.transformAgent(agentData)
-        agent.status = AgentStatus.PAUSED
-        return { agent }
-      } else {
-        const agent = await this.getAgent(agentId)
-        agent.status = AgentStatus.PAUSED
-        return { agent }
-      }
-    } catch (err) {
-      return { error: '暂停失败，请稍后重试' }
-    }
+    return this.changeRunningState(agentId, 'pause')
   }
 
+  /** 启动 agent（paused 与 error 都可启动，状态以服务端返回为准）。 */
   public async resumeAgent(agentId: string): Promise<{ agent?: Agent; error?: string }> {
+    return this.changeRunningState(agentId, 'resume')
+  }
+
+  /**
+   * 暂停 / 启动的共同实现（两个按钮唯一的状态来源）。
+   */
+  private async changeRunningState(
+    agentId: string,
+    action: 'pause' | 'resume'
+  ): Promise<{ agent?: Agent; error?: string }> {
+    const fallback = action === 'pause' ? '暂停失败，请稍后重试' : '启动失败，请稍后重试'
     try {
-      const response = await httpClient.post<any>(`/agents/${agentId}/resume`)
-      console.log('Resume agent response:', response)
-      if (!response) {
-        console.log('No response received')
-        return { error: 'Invalid API response' }
-      }
-      if (response.success !== undefined && !response.success) {
-        console.log('Success is false, returning error')
-        return { error: '启动失败，请稍后重试' }
-      }
-      const agentData = response.data || response
+      const response = await httpClient.post<any>(`/agents/${agentId}/${action}`)
+      const agentData = response?.data ?? response
       if (agentData && typeof agentData === 'object' && agentData.id) {
-        const agent = this.transformAgent(agentData)
-        agent.status = AgentStatus.RUNNING
-        return { agent }
-      } else {
-        const agent = await this.getAgent(agentId)
-        agent.status = AgentStatus.RUNNING
-        return { agent }
+        return { agent: this.transformAgent(agentData) }
       }
+      // 服务端没回 agent 实体：回读一次拿真实状态，而不是自己猜
+      return { agent: await this.getAgent(agentId) }
     } catch (err) {
-      console.error('Error in resumeAgent:', err)
-      return { error: '启动失败，请稍后重试' }
+      return { error: describeAgentActionError(err, fallback) }
     }
   }
 
