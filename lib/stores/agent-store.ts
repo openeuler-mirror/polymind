@@ -9,13 +9,23 @@ import { appConfig } from '@/app/config'
 import { syncUrlParams, getUrlParam } from './utils'
 import type { StoreState } from './index'
 
+/**
+ * agents 列表的加载结果——回答「现在知不知道服务端有哪些 agent」，
+ * 而不是「是否正在请求」（后者是 isAgentsLoading）。
+ *
+ * - pending：还没拿到过任何权威列表（初始态）
+ * - loaded： 已经拿到过完整列表。单调不回退：后续刷新失败不推翻已知结果
+ * - error：  尚未拿到过列表且最近一次加载失败。
+ */
+export type AgentsLoadState = 'pending' | 'loaded' | 'error'
+
 export interface AgentSlice {
   agents: Agent[]
   currentAgentId: string | null
   agentStatus: Record<string, Agent['status']>
   agentCreateFlag: number
   isAgentsLoading: boolean
-  agentsLoaded: boolean
+  agentsLoadState: AgentsLoadState
   setCurrentAgent: (agentId: string | null) => void
   triggerAgentCreate: () => void
   addAgent: (agent: Agent) => void
@@ -63,7 +73,7 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
     agentStatus: {},
     agentCreateFlag: 0,
     isAgentsLoading: false,
-    agentsLoaded: false,
+    agentsLoadState: 'pending',
 
     setCurrentAgent: agentId => {
       const currentSessionId = getUrlParam('session')
@@ -125,7 +135,7 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
     },
 
     setAgents: agents => {
-      set(() => ({ agents }))
+      set({ agents, agentsLoadState: 'loaded' })
     },
 
     initializeAgent: async (config: CreateAgentRequest) => {
@@ -173,7 +183,7 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
           )
           return {
             agents: cached.agents,
-            agentsLoaded: true,
+            agentsLoadState: 'loaded',
             conversations: mergeAndSort(freshConvs, patched),
           }
         })
@@ -212,7 +222,7 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
             }
             return {
               agents,
-              agentsLoaded: true,
+              agentsLoadState: 'loaded',
               conversations: merged,
               isAgentsLoading: false,
               ...(convStillExists ? {} : { currentConversationId: null }),
@@ -220,7 +230,12 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
           })
         } catch (error) {
           console.error('Failed to fetch agents with conversations:', error)
-          set({ isAgentsLoading: false })
+          // 手里已有可信列表（缓存或上一次成功）时刷新失败不降级：已知结果仍然有效。
+          // 一次都没成功过才落到 error，让上层能把「还没加载」和「加载失败」区分开。
+          set(state => ({
+            isAgentsLoading: false,
+            agentsLoadState: state.agentsLoadState === 'loaded' ? 'loaded' : 'error',
+          }))
         } finally {
           pendingFetch = null
         }

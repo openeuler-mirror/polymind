@@ -119,6 +119,7 @@ describe('AgentSlice', () => {
       agentStatus: {},
       agentCreateFlag: 0,
       isAgentsLoading: false,
+      agentsLoadState: 'pending',
       conversations: [],
       currentConversationId: null,
     })
@@ -520,6 +521,80 @@ describe('AgentSlice', () => {
       // Cleanup: resolve network and flush pendingFetch
       resolveNetwork!([{ id: 'test-agent', name: 'Test Agent', conversations: [] }])
       await new Promise(r => setTimeout(r, 10))
+    })
+  })
+
+  /**
+   * agentsLoadState 是模版引导气泡的「列表是否可信」闸门：
+   * pending/error 时必须 fail-closed，否则加载完成前 agents 恒为空数组，
+   * 判定会得出「用户还没建过模版 agent」而误弹一次性的引导。
+   */
+  describe('agentsLoadState', () => {
+    it('初始为 pending', () => {
+      expect(useTestStore.getState().agentsLoadState).toBe('pending')
+    })
+
+    it('网络成功后置为 loaded', async () => {
+      ;(cacheGetAll as jest.Mock).mockReturnValue(null)
+      setupNetworkMocks([{ id: 'agent-1', name: 'Agent 1' }], [])
+
+      await useTestStore.getState().fetchAgentsWithConversations()
+
+      expect(useTestStore.getState().agentsLoadState).toBe('loaded')
+    })
+
+    it('命中缓存即视为 loaded，不必等网络返回', async () => {
+      ;(cacheGetAll as jest.Mock).mockReturnValue({
+        agents: [{ ...testAgent, id: 'cached-agent' }],
+        conversations: [],
+        sessionAgentNames: [],
+      })
+      let resolveNetwork: (value: any[]) => void
+      const deferred = new Promise<any[]>(resolve => {
+        resolveNetwork = resolve
+      })
+      ;(agentService.getAgentsWithConversations as jest.Mock).mockReturnValue(deferred)
+      setupTransformAgentMock()
+
+      await useTestStore.getState().fetchAgentsWithConversations()
+
+      expect(useTestStore.getState().agentsLoadState).toBe('loaded')
+
+      resolveNetwork!([{ id: 'agent-1', name: 'Agent 1', conversations: [] }])
+      await new Promise(r => setTimeout(r, 10))
+    })
+
+    it('一次都没成功过时失败落到 error，而非永远停在 pending', async () => {
+      ;(cacheGetAll as jest.Mock).mockReturnValue(null)
+      ;(agentService.getAgentsWithConversations as jest.Mock).mockRejectedValue(
+        new Error('Network error')
+      )
+
+      await useTestStore.getState().fetchAgentsWithConversations()
+
+      expect(useTestStore.getState().agentsLoadState).toBe('error')
+    })
+
+    it('已有可信列表时刷新失败不降级', async () => {
+      ;(cacheGetAll as jest.Mock).mockReturnValue(null)
+      setupNetworkMocks([{ id: 'agent-1', name: 'Agent 1' }], [])
+      await useTestStore.getState().fetchAgentsWithConversations()
+      expect(useTestStore.getState().agentsLoadState).toBe('loaded')
+      ;(agentService.getAgentsWithConversations as jest.Mock).mockRejectedValue(
+        new Error('Network error')
+      )
+      await useTestStore.getState().fetchAgentsWithConversations()
+
+      const state = useTestStore.getState()
+      expect(state.agentsLoadState).toBe('loaded')
+      // 上一次的列表仍然是当前可用的结果
+      expect(state.agents).toHaveLength(1)
+    })
+
+    it('setAgents 写入的是权威列表，必须同步置为 loaded', () => {
+      useTestStore.getState().setAgents([testAgent])
+
+      expect(useTestStore.getState().agentsLoadState).toBe('loaded')
     })
   })
 })

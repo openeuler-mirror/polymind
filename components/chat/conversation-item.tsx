@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MessageStatus } from '@/lib/types'
+import { CONVERSATION_TITLE_MAX_LENGTH } from '@/lib/input-limits'
 import type { Message } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import {
@@ -171,7 +172,7 @@ export function ConversationItem({
             <input
               ref={inputRef}
               value={editTitle}
-              maxLength={255}
+              maxLength={CONVERSATION_TITLE_MAX_LENGTH}
               onChange={e => setEditTitle(e.target.value)}
               onBlur={commitRename}
               onKeyDown={handleKeyDown}
