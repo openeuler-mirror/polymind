@@ -791,6 +791,7 @@
       "preview": "计划预览：{{preview}}",
       "cronHint": "格式为 5 段：分 时 日 月 星期，例如 0 9 * * * 表示每天 09:00；星期按 0=周一 … 6=周日 解析。",
       "invalidInterval": "请输入大于 0 的间隔时长",
+      "invalidIntervalTooLong": "间隔不能超过 30 天",
       "invalidMinute": "请输入 0-59 之间的分钟数",
       "timeRequired": "请选择执行时间",
       "weekdayRequired": "请至少选择一个星期",

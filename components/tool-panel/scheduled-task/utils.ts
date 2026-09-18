@@ -109,6 +109,11 @@ export const REPEAT_MODE_OPTIONS: Array<{ value: RepeatMode; labelKey: string }>
   value => ({ value, labelKey: `scheduledTask.schedule.repeatMode.${value}` })
 )
 
+/**
+ * 间隔秒数上界（30 天）。**必须与后端 MAX_INTERVAL_SECONDS 保持一致**
+ */
+export const MAX_INTERVAL_SECONDS = 60 * 60 * 24 * 30
+
 /** 间隔单位 -> 换算秒数（后端只认 interval_seconds）；下拉选项由同一张表派生，避免两处重复。 */
 export const INTERVAL_UNIT_SECONDS = { seconds: 1, minutes: 60, hours: 3600 }
 export type IntervalUnit = keyof typeof INTERVAL_UNIT_SECONDS
@@ -316,8 +321,12 @@ export function validateScheduleDraft(
 ): string | null {
   const t = (key: string) => translate(`tool-panel:scheduledTask.schedule.${key}`)
   switch (draft.mode) {
-    case 'interval':
-      return intervalSecondsFromDraft(draft) === null ? t('invalidInterval') : null
+    case 'interval': {
+      const seconds = intervalSecondsFromDraft(draft)
+      if (seconds === null) return t('invalidInterval')
+      // 上界与后端一致（D-02）：超限时给内联提示，而不是提交到后端拿 422 的通用失败文案。
+      return seconds > MAX_INTERVAL_SECONDS ? t('invalidIntervalTooLong') : null
+    }
     case 'hourly':
       return toInt(draft.minute, 0, 59) === null ? t('invalidMinute') : null
     case 'daily':

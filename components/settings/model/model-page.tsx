@@ -94,6 +94,9 @@ export function ModelPage() {
   const { t } = useTranslation('settings')
   const [models, setModels] = useState<ModelConfig[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  // 模型列表是否已「确实加载成功」：用于区分「加载成功但列表为空」与「尚未加载完 / 加载失败」。
+  // 后者 models 同样是空数组，若据此判定「当前没有默认模型」会误勾选「设为默认模型」。
+  const [modelsLoaded, setModelsLoaded] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingModel, setEditingModel] = useState<ModelConfig | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -126,6 +129,7 @@ export function ModelPage() {
     try {
       const data = await modelService.getModels()
       setModels(data)
+      setModelsLoaded(true)
     } catch (error) {
       console.error('Failed to load models:', error)
       toast({
@@ -153,8 +157,9 @@ export function ModelPage() {
       })
     } else {
       setEditingModel(null)
-      // 不存在"启用且为默认"的模型时（含全禁用/仅禁用默认），新建的第一个模型自动设为默认（F1 优化点 3）
-      setIsSetDefault(!models.some(m => m.enabled && m.isDefault))
+      // 不存在"启用且为默认"的模型时（含全禁用/仅禁用默认），新建的第一个模型自动设为默认。
+      // 但只有列表确实加载成功后才能这么判定
+      setIsSetDefault(modelsLoaded && !models.some(m => m.enabled && m.isDefault))
       const defaultProvider = aiProvidersConfig.providers.find(p => p.id === ModelProvider.OPENAI)
       const defaultModel =
         defaultProvider?.models.find(m => m.isDefault) || defaultProvider?.models[0]

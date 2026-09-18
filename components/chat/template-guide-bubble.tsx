@@ -25,13 +25,17 @@ export function TemplateGuideBubble() {
   const anchorReady = useChatStore(state => state.templateHintAnchorReady)
   const dismissTemplateHint = useChatStore(state => state.dismissTemplateHint)
   const evaluateTemplateHint = useChatStore(state => state.evaluateTemplateHint)
+  // 「是否已存在模版 agent」这一抑制条件来自 agents，而 agents 是异步加载的：
+  // 必须把它的落地事件纳入判定依赖，否则加载完成前 agents 恒为空、判定恒为「不存在」。
+  const agents = useChatStore(state => state.agents)
+  const agentsLoaded = useChatStore(state => state.agentsLoaded)
   // 锚点本体在模块级 ref（store 不持有 DOM 节点），仅在就绪标志为真时读取
   const anchorEl = anchorReady ? getTemplateHintAnchor() : null
 
   // 欢迎态重建（例如从会话返回）时补一次判定：条件可能已在此前齐备。
   useEffect(() => {
     evaluateTemplateHint()
-  }, [evaluateTemplateHint])
+  }, [evaluateTemplateHint, agents, agentsLoaded])
 
   // 卸载（离开欢迎态）时复位可见性：气泡已不在 DOM 中，避免 store 里留下永久的 visible=true。
   // 以「锚点是否仍注册」区分真实卸载与 StrictMode 的开发期假卸载：假卸载后锚点会被立刻重新注册，

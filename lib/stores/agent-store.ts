@@ -15,6 +15,7 @@ export interface AgentSlice {
   agentStatus: Record<string, Agent['status']>
   agentCreateFlag: number
   isAgentsLoading: boolean
+  agentsLoaded: boolean
   setCurrentAgent: (agentId: string | null) => void
   triggerAgentCreate: () => void
   addAgent: (agent: Agent) => void
@@ -62,6 +63,7 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
     agentStatus: {},
     agentCreateFlag: 0,
     isAgentsLoading: false,
+    agentsLoaded: false,
 
     setCurrentAgent: agentId => {
       const currentSessionId = getUrlParam('session')
@@ -171,6 +173,7 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
           )
           return {
             agents: cached.agents,
+            agentsLoaded: true,
             conversations: mergeAndSort(freshConvs, patched),
           }
         })
@@ -209,6 +212,7 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
             }
             return {
               agents,
+              agentsLoaded: true,
               conversations: merged,
               isAgentsLoading: false,
               ...(convStillExists ? {} : { currentConversationId: null }),

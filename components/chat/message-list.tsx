@@ -106,6 +106,9 @@ const MessageItem = memo(function MessageItem({
   const hasPendingQuestion =
     !isUser && !!message.question?.length && message.questionStatus === 'pending'
 
+  // 中断态：由下面的状态行/提示统一表达。
+  const interrupted = !isUser && message.status === 'interrupted'
+
   // 事件分组：按时间线渲染（深度思考 / 正文 / 工具调用 / 提问）。
   // 分组带缓存与尾部增量复用，避免流式期间每个 delta 都重建整条时间线。
   const eventGroups: MessageEventGroup[] =
@@ -181,16 +184,18 @@ const MessageItem = memo(function MessageItem({
           </div>
         )}
 
-        {/* 已完成耗时：点击展开/收起过程模块（深度思考/工具调用/提问） */}
+        {/* 已完成耗时 / 中断态：点击展开/收起过程模块（深度思考/工具调用/提问） */}
         {processCollapsible && (
           <button
             onClick={() => setProcessExpanded(!processExpanded)}
             className="group/mod flex w-fit items-center gap-2 text-sm text-process-foreground transition-colors duration-150 hover:text-foreground"
           >
             <span>
-              {durationText
-                ? t('message.completedWithDuration', { duration: durationText })
-                : t('message.completed')}
+              {interrupted
+                ? t('message.interrupted')
+                : durationText
+                  ? t('message.completedWithDuration', { duration: durationText })
+                  : t('message.completed')}
             </span>
             <ChevronRight
               className={cn(
@@ -199,6 +204,13 @@ const MessageItem = memo(function MessageItem({
               )}
             />
           </button>
+        )}
+
+        {interrupted && !processCollapsible && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <AlertCircle className="h-4 w-4" />
+            <span>{t('message.interrupted')}</span>
+          </div>
         )}
 
         {/* Attachments */}
@@ -290,12 +302,7 @@ const MessageItem = memo(function MessageItem({
           !message.events.some(e => e.type === 'message.delta')) &&
           (isUser || message.content || (message.isStreaming && !hasPendingQuestion)) && (
             <>
-              {message.status === 'interrupted' && !message.content ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>{t('message.interrupted')}</span>
-                </div>
-              ) : isUser ? (
+              {isUser ? (
                 // 用户气泡底色走 --user-bubble 语义 token：
                 // 浅色是淡蓝、深色是主色叠加，暗色模式下正文（近白）依然可读。
                 <div className="rounded-2xl bg-user-bubble px-4 py-3">

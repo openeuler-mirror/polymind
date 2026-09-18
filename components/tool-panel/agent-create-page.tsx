@@ -258,6 +258,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                   id="name"
                   name="name"
                   value={agentForm.name}
+                  maxLength={255}
                   onChange={e => {
                     handleFormChange(e)
                     validateAgentName(e.target.value)

@@ -123,3 +123,6 @@ plans/*.temp
 .pnpm-store/
 
 .claude
+
+
+/tests/

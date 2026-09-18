@@ -103,16 +103,23 @@ export function createDefaultOnboardingSliceData(): OnboardingSliceData {
 
 /**
  * 判定气泡是否应当展示（纯函数，便于单测）。
- * 条件：已配置过默认模型 + 未消费标志 + 模版墙就绪且锚点已注册 + 尚无模版 agent + 默认模型弹窗未打开。
+ * 条件：已配置过默认模型 + 未消费标志 + 模版墙就绪且锚点已注册 + agents 已加载完成
+ *      + 尚无模版 agent + 默认模型弹窗未打开。
  */
 export function canShowTemplateHint(
-  state: OnboardingSliceData & Pick<StoreState, 'agents' | 'isDefaultModelDialogOpen'>
+  state: OnboardingSliceData &
+    Pick<StoreState, 'agents' | 'isDefaultModelDialogOpen'> & {
+      /** agents 是否已加载成功；缺省（只关心其它条件的调用方/单测）按「已加载」处理。 */
+      agentsLoaded?: boolean
+    }
 ): boolean {
   if (state.templateHintVisible || state.templateHintConsumed) return false
   if (state.isDefaultModelDialogOpen) return false
   if (!state.hasConfiguredDefaultModel) return false
   if (!state.templateWallReady || !state.templateHintAnchorReady) return false
   if (state.templateNames.length === 0) return false
+  // agents 未加载完成时它恒为空数组，等 agents 落地后由调用方重新触发 evaluateTemplateHint。
+  if (state.agentsLoaded === false) return false
   return !state.agents.some(agent => state.templateNames.includes(agent.name))
 }
 

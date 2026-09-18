@@ -171,6 +171,7 @@ export function ConversationItem({
             <input
               ref={inputRef}
               value={editTitle}
+              maxLength={255}
               onChange={e => setEditTitle(e.target.value)}
               onBlur={commitRename}
               onKeyDown={handleKeyDown}
