@@ -17,6 +17,7 @@ import { agentService } from '@/services/agent-service'
 import { modelService } from '@/services/model-service'
 import { SandboxType, ModelConfig, AdapterType } from '@/lib/types'
 import { useChatStore } from '@/lib/store'
+import { AGENT_DESCRIPTION_MAX_LENGTH, AGENT_NAME_MAX_LENGTH } from '@/lib/input-limits'
 import {
   Bot,
   Brain,
@@ -258,6 +259,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                   id="name"
                   name="name"
                   value={agentForm.name}
+                  maxLength={AGENT_NAME_MAX_LENGTH}
                   onChange={e => {
                     handleFormChange(e)
                     validateAgentName(e.target.value)
@@ -278,6 +280,9 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                 id="description"
                 name="description"
                 value={agentForm.description}
+                // 与后端 AgentCreateRequest.description(max_length=2000) 对齐：
+                // 不设上限时超长只能等提交后吃 422 的通用失败文案。
+                maxLength={AGENT_DESCRIPTION_MAX_LENGTH}
                 onChange={handleFormChange}
                 placeholder={t('agentCreate.descriptionPlaceholder')}
                 className="w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"

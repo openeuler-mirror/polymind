@@ -101,24 +101,53 @@ export function createDefaultOnboardingSliceData(): OnboardingSliceData {
   }
 }
 
+/** 判定「是否已存在模版 agent」所需的最小状态。 */
+type TemplateAgentContext = Pick<OnboardingSliceData, 'templateNames'> & Pick<StoreState, 'agents'>
+
+/**
+ * 是否已经存在同名模版 agent（纯函数）。
+ * store 的展示判定与组件的重判依赖共用这一份口径，避免两处各写一遍交集逻辑后漂移。
+ */
+export function hasTemplateAgent(state: TemplateAgentContext): boolean {
+  if (state.templateNames.length === 0) return false
+  return state.agents.some(agent => state.templateNames.includes(agent.name))
+}
+
+/**
+ * 组件订阅用的选择器：对外只暴露布尔量。
+ * 直接订阅 agents 数组会让每次列表写入（缓存落地、刷新、增删）都改变数组引用并重跑 effect，
+ * 而这里真正关心的只有「交集是否为空」这一个标量。
+ */
+export function selectHasTemplateAgent(state: TemplateAgentContext): boolean {
+  return hasTemplateAgent(state)
+}
+
 /**
  * 判定气泡是否应当展示（纯函数，便于单测）。
- * 条件：已配置过默认模型 + 未消费标志 + 模版墙就绪且锚点已注册 + 尚无模版 agent + 默认模型弹窗未打开。
+ * 条件：已配置过默认模型 + 未消费标志 + 模版墙就绪且锚点已注册 + agents 加载完成且可信
+ *      + 尚无模版 agent + 默认模型弹窗未打开。
+ *
+ * agentsLoadState 必传（不用可选参数 + 缺省为「已加载」）：漏传就退回旧行为——
+ * 加载完成前 agents 恒为空数组，判定会恒定得出「还没建过模版 agent」而误弹。
  */
 export function canShowTemplateHint(
-  state: OnboardingSliceData & Pick<StoreState, 'agents' | 'isDefaultModelDialogOpen'>
+  state: OnboardingSliceData &
+    Pick<StoreState, 'agents' | 'agentsLoadState' | 'isDefaultModelDialogOpen'>
 ): boolean {
   if (state.templateHintVisible || state.templateHintConsumed) return false
   if (state.isDefaultModelDialogOpen) return false
   if (!state.hasConfiguredDefaultModel) return false
   if (!state.templateWallReady || !state.templateHintAnchorReady) return false
   if (state.templateNames.length === 0) return false
-  return !state.agents.some(agent => state.templateNames.includes(agent.name))
+  // 只有「已拿到过服务端列表」才允许下结论；pending/error 一律 fail-closed，
+  // 等 agents 落地后由组件重新触发 evaluateTemplateHint。
+  if (state.agentsLoadState !== 'loaded') return false
+  return !hasTemplateAgent(state)
 }
 
-/** 本 slice 运行所需的跨 slice 上下文（agents 来自 AgentSlice，弹窗开关来自 UISlice）。 */
+/** 本 slice 运行所需的跨 slice 上下文（agents 状态来自 AgentSlice，弹窗开关来自 UISlice）。 */
 export type OnboardingStoreState = OnboardingSlice &
-  Pick<StoreState, 'agents' | 'isDefaultModelDialogOpen'>
+  Pick<StoreState, 'agents' | 'agentsLoadState' | 'isDefaultModelDialogOpen'>
 
 export const createOnboardingSlice: StateCreator<OnboardingStoreState, [], [], OnboardingSlice> = (
   set,

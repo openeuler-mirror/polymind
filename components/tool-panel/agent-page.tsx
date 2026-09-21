@@ -280,7 +280,13 @@ function AgentCard({
   onDelete: () => void
 }) {
   const { t } = useTranslation('tool-panel')
-  const running = agent.status.toLowerCase() === 'running'
+  const status = agent.status.toLowerCase()
+  // 只有「运行中」能暂停；「已暂停 / 出错」能启动（error → running 是后端状态机允许的
+  // 合法迁移，也是恢复失败后的唯一出口）。creating / deleted 两个都不显示——
+  // 旧实现写的是 running ? 暂停 : 启动，于是 creating/deleted 也会长出一个绿色
+  // 「启动」按钮，点了必然失败。
+  const canPause = status === 'running'
+  const canResume = status === 'paused' || status === 'error'
   const hasSkills = (agent.skills?.length ?? 0) > 0
   return (
     <div className="flex flex-col rounded-2xl border bg-card p-4">
@@ -315,7 +321,7 @@ function AgentCard({
       </div>
 
       <div className="mt-3 flex items-center gap-2 border-t border-border/70 pt-3">
-        {running ? (
+        {canPause && (
           <Button
             variant="ghost"
             size="sm"
@@ -333,7 +339,8 @@ function AgentCard({
             )}
             {t('agent.action.pause')}
           </Button>
-        ) : (
+        )}
+        {canResume && (
           <Button
             variant="ghost"
             size="sm"
@@ -486,11 +493,12 @@ export function AgentPage() {
         setProcessingAgentId(agentId)
       }
 
-      if (action === 'pause') {
-        const result = await agentService.pauseAgent(agentId)
-        console.log('Pause agent result:', result)
+      if (action === 'pause' || action === 'resume') {
+        const result =
+          action === 'pause'
+            ? await agentService.pauseAgent(agentId)
+            : await agentService.resumeAgent(agentId)
         if (result.error) {
-          console.log('Pause agent error:', result.error)
           toast({
             title: t('common:status.error'),
             description: result.error,
@@ -499,24 +507,11 @@ export function AgentPage() {
           return
         }
         if (result.agent) {
-          // 写入全局 store，模版墙与侧边栏同步可见
+          // 以服务端返回为准写入全局 store，模版墙与侧边栏同步可见
           updateAgent(result.agent)
-        }
-      } else if (action === 'resume') {
-        const result = await agentService.resumeAgent(agentId)
-        console.log('Resume agent result:', result)
-        if (result.error) {
-          console.log('Resume agent error:', result.error)
-          toast({
-            title: t('common:status.error'),
-            description: result.error,
-            variant: 'destructive',
-          })
-          return
-        }
-        if (result.agent) {
-          // 写入全局 store，模版墙与侧边栏同步可见
-          updateAgent(result.agent)
+        } else {
+          // 没有拿到 agent 实体（例如回读失败）：退回重新拉列表，避免 UI 停在旧状态
+          await fetchAgents()
         }
       } else if (action === 'delete') {
         setIsDeleting(true)

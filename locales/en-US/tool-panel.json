@@ -773,6 +773,7 @@
       "preview": "Schedule preview: {{preview}}",
       "cronHint": "Use 5 fields: minute hour day month weekday. For example, 0 9 * * * means every day at 09:00; weekdays are parsed as 0=Monday … 6=Sunday.",
       "invalidInterval": "Please enter an interval greater than 0",
+      "invalidIntervalTooLong": "Interval cannot exceed 30 days",
       "invalidMinute": "Please enter a minute between 0 and 59",
       "timeRequired": "Please select a run time",
       "weekdayRequired": "Please select at least one weekday",

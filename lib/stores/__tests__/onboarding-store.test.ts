@@ -6,7 +6,9 @@ import {
   createDefaultOnboardingSliceData,
   createOnboardingSlice,
   getTemplateHintAnchor,
+  hasTemplateAgent,
   resetTemplateHintAnchor,
+  selectHasTemplateAgent,
   TEMPLATE_HINT_STORAGE_KEY,
   type OnboardingStoreState,
 } from '../onboarding-store'
@@ -16,6 +18,8 @@ function createTestStore() {
   return create<OnboardingStoreState>()((...a) => ({
     ...createOnboardingSlice(...a),
     agents: [],
+    // 用例直接写 agents，等价于「列表已经拿到」；未加载/失败的场景由用例显式覆盖。
+    agentsLoadState: 'loaded',
     isDefaultModelDialogOpen: false,
   }))
 }
@@ -56,6 +60,7 @@ describe('onboarding-store', () => {
     const base = {
       ...createDefaultOnboardingSliceData(),
       agents: [] as Agent[],
+      agentsLoadState: 'loaded' as const,
       isDefaultModelDialogOpen: false,
       hasConfiguredDefaultModel: true,
       templateWallReady: true,
@@ -90,6 +95,38 @@ describe('onboarding-store', () => {
       // 同名之外的其他 agent 不影响判定
       expect(canShowTemplateHint({ ...base, agents: [makeAgent('my-own-agent')] })).toBe(true)
     })
+
+    // agents 未落地时它恒为空数组，「还没有模版 agent」这个结论并不成立：
+    // 必须 fail-closed，否则引导会在用户其实已建过模版 agent 时弹出并被永久消费。
+    it.each(['pending', 'error'] as const)('agents 未成功加载（%s）时不展示', state => {
+      expect(canShowTemplateHint({ ...base, agentsLoadState: state })).toBe(false)
+      expect(
+        canShowTemplateHint({ ...base, agentsLoadState: state, agents: [makeAgent('x')] })
+      ).toBe(false)
+    })
+  })
+
+  describe('hasTemplateAgent / selectHasTemplateAgent', () => {
+    const context = (templateNames: string[], agentNames: string[]) => ({
+      templateNames,
+      agents: agentNames.map(makeAgent),
+    })
+
+    it('命中同名 agent 才算已存在', () => {
+      expect(hasTemplateAgent(context(['issue-fixer'], ['issue-fixer']))).toBe(true)
+      expect(hasTemplateAgent(context(['issue-fixer'], ['my-own-agent']))).toBe(false)
+      expect(hasTemplateAgent(context(['issue-fixer'], []))).toBe(false)
+    })
+
+    it('模版名列表为空时一律为 false（不给「空集合交集」留下误判空间）', () => {
+      expect(hasTemplateAgent(context([], ['issue-fixer']))).toBe(false)
+    })
+
+    it('选择器与判定函数同口径，且返回值是可直接比较的标量', () => {
+      const state = { ...context(['issue-fixer'], ['my-own-agent']), extra: 'ignored' }
+      expect(selectHasTemplateAgent(state)).toBe(hasTemplateAgent(state))
+      expect(typeof selectHasTemplateAgent(state)).toBe('boolean')
+    })
   })
 
   describe('evaluateTemplateHint', () => {
@@ -107,6 +144,19 @@ describe('onboarding-store', () => {
       expect(store.getState().templateHintVisible).toBe(true)
       expect(store.getState().templateHintConsumed).toBe(true)
       expect(readPersistedFlag()).toEqual({ consumedAt: expect.any(String) })
+    })
+
+    it('agents 从 pending 变成 loaded 后才展示（组件据此重判）', () => {
+      const store = createTestStore()
+      store.setState({ agentsLoadState: 'pending' })
+      armHint(store)
+      expect(store.getState().templateHintVisible).toBe(false)
+      expect(readPersistedFlag()).toBeNull()
+
+      // 对应气泡 effect 在 agentsLoadState 变化后的那一次 evaluateTemplateHint
+      store.setState({ agentsLoadState: 'loaded' })
+      store.getState().evaluateTemplateHint()
+      expect(store.getState().templateHintVisible).toBe(true)
     })
 
     it('已有模版 agent 时既不展示也不消费', () => {
