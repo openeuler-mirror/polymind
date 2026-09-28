@@ -181,6 +181,17 @@ export function extractSkillOperationErrorMessage(
       return t('settings:skill.error.installRecordFailed', { subject: skillSubject })
     case 'SKILL_UNINSTALL_RECORD_FAILED':
       return t('settings:skill.error.uninstallRecordFailed', { subject: skillSubject })
+    // wittyhub 结构化分类（后端 WITTYHUB_*）：命中时用本地文案覆盖 details.error，
+    // 避免把 hub 的原始状态码（如 "HTTP 409"）和本次响应的 HTTP 状态混在一起展示。
+    case 'WITTYHUB_SKILL_NOT_FOUND':
+    case 'WITTYHUB_REPO_NOT_INDEXED':
+      return t('settings:skill.error.wittyhubNotFound', { subject: skillSubject })
+    case 'WITTYHUB_BAD_SOURCE':
+      return t('settings:skill.error.wittyhubBadSource', { subject: skillSubject })
+    case 'WITTYHUB_HUB_UNREACHABLE':
+      return t('settings:skill.error.wittyhubUnreachable', { subject: skillSubject })
+    case 'WITTYHUB_HUB_HTTP_ERROR':
+      return t('settings:skill.error.wittyhubHubError')
     default:
       break
   }

@@ -24,7 +24,7 @@ export function getSkillSourceBadgeMeta(
   switch (sourceType) {
     case 'wittyhub':
       return {
-        label: 'WittyHub',
+        label: 'SkillHub',
         className: 'border-sky-200 bg-sky-50 text-sky-700',
       }
     case 'clawhub':
