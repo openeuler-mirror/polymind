@@ -3995,9 +3995,9 @@
     {
       "id": "moonshotai",
       "name": "Moonshot AI",
-      "website": "https://moonshot.ai",
-      "apiKeyUrl": "https://platform.moonshot.ai",
-      "apiBaseUrl": "https://api.moonshot.ai/v1",
+      "website": "https://moonshot.cn",
+      "apiKeyUrl": "https://platform.moonshot.cn",
+      "apiBaseUrl": "https://api.moonshot.cn/v1",
       "logoUrl": "https://moonshot.ai/favicon.ico",
       "supportsToolCalls": true,
       "supportsReasoning": true,

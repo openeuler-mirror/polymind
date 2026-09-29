@@ -117,8 +117,8 @@ const PROVIDER_URLS: Record<string, { website: string; apiKeyUrl: string }> = {
     apiKeyUrl: 'https://zhipu.ai/manage-apikey/apikey-list',
   },
   moonshotai: {
-    website: 'https://moonshot.ai',
-    apiKeyUrl: 'https://platform.moonshot.ai',
+    website: 'https://moonshot.cn',
+    apiKeyUrl: 'https://platform.moonshot.cn',
   },
   google: {
     website: 'https://ai.google.com',
@@ -128,6 +128,11 @@ const PROVIDER_URLS: Record<string, { website: string; apiKeyUrl: string }> = {
     website: 'https://x.ai',
     apiKeyUrl: 'https://console.x.ai',
   },
+}
+
+// 固定的 apiBaseUrl 覆盖表：优先级高于 models.dev 上游的 devProvider.api。
+const PROVIDER_API_BASE_URLS: Record<string, string> = {
+  moonshotai: 'https://api.moonshot.cn/v1',
 }
 
 const PROVIDER_LOGOS: Record<string, string> = {
@@ -312,7 +317,8 @@ function updateProviderFromDev(
     name: devProvider.name || existingProvider.name,
     website: providerUrls.website || existingProvider.website,
     apiKeyUrl: providerUrls.apiKeyUrl || existingProvider.apiKeyUrl,
-    apiBaseUrl: devProvider.api || existingProvider.apiBaseUrl,
+    apiBaseUrl:
+      PROVIDER_API_BASE_URLS[providerId] || devProvider.api || existingProvider.apiBaseUrl,
     logoUrl: PROVIDER_LOGOS[providerId] || existingProvider.logoUrl,
     supportsToolCalls: models.some(m => m.capabilities.toolCalls),
     supportsReasoning: models.some(m => m.capabilities.reasoning),
@@ -345,7 +351,7 @@ function createProviderFromDev(providerId: string, devProvider: ModelsDevProvide
     name: devProvider.name || providerId,
     website: providerUrls.website || '',
     apiKeyUrl: providerUrls.apiKeyUrl || '',
-    apiBaseUrl: devProvider.api || '',
+    apiBaseUrl: PROVIDER_API_BASE_URLS[providerId] || devProvider.api || '',
     logoUrl: PROVIDER_LOGOS[providerId] || '',
     supportsToolCalls: models.some(m => m.capabilities.toolCalls),
     supportsReasoning: models.some(m => m.capabilities.reasoning),
