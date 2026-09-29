@@ -208,6 +208,20 @@ export interface Conversation {
   lastMessageStatus?: MessageStatus // 最后一条助手消息的状态
 }
 
+/**
+ * 删除会话的目标标识。
+ *
+ * 侧栏存在两类删除对象：已加载到本地的会话（按 id / sessionId 定位并移除本地条目），
+ * 以及只存在于后端摘要中的定时会话（本地无条目，只能删后端 session）。
+ */
+export interface ConversationDeleteTarget {
+  id: string
+  title?: string
+  agentId?: string
+  sessionId?: string
+  scheduledTaskId?: string
+}
+
 // ============================================
 // 工具和模型相关类型
 // ============================================

@@ -1,18 +1,8 @@
 'use client'
 
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ConfirmDestructiveDialog } from '@/components/common/confirm-destructive-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { channelService, type ChannelInstance } from '@/services/channel-service'
 import { channelErrorMessage } from './utils'
@@ -37,16 +27,14 @@ export function DeleteChannelInstanceDialog({
 }: DeleteChannelInstanceDialogProps) {
   const { t } = useTranslation('channel')
   const { toast } = useToast()
-  const [deleting, setDeleting] = useState(false)
 
-  const handleDelete = async () => {
-    if (!instance) return
-    setDeleting(true)
+  const handleDelete = async (): Promise<boolean> => {
+    if (!instance) return true
     try {
       await channelService.deleteInstance(instance.id)
       toast({ title: t('detail.deleteDialog.succeeded') })
       onDeleted()
-      onClose()
+      return true
     } catch (error) {
       console.error('Failed to delete channel instance:', error)
       toast({
@@ -54,39 +42,21 @@ export function DeleteChannelInstanceDialog({
         description: channelErrorMessage(t, error, t('common:status.error')),
         variant: 'destructive',
       })
-    } finally {
-      setDeleting(false)
+      return false
     }
   }
 
   return (
-    <AlertDialog
+    <ConfirmDestructiveDialog
       open={!!instance}
-      onOpenChange={open => {
-        if (!open) onClose()
-      }}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{t('detail.deleteDialog.title')}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {t('detail.deleteDialog.description', { name: displayName ?? instance?.id ?? '' })}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleting}>{t('common:action.cancel')}</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={event => {
-              event.preventDefault()
-              void handleDelete()
-            }}
-            disabled={deleting}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            {deleting ? t('detail.deleteDialog.deleting') : t('detail.deleteDialog.confirm')}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      title={t('detail.deleteDialog.title')}
+      description={t('detail.deleteDialog.description', {
+        name: displayName ?? instance?.id ?? '',
+      })}
+      confirmLabel={t('detail.deleteDialog.confirm')}
+      pendingLabel={t('detail.deleteDialog.deleting')}
+      onConfirm={handleDelete}
+      onClose={onClose}
+    />
   )
 }

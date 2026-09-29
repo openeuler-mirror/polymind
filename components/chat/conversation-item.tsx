@@ -231,8 +231,10 @@ export function ConversationItem({
                 {conversation.pinned ? t('conversation.item.unpin') : t('conversation.item.pin')}
               </DropdownMenuItem>
             )}
+            {/* 用 onSelect 而非 onClick：Radix 只在未 disabled 时派发 select 事件，
+                disabled 才是真正的代码级拦截（onClick 即便 disabled 也会照常触发）。 */}
             <DropdownMenuItem
-              onClick={onDelete}
+              onSelect={onDelete}
               disabled={disableDelete}
               title={disableDelete ? t('conversation.item.deleteDisabled') : undefined}
               className="text-destructive focus:text-destructive"

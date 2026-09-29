@@ -120,6 +120,12 @@
       "delete": "删除",
       "deleteDisabled": "执行中不可删除"
     },
+    "deleteDialog": {
+      "title": "删除对话",
+      "description": "确定要删除对话「{{title}}」吗？删除后不可恢复，该对话的全部消息将永久丢失。",
+      "scheduledWarning": "该对话绑定定时任务，删除对话将同时删除该任务的执行记录。",
+      "deleting": "删除中..."
+    },
     "scheduledFolder": {
       "deleteTask": "删除定时任务"
     }

@@ -18,18 +18,15 @@ import { enUS, zhCN, type Locale } from 'date-fns/locale'
 import type { TFunction } from 'i18next'
 import i18n from '@/lib/i18n/config'
 import { useChatStore } from '@/lib/store'
-import { MessageStatus, type Conversation } from '@/lib/types'
-import {
-  useScheduledTaskStore,
-  refreshScheduledAfterConversationDelete,
-} from '@/lib/stores/scheduled-task-store'
+import { MessageStatus, type Conversation, type ConversationDeleteTarget } from '@/lib/types'
+import { useScheduledTaskStore } from '@/lib/stores/scheduled-task-store'
+import { deleteConversationByTarget } from '@/lib/stores/conversation-delete'
 import {
   runStatusToMessageStatus,
   type ScheduledTask,
   type ScheduledTaskConversation,
 } from '@/services/scheduled-task-service'
 import { sessionService } from '@/services/session-service'
-import { abortScheduledRunForSession } from '@/lib/stores/scheduled-run-controller'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { groupSidebarConversations, sortByUpdatedAtDesc } from '@/lib/sidebar-utils'
@@ -38,6 +35,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { CustomIcon } from '@/components/ui/custom-icon'
 import { DeleteScheduledTaskDialog } from '@/components/tool-panel/scheduled-task/delete-task-dialog'
+import { DeleteConversationDialog } from './delete-conversation-dialog'
 import { ConversationItem } from './conversation-item'
 import { ScheduledTaskFolder } from './scheduled-task-folder'
 import { SidebarSection } from './sidebar-section'
@@ -47,6 +45,10 @@ export function ConversationSidebar() {
   const dateLocale = i18n.language.startsWith('zh') ? zhCN : enUS
   const [isHydrated, setIsHydrated] = useState(false)
   const [deleteTaskTarget, setDeleteTaskTarget] = useState<ScheduledTask | null>(null)
+  // 待删除会话：点「删除」只记录轻量目标（不持有 messages 快照）并弹确认框，
+  // 确认后才发请求（取消零请求）。
+  const [deleteConversationTarget, setDeleteConversationTarget] =
+    useState<ConversationDeleteTarget | null>(null)
   const [searchDialogOpen, setSearchDialogOpen] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const { toast } = useToast()
@@ -58,7 +60,6 @@ export function ConversationSidebar() {
     isRightPanelOpen,
     activeRightPanelTab,
     setCurrentConversation,
-    deleteConversation,
     toggleSidebar,
     togglePinConversation,
     updateConversationTitle,
@@ -111,33 +112,24 @@ export function ConversationSidebar() {
       variant: 'destructive',
     })
 
-  // 定时任务区条目统一删除（确认式）：后端删 session 成功后由外键级联删除对应 run 记录。
-  // 本地会话走 deleteConversation（后端成功才移除本地并中止挂流，失败保留条目提示重试）；
-  // 仅存在于摘要中的条目直接删 session，成功后中止本地挂流并强制刷新。
-  const handleDeleteScheduledConversation = async (conversation: Conversation) => {
-    const state = useChatStore.getState()
-    const existing = state.conversations.find(
-      c => !!conversation.sessionId && c.sessionId === conversation.sessionId
-    )
-    if (existing) {
-      const deleted = await state.deleteConversation(existing.id)
-      if (!deleted) {
-        notifyDeleteFailed()
-        return
-      }
-      refreshScheduledAfterConversationDelete(existing)
-      return
-    }
-    if (!conversation.agentId || !conversation.sessionId) return
-    try {
-      await sessionService.deleteSession(conversation.agentId, conversation.sessionId)
-      abortScheduledRunForSession(conversation.sessionId)
-    } catch (error) {
-      console.error('Failed to delete scheduled conversation:', error)
-      notifyDeleteFailed()
-      return
-    }
-    void refreshScheduled(true)
+  // 会话删除统一先弹确认框：行内「删除」只记录轻量目标，不发任何请求。
+  const requestDeleteConversation = (conversation: Conversation) => {
+    setDeleteConversationTarget({
+      id: conversation.id,
+      title: conversation.title,
+      agentId: conversation.agentId,
+      sessionId: conversation.sessionId,
+      scheduledTaskId: conversation.scheduledTaskId,
+    })
+  }
+
+  // 确认删除：本地会话 / 仅摘要的定时会话两条路径、mock 守卫、挂流中止与任务列表刷新
+  // 都收敛在 deleteConversationByTarget 里，失败返回 false 让确认框留在原地重试。
+  const confirmDeleteConversation = async (): Promise<boolean> => {
+    if (!deleteConversationTarget) return false
+    const deleted = await deleteConversationByTarget(deleteConversationTarget)
+    if (!deleted) notifyDeleteFailed()
+    return deleted
   }
 
   const handleRenameScheduledConversation = async (conversation: Conversation, title: string) => {
@@ -157,17 +149,6 @@ export function ConversationSidebar() {
         console.error('Failed to rename scheduled conversation:', error)
       }
     }
-  }
-
-  const handleDeleteConversation = async (conversationId: string) => {
-    const conversation = useChatStore.getState().conversations.find(c => c.id === conversationId)
-    const deleted = await deleteConversation(conversationId)
-    if (!deleted) {
-      notifyDeleteFailed()
-      return
-    }
-    // 删除定时会话后强制刷新：服务端已连带删除执行记录，刷新可丢弃在途轮询与缓存。
-    refreshScheduledAfterConversationDelete(conversation)
   }
 
   // 搜索弹窗选中结果：本地会话直接选中，未加载的定时任务摘要懒加载会话详情。
@@ -303,9 +284,10 @@ export function ConversationSidebar() {
         conversation={conversation}
         isActive={conversation.id === currentConversationId}
         onSelect={() => handleSelectConversation(conversation.id)}
-        onDelete={() => handleDeleteConversation(conversation.id)}
+        onDelete={() => requestDeleteConversation(conversation)}
         onTogglePin={() => togglePinConversation(conversation.id)}
         onRename={title => updateConversationTitle(conversation.id, title)}
+        disableDelete={!!conversation.isStreaming}
       />
     )
   }
@@ -485,9 +467,10 @@ export function ConversationSidebar() {
                     conversation={conversation}
                     isActive={conversation.id === currentConversationId}
                     onSelect={() => handleSelectConversation(conversation.id)}
-                    onDelete={() => handleDeleteConversation(conversation.id)}
+                    onDelete={() => requestDeleteConversation(conversation)}
                     onTogglePin={() => togglePinConversation(conversation.id)}
                     onRename={title => updateConversationTitle(conversation.id, title)}
+                    disableDelete={!!conversation.isStreaming}
                   />
                 ))}
               </SidebarSection>
@@ -511,7 +494,7 @@ export function ConversationSidebar() {
                       activeConversationId={currentConversationId}
                       onToggle={() => toggleScheduledTaskFolder(task.id)}
                       onSelectConversation={handleSelectScheduledConversation}
-                      onDeleteConversation={handleDeleteScheduledConversation}
+                      onDeleteConversation={requestDeleteConversation}
                       onRenameConversation={handleRenameScheduledConversation}
                       onRequestDeleteTask={setDeleteTaskTarget}
                     />
@@ -526,6 +509,12 @@ export function ConversationSidebar() {
       <DeleteScheduledTaskDialog
         task={deleteTaskTarget}
         onClose={() => setDeleteTaskTarget(null)}
+      />
+
+      <DeleteConversationDialog
+        target={deleteConversationTarget}
+        onClose={() => setDeleteConversationTarget(null)}
+        onConfirm={confirmDeleteConversation}
       />
 
       {/* 搜索对话弹窗 */}
