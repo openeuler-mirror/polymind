@@ -2,6 +2,8 @@
 # Docs: https://pre-commit.com
 minimum_pre_commit_version: "4.2.0"
 
+default_stages: [pre-commit]
+
 repos:
   # Official generic hooks
   - repo: https://gitcode.com/pre-commit/pre-commit-hooks
@@ -23,6 +25,8 @@ repos:
       - id: detect-private-key
 
   # Secret scanning (community gate: sensitive info protection)
+  # gitleaks 为 language: golang 钩子，需要本地 go 工具链（devcontainer 已预装并设置
+  # GOPROXY 国内源，CI 引导见 scripts/ci-pre-commit-pr.sh）
   - repo: https://gitcode.com/gitleaks/gitleaks
     rev: v8.24.3
     hooks:

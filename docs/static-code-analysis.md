@@ -9,7 +9,7 @@
 - JS/TS 语言检查工具选型：[JavaScript-TypeScript.md](https://gitcode.com/openlibing/docs/blob/main/static-code-analysis/languages/JavaScript-TypeScript.md)
 - 社区门禁代码：[openeuler-jenkins](https://atomgit.com/openeuler/openeuler-jenkins)
 
-落地方法：选开源工具 → 列出开源规则全集 → 匹配社区门禁规则 → 生成工具配置 → 无开源匹配的规则由 AI 检视补齐（本文档仅说明，未接入服务）。pre-commit 作为本地提交与 CI 门禁的**统一入口**（`.pre-commit-config.yaml`）：本地 `pre-commit install` 注册 hooks、社区门禁用 `scripts/ci-pre-commit-pr.sh` 增量运行同一份配置；local hook 内部调用 `package.json` scripts 同款工具（ESLint/Prettier/tsc/commitlint），避免两套命令漂移。
+落地方法：选开源工具 → 列出开源规则全集 → 匹配社区门禁规则 → 生成工具配置 → 无开源匹配的规则由 AI 检视补齐（本文档仅说明，未接入服务）。pre-commit 作为本地提交与 CI 门禁的**统一入口**（`.pre-commit-config.yaml`）：本地钩子由仓库自带的 `.githooks/` 驱动（`core.hooksPath` 指向它）、社区门禁用 `scripts/ci-pre-commit-pr.sh` 增量运行同一份配置；local hook 内部调用 `package.json` scripts 同款工具（ESLint/Prettier/tsc/commitlint），避免两套命令漂移。
 
 ## 2. 工具选型（已落地）
 
@@ -53,7 +53,7 @@
 
 ### 5.1 新建配置（本仓库已提交）
 
-- `package.json` scripts：`lint` / `lint:fix` / `format` / `format:check` / `typecheck` / `quality`（lint + format:check + typecheck）/ `precommit`（`pre-commit run --all-files`）；`prepare: pre-commit install` 自动注册 hooks
+- `package.json` scripts：`lint` / `lint:fix` / `format` / `format:check` / `typecheck` / `quality`（lint + format:check + typecheck）/ `precommit`（`pre-commit run --all-files`）；`prepare` 自动把本仓库的 `core.hooksPath` 指向仓库自带的 `.githooks/`
 - `eslint.config.js`：ESLint 9 flat config（Next + typescript-eslint + Prettier），显式注册 react/react-hooks 插件；存量规则先 warn 不阻断
 - `tsconfig.json`：已开启 `strict: true`，`pnpm typecheck` 全量类型检查
 - `.prettierrc` / `.prettierignore`：格式化规则与忽略范围
@@ -63,9 +63,9 @@
 ### 5.2 接入本地
 
 ```bash
-pip install pre-commit
-pre-commit install --hook-type pre-commit --hook-type commit-msg   # 注册 hooks
-pnpm install          # 安装依赖（prepare 也会自动注册 hooks）
+pip install pre-commit              # 钩子执行器
+git config core.hooksPath .githooks # 启用仓库自带的 .githooks/ 钩子（prepare 已自动处理）
+pnpm install          # 安装依赖
 pnpm quality          # 全量非修复检查（lint + format:check + typecheck）
 pnpm precommit        # 全量运行 pre-commit 检查（等价 pre-commit run --all-files）
 ```
@@ -91,7 +91,7 @@ pnpm precommit        # 全量运行 pre-commit 检查（等价 pre-commit run -
 - 工具/hook 版本升级单独发 PR，升级后全量运行 `pre-commit run --all-files` 与 `pnpm quality` 确认影响范围
 - 误报处理遵循最小影响范围：代码层屏蔽（行级注释）→ 工具配置（规则/ignore）→ 调度层排除（文件范围）
 - 生成文件与第三方目录（`.next/`、`coverage/`、`components/ui/`、`.agents/`、`packaging/`、`bin/` 等）集中在 ignore 中排除
-- 本地钩子统一由 pre-commit 管理（`prepare` 自动 `pre-commit install`）；从旧版 husky 迁移的仓库需先 `git config --unset-all core.hooksPath`，避免与 `.git/hooks` 冲突
+- 本地钩子统一由 pre-commit 驱动：钩子脚本随仓库分发（`.githooks/`），`prepare` 自动设置 `core.hooksPath`；devcontainer 内由 `post-create.sh` 设置同一路径（见 `.devcontainer/README.md`）
 
 ## 8. 国内网络注意事项
 

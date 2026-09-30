@@ -48,7 +48,7 @@
     "quality": "pnpm lint && pnpm format:check && pnpm typecheck",
     "test": "jest",
     "postinstall": "node scripts/postinstall.js",
-    "prepare": "git config --unset-all core.hooksPath || true && pre-commit install --hook-type pre-commit --hook-type commit-msg || echo '[pre-commit] 未安装或安装失败，本地提交不会自动执行检查，请先 pip install pre-commit'",
+    "prepare": "git config core.hooksPath >/dev/null 2>&1 || git config core.hooksPath .githooks || echo '[pre-commit] 未能启用 .githooks 提交钩子，本地提交不会自动执行检查'",
     "precommit": "pre-commit run --all-files",
     "release": "semantic-release",
     "release:dry-run": "semantic-release --dry-run"

@@ -85,7 +85,8 @@ set -e
 
 if [ "${CODE}" -ne 0 ] || [ "${TC_CODE}" -ne 0 ]; then
   echo "[ERROR] pre-commit 或类型检查失败，请在本地执行:"
-  echo "  pip install pre-commit && pre-commit install --install-hooks"
+  echo "  pip install pre-commit && git config core.hooksPath .githooks"
+  echo "  pre-commit install-hooks   # 可选：预装 hook 环境"
   echo "  pre-commit run --files ${FILES_ARR[*]}"
   exit 1
 fi

@@ -242,13 +242,11 @@ pnpm run dev
 
 ### 代码质量与提交前检查
 
-项目通过 [pre-commit](https://pre-commit.com/) 统一管理本地提交与 CI 门禁：通用 hygiene（行尾空白、EOF、YAML/JSON 语法、合并冲突、大文件、私钥）、Gitleaks 密钥扫描、Codespell 拼写检查、Prettier/ESLint（修复模式）与 commitlint 提交规范，配置见根目录 `.pre-commit-config.yaml`。`pnpm install` 自动注册 Git hooks（`prepare` 脚本）；手动初始化：
+项目通过 [pre-commit](https://pre-commit.com/) 统一管理本地提交与 CI 门禁：通用 hygiene（行尾空白、EOF、YAML/JSON 语法、合并冲突、大文件、私钥）、Gitleaks 密钥扫描、Codespell 拼写检查、Prettier/ESLint（修复模式）与 commitlint 提交规范，配置见根目录 `.pre-commit-config.yaml`，钩子脚本是仓库自带的 [.githooks/](.githooks/)（`pre-commit` / `commit-msg` 两个阶段）。`pnpm install` 的 `prepare` 会自动启用（仅当本仓库尚未设置 `core.hooksPath` 时）；手动初始化：
 
 ```bash
-pip install pre-commit
-# 从旧版 husky 迁移时需先清除 hooksPath，否则 hooks 不会生效
-git config --unset-all core.hooksPath || true
-pre-commit install --hook-type pre-commit --hook-type commit-msg
+pip install pre-commit                # 钩子执行器
+git config core.hooksPath .githooks   # 启用仓库自带的钩子
 ```
 
 提交时自动检查暂存区文件；`pnpm run precommit` 全量运行检查，`pnpm run typecheck` 单独执行类型检查。社区门禁（openEuler/GitCode 侧）由 `scripts/ci-pre-commit-pr.sh` 以同一份配置增量运行。详见 [docs/static-code-analysis.md](docs/static-code-analysis.md)。
