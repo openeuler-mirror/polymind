@@ -120,6 +120,12 @@
       "delete": "Delete",
       "deleteDisabled": "Cannot delete while running"
     },
+    "deleteDialog": {
+      "title": "Delete conversation",
+      "description": "Delete the conversation “{{title}}”? This cannot be undone and all of its messages will be permanently lost.",
+      "scheduledWarning": "This conversation belongs to a scheduled task. Deleting it will also delete that task's run records.",
+      "deleting": "Deleting..."
+    },
     "scheduledFolder": {
       "deleteTask": "Delete scheduled task"
     }

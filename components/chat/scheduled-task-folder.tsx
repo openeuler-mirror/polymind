@@ -95,8 +95,9 @@ export function ScheduledTaskFolder({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="right" align="end">
+              {/* 同会话条目：用 onSelect，保证 disabled 在代码层真正拦下删除。 */}
               <DropdownMenuItem
-                onClick={() => onRequestDeleteTask(task)}
+                onSelect={() => onRequestDeleteTask(task)}
                 disabled={isRunning}
                 className="text-destructive focus:text-destructive"
               >
