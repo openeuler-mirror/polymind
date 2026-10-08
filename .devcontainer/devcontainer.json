@@ -3,21 +3,27 @@
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".",
-    "args": { "VARIANT": "24" }
+    // 镜像源，海外网络请自行替换；APT_MIRROR 不可达时构建会自动回退到 deb.debian.org
+    "args": {
+      "APT_MIRROR": "http://mirrors.huaweicloud.com",
+      "NPM_REGISTRY": "https://registry.npmmirror.com",
+      "PIP_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple"
+    }
   },
 
   "remoteUser": "node",
   "updateRemoteUserUID": true,
   "workspaceFolder": "/workspaces/polymind",
 
-  // Use host networking so the container can reach host services (agentd, witty-service)
-  // at 127.0.0.1 without extra port forwarding. Ports listed below are for labeling only.
+  // host 网络：容器可直接访问宿主机的 agentd / witty-service（127.0.0.1），无需额外端口转发
   "runArgs": ["--network", "host"],
 
   "containerEnv": {
     "PNPM_HOME": "/home/node/.local/share/pnpm"
   },
 
+  // 命名卷用于在重建容器后保留 pnpm 缓存与 node_modules；
+  // Dockerfile 已预建这两个挂载点并归属 node，新卷会自动继承正确属主
   "mounts": [
     "source=polymind_pnpm_store,target=/home/node/.local/share/pnpm,type=volume",
     "source=polymind_node_modules,target=/workspaces/polymind/node_modules,type=volume"
@@ -26,7 +32,7 @@
   "onCreateCommand": "bash .devcontainer/scripts/post-create.sh",
   "postStartCommand": "bash .devcontainer/scripts/post-start.sh",
 
-  // With host networking, ports appear directly on the host — listed for VS Code Ports view
+  // 使用 host 网络时端口直接暴露在宿主机，此处仅供 VS Code 端口面板标注
   "forwardPorts": [3000, 3001],
   "portsAttributes": {
     "3000": { "label": "PolyMind Dev Server (Next.js)" },

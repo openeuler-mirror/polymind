@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lightweight diagnostics on every container start.
+# 每次容器启动时输出环境状态
 set -euo pipefail
 cd /workspaces/polymind
 
@@ -19,7 +19,7 @@ else
   echo "node_modules: missing — run 'pnpm install' first"
 fi
 
-# Configure git safe directory for the workspace
+# 标记工作区为 git 安全目录
 git config --global --add safe.directory /workspaces/polymind 2>/dev/null || true
 
 echo "Ready. Run 'pnpm dev' to start the development server."

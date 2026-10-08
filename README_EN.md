@@ -240,13 +240,11 @@ pnpm run dev
 
 ### Code Quality and Pre-commit Checks
 
-The project uses [pre-commit](https://pre-commit.com/) as the single entry for both local commits and CI gates: generic hygiene (trailing whitespace, EOF, YAML/JSON syntax, merge conflicts, large files, private keys), Gitleaks secret scanning, Codespell spelling checks, Prettier/ESLint (fix mode), and commitlint commit-message rules — see `.pre-commit-config.yaml` at the repo root. `pnpm install` registers the Git hooks automatically via the `prepare` script; to initialize manually:
+The project uses [pre-commit](https://pre-commit.com/) as the single entry for both local commits and CI gates: generic hygiene (trailing whitespace, EOF, YAML/JSON syntax, merge conflicts, large files, private keys), Gitleaks secret scanning, Codespell spelling checks, Prettier/ESLint (fix mode), and commitlint commit-message rules — see `.pre-commit-config.yaml` at the repo root; the hook scripts ship with the repo in [.githooks/](.githooks/) (the `pre-commit` and `commit-msg` stages). `pnpm install` enables them automatically via the `prepare` script (only when `core.hooksPath` is not set yet); to initialize manually:
 
 ```bash
-pip install pre-commit
-# Clear the leftover hooksPath when migrating from husky, or hooks won't take effect
-git config --unset-all core.hooksPath || true
-pre-commit install --hook-type pre-commit --hook-type commit-msg
+pip install pre-commit                # the hook runner
+git config core.hooksPath .githooks   # enable the repo's own hooks
 ```
 
 Staged files are checked automatically on commit; `pnpm run precommit` runs the full check and `pnpm run typecheck` runs the TypeScript type check. The community gate (openEuler/GitCode side) runs the same config incrementally via `scripts/ci-pre-commit-pr.sh`. See [docs/static-code-analysis.md](docs/static-code-analysis.md).

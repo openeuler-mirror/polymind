@@ -1,0 +1,13 @@
+#!/bin/bash
+# PolyMind 仓库自带的 Git 提交信息钩子（commitlint，见 .pre-commit-config.yaml 的 commit-msg stage）。
+# 容器内由 .devcontainer 的 core.hooksPath=.githooks 启用（写在容器内的 ~/.gitconfig）；
+# 宿主机启用方式：git config core.hooksPath .githooks
+set -e
+
+if ! command -v pre-commit >/dev/null 2>&1; then
+    echo "pre-commit not found. Install it first: pip install pre-commit" >&2
+    exit 1
+fi
+
+# $1 为 git 传入的提交信息文件路径；git 保证在仓库顶层执行 hook，无需再 cd
+exec pre-commit run --config .pre-commit-config.yaml --hook-stage commit-msg --commit-msg-filename "$1"
