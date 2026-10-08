@@ -300,6 +300,7 @@
     "empty": "No model configurations yet",
     "default": "Default",
     "disabled": "Disabled",
+    "deprecated": "Deprecated",
     "edit": "Edit",
     "delete": "Delete",
     "dialog": {
@@ -315,6 +316,7 @@
       "modelLabel": "Model",
       "modelIdPlaceholder": "Enter the model ID",
       "modelPlaceholder": "Select a model",
+      "deprecated": "Deprecated",
       "apiKeyLabel": "API Key",
       "apiKeyPlaceholder": "Enter the API key",
       "apiKeyEditPlaceholder": "Leave blank to keep the existing key",

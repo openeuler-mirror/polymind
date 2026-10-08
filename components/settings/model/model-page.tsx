@@ -162,7 +162,9 @@ export function ModelPage() {
       setIsSetDefault(modelsLoaded && !models.some(m => m.enabled && m.isDefault))
       const defaultProvider = aiProvidersConfig.providers.find(p => p.id === ModelProvider.OPENAI)
       const defaultModel =
-        defaultProvider?.models.find(m => m.isDefault) || defaultProvider?.models[0]
+        defaultProvider?.models.find(m => m.isDefault && !m.isDeprecated) ||
+        defaultProvider?.models.find(m => !m.isDeprecated) ||
+        defaultProvider?.models[0]
       setFormData({
         name: defaultModel?.id || '',
         provider: ModelProvider.OPENAI,
@@ -182,7 +184,10 @@ export function ModelPage() {
 
   const handleProviderChange = (providerId: string) => {
     const provider = aiProvidersConfig.providers.find(p => p.id === providerId)
-    const defaultModel = provider?.models.find(m => m.isDefault) || provider?.models[0]
+    const defaultModel =
+      provider?.models.find(m => m.isDefault && !m.isDeprecated) ||
+      provider?.models.find(m => !m.isDeprecated) ||
+      provider?.models[0]
 
     setFormData(prev => ({
       ...prev,
@@ -317,9 +322,12 @@ export function ModelPage() {
     return colors[providerId] || 'bg-gray-500'
   }
 
-  const getAvailableModelsForProvider = (providerId: string) => {
+  const getAvailableModelsForProvider = (providerId: string, keepModelId?: string) => {
     const provider = aiProvidersConfig.providers.find(p => p.id === providerId)
-    return provider?.models.map(m => m.id) || []
+    if (!provider) return []
+    // 已弃用模型默认不展示，保持列表清爽；
+    // 编辑存量配置时通过 keepModelId 豁免当前模型，避免 Select 丢值显示成 placeholder
+    return provider.models.filter(m => !m.isDeprecated || m.id === keepModelId).map(m => m.id)
   }
 
   const getProviderConfig = (providerId: string) => {
@@ -417,7 +425,9 @@ export function ModelPage() {
                       <SelectValue placeholder={t('model.dialog.compatibilityPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="openai">{t('model.dialog.compatibilityOpenai')}</SelectItem>
+                      <SelectItem value="openai">
+                        {t('model.dialog.compatibilityOpenai')}
+                      </SelectItem>
                       <SelectItem value="anthropic">
                         {t('model.dialog.compatibilityAnthropic')}
                       </SelectItem>
@@ -459,15 +469,22 @@ export function ModelPage() {
                       <SelectValue placeholder={t('model.dialog.modelPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent side="bottom" className="max-h-[300px]">
-                      {getAvailableModelsForProvider(formData.provider).map(modelId => {
-                        const providerConfig = getProviderConfig(formData.provider)
-                        const modelConfig = providerConfig?.models.find(m => m.id === modelId)
-                        return (
-                          <SelectItem key={modelId} value={modelId}>
-                            {modelConfig?.name || modelId}
-                          </SelectItem>
-                        )
-                      })}
+                      {getAvailableModelsForProvider(formData.provider, formData.name).map(
+                        modelId => {
+                          const providerConfig = getProviderConfig(formData.provider)
+                          const modelConfig = providerConfig?.models.find(m => m.id === modelId)
+                          return (
+                            <SelectItem key={modelId} value={modelId}>
+                              {modelConfig?.name || modelId}
+                              {modelConfig?.isDeprecated && (
+                                <span className="text-muted-foreground ml-1 text-xs">
+                                  ({t('model.dialog.deprecated')})
+                                </span>
+                              )}
+                            </SelectItem>
+                          )
+                        }
+                      )}
                     </SelectContent>
                   </Select>
                 )}
@@ -606,6 +623,11 @@ export function ModelPage() {
                               {t('model.disabled')}
                             </Badge>
                           )}
+                          {modelConfig?.isDeprecated && (
+                            <Badge variant="outline" className="text-xs">
+                              {t('model.deprecated')}
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
                           <span>{getProviderName(model.provider)}</span>
@@ -646,9 +668,13 @@ export function ModelPage() {
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>{t('model.deleteDialog.title')}</AlertDialogTitle>
+                                  <AlertDialogTitle>
+                                    {t('model.deleteDialog.title')}
+                                  </AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    {t('model.deleteDialog.description', { name: deleteTarget?.name })}
+                                    {t('model.deleteDialog.description', {
+                                      name: deleteTarget?.name,
+                                    })}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>

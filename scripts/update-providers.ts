@@ -16,6 +16,8 @@ interface ModelsDevProvider {
 interface ModelsDevModel {
   id: string
   name: string
+  /** models.dev 目录状态: active | alpha | beta | deprecated */
+  status?: 'active' | 'alpha' | 'beta' | 'deprecated'
   family: string
   attachment: boolean
   reasoning: boolean
@@ -115,8 +117,8 @@ const PROVIDER_URLS: Record<string, { website: string; apiKeyUrl: string }> = {
     apiKeyUrl: 'https://zhipu.ai/manage-apikey/apikey-list',
   },
   moonshotai: {
-    website: 'https://moonshot.ai',
-    apiKeyUrl: 'https://platform.moonshot.ai',
+    website: 'https://moonshot.cn',
+    apiKeyUrl: 'https://platform.moonshot.cn',
   },
   google: {
     website: 'https://ai.google.com',
@@ -126,6 +128,11 @@ const PROVIDER_URLS: Record<string, { website: string; apiKeyUrl: string }> = {
     website: 'https://x.ai',
     apiKeyUrl: 'https://console.x.ai',
   },
+}
+
+// 固定的 apiBaseUrl 覆盖表：优先级高于 models.dev 上游的 devProvider.api。
+const PROVIDER_API_BASE_URLS: Record<string, string> = {
+  moonshotai: 'https://api.moonshot.cn/v1',
 }
 
 const PROVIDER_LOGOS: Record<string, string> = {
@@ -229,18 +236,20 @@ function transformModelFromDev(
       functionCalling: modelData.tool_call || false,
     },
     isDefault,
-    isDeprecated: false,
+    isDeprecated: modelData.status === 'deprecated',
   }
 }
 
 function pickDefaultByLastUpdated(models: ConfigModel[], devProvider: ModelsDevProvider): void {
   if (models.length === 0) return
 
-  // Find the model with the latest last_updated
-  let defaultModel = models[0]
+  // Find the model with the latest last_updated; deprecated models are
+  // never eligible — a deprecated default would break new users' setups.
+  let defaultModel: ConfigModel | undefined
   let latestDate = ''
 
   for (const model of models) {
+    if (model.isDeprecated) continue
     const lastUpdated = devProvider.models[model.id]?.last_updated
     if (lastUpdated && lastUpdated > latestDate) {
       latestDate = lastUpdated
@@ -251,12 +260,18 @@ function pickDefaultByLastUpdated(models: ConfigModel[], devProvider: ModelsDevP
   models.forEach(m => {
     m.isDefault = false
   })
-  defaultModel.isDefault = true
+  // 兜底：若没有任何候选（last_updated 是可选字段，可能全部缺失；或模型全被弃用），
+  // 退化为首个未弃用模型，再退 models[0]，保证每个 provider 始终恰有一个默认模型
+  const pickedModel = defaultModel ?? models.find(m => !m.isDeprecated) ?? models[0]
+  pickedModel.isDefault = true
 }
 
 function updateProviderFromDev(
   existingProvider: ConfigProvider,
-  devProvider: ModelsDevProvider
+  devProvider: ModelsDevProvider,
+  /** 目录数据能否作为「模型已下线（在上游缺失）」的判定依据：仅当数据来自完整抓取时才可信，
+   * 过期的 temp 快照不能据此判定下线；该参数不限制上游显式 status=deprecated 的判定 */
+  canDeprecateMissing: boolean
 ): ConfigProvider {
   const providerId = PROVIDER_ID_MAP[existingProvider.id] || existingProvider.id
   const providerUrls = PROVIDER_URLS[providerId] || {
@@ -266,6 +281,9 @@ function updateProviderFromDev(
 
   const models: ConfigModel[] = []
   const devModelIds = Object.keys(devProvider.models)
+  // 上游未返回任何模型时，无法区分「模型已下线」与「数据缺失/字段演化」，
+  // 此时禁用「缺失即弃用」，避免把整个 provider 的模型误标为弃用
+  const deprecateMissing = canDeprecateMissing && devModelIds.length > 0
 
   const existingModelIds = existingProvider.models.map(m => m.id)
   const allModelIds = new Set([...existingModelIds, ...devModelIds])
@@ -277,7 +295,17 @@ function updateProviderFromDev(
     if (devModel) {
       models.push(transformModelFromDev(modelId, devModel, false))
     } else if (existingModel) {
-      models.push({ ...existingModel })
+      // Upstream no longer lists this model. Keep it so existing user
+      // selections don't silently vanish, but mark it deprecated so the
+      // UI can hide/gray it out. When the source data is a possibly
+      // stale temp snapshot, keep the model untouched — a partial
+      // snapshot must not deprecate models it simply doesn't know about.
+      const zombie = { ...existingModel }
+      if (deprecateMissing) {
+        zombie.isDeprecated = true
+        if (zombie.isDefault) zombie.isDefault = false
+      }
+      models.push(zombie)
     }
   }
 
@@ -289,7 +317,8 @@ function updateProviderFromDev(
     name: devProvider.name || existingProvider.name,
     website: providerUrls.website || existingProvider.website,
     apiKeyUrl: providerUrls.apiKeyUrl || existingProvider.apiKeyUrl,
-    apiBaseUrl: devProvider.api || existingProvider.apiBaseUrl,
+    apiBaseUrl:
+      PROVIDER_API_BASE_URLS[providerId] || devProvider.api || existingProvider.apiBaseUrl,
     logoUrl: PROVIDER_LOGOS[providerId] || existingProvider.logoUrl,
     supportsToolCalls: models.some(m => m.capabilities.toolCalls),
     supportsReasoning: models.some(m => m.capabilities.reasoning),
@@ -322,7 +351,7 @@ function createProviderFromDev(providerId: string, devProvider: ModelsDevProvide
     name: devProvider.name || providerId,
     website: providerUrls.website || '',
     apiKeyUrl: providerUrls.apiKeyUrl || '',
-    apiBaseUrl: devProvider.api || '',
+    apiBaseUrl: PROVIDER_API_BASE_URLS[providerId] || devProvider.api || '',
     logoUrl: PROVIDER_LOGOS[providerId] || '',
     supportsToolCalls: models.some(m => m.capabilities.toolCalls),
     supportsReasoning: models.some(m => m.capabilities.reasoning),
@@ -340,9 +369,11 @@ async function main(): Promise<void> {
 
   console.log('🌐 Fetching latest data from models.dev...')
   let devData: Record<string, ModelsDevProvider>
+  let fetchOk = true
   try {
     devData = await fetchModelsDevData()
-  } catch (err) {
+  } catch {
+    fetchOk = false
     console.log('  - Fetch failed, falling back to temp data...')
     devData = tempModels
   }
@@ -381,11 +412,13 @@ async function main(): Promise<void> {
 
       if (tempProvider) {
         console.log(`  - Updating ${existingProvider.name} from temp...`)
-        const updatedProvider = updateProviderFromDev(existingProvider, tempProvider)
+        // temp 是手工快照，可能过期/不完整：不据此判定「上游已下线的模型」，
+        // 但快照自身显式声明的 status（含 deprecated）仍会被采信
+        const updatedProvider = updateProviderFromDev(existingProvider, tempProvider, false)
         updatedProviders.push(updatedProvider)
       } else if (devProvider) {
         console.log(`  - Updating ${existingProvider.name} from dev...`)
-        const updatedProvider = updateProviderFromDev(existingProvider, devProvider)
+        const updatedProvider = updateProviderFromDev(existingProvider, devProvider, fetchOk)
         updatedProviders.push(updatedProvider)
       } else {
         console.log(`  - ${existingProvider.name} (no new data)`)

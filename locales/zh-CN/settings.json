@@ -300,6 +300,7 @@
     "empty": "暂无模型配置",
     "default": "默认",
     "disabled": "已禁用",
+    "deprecated": "已弃用",
     "edit": "编辑",
     "delete": "删除",
     "dialog": {
@@ -315,6 +316,7 @@
       "modelLabel": "模型",
       "modelIdPlaceholder": "请输入模型 ID",
       "modelPlaceholder": "选择模型",
+      "deprecated": "已弃用",
       "apiKeyLabel": "API密钥",
       "apiKeyPlaceholder": "请输入 API Key",
       "apiKeyEditPlaceholder": "留空则保持现有密钥",
