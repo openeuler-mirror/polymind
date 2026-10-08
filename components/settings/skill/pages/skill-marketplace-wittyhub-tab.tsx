@@ -19,7 +19,7 @@ import { useAutoLoadOnScroll } from './use-auto-load-on-scroll'
 const WITTYHUB_PAGE_SIZE = 50
 
 const WITTYHUB_SOURCE: SkillSourceMeta = {
-  name: 'WittyHub',
+  name: 'SkillHub',
   sourceType: 'wittyhub',
 }
 
