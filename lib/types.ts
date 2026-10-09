@@ -78,6 +78,21 @@ export interface QuestionAskedPayload {
   question_id?: string
 }
 
+/**
+ * 后端 ``stream.error`` / ``client.error`` 事件的统一错误载荷
+ * （契约见 witty_agent_server/runtimes/stream_errors.py）。
+ */
+export interface StreamErrorPayload {
+  /** 错误类别码（SCREAMING_SNAKE，如 UPSTREAM_AUTH）；未知码走兜底展示 */
+  code: string
+  /** 一句话根因（单行，后端已截断） */
+  message: string
+  /** 错误来源：upstream | transport | runtime | internal */
+  source?: string
+  retryable?: boolean
+  detail?: Record<string, unknown>
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -86,6 +101,8 @@ export interface Message {
   isStreaming?: boolean
   skipReconnect?: boolean
   status?: MessageStatus
+  /** 流式错误信息（status 为 error 时由 stream.error 事件载荷解析而来） */
+  streamError?: StreamErrorPayload | null
   toolCalls?: ToolCall[]
   attachments?: Attachment[]
   thinking?: string[]

@@ -450,10 +450,16 @@ export function ChatArea() {
         const errorMessage: Message = {
           id: errorMessageId,
           role: 'assistant',
-          content: 'Sorry, there was an error sending your message. Please try again.',
+          content: '',
           timestamp: new Date(),
           isStreaming: false,
           status: MessageStatus.ERROR,
+          // 发送阶段的失败属传输层（HTTP 非 2xx / 网络异常），由错误状态行统一展示
+          streamError: {
+            code: 'TRANSPORT_ERROR',
+            message: error instanceof Error ? error.message : String(error),
+            retryable: true,
+          },
         }
         addMessage(convId, errorMessage)
         setStreaming(convId, false)
@@ -558,9 +564,7 @@ export function ChatArea() {
         {loadingMore && (
           <div className="flex items-center justify-center py-3">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <span className="ml-2 text-xs text-muted-foreground">
-              {t('chatArea.loadingMore')}
-            </span>
+            <span className="ml-2 text-xs text-muted-foreground">{t('chatArea.loadingMore')}</span>
           </div>
         )}
         {currentConversation?.hasMore && !loadingMore && (

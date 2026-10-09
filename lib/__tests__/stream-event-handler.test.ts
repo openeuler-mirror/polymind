@@ -1,4 +1,5 @@
 import {
+  applyStreamError,
   applyToolCallDelta,
   applyUsageUpdated,
   coalesceStreamEvents,
@@ -206,5 +207,45 @@ describe('settleUnfinishedMessage', () => {
 
     expect(message.isStreaming).toBe(false)
     expect(message.status).toBe(MessageStatus.GENERATING)
+  })
+})
+
+describe('applyStreamError', () => {
+  const baseMessage = (): Message => ({
+    id: 'm1',
+    role: 'assistant',
+    content: '部分内容',
+    timestamp: new Date(1),
+    isStreaming: true,
+    status: MessageStatus.GENERATING,
+    events: [
+      { type: 'message.delta', content: '部分内容', timestamp: 1 },
+      { type: 'tool.call.response', content: 'done', timestamp: 2 },
+    ],
+  })
+
+  it('置为 ERROR 并解析后端统一错误载荷挂到消息上', () => {
+    const patch = applyStreamError(baseMessage(), {
+      code: 'UPSTREAM_AUTH',
+      message: 'Invalid Authentication',
+      source: 'upstream',
+      retryable: false,
+    })
+
+    expect(patch.isStreaming).toBe(false)
+    expect(patch.status).toBe(MessageStatus.ERROR)
+    expect(patch.streamError).toEqual({
+      code: 'UPSTREAM_AUTH',
+      message: 'Invalid Authentication',
+      source: 'upstream',
+      retryable: false,
+    })
+    // delta 事件被滤除，非 delta 事件保留
+    expect(patch.events).toEqual([{ type: 'tool.call.response', content: 'done', timestamp: 2 }])
+  })
+
+  it('payload 缺失或畸形时 streamError 为 null（UI 走兜底文案）', () => {
+    expect(applyStreamError(baseMessage()).streamError).toBeNull()
+    expect(applyStreamError(baseMessage(), { nope: 1 }).streamError).toBeNull()
   })
 })

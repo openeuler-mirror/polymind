@@ -214,7 +214,24 @@
       "answer": "回答"
     },
     "streaming": "生成回复中",
-    "thinking": "深度思考"
+    "thinking": "深度思考",
+    "error": {
+      "title": "本轮运行失败",
+      "codes": {
+        "UPSTREAM_AUTH": "模型鉴权失败，请检查 API Key 配置。",
+        "UPSTREAM_RATE_LIMIT": "模型服务限流，请稍后重试。",
+        "UPSTREAM_QUOTA_EXCEEDED": "模型配额已用尽，请检查账户余额或套餐配额。",
+        "UPSTREAM_REQUEST": "模型请求被拒绝，请检查输入内容或模型配置后重试。",
+        "UPSTREAM_SERVER": "模型服务暂时不可用，请稍后重试。",
+        "UPSTREAM_TIMEOUT": "模型服务响应超时，请稍后重试。",
+        "TRANSPORT_CLOSED": "运行时连接已断开，请稍后重试。",
+        "TRANSPORT_ERROR": "运行时连接异常，请稍后重试。",
+        "RUNTIME_PROTOCOL_ERROR": "运行时返回了无法解析的数据，请重试或联系部署方。",
+        "RUNTIME_LIFECYCLE_ERROR": "运行时执行出错，请重试或联系部署方。",
+        "INTERNAL_ERROR": "服务内部错误，请稍后重试。",
+        "default": "处理这条消息时出错了，请稍后重试。"
+      }
+    }
   },
   "artifactCard": {
     "download": "下载",

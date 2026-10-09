@@ -46,6 +46,7 @@ import { formatToolOutput } from '@/lib/format-utils'
 import { describeToolCall, previewToolOutput, type ToolCallKind } from '@/lib/tool-call-display'
 import { resolveCodeLanguage } from '@/lib/artifacts'
 import { ArtifactCard } from './artifact-card'
+import { StreamErrorLine } from './stream-error-line'
 import { MessageUsageBadge } from './message-usage'
 import { ShimmerText } from '@/components/ui/shimmer-text'
 import {
@@ -108,6 +109,12 @@ const MessageItem = memo(function MessageItem({
 
   // 中断态：由下面的状态行/提示统一表达。
   const interrupted = !isUser && message.status === 'interrupted'
+
+  // 错误态：stream.error / client.error 事件落定后，由 StreamErrorLine 单行表达。
+  const errored = !isUser && message.status === 'error'
+
+  const artifacts = !isUser ? (message.artifacts ?? []) : []
+  const hasArtifacts = artifacts.length > 0
 
   // 事件分组：按时间线渲染（深度思考 / 正文 / 工具调用 / 提问）。
   // 分组带缓存与尾部增量复用，避免流式期间每个 delta 都重建整条时间线。
@@ -316,11 +323,22 @@ const MessageItem = memo(function MessageItem({
             </>
           )}
 
+        {errored && (
+          <div
+            className={cn(
+              (eventGroups.length > 0 || !!message.content) && 'mt-2',
+              hasArtifacts && 'mb-2'
+            )}
+          >
+            <StreamErrorLine error={message.streamError ?? null} />
+          </div>
+        )}
+
         {/* 产物卡片：常显在正文下方（ADR-D6），不随过程模块折叠；
             卡片内的下载/复制按钮只在悬停**该卡片**时出现（具名 group，见 ArtifactCard） */}
-        {!isUser && message.artifacts && message.artifacts.length > 0 && (
+        {hasArtifacts && (
           <div className="grid grid-cols-2 gap-2">
-            {message.artifacts.map(artifact => (
+            {artifacts.map(artifact => (
               <ArtifactCard key={artifact.id} artifact={artifact} agentId={agentId} />
             ))}
           </div>
