@@ -684,6 +684,15 @@
       "create": "新建定时任务",
       "sortByCreatedAt": "按创建时间排序"
     },
+    "template": {
+      "openAction": "从模板添加",
+      "pickerTitle": "从模板添加",
+      "pickerDescription": "选择一个模板快速创建定时任务，创建前可自由修改名称、计划与内容。",
+      "loading": "正在加载模板...",
+      "loadFailed": "加载模板失败",
+      "empty": "暂无可用模板",
+      "useAria": "使用模板「{{name}}」创建定时任务"
+    },
     "empty": {
       "loadFailedTitle": "加载失败",
       "title": "暂无定时任务",

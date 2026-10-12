@@ -666,6 +666,15 @@
       "create": "New Scheduled Task",
       "sortByCreatedAt": "Sort by creation time"
     },
+    "template": {
+      "openAction": "Add from template",
+      "pickerTitle": "Add from template",
+      "pickerDescription": "Pick a template to create a scheduled task quickly. You can edit the name, schedule and content before creating.",
+      "loading": "Loading templates...",
+      "loadFailed": "Failed to load templates",
+      "empty": "No templates available",
+      "useAria": "Create a scheduled task from the template \"{{name}}\""
+    },
     "empty": {
       "loadFailedTitle": "Failed to load",
       "title": "No scheduled tasks yet",
