@@ -12,7 +12,7 @@ export function MarkdownPreview({ artifact, agentId }: { artifact: Artifact; age
   const { text, loading } = useArtifactTextContent(artifact, agentId)
   if (loading) return <PreviewLoading />
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none p-4">
+    <div className="prose prose-sm dark:prose-invert max-w-none px-5 py-4">
       <MarkdownContent
         content={text}
         components={{

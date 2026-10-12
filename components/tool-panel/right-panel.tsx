@@ -2,7 +2,7 @@
 
 import type { ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, LayoutGrid, ChevronRight, Plus } from 'lucide-react'
+import { X, PanelRightClose, PanelRightOpen, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -83,8 +83,8 @@ function PanelTabButton({
   return (
     <div
       className={cn(
-        'flex items-center gap-2 px-3 py-1 rounded-md text-sm whitespace-nowrap cursor-pointer',
-        isActive ? 'bg-accent' : 'hover:bg-accent/50'
+        'flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-sm whitespace-nowrap cursor-pointer transition-colors',
+        isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'hover:bg-sidebar-accent/60'
       )}
       onClick={onSelect}
     >
@@ -94,7 +94,7 @@ function PanelTabButton({
         variant="ghost"
         size="icon"
         aria-label={t('rightPanel.closeTab', { name: meta.name ?? fallbackName })}
-        className="h-6 w-6"
+        className="h-5 w-5"
         onClick={e => {
           e.stopPropagation()
           onClose()
@@ -129,10 +129,10 @@ export function RightPanel() {
   const allToolsOpen = PANEL_TAB_IDS.every(id => openTabIds.has(id))
 
   return (
-    <div className="flex h-full flex-col border-l border-border bg-background">
-      {/* Tabs */}
-      <div className="border-b border-border px-4 py-2 flex items-center gap-2 overflow-x-auto flex-shrink-0 min-h-[44px]">
-        <div className="flex items-center gap-2">
+    <div className="flex h-full flex-col rounded-t-lg bg-card">
+      {/* Tabs：高度与 chatArea 头部（h-14 / 56px）对齐，使左右两栏顶线一致 */}
+      <div className="flex h-14 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border/60 px-4">
+        <div className="flex items-center gap-1.5">
           {rightPanelTabs.map(tab => (
             <PanelTabButton
               key={tab.id}
@@ -211,15 +211,22 @@ export function RightPanelToggle() {
   const { t } = useTranslation('tool-panel')
   const { isRightPanelOpen, toggleRightPanel } = useChatStore()
 
+  const label = isRightPanelOpen ? t('rightPanel.collapse') : t('rightPanel.expand')
+
   return (
     <Button
       variant="ghost"
       size="icon"
       onClick={toggleRightPanel}
       className={cn('transition-colors', 'hover:bg-accent')}
+      aria-label={label}
+      title={label}
     >
-      {isRightPanelOpen ? <ChevronRight className="h-5 w-5" /> : <LayoutGrid className="h-5 w-5" />}
-      <span className="sr-only">{t('rightPanel.toggle')}</span>
+      {isRightPanelOpen ? (
+        <PanelRightClose className="h-5 w-5" />
+      ) : (
+        <PanelRightOpen className="h-5 w-5" />
+      )}
     </Button>
   )
 }

@@ -43,6 +43,7 @@
   "header": {
     "newConversation": "New Chat",
     "expandSidebar": "Expand sidebar",
+    "resizeSidebar": "Resize sidebar",
     "share": "Share conversation",
     "theme": "Theme",
     "themeLight": "Light",

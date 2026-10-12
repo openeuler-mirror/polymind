@@ -1,10 +1,12 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { PanelLeftOpen, Share2, MoreHorizontal, Moon, Sun, Monitor, Settings } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useTranslation } from 'react-i18next'
 import { useChatStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,28 +26,70 @@ import type { Conversation } from '@/lib/types'
 
 interface ChatHeaderProps {
   conversation?: Conversation
+  /** 消息区是否已滚动离开顶部：仅在滚动后显示底部下划线，最顶端时隐藏 */
+  showBorder?: boolean
 }
 
-export function ChatHeader({ conversation }: ChatHeaderProps) {
+/**
+ * 聊天区头部外壳（高度 h-14 / 56px、内边距、滚动后才显示的下划线）。
+ * 消息态与欢迎态共用，避免两处各写一份样式后改一处漏一处。
+ */
+export function ChatHeaderBar({
+  showBorder = false,
+  children,
+}: {
+  showBorder?: boolean
+  children: ReactNode
+}) {
+  return (
+    <header
+      className={cn(
+        'flex h-14 shrink-0 items-center justify-between border-b pl-6 pr-4 transition-colors duration-200',
+        // 始终保留 1px 边框占位，仅切换颜色，避免显隐时的高度抖动
+        showBorder ? 'border-border/60' : 'border-transparent'
+      )}
+    >
+      {children}
+    </header>
+  )
+}
+
+/** 侧边栏收起时的展开按钮（消息态与欢迎态头部共用）。 */
+export function SidebarExpandButton() {
   const { t } = useTranslation('chat')
-  const { theme, setTheme } = useTheme()
-  const { isSidebarOpen, toggleSidebar } = useChatStore()
+  const isSidebarOpen = useChatStore(state => state.isSidebarOpen)
+  const toggleSidebar = useChatStore(state => state.toggleSidebar)
+
+  // 侧边栏展开时无需入口，自身不渲染，调用方不必再判断状态。
+  if (isSidebarOpen) return null
 
   return (
-    <header className="flex h-16 items-center justify-between pl-6 pr-4">
+    <TooltipProvider delayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            aria-label={t('header.expandSidebar')}
+          >
+            <PanelLeftOpen className="h-5 w-5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{t('header.expandSidebar')}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+export function ChatHeader({ conversation, showBorder = false }: ChatHeaderProps) {
+  const { t } = useTranslation('chat')
+  const { theme, setTheme } = useTheme()
+
+  return (
+    <ChatHeaderBar showBorder={showBorder}>
       <div className="flex items-center gap-4">
-        {!isSidebarOpen && (
-          <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-                  <PanelLeftOpen className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t('header.expandSidebar')}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
+        <SidebarExpandButton />
 
         <h1 className="text-base font-semibold">
           {conversation?.title || t('header.newConversation')}
@@ -115,6 +159,6 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
 
         <RightPanelToggle />
       </div>
-    </header>
+    </ChatHeaderBar>
   )
 }
