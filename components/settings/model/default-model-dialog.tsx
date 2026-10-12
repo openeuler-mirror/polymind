@@ -120,9 +120,9 @@ export function DefaultModelDialog() {
     ? t('defaultModelDialog.guideDisabledDefault')
     : t('defaultModelDialog.guideSelectDefault')
 
-  /** 跳转到设置页的模型配置，并关闭本弹窗（复用设置页导航逻辑，额外确保右栏拉起）。 */
+  /** 跳转到设置弹窗的模型配置，并关闭本弹窗。 */
   const navigateToModels = () => {
-    useChatStore.getState().openSettingsPanel('model')
+    useChatStore.getState().openSettingsDialog('model')
     closeDialog()
   }
 

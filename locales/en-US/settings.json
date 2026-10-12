@@ -1,12 +1,7 @@
 {
   "nav": {
-    "account": "Account",
     "general": "General",
-    "model": "Model",
-    "agent": "Agent",
-    "skill": "Skill",
-    "mcp": "MCP",
-    "about": "About"
+    "model": "Model"
   },
   "general": {
     "title": "General Settings",
@@ -22,7 +17,8 @@
       "label": "Language",
       "description": "Choose the language for button labels and other text in the app",
       "placeholder": "Select language"
-    }
+    },
+    "appearance": "Appearance"
   },
   "skill": {
     "repo": {
@@ -300,7 +296,6 @@
     "title": "Model Configuration Management",
     "description": "Manage large language model configurations with support for multiple providers",
     "addModel": "Add Model",
-    "addFirstModel": "Add Your First Model",
     "empty": "No model configurations yet",
     "default": "Default",
     "disabled": "Disabled",
@@ -357,7 +352,8 @@
       "saveCreateFailedDesc": "Unable to create the model configuration",
       "deleteFailed": "Delete failed",
       "deleteFailedDesc": "Unable to delete the model configuration"
-    }
+    },
+    "addCustomProvider": "Add Custom Provider"
   },
   "defaultModelDialog": {
     "title": "Configure Default Model",
@@ -386,5 +382,8 @@
       "failed": "Setup failed",
       "failedDesc": "Unable to set the selected model as default. Please try again later."
     }
+  },
+  "dialog": {
+    "title": "Settings"
   }
 }

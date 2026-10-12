@@ -358,7 +358,7 @@ export function BackportPage() {
   )
 
   const openModelSettings = () => {
-    useChatStore.getState().openSettingsPanel('model')
+    useChatStore.getState().openSettingsDialog('model')
   }
 
   const sourceRepository = useMemo(
@@ -894,11 +894,7 @@ export function BackportPage() {
     }
 
     if (event.type === 'stream.error' || event.type === 'client.error') {
-      addTimeline(
-        t('backport.timeline.streamFailed'),
-        'error',
-        JSON.stringify(payload, null, 2)
-      )
+      addTimeline(t('backport.timeline.streamFailed'), 'error', JSON.stringify(payload, null, 2))
     }
   }
 
@@ -1725,7 +1721,8 @@ export function BackportPage() {
       setRepositoryPrepareTask(null)
       setRepositoryPreparingRole(null)
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : t('backport.error.repositoryPrepareFailed')
+      const message =
+        cause instanceof Error ? cause.message : t('backport.error.repositoryPrepareFailed')
       setRepositoryPrepareTask(prev => ({
         task_id: prev?.task_id || '',
         status: 'failed',
@@ -1800,7 +1797,8 @@ export function BackportPage() {
       })
       setRepositoryPrepareTask(null)
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : t('backport.error.repositoryRefreshFailed')
+      const message =
+        cause instanceof Error ? cause.message : t('backport.error.repositoryRefreshFailed')
       setRepositoryPrepareTask({
         task_id: `refresh-${role}`,
         status: 'failed',
@@ -2329,7 +2327,9 @@ export function BackportPage() {
       const result = response.parsedResult
       if (result?.status === 'failed') {
         setGitLogError(
-          result.summary || result.diagnostics?.error_text || t('backport.error.gitLogRefreshFailed')
+          result.summary ||
+            result.diagnostics?.error_text ||
+            t('backport.error.gitLogRefreshFailed')
         )
       }
     } catch (cause) {
@@ -2365,9 +2365,7 @@ export function BackportPage() {
         )
       }
     } catch (cause) {
-      setGitLogError(
-        cause instanceof Error ? cause.message : t('backport.error.gitShowReadFailed')
-      )
+      setGitLogError(cause instanceof Error ? cause.message : t('backport.error.gitShowReadFailed'))
     } finally {
       setGitShowLoading(false)
     }
@@ -2387,7 +2385,8 @@ export function BackportPage() {
     } catch (cause) {
       toast({
         title: t('backport.toast.csvDownloadFailed'),
-        description: cause instanceof Error ? cause.message : t('backport.toast.archivedCsvMissing'),
+        description:
+          cause instanceof Error ? cause.message : t('backport.toast.archivedCsvMissing'),
         variant: 'destructive',
       })
     }
@@ -2401,7 +2400,8 @@ export function BackportPage() {
       setBrowseEntries(response.entries)
       setBrowseParentPath(response.parent_path || null)
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : t('backport.error.serverPathReadFailed')
+      const message =
+        cause instanceof Error ? cause.message : t('backport.error.serverPathReadFailed')
       toast({
         title: t('common:status.error'),
         description: message,
@@ -2882,11 +2882,7 @@ export function BackportPage() {
     handleResetAll()
     setActiveRunId('')
     window.localStorage.removeItem(BACKPORT_ACTIVE_RUN_STORAGE_KEY)
-    addTimeline(
-      t('backport.timeline.newTaskCreated'),
-      'info',
-      t('backport.timeline.newTaskHint')
-    )
+    addTimeline(t('backport.timeline.newTaskCreated'), 'info', t('backport.timeline.newTaskHint'))
   }
 
   const handleSelectRun = (runId: string) => {
@@ -2916,7 +2912,8 @@ export function BackportPage() {
       .catch(cause => {
         toast({
           title: t('backport.toast.historyLoadFailed'),
-          description: cause instanceof Error ? cause.message : t('backport.toast.historyReportUnreadable'),
+          description:
+            cause instanceof Error ? cause.message : t('backport.toast.historyReportUnreadable'),
           variant: 'destructive',
         })
       })
@@ -3072,8 +3069,7 @@ export function BackportPage() {
         .length,
       unmatched: workingCommits.filter(row => resolveStatusMeta(row.data, t).kind === 'unmatched')
         .length,
-      failed: workingCommits.filter(row => resolveStatusMeta(row.data, t).kind === 'failed')
-        .length,
+      failed: workingCommits.filter(row => resolveStatusMeta(row.data, t).kind === 'failed').length,
     }
   }, [workingCommits, t])
 
@@ -3169,9 +3165,7 @@ export function BackportPage() {
               <Wrench className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-slate-950">
-                {t('backport.page.title')}
-              </h2>
+              <h2 className="text-lg font-semibold text-slate-950">{t('backport.page.title')}</h2>
               <p className="text-sm text-slate-600">{t('backport.page.description')}</p>
             </div>
           </div>
@@ -3419,9 +3413,7 @@ export function BackportPage() {
                       </span>
                     </>
                   ) : (
-                    <span>
-                      {runtimeStatus?.errors[0] || t('backport.page.runtimeSetupHint')}
-                    </span>
+                    <span>{runtimeStatus?.errors[0] || t('backport.page.runtimeSetupHint')}</span>
                   )}
 
                   {compatibleBackportModels.length > 0 ? (
@@ -4203,7 +4195,11 @@ export function BackportPage() {
                 onClick={() => loadBrowsePath(browsePath)}
                 disabled={browseLoading}
               >
-                {browseLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : t('backport.pathBrowser.open')}
+                {browseLoading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  t('backport.pathBrowser.open')
+                )}
               </Button>
               <Button
                 variant="outline"

@@ -1,12 +1,7 @@
 {
   "nav": {
-    "account": "账号",
     "general": "通用",
-    "model": "模型",
-    "agent": "智能体",
-    "skill": "Skill",
-    "mcp": "MCP",
-    "about": "关于"
+    "model": "模型"
   },
   "general": {
     "title": "基础设置",
@@ -22,7 +17,8 @@
       "label": "语言",
       "description": "选择您喜欢的按钮标签和应用内其他文本的语言",
       "placeholder": "选择语言"
-    }
+    },
+    "appearance": "外观"
   },
   "skill": {
     "repo": {
@@ -300,7 +296,6 @@
     "title": "模型配置管理",
     "description": "管理大模型配置，支持多种模型提供商",
     "addModel": "添加模型",
-    "addFirstModel": "添加第一个模型",
     "empty": "暂无模型配置",
     "default": "默认",
     "disabled": "已禁用",
@@ -357,7 +352,8 @@
       "saveCreateFailedDesc": "无法创建模型配置",
       "deleteFailed": "删除失败",
       "deleteFailedDesc": "无法删除模型配置"
-    }
+    },
+    "addCustomProvider": "添加自定义提供方"
   },
   "defaultModelDialog": {
     "title": "配置默认模型",
@@ -386,5 +382,8 @@
       "failed": "设置失败",
       "failedDesc": "无法将所选模型设为默认，请稍后重试"
     }
+  },
+  "dialog": {
+    "title": "设置"
   }
 }

@@ -2,22 +2,7 @@
 
 import type { ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  X,
-  Bot,
-  Settings,
-  LayoutGrid,
-  ChevronRight,
-  Plus,
-  Bug,
-  Wrench,
-  Sparkles,
-  Cpu,
-  Activity,
-  Clock,
-  Package,
-  MessagesSquare,
-} from 'lucide-react'
+import { X, LayoutGrid, ChevronRight, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -27,18 +12,19 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
-import { SettingsPage } from '@/components/settings'
+import { getPanelTabMeta, PANEL_TAB_META, PANEL_TAB_IDS } from '@/lib/panel-tabs'
 import { AgentPage } from './agent-page'
 import { CvePage } from './cve-page'
 import { BackportPage } from './backport-page'
 import { InsightPage } from './insight-page'
 import { ScheduledTaskPage } from './scheduled-task'
 import { ChannelPage } from './channel'
+import { SkillPage } from './skill-page'
+import { McpPanelPage } from './mcp-page'
 import { ArtifactPreviewPanel } from '@/components/artifact/artifact-preview-panel'
 
 /** 右侧面板注册表：新增面板只需在这里注册一行，避免逐层嵌套三元。 */
 const PANEL_PAGES: Record<string, ComponentType> = {
-  settings: SettingsPage,
   agent: AgentPage,
   insight: InsightPage,
   cve: CvePage,
@@ -46,6 +32,8 @@ const PANEL_PAGES: Record<string, ComponentType> = {
   'scheduled-tasks': ScheduledTaskPage,
   channels: ChannelPage,
   artifacts: ArtifactPreviewPanel,
+  skills: SkillPage,
+  mcp: McpPanelPage,
 }
 
 function PanelContent({ tabId, tabName }: { tabId: string; tabName?: string }) {
@@ -65,161 +53,117 @@ function PanelContent({ tabId, tabName }: { tabId: string; tabName?: string }) {
   )
 }
 
+/** tab 元信息统一查 PANEL_TAB_META；name 经 i18nKey 翻译，icon/color 取注册值。 */
+function useTabMeta(tabId: string) {
+  const { t } = useTranslation('tool-panel')
+  const meta = getPanelTabMeta(tabId)
+  return {
+    icon: meta?.icon,
+    color: meta?.color ?? '',
+    name: meta ? t(meta.i18nKey) : undefined,
+  }
+}
+
+function PanelTabButton({
+  tabId,
+  fallbackName,
+  isActive,
+  onSelect,
+  onClose,
+}: {
+  tabId: string
+  fallbackName: string
+  isActive: boolean
+  onSelect: () => void
+  onClose: () => void
+}) {
+  const meta = useTabMeta(tabId)
+  const { t } = useTranslation('tool-panel')
+  const Icon = meta.icon
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-2 px-3 py-1 rounded-md text-sm whitespace-nowrap cursor-pointer',
+        isActive ? 'bg-accent' : 'hover:bg-accent/50'
+      )}
+      onClick={onSelect}
+    >
+      {Icon && <Icon className={cn('h-4 w-4', meta.color)} />}
+      <span>{meta.name ?? fallbackName}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={t('rightPanel.closeTab', { name: meta.name ?? fallbackName })}
+        className="h-6 w-6"
+        onClick={e => {
+          e.stopPropagation()
+          onClose()
+        }}
+      >
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
+  )
+}
+
 export function RightPanel() {
   const { t } = useTranslation('tool-panel')
   const {
     isRightPanelOpen,
-    toggleRightPanel,
     rightPanelTabs,
     activeRightPanelTab,
-    addRightPanelTab,
     removeRightPanelTab,
     setActiveRightPanelTab,
-    openSettingsPanel,
+    openPanelTab,
   } = useChatStore()
-
-  const tools = [
-    { id: 'agent', name: t('rightPanel.tools.agent'), icon: Bot, color: 'text-cyan-500' },
-    {
-      id: 'insight',
-      name: t('rightPanel.tools.insight'),
-      icon: Activity,
-      color: 'text-emerald-500',
-    },
-    { id: 'cve', name: 'CVE', icon: Bug, color: 'text-rose-500' },
-    { id: 'backport', name: 'Backport', icon: Wrench, color: 'text-blue-500' },
-    {
-      id: 'scheduled-tasks',
-      name: t('rightPanel.tools.scheduledTasks'),
-      icon: Clock,
-      color: 'text-violet-500',
-    },
-    {
-      id: 'channels',
-      name: t('rightPanel.tools.channels'),
-      icon: MessagesSquare,
-      color: 'text-teal-500',
-    },
-    {
-      id: 'artifacts',
-      name: t('rightPanel.tools.artifacts'),
-      icon: Package,
-      color: 'text-orange-500',
-    },
-    {
-      id: 'settings',
-      name: t('rightPanel.tools.settings'),
-      icon: Settings,
-      color: 'text-gray-500',
-      settingsSection: 'general',
-    },
-    {
-      id: 'skills',
-      name: t('rightPanel.tools.skills'),
-      icon: Sparkles,
-      color: 'text-amber-500',
-      settingsSection: 'rules',
-    },
-    {
-      id: 'model',
-      name: t('rightPanel.tools.model'),
-      icon: Cpu,
-      color: 'text-indigo-500',
-      settingsSection: 'model',
-    },
-  ]
-
-  const handleToolClick = (tool: {
-    id: string
-    name: string
-    icon: React.ElementType
-    color: string
-    settingsSection?: string
-  }) => {
-    if (tool.settingsSection) {
-      openSettingsPanel(tool.settingsSection)
-    } else {
-      const existingTab = rightPanelTabs.find(tab => tab.id === tool.id)
-      if (!existingTab) {
-        addRightPanelTab({ id: tool.id, name: tool.name, icon: tool.icon, color: tool.color })
-      }
-      setActiveRightPanelTab(tool.id)
-    }
-  }
 
   if (!isRightPanelOpen) {
     return null
   }
 
   const handleCloseTab = (tabId: string) => {
-    if (tabId === 'settings') {
-      const previousActiveTab = rightPanelTabs.filter(tab => tab.id !== 'settings').at(-1)?.id
-
-      if (previousActiveTab) {
-        setActiveRightPanelTab(previousActiveTab)
-      } else {
-        toggleRightPanel()
-      }
-    }
     removeRightPanelTab(tabId)
   }
 
+  const openTabIds = new Set(rightPanelTabs.map(tab => tab.id))
+  const allToolsOpen = PANEL_TAB_IDS.every(id => openTabIds.has(id))
+
   return (
     <div className="flex h-full flex-col border-l border-border bg-background">
-      {/* Header */}
-
       {/* Tabs */}
       <div className="border-b border-border px-4 py-2 flex items-center gap-2 overflow-x-auto flex-shrink-0 min-h-[44px]">
         <div className="flex items-center gap-2">
-          {rightPanelTabs.map(tab => {
-            const tool = tools.find(t => t.id === tab.id)
-            const Icon = tool?.icon || (() => null)
-            const color = tool?.color || ''
-            return (
-              <div
-                key={tab.id}
-                className={cn(
-                  'flex items-center gap-2 px-3 py-1 rounded-md text-sm whitespace-nowrap cursor-pointer',
-                  activeRightPanelTab === tab.id ? 'bg-accent' : 'hover:bg-accent/50'
-                )}
-                onClick={() => setActiveRightPanelTab(tab.id)}
-              >
-                <Icon className={`h-4 w-4 ${color}`} />
-                <span>{tool?.name ?? tab.name}</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={e => {
-                    e.stopPropagation()
-                    handleCloseTab(tab.id)
-                  }}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            )
-          })}
+          {rightPanelTabs.map(tab => (
+            <PanelTabButton
+              key={tab.id}
+              tabId={tab.id}
+              fallbackName={tab.name}
+              isActive={activeRightPanelTab === tab.id}
+              onSelect={() => setActiveRightPanelTab(tab.id)}
+              onClose={() => handleCloseTab(tab.id)}
+            />
+          ))}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6">
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
                 <Plus className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
-              {tools
-                .filter(tool => !rightPanelTabs.some(tab => tab.id === tool.id))
-                .map(tool => (
-                  <DropdownMenuItem key={tool.id} onClick={() => handleToolClick(tool)}>
-                    <tool.icon className={`h-4 w-4 ${tool.color} mr-2`} />
-                    {tool.name}
-                  </DropdownMenuItem>
-                ))}
-              {tools.filter(tool => !rightPanelTabs.some(tab => tab.id === tool.id)).length ===
-                0 && (
+              {allToolsOpen ? (
                 <div className="px-4 py-2 text-sm text-muted-foreground">
                   {t('rightPanel.allToolsOpen')}
                 </div>
+              ) : (
+                PANEL_TAB_IDS.filter(tabId => !openTabIds.has(tabId)).map(tabId => {
+                  const meta = PANEL_TAB_META[tabId]
+                  return (
+                    <DropdownMenuItem key={tabId} onClick={() => openPanelTab(tabId)}>
+                      <meta.icon className={cn('h-4 w-4 mr-2', meta.color)} />
+                      {t(meta.i18nKey)}
+                    </DropdownMenuItem>
+                  )
+                })
               )}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -241,17 +185,20 @@ export function RightPanel() {
               <p className="text-sm text-muted-foreground">{t('rightPanel.emptyHint')}</p>
             </div>
             <div className="grid grid-cols-3 gap-4">
-              {tools.map(tool => (
-                <Button
-                  key={tool.id}
-                  variant="outline"
-                  className="flex flex-col items-center justify-center gap-2 p-4 h-24 w-full"
-                  onClick={() => handleToolClick(tool)}
-                >
-                  <tool.icon className={`h-6 w-6 ${tool.color}`} />
-                  <span className="text-xs">{tool.name}</span>
-                </Button>
-              ))}
+              {PANEL_TAB_IDS.map(tabId => {
+                const meta = PANEL_TAB_META[tabId]
+                return (
+                  <Button
+                    key={tabId}
+                    variant="outline"
+                    className="flex flex-col items-center justify-center gap-2 p-4 h-24 w-full"
+                    onClick={() => openPanelTab(tabId)}
+                  >
+                    <meta.icon className={cn('h-6 w-6', meta.color)} />
+                    <span className="text-xs">{t(meta.i18nKey)}</span>
+                  </Button>
+                )
+              })}
             </div>
           </div>
         </div>
