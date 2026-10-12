@@ -214,7 +214,24 @@
       "answer": "Answer"
     },
     "streaming": "Generating reply",
-    "thinking": "Deep thinking"
+    "thinking": "Deep thinking",
+    "error": {
+      "title": "This run failed",
+      "codes": {
+        "UPSTREAM_AUTH": "Model authentication failed. Check the API Key configuration.",
+        "UPSTREAM_RATE_LIMIT": "Model service is rate limited. Try again later.",
+        "UPSTREAM_QUOTA_EXCEEDED": "Model quota exhausted. Check your account balance or plan quota.",
+        "UPSTREAM_REQUEST": "Model request rejected. Check your input or model configuration.",
+        "UPSTREAM_SERVER": "Model service is temporarily unavailable. Try again later.",
+        "UPSTREAM_TIMEOUT": "Model service timed out. Try again later.",
+        "TRANSPORT_CLOSED": "Runtime connection closed. Try again later.",
+        "TRANSPORT_ERROR": "Runtime connection error. Try again later.",
+        "RUNTIME_PROTOCOL_ERROR": "The runtime returned data that could not be parsed. Retry or contact your administrator.",
+        "RUNTIME_LIFECYCLE_ERROR": "Runtime execution error. Retry or contact your administrator.",
+        "INTERNAL_ERROR": "Internal error. Try again later.",
+        "default": "Something went wrong while handling this message. Try again later."
+      }
+    }
   },
   "artifactCard": {
     "download": "Download",

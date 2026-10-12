@@ -13,6 +13,7 @@ import { MessageStatus } from './types'
 import { generateUUID } from './utils'
 import { formatToolOutput } from './format-utils'
 import { normalizeArtifactType, resolveArtifactType } from './artifacts'
+import { parseStreamErrorPayload } from './stream-error'
 
 /**
  * 从 question.asked 事件 payload 中提取所有 QuestionInfo 组成的数组。
@@ -515,11 +516,13 @@ export function handleArtifactEvent(
   }
 }
 
-// stream.error / client.error：标记消息为错误状态并滤除 delta 事件。
-export function applyStreamError(m: Message): Partial<Message> {
+// stream.error / client.error：标记消息为错误状态并滤除 delta 事件，
+// 同时把后端统一错误载荷（stream_errors.py 契约）解析后挂到消息上供 UI 展示。
+export function applyStreamError(m: Message, payload?: unknown): Partial<Message> {
   return {
     isStreaming: false,
     status: MessageStatus.ERROR,
+    streamError: parseStreamErrorPayload(payload),
     events: (m.events || []).filter(e => !isStreamDeltaEvent(e)),
   }
 }
@@ -688,7 +691,9 @@ export function handleStreamEvent(
     case 'client.error':
       console.error('Stream error:', eventData.payload || 'No payload')
       locallyCreatedMessageIds?.current.delete(messageId)
-      updateMessage(conversationId, messageId, (m: Message) => applyStreamError(m))
+      updateMessage(conversationId, messageId, (m: Message) =>
+        applyStreamError(m, eventData.payload)
+      )
       setStreaming(conversationId, false)
       break
     case 'turn.completed': {

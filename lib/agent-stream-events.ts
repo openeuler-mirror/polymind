@@ -252,7 +252,11 @@ export function handleAgentStreamEvent({
     case 'stream.error':
     case 'client.error':
       console.error('Error event:', eventData.payload || 'No payload')
-      store.updateMessage(conversationId, nextAssistantMessageId, applyStreamError(currentMessage))
+      store.updateMessage(
+        conversationId,
+        nextAssistantMessageId,
+        applyStreamError(currentMessage, eventData.payload)
+      )
       store.setStreaming(conversationId, false)
       break
   }

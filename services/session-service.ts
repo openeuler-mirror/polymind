@@ -13,6 +13,7 @@ import {
 import { SessionStatus, MessageStatus } from '@/lib/types'
 import { normalizeArtifactType, resolveArtifactType } from '@/lib/artifacts'
 import { coalesceStreamEvents } from '@/lib/stream-event-handler'
+import { parseStreamErrorPayload } from '@/lib/stream-error'
 
 /**
  * 已完成消息的 toolCall 强制标记为 completed，避免服务端返回的中间状态导致 UI 显示错误。
@@ -132,6 +133,14 @@ class SessionService {
     // 已完成消息的 toolCall 强制标记为 completed，避免服务端返回的中间状态导致 UI 显示错误
     const normalizeToolCallStatus = (toolCall: any) =>
       normalizeFinishedToolCallStatus(toolCall, !!isFinished)
+    const events = this.transformEvents(msg, !!isFinished)
+    // 失败轮次的 stream.error / client.error 事件已随消息时间线持久化（后端
+    // consume_ws 落库），刷新后从最后一条错误事件的 payload 还原错误码与根因。
+    // 仅失败消息才可能有错误事件，成功消息不做无效查找。
+    const lastErrorEvent =
+      msg.status === MessageStatus.ERROR
+        ? [...events].reverse().find(e => e.type === 'stream.error' || e.type === 'client.error')
+        : undefined
 
     return {
       id: msg.id,
@@ -140,6 +149,7 @@ class SessionService {
       timestamp: new Date(msg.timestamp || msg.created_at),
       isStreaming: msg.isStreaming ?? msg.status === MessageStatus.GENERATING,
       status: msg.status,
+      streamError: lastErrorEvent ? parseStreamErrorPayload(lastErrorEvent.payload) : undefined,
       toolCalls: (msg.toolCalls || msg.tool_calls || []).map(normalizeToolCallStatus),
       thinking: msg.thinking,
       question: msg.question ?? null,
@@ -149,7 +159,7 @@ class SessionService {
         | undefined,
       questionAnswers: msg.questionAnswers ?? msg.question_answers ?? null,
       artifacts: (msg.artifacts ?? msg.artifact_events ?? []).map(this.transformArtifact),
-      events: this.transformEvents(msg, !!isFinished),
+      events,
       usage: msg.usage,
     }
   }
