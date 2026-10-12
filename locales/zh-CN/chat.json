@@ -4,7 +4,8 @@
       "newChat": "新对话",
       "imChannel": "IM 频道",
       "agent": "智能体",
-      "scheduledTasks": "定时任务"
+      "scheduledTasks": "定时任务",
+      "settings": "设置"
     },
     "section": {
       "pinned": "已置顶",

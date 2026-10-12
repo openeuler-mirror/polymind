@@ -9,7 +9,7 @@ import {
   MessageCircle,
   Clock,
   Bot,
-  MessagesSquare,
+  Settings,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -29,6 +29,7 @@ import {
 import { sessionService } from '@/services/session-service'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import type { PanelTabId } from '@/lib/panel-tabs'
 import { groupSidebarConversations, sortByUpdatedAtDesc } from '@/lib/sidebar-utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -298,32 +299,18 @@ export function ConversationSidebar() {
 
   // 顶部导航项：映射到右侧面板 tab，高亮直接跟随面板真实状态；
   // 「新对话」是动作，不持有选中态，避免导航高亮与真实视图不一致。
-  const navItems: { id: string; label: string; icon: LucideIcon; panelTabId: string | null }[] = [
-    { id: 'chat', label: t('sidebar.nav.newChat'), icon: MessageSquarePlus, panelTabId: null },
-    { id: 'im', label: t('sidebar.nav.imChannel'), icon: MessageCircle, panelTabId: 'channels' },
-    { id: 'agent', label: t('sidebar.nav.agent'), icon: Bot, panelTabId: 'agent' },
-    {
-      id: 'scheduled-tasks',
-      label: t('sidebar.nav.scheduledTasks'),
-      icon: Clock,
-      panelTabId: 'scheduled-tasks',
-    },
-  ]
-
-  // 打开右侧面板并确保可见（agent / scheduled-tasks）。
-  const openRightPanelTab = (tab: {
-    id: string
-    name: string
-    icon: LucideIcon
-    color: string
-  }) => {
-    const state = useChatStore.getState()
-    state.addRightPanelTab(tab)
-    state.setActiveRightPanelTab(tab.id)
-    if (!state.isRightPanelOpen) {
-      state.toggleRightPanel()
-    }
-  }
+  const navItems: { id: string; label: string; icon: LucideIcon; panelTabId: PanelTabId | null }[] =
+    [
+      { id: 'chat', label: t('sidebar.nav.newChat'), icon: MessageSquarePlus, panelTabId: null },
+      { id: 'im', label: t('sidebar.nav.imChannel'), icon: MessageCircle, panelTabId: 'channels' },
+      { id: 'agent', label: t('sidebar.nav.agent'), icon: Bot, panelTabId: 'agent' },
+      {
+        id: 'scheduled-tasks',
+        label: t('sidebar.nav.scheduledTasks'),
+        icon: Clock,
+        panelTabId: 'scheduled-tasks',
+      },
+    ]
 
   const startNewTask = () => {
     const state = useChatStore.getState()
@@ -338,29 +325,13 @@ export function ConversationSidebar() {
   }
 
   const handleNavClick = (navId: string) => {
-    if (navId === 'chat') {
+    const item = navItems.find(i => i.id === navId)
+    if (!item) return
+    // 「新对话」是动作入口；其余 nav 映射到右侧面板 tab。
+    if (item.panelTabId === null) {
       startNewTask()
-    } else if (navId === 'agent') {
-      openRightPanelTab({
-        id: 'agent',
-        name: t('sidebar.panelTab.agent'),
-        icon: Bot,
-        color: 'text-cyan-500',
-      })
-    } else if (navId === 'scheduled-tasks') {
-      openRightPanelTab({
-        id: 'scheduled-tasks',
-        name: t('sidebar.panelTab.scheduledTasks'),
-        icon: Clock,
-        color: 'text-violet-500',
-      })
-    } else if (navId === 'im') {
-      openRightPanelTab({
-        id: 'channels',
-        name: t('sidebar.panelTab.imChannel'),
-        icon: MessagesSquare,
-        color: 'text-teal-500',
-      })
+    } else {
+      useChatStore.getState().openPanelTab(item.panelTabId)
     }
   }
 
@@ -505,6 +476,22 @@ export function ConversationSidebar() {
           </>
         )}
       </ScrollArea>
+
+      {/* Footer：设置入口是动作语义（同「新对话」），点击打开设置弹窗——
+          不持有选中态、不做持续高亮，仅保留点击瞬间的原生按压反馈。 */}
+      <div className="shrink-0 border-t border-border px-3 py-2">
+        <button
+          type="button"
+          onClick={() => useChatStore.getState().openSettingsDialog()}
+          className={cn(
+            'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
+            'hover:bg-sidebar-accent/60'
+          )}
+        >
+          <Settings className="h-4 w-4" />
+          <span>{t('sidebar.nav.settings')}</span>
+        </button>
+      </div>
 
       <DeleteScheduledTaskDialog
         task={deleteTaskTarget}

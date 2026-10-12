@@ -4,7 +4,8 @@
       "newChat": "New Chat",
       "imChannel": "IM Channels",
       "agent": "Agents",
-      "scheduledTasks": "Scheduled Tasks"
+      "scheduledTasks": "Scheduled Tasks",
+      "settings": "Settings"
     },
     "section": {
       "pinned": "Pinned",

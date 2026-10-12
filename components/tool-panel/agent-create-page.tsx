@@ -342,7 +342,7 @@ export function AgentCreatePage({ onBack, onCreated }: AgentCreatePageProps) {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      useChatStore.getState().openSettingsPanel('model')
+                      useChatStore.getState().openSettingsDialog('model')
                     }}
                   >
                     <Plus className="w-3 h-3 mr-1" />

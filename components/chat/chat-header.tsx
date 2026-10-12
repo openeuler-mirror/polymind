@@ -104,7 +104,7 @@ export function ChatHeader({ conversation }: ChatHeaderProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {
-                useChatStore.getState().openSettingsPanel()
+                useChatStore.getState().openSettingsDialog()
               }}
             >
               <Settings className="mr-2 h-4 w-4" />

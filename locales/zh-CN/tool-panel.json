@@ -1241,15 +1241,17 @@
     "allToolsOpen": "所有工具已打开",
     "emptyHint": "使用工具，扩展更多能力",
     "toggle": "切换工具面板",
+    "closeTab": "关闭 {{name}}",
     "tools": {
       "agent": "智能体",
       "insight": "监测系统",
       "scheduledTasks": "定时任务",
       "artifacts": "产物",
-      "settings": "设置",
       "skills": "技能",
-      "model": "模型",
-      "channels": "IM 频道"
+      "channels": "IM 频道",
+      "cve": "CVE",
+      "backport": "Backport",
+      "mcp": "MCP"
     }
   }
 }

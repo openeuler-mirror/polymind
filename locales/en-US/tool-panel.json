@@ -657,7 +657,7 @@
   "scheduledTask": {
     "title": "Scheduled Tasks",
     "description": "Configure tasks for Polymind to run automatically on a schedule. Once created, they are run by the backend scheduler.",
-    "notice": "Once created, tasks are run automatically by the backend scheduler on their schedule. Click a card to edit it, or enable, disable, run immediately or delete it from the card; results are collected in the \u201cRun Records\u201d tab.",
+    "notice": "Once created, tasks are run automatically by the backend scheduler on their schedule. Click a card to edit it, or enable, disable, run immediately or delete it from the card; results are collected in the “Run Records” tab.",
     "tabs": {
       "tasks": "My Scheduled Tasks",
       "runs": "Run Records"
@@ -786,9 +786,9 @@
     },
     "delete": {
       "dialogTitle": "Delete Scheduled Task",
-      "dialogDescription": "Are you sure you want to delete \u201c{{name}}\u201d? The task will no longer be scheduled, and all of its conversations and run records will be deleted permanently. This cannot be undone.",
+      "dialogDescription": "Are you sure you want to delete “{{name}}”? The task will no longer be scheduled, and all of its conversations and run records will be deleted permanently. This cannot be undone.",
       "deletedTitle": "Deleted",
-      "deletedDescription": "Scheduled task \u201c{{name}}\u201d and its conversations and run records have been deleted",
+      "deletedDescription": "Scheduled task “{{name}}” and its conversations and run records have been deleted",
       "busyTitle": "Task is running",
       "busyDescription": "This task is currently running. Please try again later.",
       "failedTitle": "Delete failed",
@@ -798,7 +798,7 @@
     "runs": {
       "emptyTitle": "No run records yet",
       "emptyDescription": "Once you create scheduled tasks, their run results will be collected here.",
-      "notRunYet": "This task has not run yet. Click \u201cRun now\u201d on its card to trigger a run.",
+      "notRunYet": "This task has not run yet. Click “Run now” on its card to trigger a run.",
       "noMatchTitle": "No matching run records",
       "noMatchDescription": "No records match the current filters. Change the filters or keep loading more history.",
       "filteredCount": "{{visible}} matched · {{loaded}} loaded of {{total}}",
@@ -833,7 +833,7 @@
       "agentNotFound": "The executing agent does not exist. Please check the task configuration.",
       "skippedTitle": "Run skipped",
       "skippedDescription": "The task or agent is busy, so it was not run. Please try again later.",
-      "triggeredDescription": "\u201c{{name}}\u201d has been triggered. The conversation has been added to the sidebar.",
+      "triggeredDescription": "“{{name}}” has been triggered. The conversation has been added to the sidebar.",
       "triggerFailed": "Failed to trigger the run"
     },
     "toast": {
@@ -1223,15 +1223,17 @@
     "allToolsOpen": "All tools are open",
     "emptyHint": "Use tools to unlock more capabilities",
     "toggle": "Toggle tool panel",
+    "closeTab": "Close {{name}}",
     "tools": {
       "agent": "Agents",
       "insight": "Monitoring",
       "scheduledTasks": "Scheduled Tasks",
       "artifacts": "Artifacts",
-      "settings": "Settings",
       "skills": "Skills",
-      "model": "Models",
-      "channels": "IM Channel"
+      "channels": "IM Channel",
+      "cve": "CVE",
+      "backport": "Backport",
+      "mcp": "MCP"
     }
   }
 }

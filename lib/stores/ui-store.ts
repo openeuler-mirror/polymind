@@ -1,10 +1,13 @@
 import type { StateCreator } from 'zustand'
-import { Package, Settings } from 'lucide-react'
 import type { MCPTool } from '../types'
 import type { Tab } from './utils'
 import { defaultTools } from './utils'
+import { PANEL_TAB_META, type PanelTabId } from '../panel-tabs'
 
 export type SidebarSectionKey = 'pinned' | 'regular' | 'scheduled'
+
+/** 设置弹窗支持的 section；与 settings-dialog 的 SECTIONS 保持一致。 */
+export type SettingsSectionId = 'general' | 'model'
 
 interface SidebarUIPersist {
   sections: Record<SidebarSectionKey, boolean>
@@ -46,7 +49,7 @@ export interface UISlice {
   mcpTools: MCPTool[]
   rightPanelTabs: Tab[]
   activeRightPanelTab: string | null
-  settingsActiveSection: string | null
+  settingsActiveSection: SettingsSectionId | null
   sidebarSectionsCollapsed: Record<SidebarSectionKey, boolean>
   scheduledTaskFoldersCollapsed: Record<string, boolean>
   toggleSidebar: () => void
@@ -55,14 +58,22 @@ export interface UISlice {
   addRightPanelTab: (tab: Tab) => void
   removeRightPanelTab: (tabId: string) => void
   setActiveRightPanelTab: (tabId: string | null) => void
-  setSettingsActiveSection: (section: string | null) => void
+  setSettingsActiveSection: (section: SettingsSectionId | null) => void
   /** 产物面板当前选中的产物 id（卡片点击 / 面板切换共用） */
   selectedArtifactId: string | null
   /** 打开右侧产物面板并选中指定产物（幂等：tab 存在则不重复添加） */
   openArtifactPanel: (artifact: { id: string }) => void
   setSelectedArtifactId: (id: string | null) => void
-  /** 打开设置面板并定位到指定 section；设置 tab 不存在时自动创建。 */
-  openSettingsPanel: (section?: string) => void
+  /**
+   * 打开右侧面板指定 tab（幂等 add + activate + 展开面板）。
+   * tab 元信息统一查 PANEL_TAB_META，调用方只需传 tabId。
+   */
+  openPanelTab: (tabId: PanelTabId) => void
+  /** 设置弹窗开关（设置已弹窗化，不再占用右侧面板 tab）。 */
+  isSettingsDialogOpen: boolean
+  /** 打开设置弹窗并定位到指定 section（默认 general）。 */
+  openSettingsDialog: (section?: SettingsSectionId) => void
+  closeSettingsDialog: () => void
   isDefaultModelDialogOpen: boolean
   openDefaultModelDialog: () => void
   closeDefaultModelDialog: () => void
@@ -92,6 +103,7 @@ type UISliceData = Pick<
   | 'activeRightPanelTab'
   | 'settingsActiveSection'
   | 'isDefaultModelDialogOpen'
+  | 'isSettingsDialogOpen'
   | 'selectedArtifactId'
   | 'sidebarSectionsCollapsed'
   | 'scheduledTaskFoldersCollapsed'
@@ -111,6 +123,7 @@ export function createDefaultUISliceData(): UISliceData {
     activeRightPanelTab: null,
     settingsActiveSection: null,
     isDefaultModelDialogOpen: false,
+    isSettingsDialogOpen: false,
     selectedArtifactId: null,
     sidebarSectionsCollapsed: { pinned: false, regular: false, scheduled: false },
     scheduledTaskFoldersCollapsed: {},
@@ -121,6 +134,16 @@ export function createDefaultUISliceData(): UISliceData {
 export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
   const persisted = loadSidebarUI()
   const defaults = createDefaultUISliceData()
+
+  /** 幂等追加面板 tab（元信息查 PANEL_TAB_META），返回需要合并的 partial。 */
+  const withPanelTab = (state: UISlice, tabId: PanelTabId): Partial<UISlice> => {
+    if (state.rightPanelTabs.some(t => t.id === tabId)) return {}
+    const meta = PANEL_TAB_META[tabId]
+    // name 只是兜底：渲染层会按 meta.i18nKey 翻译，这里存 id 即可。
+    const tab: Tab = { id: tabId, name: tabId, icon: meta.icon, color: meta.color }
+    return { rightPanelTabs: [...state.rightPanelTabs, tab] }
+  }
+
   return {
     ...defaults,
     sidebarSectionsCollapsed: persisted?.sections ?? defaults.sidebarSectionsCollapsed,
@@ -156,38 +179,25 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
     setActiveRightPanelTab: tabId => set({ activeRightPanelTab: tabId }),
     setSettingsActiveSection: section => set({ settingsActiveSection: section }),
     openArtifactPanel: artifact => {
-      set(state => {
-        const rightPanelTabs = state.rightPanelTabs.some(t => t.id === 'artifacts')
-          ? state.rightPanelTabs
-          : [
-              ...state.rightPanelTabs,
-              { id: 'artifacts', name: '产物', icon: Package, color: 'text-orange-500' },
-            ]
-        return {
-          rightPanelTabs,
-          activeRightPanelTab: 'artifacts',
-          isRightPanelOpen: true,
-          selectedArtifactId: artifact.id,
-        }
-      })
+      set(state => ({
+        ...withPanelTab(state, 'artifacts'),
+        activeRightPanelTab: 'artifacts',
+        isRightPanelOpen: true,
+        selectedArtifactId: artifact.id,
+      }))
     },
     setSelectedArtifactId: id => set({ selectedArtifactId: id }),
-    openSettingsPanel: section => {
-      set(state => {
-        const hasSettingsTab = state.rightPanelTabs.some(tab => tab.id === 'settings')
-        return {
-          settingsActiveSection: section ?? state.settingsActiveSection,
-          rightPanelTabs: hasSettingsTab
-            ? state.rightPanelTabs
-            : [
-                ...state.rightPanelTabs,
-                { id: 'settings', name: '设置', icon: Settings, color: 'text-gray-500' },
-              ],
-          activeRightPanelTab: 'settings',
-          isRightPanelOpen: true,
-        }
-      })
+    openPanelTab: tabId => {
+      set(state => ({
+        ...withPanelTab(state, tabId),
+        activeRightPanelTab: tabId,
+        isRightPanelOpen: true,
+      }))
     },
+    openSettingsDialog: section => {
+      set({ isSettingsDialogOpen: true, settingsActiveSection: section ?? 'general' })
+    },
+    closeSettingsDialog: () => set({ isSettingsDialogOpen: false }),
     openDefaultModelDialog: () => set({ isDefaultModelDialogOpen: true }),
     closeDefaultModelDialog: () => set({ isDefaultModelDialogOpen: false }),
     toggleSidebarSection: key => {

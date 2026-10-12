@@ -130,30 +130,72 @@ describe('UISlice', () => {
     })
   })
 
-  describe('Settings panel navigation', () => {
-    it('should open settings tab and set active section', () => {
-      useTestStore.getState().openSettingsPanel('model')
+  describe('Settings dialog', () => {
+    it('should default to closed', () => {
+      expect(useTestStore.getState().isSettingsDialogOpen).toBe(false)
+    })
+
+    it('should open settings dialog and default to general section', () => {
+      useTestStore.getState().openSettingsDialog()
       const state = useTestStore.getState()
-      expect(state.activeRightPanelTab).toBe('settings')
+      expect(state.isSettingsDialogOpen).toBe(true)
+      expect(state.settingsActiveSection).toBe('general')
+    })
+
+    it('should open settings dialog at the given section', () => {
+      useTestStore.getState().openSettingsDialog('model')
+      const state = useTestStore.getState()
+      expect(state.isSettingsDialogOpen).toBe(true)
       expect(state.settingsActiveSection).toBe('model')
-      expect(state.rightPanelTabs.some(tab => tab.id === 'settings')).toBe(true)
+    })
+
+    it('should close settings dialog', () => {
+      useTestStore.getState().openSettingsDialog()
+      useTestStore.getState().closeSettingsDialog()
+      expect(useTestStore.getState().isSettingsDialogOpen).toBe(false)
+    })
+
+    it('should not touch the right panel when opening settings', () => {
+      useTestStore.getState().openSettingsDialog('model')
+      const state = useTestStore.getState()
+      expect(state.rightPanelTabs.some(tab => tab.id === 'settings')).toBe(false)
+      expect(state.isRightPanelOpen).toBe(false)
+    })
+  })
+
+  describe('Panel tab registry', () => {
+    it('should open a registered tab with meta applied', () => {
+      useTestStore.getState().openPanelTab('skills')
+      const state = useTestStore.getState()
+      expect(state.activeRightPanelTab).toBe('skills')
       expect(state.isRightPanelOpen).toBe(true)
+      const tab = state.rightPanelTabs.find(t => t.id === 'skills')
+      expect(tab).toBeTruthy()
+      expect(tab?.icon).toBeTruthy()
+      expect(tab?.color).toBeTruthy()
     })
 
-    it('should keep existing settings tab instead of duplicating', () => {
-      useTestStore.getState().openSettingsPanel('model')
-      useTestStore.getState().openSettingsPanel('general')
-      const settingsTabs = useTestStore
-        .getState()
-        .rightPanelTabs.filter(tab => tab.id === 'settings')
-      expect(settingsTabs.length).toBe(1)
-      expect(useTestStore.getState().settingsActiveSection).toBe('general')
+    it('should be idempotent when opening the same tab twice', () => {
+      useTestStore.getState().openPanelTab('mcp')
+      useTestStore.getState().openPanelTab('mcp')
+      expect(useTestStore.getState().rightPanelTabs.filter(t => t.id === 'mcp').length).toBe(1)
     })
 
-    it('should preserve active section when section is omitted', () => {
-      useTestStore.getState().openSettingsPanel('model')
-      useTestStore.getState().openSettingsPanel()
-      expect(useTestStore.getState().settingsActiveSection).toBe('model')
+    it('should switch active tab when opening another tab', () => {
+      useTestStore.getState().openPanelTab('agent')
+      useTestStore.getState().openPanelTab('mcp')
+      const state = useTestStore.getState()
+      expect(state.activeRightPanelTab).toBe('mcp')
+      expect(state.rightPanelTabs.length).toBe(2)
+    })
+
+    it('should open artifact panel and select the artifact', () => {
+      useTestStore.getState().openArtifactPanel({ id: 'a-1' })
+      const state = useTestStore.getState()
+      expect(state.activeRightPanelTab).toBe('artifacts')
+      expect(state.isRightPanelOpen).toBe(true)
+      expect(state.selectedArtifactId).toBe('a-1')
+      expect(state.rightPanelTabs.some(t => t.id === 'artifacts')).toBe(true)
     })
   })
 

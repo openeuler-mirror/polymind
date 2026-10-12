@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import { modelService } from '@/services/model-service'
 import { DefaultModelDialog } from '@/components/settings/model/default-model-dialog'
+import { SettingsDialog } from '@/components/settings'
 
 export default function Home() {
   const { isSidebarOpen, isRightPanelOpen } = useChatStore()
@@ -82,6 +83,9 @@ export default function Home() {
 
       {/* 默认模型首检弹窗（F1）：无有效默认模型时首次进首页拉起 */}
       <DefaultModelDialog />
+
+      {/* 设置弹窗：通用 / 模型 / 关于（入口：侧边栏 footer、chat-header 下拉、业务页跳转） */}
+      <SettingsDialog />
     </main>
   )
 }

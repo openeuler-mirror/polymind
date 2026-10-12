@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Edit, Trash2, Zap, Info } from 'lucide-react'
+import { Plus, Trash2, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   AlertDialog,
@@ -32,12 +31,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Switch } from '@/components/ui/switch'
-import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { cn } from '@/lib/utils'
 import { modelService } from '@/services/model-service'
 import {
   ModelConfig,
@@ -142,7 +139,7 @@ export function ModelPage() {
     }
   }
 
-  const handleOpenDialog = (model?: ModelConfig) => {
+  const handleOpenDialog = (model?: ModelConfig, presetCustomProvider = false) => {
     setFormErrors({})
     setIsSubmitting(false)
     if (model) {
@@ -154,6 +151,16 @@ export function ModelPage() {
         apiKey: '',
         apiBaseUrl: model.apiBaseUrl || '',
         compatibility: model.compatibility || 'openai',
+      })
+    } else if (presetCustomProvider) {
+      setEditingModel(null)
+      setIsSetDefault(modelsLoaded && !models.some(m => m.enabled && m.isDefault))
+      setFormData({
+        name: '',
+        provider: ModelProvider.CUSTOM,
+        apiKey: '',
+        apiBaseUrl: '',
+        compatibility: 'openai',
       })
     } else {
       setEditingModel(null)
@@ -304,24 +311,6 @@ export function ModelPage() {
     return provider?.name || providerId
   }
 
-  const getProviderColor = (providerId: string) => {
-    const colors: Record<string, string> = {
-      openai: 'bg-blue-500',
-      anthropic: 'bg-cyan-500',
-      alibaba: 'bg-orange-500',
-      deepseek: 'bg-amber-500',
-      zhipuai: 'bg-red-500',
-      minimax: 'bg-pink-500',
-      moonshotai: 'bg-indigo-500',
-      google: 'bg-green-500',
-      xai: 'bg-yellow-500',
-      siliconflow: 'bg-teal-500',
-      azure: 'bg-sky-500',
-      custom: 'bg-gray-500',
-    }
-    return colors[providerId] || 'bg-gray-500'
-  }
-
   const getAvailableModelsForProvider = (providerId: string, keepModelId?: string) => {
     const provider = aiProvidersConfig.providers.find(p => p.id === providerId)
     if (!provider) return []
@@ -356,348 +345,334 @@ export function ModelPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">{t('model.title')}</h2>
-          <p className="text-sm text-muted-foreground mt-1">{t('model.description')}</p>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2" onClick={() => handleOpenDialog()}>
-              <Plus className="w-4 h-4" />
-              {t('model.addModel')}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>
-                {editingModel ? t('model.dialog.editTitle') : t('model.dialog.addTitle')}
-              </DialogTitle>
-              <DialogDescription></DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
+      <div>
+        <h2 className="text-lg font-semibold">{t('model.title')}</h2>
+        <p className="text-sm text-muted-foreground mt-1">{t('model.description')}</p>
+      </div>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingModel ? t('model.dialog.editTitle') : t('model.dialog.addTitle')}
+            </DialogTitle>
+            <DialogDescription></DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="provider">
+                <span className="text-red-500">*</span> {t('model.dialog.providerLabel')}
+              </Label>
+              <Select value={formData.provider} onValueChange={handleProviderChange}>
+                <SelectTrigger
+                  id="provider"
+                  className={`w-full ${formErrors.provider ? 'border-red-500' : ''}`}
+                >
+                  <SelectValue placeholder={t('model.dialog.providerPlaceholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {aiProvidersConfig.providers.map(provider => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      {provider.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={ModelProvider.CUSTOM}>
+                    {t('model.dialog.customProvider')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {formErrors.provider && <p className="text-sm text-red-500">{formErrors.provider}</p>}
+            </div>
+
+            {formData.provider === ModelProvider.CUSTOM && (
               <div className="space-y-2">
-                <Label htmlFor="provider">
-                  <span className="text-red-500">*</span> {t('model.dialog.providerLabel')}
+                <Label htmlFor="compatibility">
+                  <span className="text-red-500">*</span> {t('model.dialog.compatibilityLabel')}
                 </Label>
-                <Select value={formData.provider} onValueChange={handleProviderChange}>
+                <Select
+                  value={formData.compatibility}
+                  onValueChange={value => {
+                    setFormData(prev => ({
+                      ...prev,
+                      compatibility: value as 'openai' | 'anthropic',
+                    }))
+                    setFormErrors(prev => ({ ...prev, compatibility: undefined }))
+                  }}
+                >
                   <SelectTrigger
-                    id="provider"
-                    className={`w-full ${formErrors.provider ? 'border-red-500' : ''}`}
+                    id="compatibility"
+                    className={`w-full ${formErrors.compatibility ? 'border-red-500' : ''}`}
                   >
-                    <SelectValue placeholder={t('model.dialog.providerPlaceholder')} />
+                    <SelectValue placeholder={t('model.dialog.compatibilityPlaceholder')} />
                   </SelectTrigger>
                   <SelectContent>
-                    {aiProvidersConfig.providers.map(provider => (
-                      <SelectItem key={provider.id} value={provider.id}>
-                        {provider.name}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value={ModelProvider.CUSTOM}>
-                      {t('model.dialog.customProvider')}
+                    <SelectItem value="openai">{t('model.dialog.compatibilityOpenai')}</SelectItem>
+                    <SelectItem value="anthropic">
+                      {t('model.dialog.compatibilityAnthropic')}
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                {formErrors.provider && (
-                  <p className="text-sm text-red-500">{formErrors.provider}</p>
+                {formErrors.compatibility && (
+                  <p className="text-sm text-red-500">{formErrors.compatibility}</p>
                 )}
               </div>
+            )}
 
-              {formData.provider === ModelProvider.CUSTOM && (
-                <div className="space-y-2">
-                  <Label htmlFor="compatibility">
-                    <span className="text-red-500">*</span> {t('model.dialog.compatibilityLabel')}
-                  </Label>
-                  <Select
-                    value={formData.compatibility}
-                    onValueChange={value => {
-                      setFormData(prev => ({
-                        ...prev,
-                        compatibility: value as 'openai' | 'anthropic',
-                      }))
-                      setFormErrors(prev => ({ ...prev, compatibility: undefined }))
-                    }}
-                  >
-                    <SelectTrigger
-                      id="compatibility"
-                      className={`w-full ${formErrors.compatibility ? 'border-red-500' : ''}`}
-                    >
-                      <SelectValue placeholder={t('model.dialog.compatibilityPlaceholder')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="openai">
-                        {t('model.dialog.compatibilityOpenai')}
-                      </SelectItem>
-                      <SelectItem value="anthropic">
-                        {t('model.dialog.compatibilityAnthropic')}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {formErrors.compatibility && (
-                    <p className="text-sm text-red-500">{formErrors.compatibility}</p>
-                  )}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="modelName">
-                  <span className="text-red-500">*</span> {t('model.dialog.modelLabel')}
-                </Label>
-                {formData.provider === ModelProvider.CUSTOM ? (
-                  <Input
-                    id="modelName"
-                    value={formData.name}
-                    onChange={e => {
-                      setFormData(prev => ({ ...prev, name: e.target.value }))
-                      setFormErrors(prev => ({ ...prev, name: undefined }))
-                    }}
-                    placeholder={t('model.dialog.modelIdPlaceholder')}
-                    className={`w-full ${formErrors.name ? 'border-red-500' : ''}`}
-                  />
-                ) : (
-                  <Select
-                    value={formData.name}
-                    onValueChange={value => {
-                      setFormData(prev => ({ ...prev, name: value }))
-                      setFormErrors(prev => ({ ...prev, name: undefined }))
-                    }}
-                  >
-                    <SelectTrigger
-                      id="modelName"
-                      className={`w-full ${formErrors.name ? 'border-red-500' : ''}`}
-                    >
-                      <SelectValue placeholder={t('model.dialog.modelPlaceholder')} />
-                    </SelectTrigger>
-                    <SelectContent side="bottom" className="max-h-[300px]">
-                      {getAvailableModelsForProvider(formData.provider, formData.name).map(
-                        modelId => {
-                          const providerConfig = getProviderConfig(formData.provider)
-                          const modelConfig = providerConfig?.models.find(m => m.id === modelId)
-                          return (
-                            <SelectItem key={modelId} value={modelId}>
-                              {modelConfig?.name || modelId}
-                              {modelConfig?.isDeprecated && (
-                                <span className="text-muted-foreground ml-1 text-xs">
-                                  ({t('model.dialog.deprecated')})
-                                </span>
-                              )}
-                            </SelectItem>
-                          )
-                        }
-                      )}
-                    </SelectContent>
-                  </Select>
-                )}
-                {formErrors.name && <p className="text-sm text-red-500">{formErrors.name}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="apiKey">
-                  <span className="text-red-500">*</span> {t('model.dialog.apiKeyLabel')}
-                </Label>
+            <div className="space-y-2">
+              <Label htmlFor="modelName">
+                <span className="text-red-500">*</span> {t('model.dialog.modelLabel')}
+              </Label>
+              {formData.provider === ModelProvider.CUSTOM ? (
                 <Input
-                  id="apiKey"
-                  value={formData.apiKey}
+                  id="modelName"
+                  value={formData.name}
                   onChange={e => {
-                    setFormData(prev => ({ ...prev, apiKey: e.target.value }))
-                    setFormErrors(prev => ({ ...prev, apiKey: undefined }))
+                    setFormData(prev => ({ ...prev, name: e.target.value }))
+                    setFormErrors(prev => ({ ...prev, name: undefined }))
                   }}
-                  placeholder={
-                    editingModel
-                      ? t('model.dialog.apiKeyEditPlaceholder')
-                      : t('model.dialog.apiKeyPlaceholder')
-                  }
-                  className={`w-full [-webkit-text-security:disc] ${formErrors.apiKey ? 'border-red-500' : ''}`}
-                  type="text"
-                  autoComplete="off"
+                  placeholder={t('model.dialog.modelIdPlaceholder')}
+                  className={`w-full ${formErrors.name ? 'border-red-500' : ''}`}
                 />
-                {formErrors.apiKey && <p className="text-sm text-red-500">{formErrors.apiKey}</p>}
-              </div>
-
-              {formData.provider === ModelProvider.CUSTOM && (
-                <div className="space-y-2">
-                  <Label htmlFor="apiBaseUrl">
-                    <span className="text-red-500">*</span> {t('model.dialog.apiBaseUrlLabel')}
-                  </Label>
-                  <Input
-                    id="apiBaseUrl"
-                    value={formData.apiBaseUrl}
-                    onChange={e => {
-                      setFormData(prev => ({ ...prev, apiBaseUrl: e.target.value }))
-                      setFormErrors(prev => ({ ...prev, apiBaseUrl: undefined }))
-                    }}
-                    placeholder={
-                      formData.compatibility === 'anthropic'
-                        ? 'e.g. https://api.anthropic.com'
-                        : 'e.g. https://api.openai.com/v1'
-                    }
-                    className={`w-full ${formErrors.apiBaseUrl ? 'border-red-500' : ''}`}
-                  />
-                  {formErrors.apiBaseUrl && (
-                    <p className="text-sm text-red-500">{formErrors.apiBaseUrl}</p>
-                  )}
-                </div>
-              )}
-
-              <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
-                <div className="space-y-0.5">
-                  <Label
-                    htmlFor="set-default"
-                    className="text-sm font-medium"
-                    onClick={() => setIsSetDefault(v => !v)}
+              ) : (
+                <Select
+                  value={formData.name}
+                  onValueChange={value => {
+                    setFormData(prev => ({ ...prev, name: value }))
+                    setFormErrors(prev => ({ ...prev, name: undefined }))
+                  }}
+                >
+                  <SelectTrigger
+                    id="modelName"
+                    className={`w-full ${formErrors.name ? 'border-red-500' : ''}`}
                   >
-                    {t('model.dialog.setDefaultLabel')}
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    {t('model.dialog.setDefaultDescription')}
-                  </p>
-                </div>
-                <Switch
-                  id="set-default"
-                  checked={isSetDefault}
-                  onCheckedChange={setIsSetDefault}
-                  aria-label={t('model.dialog.setDefaultLabel')}
-                />
-              </div>
-              {defaultSwitchHint && (
-                <Alert>
-                  <Info className="h-4 w-4" />
-                  <AlertTitle>{t('model.dialog.defaultWillChange')}</AlertTitle>
-                  <AlertDescription>{defaultSwitchHint}</AlertDescription>
-                </Alert>
+                    <SelectValue placeholder={t('model.dialog.modelPlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent side="bottom" className="max-h-[300px]">
+                    {getAvailableModelsForProvider(formData.provider, formData.name).map(
+                      modelId => {
+                        const providerConfig = getProviderConfig(formData.provider)
+                        const modelConfig = providerConfig?.models.find(m => m.id === modelId)
+                        return (
+                          <SelectItem key={modelId} value={modelId}>
+                            {modelConfig?.name || modelId}
+                            {modelConfig?.isDeprecated && (
+                              <span className="text-muted-foreground ml-1 text-xs">
+                                ({t('model.dialog.deprecated')})
+                              </span>
+                            )}
+                          </SelectItem>
+                        )
+                      }
+                    )}
+                  </SelectContent>
+                </Select>
               )}
+              {formErrors.name && <p className="text-sm text-red-500">{formErrors.name}</p>}
             </div>
 
-            <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full mt-6">
-              {isSubmitting
-                ? editingModel
-                  ? t('model.dialog.submittingEdit')
-                  : t('model.dialog.submittingAdd')
-                : editingModel
-                  ? t('model.dialog.confirmEdit')
-                  : t('model.dialog.confirmAdd')}
-            </Button>
-          </DialogContent>
-        </Dialog>
-      </div>
+            <div className="space-y-2">
+              <Label htmlFor="apiKey">
+                <span className="text-red-500">*</span> {t('model.dialog.apiKeyLabel')}
+              </Label>
+              <Input
+                id="apiKey"
+                value={formData.apiKey}
+                onChange={e => {
+                  setFormData(prev => ({ ...prev, apiKey: e.target.value }))
+                  setFormErrors(prev => ({ ...prev, apiKey: undefined }))
+                }}
+                placeholder={
+                  editingModel
+                    ? t('model.dialog.apiKeyEditPlaceholder')
+                    : t('model.dialog.apiKeyPlaceholder')
+                }
+                className={`w-full [-webkit-text-security:disc] ${formErrors.apiKey ? 'border-red-500' : ''}`}
+                type="text"
+                autoComplete="off"
+              />
+              {formErrors.apiKey && <p className="text-sm text-red-500">{formErrors.apiKey}</p>}
+            </div>
+
+            {formData.provider === ModelProvider.CUSTOM && (
+              <div className="space-y-2">
+                <Label htmlFor="apiBaseUrl">
+                  <span className="text-red-500">*</span> {t('model.dialog.apiBaseUrlLabel')}
+                </Label>
+                <Input
+                  id="apiBaseUrl"
+                  value={formData.apiBaseUrl}
+                  onChange={e => {
+                    setFormData(prev => ({ ...prev, apiBaseUrl: e.target.value }))
+                    setFormErrors(prev => ({ ...prev, apiBaseUrl: undefined }))
+                  }}
+                  placeholder={
+                    formData.compatibility === 'anthropic'
+                      ? 'e.g. https://api.anthropic.com'
+                      : 'e.g. https://api.openai.com/v1'
+                  }
+                  className={`w-full ${formErrors.apiBaseUrl ? 'border-red-500' : ''}`}
+                />
+                {formErrors.apiBaseUrl && (
+                  <p className="text-sm text-red-500">{formErrors.apiBaseUrl}</p>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+              <div className="space-y-0.5">
+                <Label
+                  htmlFor="set-default"
+                  className="text-sm font-medium"
+                  onClick={() => setIsSetDefault(v => !v)}
+                >
+                  {t('model.dialog.setDefaultLabel')}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t('model.dialog.setDefaultDescription')}
+                </p>
+              </div>
+              <Switch
+                id="set-default"
+                checked={isSetDefault}
+                onCheckedChange={setIsSetDefault}
+                aria-label={t('model.dialog.setDefaultLabel')}
+              />
+            </div>
+            {defaultSwitchHint && (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>{t('model.dialog.defaultWillChange')}</AlertTitle>
+                <AlertDescription>{defaultSwitchHint}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full mt-6">
+            {isSubmitting
+              ? editingModel
+                ? t('model.dialog.submittingEdit')
+                : t('model.dialog.submittingAdd')
+              : editingModel
+                ? t('model.dialog.confirmEdit')
+                : t('model.dialog.confirmAdd')}
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : models.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">{t('model.empty')}</p>
-            <Button variant="outline" className="mt-4" onClick={() => handleOpenDialog()}>
-              {t('model.addFirstModel')}
-            </Button>
-          </CardContent>
-        </Card>
       ) : (
-        <div className="space-y-4">
-          {models.map(model => {
-            const providerConfig = getProviderConfig(model.provider)
-            const modelConfig = providerConfig?.models.find(m => m.id === model.name)
+        <div className="space-y-3">
+          {models.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border py-10 text-center">
+              <p className="text-sm text-muted-foreground">{t('model.empty')}</p>
+            </div>
+          ) : (
+            models.map(model => {
+              const providerConfig = getProviderConfig(model.provider)
+              const modelConfig = providerConfig?.models.find(m => m.id === model.name)
 
-            return (
-              <Card key={model.id} className="group hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`w-10 h-10 rounded-lg ${getProviderColor(model.provider)} flex items-center justify-center`}
-                      >
-                        <Zap className="w-5 h-5 text-white" />
+              return (
+                <div
+                  key={model.id}
+                  className="flex items-center justify-between gap-4 rounded-xl border border-border px-4 py-3"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span
+                      className={cn(
+                        'h-2 w-2 shrink-0 rounded-full',
+                        model.enabled ? 'bg-emerald-500' : 'bg-muted-foreground/40'
+                      )}
+                    />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium">
+                          {modelConfig?.name || model.name}
+                        </span>
+                        {model.isDefault && (
+                          <Badge variant="secondary" className="text-xs">
+                            {t('model.default')}
+                          </Badge>
+                        )}
+                        {!model.enabled && (
+                          <Badge variant="outline" className="text-xs">
+                            {t('model.disabled')}
+                          </Badge>
+                        )}
+                        {modelConfig?.isDeprecated && (
+                          <Badge variant="outline" className="text-xs">
+                            {t('model.deprecated')}
+                          </Badge>
+                        )}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium">{modelConfig?.name || model.name}</h3>
-                          {model.isDefault && (
-                            <Badge variant="secondary" className="text-xs">
-                              {t('model.default')}
-                            </Badge>
-                          )}
-                          {!model.enabled && (
-                            <Badge variant="outline" className="text-xs">
-                              {t('model.disabled')}
-                            </Badge>
-                          )}
-                          {modelConfig?.isDeprecated && (
-                            <Badge variant="outline" className="text-xs">
-                              {t('model.deprecated')}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                          <span>{getProviderName(model.provider)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleOpenDialog(model)}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>{t('common:action.edit')}</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-red-500 hover:text-red-600"
-                                  onClick={() =>
-                                    setDeleteTarget({ id: model.id, name: model.name })
-                                  }
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>
-                                    {t('model.deleteDialog.title')}
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    {t('model.deleteDialog.description', {
-                                      name: deleteTarget?.name,
-                                    })}
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>{t('common:action.cancel')}</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={handleDelete}
-                                    className="bg-red-500 hover:bg-red-600"
-                                  >
-                                    {t('common:action.delete')}
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </TooltipTrigger>
-                          <TooltipContent>{t('model.delete')}</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {getProviderName(model.provider)}
+                      </p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={() => handleOpenDialog(model)}>
+                      {t('common:action.edit')}
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t('model.delete')}
+                          className="h-8 w-8 text-muted-foreground hover:text-red-500"
+                          onClick={() => setDeleteTarget({ id: model.id, name: model.name })}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>{t('model.deleteDialog.title')}</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {t('model.deleteDialog.description', {
+                              name: deleteTarget?.name,
+                            })}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>{t('common:action.cancel')}</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleDelete}
+                            className="bg-red-500 hover:bg-red-600"
+                          >
+                            {t('common:action.delete')}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              )
+            })
+          )}
+
+          {/* 添加入口：常驻虚线按钮（参考设计），区分标准提供方与自定义提供方 */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => handleOpenDialog()}
+              className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border py-3 text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+            >
+              <Plus className="h-4 w-4" />
+              {t('model.addModel')}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenDialog(undefined, true)}
+              className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border py-3 text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+            >
+              <Plus className="h-4 w-4" />
+              {t('model.addCustomProvider')}
+            </button>
+          </div>
         </div>
       )}
     </div>
