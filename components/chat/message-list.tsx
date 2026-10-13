@@ -34,13 +34,12 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import mermaid from 'mermaid'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { MarkdownContent } from '@/components/markdown/markdown-content'
+import { CodeBlock } from '@/components/markdown/code-block'
 import type { Message, ToolCall, Attachment, EventItem, QuestionInfo } from '@/lib/types'
 import { formatToolOutput } from '@/lib/format-utils'
 import { describeToolCall, previewToolOutput, type ToolCallKind } from '@/lib/tool-call-display'
@@ -256,7 +255,7 @@ const MessageItem = memo(function MessageItem({
               } else if (group.type === 'delta-group') {
                 const deltaContent = (group.events ?? []).map(event => event.content).join('')
                 if (!deltaContent) return null
-                return <ResponseBlock key={`delta-group-${groupIndex}`} content={deltaContent} />
+                return <MessageContent key={`delta-group-${groupIndex}`} content={deltaContent} />
               } else if (
                 group.type === 'tool.call.started' ||
                 group.type === 'tool.call.response'
@@ -313,12 +312,10 @@ const MessageItem = memo(function MessageItem({
                 // 用户气泡底色走 --user-bubble 语义 token：
                 // 浅色是淡蓝、深色是主色叠加，暗色模式下正文（近白）依然可读。
                 <div className="rounded-2xl bg-user-bubble px-4 py-3">
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <MessageContent content={message.content} isStreaming={message.isStreaming} />
-                  </div>
+                  <MessageContent content={message.content} isStreaming={message.isStreaming} />
                 </div>
               ) : (
-                <ResponseBlock content={message.content} isStreaming={message.isStreaming} />
+                <MessageContent content={message.content} isStreaming={message.isStreaming} />
               )}
             </>
           )}
@@ -409,16 +406,6 @@ const MessageItem = memo(function MessageItem({
   )
 })
 
-function ResponseBlock({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
-  // 正文行高：项目未启用 @tailwindcss/typography（prose 类不生效），行高需显式设置。
-  // 从浏览器默认的 1.5 放宽到 1.75，缓解中文长段落「挤」的观感。
-  return (
-    <div className="prose prose-sm dark:prose-invert max-w-none leading-[1.75]">
-      <MessageContent content={content} isStreaming={isStreaming} />
-    </div>
-  )
-}
-
 function MessageContent({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   const mermaidInitialized = useRef(false)
 
@@ -453,7 +440,7 @@ function MessageContent({ content, isStreaming }: { content: string; isStreaming
               return <MermaidChart chart={code} />
             }
 
-            return <CodeBlock code={code} language={language} showLineNumbers={false} />
+            return <CodeBlock code={code} language={language} className="mb-2" />
           },
           blockquote: ({ children }) => {
             return <Admonition type="blockquote">{children}</Admonition>
@@ -464,78 +451,6 @@ function MessageContent({ content, isStreaming }: { content: string; isStreaming
         <span className="ml-0.5 inline-block h-4 w-0.5 animate-blink bg-foreground" />
       )}
     </>
-  )
-}
-
-function CodeBlock({
-  code,
-  language,
-  showLineNumbers = false,
-}: {
-  code: string
-  language: string
-  showLineNumbers?: boolean
-}) {
-  const { t } = useTranslation('chat')
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(code)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy code:', err)
-    }
-  }
-
-  const displayLanguage = language || 'text'
-
-  return (
-    <div className="group relative mb-2 overflow-hidden rounded-lg bg-[#282c34]">
-      <div className="flex items-center justify-between px-4 py-2 bg-[#21252b] border-b border-gray-700">
-        <span className="text-xs text-gray-400 font-medium uppercase">{displayLanguage}</span>
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-white/10 rounded transition-colors"
-        >
-          {copied ? (
-            <>
-              <Check className="h-3.5 w-3.5" />
-              <span>{t('message.codeBlock.copied')}</span>
-            </>
-          ) : (
-            <>
-              <Copy className="h-3.5 w-3.5" />
-              <span>{t('message.codeBlock.copy')}</span>
-            </>
-          )}
-        </button>
-      </div>
-      <div className="overflow-x-auto">
-        <SyntaxHighlighter
-          language={language || 'text'}
-          style={oneDark}
-          showLineNumbers={showLineNumbers}
-          customStyle={{
-            margin: 0,
-            padding: '1rem',
-            background: 'transparent',
-            fontSize: '0.875rem',
-            lineHeight: '1.5',
-          }}
-          codeTagProps={{
-            style: {
-              fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
-            },
-          }}
-          wrapLines={true}
-          wrapLongLines={true}
-        >
-          {code}
-        </SyntaxHighlighter>
-      </div>
-    </div>
   )
 }
 
