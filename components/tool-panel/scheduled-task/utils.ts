@@ -3,7 +3,11 @@ import 'cronstrue/locales/zh_CN'
 import 'cronstrue/locales/en'
 
 import i18n from '@/lib/i18n/config'
-import type { ScheduledTask, ScheduledTaskRunStatus } from '@/services/scheduled-task-service'
+import type {
+  ScheduledTask,
+  ScheduledTaskRunStatus,
+  ScheduledTaskTemplate,
+} from '@/services/scheduled-task-service'
 
 /** 当前界面语言对应的 cronstrue 语言标识。 */
 function getCronLocale(): string {
@@ -423,6 +427,27 @@ export function draftFromSchedule(task: TaskSchedule): ScheduleDraft {
 /** 编辑回填时始终保留任务原时区：调度模式只描述「何时触发」，若改写成默认时区，触发时刻会整体平移。 */
 export function timezoneForTask(task: Pick<ScheduledTask, 'timezone'>): string {
   return task.timezone || DEFAULT_TASK_TIMEZONE
+}
+
+/** 模板 -> 新建表单种子：文案/时区/工作目录透传，调度规则经 draftFromSchedule 反推为结构化草稿。 */
+export interface TemplateFormSeed {
+  name: string
+  content: string
+  timezone: string
+  workspaceFolder: string | null
+  schedule: ScheduleDraft
+}
+
+export function templateFormSeed(template: ScheduledTaskTemplate): TemplateFormSeed {
+  return {
+    name: template.name,
+    content: template.content,
+    timezone: template.timezone || DEFAULT_TASK_TIMEZONE,
+    workspaceFolder: template.workspace_folder,
+    // 模板字段与 ScheduledTask 调度字段同形，直接复用反推逻辑：
+    // 简单 cron 落到具体模式，复杂 cron（区间/步长）回落到「自定义」保留原文。
+    schedule: draftFromSchedule(template),
+  }
 }
 
 export interface RunStatusMeta {

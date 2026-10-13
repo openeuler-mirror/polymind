@@ -11,6 +11,7 @@ import {
   intervalSecondsFromDraft,
   isValidCronExpression,
   parseTimeInput,
+  templateFormSeed,
   timezoneForTask,
   toggleWeekday,
   validateScheduleDraft,
@@ -277,6 +278,54 @@ describe('scheduled-task utils', () => {
 
     it('falls back to the backend default when the task has no timezone', () => {
       expect(timezoneForTask({ timezone: '' })).toBe(DEFAULT_TASK_TIMEZONE)
+    })
+  })
+
+  describe('templateFormSeed', () => {
+    type Template = Parameters<typeof templateFormSeed>[0]
+    const template = (patch: Partial<Template>): Template => ({
+      key: 'k',
+      name: '模板',
+      description: '描述',
+      schedule_type: 'cron',
+      cron_expr: null,
+      interval_seconds: null,
+      timezone: 'Asia/Shanghai',
+      content: '内容',
+      workspace_folder: null,
+      ...patch,
+    })
+
+    it('passes through text fields and reverses a simple cron into a concrete mode', () => {
+      const seed = templateFormSeed(
+        template({ name: '每日 AI 新闻推送', content: '关注 AI 动态', cron_expr: '0 9 * * *' })
+      )
+      expect(seed.name).toBe('每日 AI 新闻推送')
+      expect(seed.content).toBe('关注 AI 动态')
+      expect(seed.timezone).toBe('Asia/Shanghai')
+      expect(seed.schedule.mode).toBe('daily')
+      expect(seed.schedule.time).toBe('09:00')
+    })
+
+    it('falls back to custom mode for a complex cron expression', () => {
+      const seed = templateFormSeed(template({ cron_expr: '0 9-18/2 * * mon-fri' }))
+      expect(seed.schedule.mode).toBe('custom')
+      expect(seed.schedule.cronExpr).toBe('0 9-18/2 * * mon-fri')
+    })
+
+    it('reverses an interval template into value + unit', () => {
+      const seed = templateFormSeed(
+        template({ schedule_type: 'interval', cron_expr: null, interval_seconds: 7200 })
+      )
+      expect(seed.schedule.mode).toBe('interval')
+      expect(seed.schedule.intervalValue).toBe('2')
+      expect(seed.schedule.intervalUnit).toBe('hours')
+    })
+
+    it('falls back to the default timezone and carries the workspace folder', () => {
+      const seed = templateFormSeed(template({ timezone: '', workspace_folder: 'code/reports' }))
+      expect(seed.timezone).toBe(DEFAULT_TASK_TIMEZONE)
+      expect(seed.workspaceFolder).toBe('code/reports')
     })
   })
 })

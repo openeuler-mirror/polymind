@@ -1,8 +1,23 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Loader2, Pencil, Plus } from 'lucide-react'
+import {
+  BookOpen,
+  Bug,
+  CalendarClock,
+  CalendarDays,
+  Loader2,
+  MessageSquare,
+  Newspaper,
+  Pencil,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  Timer,
+  TrendingUp,
+  type LucideIcon,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -30,6 +45,7 @@ import {
   scheduledTaskService,
   type CreateScheduledTaskRequest,
   type ScheduledTask,
+  type ScheduledTaskTemplate,
   type UpdateScheduledTaskRequest,
 } from '@/services/scheduled-task-service'
 import { ScheduleEditor } from './schedule-editor'
@@ -38,6 +54,8 @@ import {
   createScheduleDraft,
   DEFAULT_TASK_TIMEZONE,
   draftFromSchedule,
+  formatSchedule,
+  templateFormSeed,
   TIMEZONE_OPTIONS,
   timezoneForTask,
   validateScheduleDraft,
@@ -48,6 +66,8 @@ interface CreateTaskDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreated: () => void
+  /** 从模板创建时传入：预填名称、内容、时区、工作目录与调度规则。 */
+  template?: ScheduledTaskTemplate | null
 }
 
 interface EditTaskDialogProps {
@@ -65,19 +85,24 @@ interface TaskFormState {
   /** 任务时区：新建时用默认值，编辑时保留任务原值（与调度模式无关）。 */
   timezone: string
   content: string
+  /** 工作目录（相对 agent 工作区）：从模板带入时透传后端，表单不单独暴露输入。 */
+  workspaceFolder: string | null
   enabled: boolean
 }
 
-/** 新建任务的初始表单：计划时间默认「每天 + 任务时区下的下一个整点」。 */
-function initialForm(): TaskFormState {
-  return {
+/** 新建任务的初始表单：计划时间默认「每天 + 任务时区下的下一个整点」；传入模板时按模板预填。 */
+function initialForm(template?: ScheduledTaskTemplate | null): TaskFormState {
+  const base: TaskFormState = {
     name: '',
     agentId: '',
     schedule: createScheduleDraft(),
     timezone: DEFAULT_TASK_TIMEZONE,
     content: '',
+    workspaceFolder: null,
     enabled: true,
   }
+  if (!template) return base
+  return { ...base, ...templateFormSeed(template) }
 }
 
 function formFromTask(task: ScheduledTask): TaskFormState {
@@ -88,6 +113,7 @@ function formFromTask(task: ScheduledTask): TaskFormState {
     schedule,
     timezone: timezoneForTask(task),
     content: task.content,
+    workspaceFolder: task.workspace_folder ?? null,
     enabled: task.enabled,
   }
 }
@@ -95,15 +121,25 @@ function formFromTask(task: ScheduledTask): TaskFormState {
 interface TaskFormDialogProps {
   mode: 'create' | 'edit'
   task: ScheduledTask | null
+  template?: ScheduledTaskTemplate | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
 }
 
-function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormDialogProps) {
+function TaskFormDialog({
+  mode,
+  task,
+  template,
+  open,
+  onOpenChange,
+  onSuccess,
+}: TaskFormDialogProps) {
   const { t } = useTranslation('tool-panel')
   const { toast } = useToast()
-  const [form, setForm] = useState<TaskFormState>(() => (task ? formFromTask(task) : initialForm()))
+  const [form, setForm] = useState<TaskFormState>(() =>
+    task ? formFromTask(task) : initialForm(template)
+  )
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([])
   const [loadingAgents, setLoadingAgents] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -180,6 +216,7 @@ function TaskFormDialog({ mode, task, open, onOpenChange, onSuccess }: TaskFormD
           timezone: form.timezone,
           content: form.content.trim(),
           agent_id: form.agentId,
+          workspace_folder: form.workspaceFolder,
           enabled: form.enabled,
           cron_expr: schedule.cron_expr,
           interval_seconds: schedule.interval_seconds,
@@ -377,6 +414,7 @@ export function CreateTaskDialog(props: CreateTaskDialogProps) {
     <TaskFormDialog
       mode="create"
       task={null}
+      template={props.template ?? null}
       open={props.open}
       onOpenChange={props.onOpenChange}
       onSuccess={props.onCreated}
@@ -393,5 +431,115 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdated }: EditTask
       onOpenChange={onOpenChange}
       onSuccess={onUpdated}
     />
+  )
+}
+
+/** 模板图标：按 key 映射；未命中的新模板回落到通用日历图标，保证不会缺图标。 */
+const TEMPLATE_ICONS: Record<string, LucideIcon> = {
+  daily_ai_news: Newspaper,
+  daily_english_words: BookOpen,
+  daily_repo_digest: Bug,
+  weekly_work_report: CalendarDays,
+  weekly_dependency_check: ShieldCheck,
+  interview_prep_reminder: MessageSquare,
+  meeting_prep_reminder: TrendingUp,
+  focus_break_reminder: Timer,
+}
+
+interface TemplatePickerDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /** 选中某个模板：由调用方关闭本弹窗并打开预填好的新建表单。 */
+  onSelect: (template: ScheduledTaskTemplate) => void
+}
+
+/**
+ * 定时任务模板选择弹窗：预览内置模板（名称、描述、计划时间），
+ * 点击后交给上层预填「新建定时任务」表单，不直接创建，避免误建。
+ */
+export function TemplatePickerDialog({ open, onOpenChange, onSelect }: TemplatePickerDialogProps) {
+  const { t } = useTranslation('tool-panel')
+  const [templates, setTemplates] = useState<ScheduledTaskTemplate[]>([])
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+
+  const loadTemplates = useCallback(async () => {
+    setLoading(true)
+    setLoadError(false)
+    try {
+      const data = await scheduledTaskService.listTemplates()
+      setTemplates(data)
+    } catch (error) {
+      console.error('Failed to load scheduled task templates:', error)
+      setTemplates([])
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    void loadTemplates()
+  }, [open, loadTemplates])
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{t('scheduledTask.template.pickerTitle')}</DialogTitle>
+          <DialogDescription>{t('scheduledTask.template.pickerDescription')}</DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {t('scheduledTask.template.loading')}
+          </div>
+        ) : loadError ? (
+          <div className="flex h-40 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+            <p>{t('scheduledTask.template.loadFailed')}</p>
+            <Button variant="outline" size="sm" onClick={() => void loadTemplates()}>
+              <RefreshCw className="h-4 w-4" />
+              {t('common:action.retry')}
+            </Button>
+          </div>
+        ) : templates.length === 0 ? (
+          <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+            {t('scheduledTask.template.empty')}
+          </div>
+        ) : (
+          <div className="grid gap-3 py-1 sm:grid-cols-2">
+            {templates.map(template => {
+              const Icon = TEMPLATE_ICONS[template.key] ?? CalendarClock
+              return (
+                <button
+                  key={template.key}
+                  type="button"
+                  aria-label={t('scheduledTask.template.useAria', { name: template.name })}
+                  onClick={() => onSelect(template)}
+                  className="flex items-start gap-3 rounded-lg border border-border bg-card p-3.5 text-left transition-all hover:border-primary/40 hover:shadow-sm"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-foreground">
+                      {template.name}
+                    </span>
+                    <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">
+                      {template.description}
+                    </span>
+                    <span className="mt-1.5 inline-block rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                      {formatSchedule(template)}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

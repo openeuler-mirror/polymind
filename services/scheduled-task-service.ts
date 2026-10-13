@@ -81,6 +81,19 @@ export interface ScheduledTaskRunsPage {
   offset: number
 }
 
+/** 内置定时任务模板：供「从模板添加」预览与预填新建表单（后端单一事实源）。 */
+export interface ScheduledTaskTemplate {
+  key: string
+  name: string
+  description: string
+  schedule_type: ScheduleType
+  cron_expr: string | null
+  interval_seconds: number | null
+  timezone: string
+  content: string
+  workspace_folder: string | null
+}
+
 export interface CreateScheduledTaskRequest {
   name: string
   schedule_type: ScheduleType
@@ -104,6 +117,12 @@ export interface UpdateScheduledTaskRequest {
 }
 
 class ScheduledTaskService {
+  /** 拉取内置定时任务模板列表，用于「从模板添加」预览与预填。 */
+  public async listTemplates(): Promise<ScheduledTaskTemplate[]> {
+    const response = await httpClient.get<ScheduledTaskTemplate[]>('/scheduled-tasks/templates')
+    return Array.isArray(response) ? response : []
+  }
+
   public async listTasks(agentId?: string, includeRuns?: number): Promise<ScheduledTask[]> {
     const params = new URLSearchParams()
     if (agentId) params.set('agent_id', agentId)

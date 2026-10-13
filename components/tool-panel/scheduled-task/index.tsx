@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowDown, ArrowUp, CalendarClock, Info, Plus, RefreshCw } from 'lucide-react'
+import { ArrowDown, ArrowUp, CalendarClock, Info, Plus, RefreshCw, PackagePlus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -27,9 +27,10 @@ import {
   scheduledTaskService,
   type ScheduledTask,
   type ScheduledTaskRunStatus,
+  type ScheduledTaskTemplate,
 } from '@/services/scheduled-task-service'
 import { cn } from '@/lib/utils'
-import { CreateTaskDialog, EditTaskDialog } from './create-task-dialog'
+import { CreateTaskDialog, EditTaskDialog, TemplatePickerDialog } from './create-task-dialog'
 import { DeleteScheduledTaskDialog } from './delete-task-dialog'
 import { triggerScheduledTaskRun } from './execution'
 import { RunRecords, useRunRecords } from './run-records'
@@ -79,8 +80,22 @@ export function ScheduledTaskPage() {
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc')
   const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<ScheduledTask | null>(null)
+  // 从模板创建时携带的模板：非空时新建弹窗按模板预填。
+  const [createTemplate, setCreateTemplate] = useState<ScheduledTaskTemplate | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [pendingTaskIds, setPendingTaskIds] = useState<Record<string, boolean>>({})
   const [deleteTarget, setDeleteTarget] = useState<ScheduledTask | null>(null)
+
+  const openBlankCreate = () => {
+    setCreateTemplate(null)
+    setCreateOpen(true)
+  }
+
+  const handleUseTemplate = (template: ScheduledTaskTemplate) => {
+    setPickerOpen(false)
+    setCreateTemplate(template)
+    setCreateOpen(true)
+  }
   // 挂载即订阅共享数据源，复用全局轮询，避免独立定时器重复请求。
   useEffect(() => {
     subscribe()
@@ -146,10 +161,16 @@ export function ScheduledTaskPage() {
             <h1 className="text-xl font-semibold text-foreground">{t('scheduledTask.title')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{t('scheduledTask.description')}</p>
           </div>
-          <Button size="sm" className="shrink-0" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" />
-            {t('scheduledTask.actions.create')}
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+              <PackagePlus className="h-4 w-4" />
+              {t('scheduledTask.template.openAction')}
+            </Button>
+            <Button size="sm" onClick={openBlankCreate}>
+              <Plus className="h-4 w-4" />
+              {t('scheduledTask.actions.create')}
+            </Button>
+          </div>
         </div>
 
         <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
@@ -306,12 +327,7 @@ export function ScheduledTaskPage() {
                 <EmptyTitle>{t('scheduledTask.empty.title')}</EmptyTitle>
                 <EmptyDescription>{t('scheduledTask.empty.description')}</EmptyDescription>
               </EmptyHeader>
-              <EmptyContent>
-                <Button onClick={() => setCreateOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                  {t('scheduledTask.actions.create')}
-                </Button>
-              </EmptyContent>
+              <EmptyContent></EmptyContent>
             </Empty>
           ) : (
             <div className="grid gap-6" style={TASK_GRID_STYLE}>
@@ -332,12 +348,23 @@ export function ScheduledTaskPage() {
       </div>
 
       <CreateTaskDialog
-        key={createOpen ? 'open' : 'closed'}
+        // key 纳入模板 key：切换模板或从空白新建时强制重建表单，避免残留上一份预填值。
+        key={createOpen ? `open:${createTemplate?.key ?? 'blank'}` : 'closed'}
+        template={createTemplate}
         open={createOpen}
-        onOpenChange={setCreateOpen}
+        onOpenChange={open => {
+          setCreateOpen(open)
+          if (!open) setCreateTemplate(null)
+        }}
         onCreated={() => {
           void refresh(true)
         }}
+      />
+
+      <TemplatePickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onSelect={handleUseTemplate}
       />
 
       {editTarget && (
