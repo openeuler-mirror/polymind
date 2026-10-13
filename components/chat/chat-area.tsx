@@ -2,19 +2,16 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PanelLeftOpen } from 'lucide-react'
 import { useChatStore } from '@/lib/store'
 import { MessageList } from './message-list'
 import { ChatInput } from './chat-input'
-import { ChatHeader } from './chat-header'
+import { ChatHeader, ChatHeaderBar, SidebarExpandButton } from './chat-header'
 import { RightPanelToggle } from '../tool-panel'
 import { WelcomeScreen } from './welcome-screen'
 import { AgentTemplateChips } from './agent-template-chips'
 import { TemplateGuideBubble } from './template-guide-bubble'
 import { QuestionFlow } from './question-flow'
 import { useQuestionFlow } from '@/hooks/use-question-flow'
-import { Button } from '@/components/ui/button'
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import type { Message } from '@/lib/types'
 import { MessageStatus } from '@/lib/types'
 import { generateUUID } from '@/lib/utils'
@@ -40,8 +37,6 @@ export function ChatArea() {
     deleteMessage,
     setStreaming,
     loadMoreMessages,
-    isSidebarOpen,
-    toggleSidebar,
   } = useChatStore()
 
   // 问题模式 hook
@@ -84,6 +79,14 @@ export function ChatArea() {
   const scrollHeightBeforeLoad = useRef(0)
   // 用户是否已上滚离开底部阈值（流式期间暂停贴底跟随）
   const userScrolledAway = useRef(false)
+  // 消息区是否已滚动离开顶部：驱动 ChatHeader 下划线显隐（最顶端时隐藏）
+  const [isHeaderScrolled, setIsHeaderScrolled] = useState(false)
+  // 切换会话时立刻收起下划线：渲染期重置（React 推荐的 adjust-state-during-render 模式）
+  const [scrollOwnerConversationId, setScrollOwnerConversationId] = useState(currentConversationId)
+  if (scrollOwnerConversationId !== currentConversationId) {
+    setScrollOwnerConversationId(currentConversationId)
+    setIsHeaderScrolled(false)
+  }
 
   // 用 ref 存储 scroll handler 需要的值，handleScroll 内部通过 ref 读取最新数据
   const scrollCtx = useRef({
@@ -192,6 +195,8 @@ export function ChatArea() {
     if (!el) return
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_THRESHOLD
     userScrolledAway.current = !nearBottom
+    // 仅在「是否已滚动」翻转时触发一次渲染（setState 值相同时 React 会跳过）
+    setIsHeaderScrolled(el.scrollTop > 1)
     if (el.scrollTop > 5) return
     loadMore()
   }, [loadMore])
@@ -484,7 +489,7 @@ export function ChatArea() {
 
   if (!initialResolved) {
     return (
-      <div className="flex h-full flex-col bg-background">
+      <div className="flex h-full flex-col rounded-t-lg bg-background">
         <ChatHeader conversation={currentConversation} />
         <div className="flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
@@ -498,27 +503,19 @@ export function ChatArea() {
 
   if (messages.length === 0 && !loadingMessages) {
     return (
-      <div className="relative flex h-full flex-col bg-background">
-        <div className="flex h-16 shrink-0 items-center justify-between pl-6 pr-4">
+      <div className="relative flex h-full flex-col rounded-t-lg bg-background">
+        <ChatHeaderBar showBorder={isHeaderScrolled}>
+          {/* 左槽位常驻一个容器：侧边栏展开时按钮为空渲染，靠它把右侧按钮顶到最右 */}
           <div className="flex items-center gap-4">
-            {/* 侧边栏收起时展示展开按钮，方便用户重新打开侧边栏 */}
-            {!isSidebarOpen && (
-              <TooltipProvider delayDuration={0}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-                      <PanelLeftOpen className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{t('header.expandSidebar')}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
+            <SidebarExpandButton />
           </div>
           <RightPanelToggle />
-        </div>
+        </ChatHeaderBar>
         {/* 标题 + 模版 + 对话框整体居中：宽度由外层 max-w-3xl 决定，内层不再放宽 */}
-        <div className="flex-1 overflow-y-auto scrollbar-thin">
+        <div
+          className="flex-1 overflow-y-auto scrollbar-thin"
+          onScroll={e => setIsHeaderScrolled(e.currentTarget.scrollTop > 1)}
+        >
           <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center gap-6 px-4 pb-48">
             <WelcomeScreen />
             <div className="w-full">
@@ -538,7 +535,7 @@ export function ChatArea() {
 
   if (loadingMessages) {
     return (
-      <div className="flex h-full flex-col bg-background">
+      <div className="flex h-full flex-col rounded-t-lg bg-background">
         <ChatHeader conversation={currentConversation} />
         <div className="flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
@@ -554,8 +551,8 @@ export function ChatArea() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      <ChatHeader conversation={currentConversation} />
+    <div className="flex h-full flex-col rounded-t-lg bg-background">
+      <ChatHeader conversation={currentConversation} showBorder={isHeaderScrolled} />
       <div
         ref={scrollRef}
         onScroll={handleScroll}

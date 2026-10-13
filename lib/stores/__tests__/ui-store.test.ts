@@ -1,5 +1,12 @@
 import { create } from 'zustand'
-import { createUISlice, createDefaultUISliceData, type UISlice } from '../ui-store'
+import {
+  createUISlice,
+  createDefaultUISliceData,
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  type UISlice,
+} from '../ui-store'
 
 const useTestStore = create<UISlice>()((...a) => ({
   ...createUISlice(...a),
@@ -27,6 +34,27 @@ describe('UISlice', () => {
       useTestStore.setState({ isSidebarOpen: false })
       useTestStore.getState().toggleSidebar()
       expect(useTestStore.getState().isSidebarOpen).toBe(true)
+    })
+  })
+
+  describe('Sidebar width', () => {
+    it('should default to the original w-72 width', () => {
+      expect(useTestStore.getState().sidebarWidth).toBe(SIDEBAR_DEFAULT_WIDTH)
+    })
+
+    it('should accept a width within range', () => {
+      useTestStore.getState().setSidebarWidth(320)
+      expect(useTestStore.getState().sidebarWidth).toBe(320)
+    })
+
+    it('should clamp widths below the minimum', () => {
+      useTestStore.getState().setSidebarWidth(SIDEBAR_MIN_WIDTH - 100)
+      expect(useTestStore.getState().sidebarWidth).toBe(SIDEBAR_MIN_WIDTH)
+    })
+
+    it('should clamp widths above the maximum', () => {
+      useTestStore.getState().setSidebarWidth(SIDEBAR_MAX_WIDTH + 100)
+      expect(useTestStore.getState().sidebarWidth).toBe(SIDEBAR_MAX_WIDTH)
     })
   })
 

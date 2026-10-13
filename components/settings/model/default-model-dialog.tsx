@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Cpu, Info, Loader2, Plus, PowerOff, RotateCw } from 'lucide-react'
+import { Check, Cpu, Info, Loader2, Plus } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -21,36 +21,14 @@ import { useChatStore } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 
-/** 空/异常态统一样式：圆形图标 + 标题 + 说明 + 可选操作。 */
-function StateBlock({
-  icon,
-  iconClassName,
-  title,
-  description,
-}: {
-  icon: React.ReactNode
-  iconClassName?: string
-  title: string
-  description?: string
-}) {
+/** 空/异常态统一样式：左对齐浅色提示卡，只承载「该做什么」，与头部说明去重。 */
+function StateCard({ title, description }: { title: string; description?: string }) {
   return (
-    <div className="flex flex-col items-center gap-3 py-4 text-center">
-      <div
-        className={cn(
-          'flex h-12 w-12 items-center justify-center rounded-full',
-          iconClassName ?? 'bg-muted text-muted-foreground'
-        )}
-      >
-        {icon}
-      </div>
-      <div className="space-y-1">
-        <p className="text-sm font-medium">{title}</p>
-        {description && (
-          <p className="mx-auto max-w-[280px] text-xs leading-relaxed text-muted-foreground">
-            {description}
-          </p>
-        )}
-      </div>
+    <div className="rounded-xl border border-border bg-muted/40 p-4">
+      <p className="text-sm font-medium">{title}</p>
+      {description && (
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
+      )}
     </div>
   )
 }
@@ -176,28 +154,24 @@ export function DefaultModelDialog() {
           </div>
         </DialogHeader>
 
-        <div className="min-h-[150px]">
+        <div className="min-h-[120px]">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+            <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
               <span className="text-xs">{t('defaultModelDialog.loading')}</span>
             </div>
           ) : loadError ? (
-            <StateBlock
-              icon={<RotateCw className="h-5 w-5" />}
+            <StateCard
               title={t('defaultModelDialog.loadErrorTitle')}
               description={t('defaultModelDialog.loadErrorDescription')}
             />
           ) : models.length === 0 ? (
-            <StateBlock
-              icon={<Cpu className="h-5 w-5" />}
-              iconClassName="bg-primary/10 text-primary"
+            <StateCard
               title={t('defaultModelDialog.emptyTitle')}
               description={t('defaultModelDialog.emptyDescription')}
             />
           ) : enabledModels.length === 0 ? (
-            <StateBlock
-              icon={<PowerOff className="h-5 w-5" />}
+            <StateCard
               title={t('defaultModelDialog.noEnabledTitle')}
               description={t('defaultModelDialog.noEnabledDescription')}
             />
@@ -251,28 +225,29 @@ export function DefaultModelDialog() {
         </div>
 
         <DialogFooter>
-          {isLoading ? null : loadError ? (
-            <Button onClick={handleRetry}>{t('defaultModelDialog.action.retry')}</Button>
-          ) : models.length === 0 ? (
-            <Button className="gap-1.5" onClick={navigateToModels}>
-              <Plus className="h-4 w-4" />
-              {t('defaultModelDialog.action.goToAddModel')}
-            </Button>
-          ) : enabledModels.length === 0 ? (
-            <Button className="gap-1.5" onClick={navigateToModels}>
-              <Plus className="h-4 w-4" />
-              {t('defaultModelDialog.action.goToSettings')}
-            </Button>
-          ) : (
-            <Button onClick={handleConfirm} disabled={isSubmitting || !selectedModelId}>
-              {isSubmitting
-                ? t('defaultModelDialog.action.submitting')
-                : t('defaultModelDialog.action.setDefault')}
-            </Button>
-          )}
-          <Button variant="outline" onClick={closeDialog}>
+          <Button variant="ghost" onClick={closeDialog}>
             {t('defaultModelDialog.action.skip')}
           </Button>
+          {!isLoading &&
+            (loadError ? (
+              <Button onClick={handleRetry}>{t('defaultModelDialog.action.retry')}</Button>
+            ) : models.length === 0 ? (
+              <Button className="gap-1.5" onClick={navigateToModels}>
+                <Plus className="h-4 w-4" />
+                {t('defaultModelDialog.action.goToAddModel')}
+              </Button>
+            ) : enabledModels.length === 0 ? (
+              <Button className="gap-1.5" onClick={navigateToModels}>
+                <Plus className="h-4 w-4" />
+                {t('defaultModelDialog.action.goToSettings')}
+              </Button>
+            ) : (
+              <Button onClick={handleConfirm} disabled={isSubmitting || !selectedModelId}>
+                {isSubmitting
+                  ? t('defaultModelDialog.action.submitting')
+                  : t('defaultModelDialog.action.setDefault')}
+              </Button>
+            ))}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -9,9 +9,23 @@ export type SidebarSectionKey = 'pinned' | 'regular' | 'scheduled'
 /** 设置弹窗支持的 section；与 settings-dialog 的 SECTIONS 保持一致。 */
 export type SettingsSectionId = 'general' | 'model'
 
+/** 侧边栏宽度范围：默认取原 w-72（288px），拖拽时按此区间收敛。 */
+export const SIDEBAR_MIN_WIDTH = 220
+export const SIDEBAR_MAX_WIDTH = 400
+export const SIDEBAR_DEFAULT_WIDTH = 288
+
+/**
+ * 把宽度收敛到 [SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH]。
+ * 拖拽期间的实时预览同样要收敛（否则拖出边界会在松手时回跳），故对外导出复用。
+ */
+export function clampSidebarWidth(width: number): number {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)))
+}
+
 interface SidebarUIPersist {
   sections: Record<SidebarSectionKey, boolean>
   folders: Record<string, boolean>
+  width?: number
 }
 
 const SIDEBAR_UI_STORAGE_KEY = 'pm_sidebar_ui'
@@ -28,6 +42,7 @@ function loadSidebarUI(): SidebarUIPersist | null {
         ...(parsed.sections ?? {}),
       },
       folders: parsed.folders ?? {},
+      width: typeof parsed.width === 'number' ? parsed.width : undefined,
     }
   } catch {
     return null
@@ -46,6 +61,8 @@ function saveSidebarUI(value: SidebarUIPersist): void {
 export interface UISlice {
   isSidebarOpen: boolean
   isRightPanelOpen: boolean
+  /** 侧边栏展开时的宽度（px），拖拽调整并持久化。 */
+  sidebarWidth: number
   mcpTools: MCPTool[]
   rightPanelTabs: Tab[]
   activeRightPanelTab: string | null
@@ -54,6 +71,16 @@ export interface UISlice {
   scheduledTaskFoldersCollapsed: Record<string, boolean>
   toggleSidebar: () => void
   toggleRightPanel: () => void
+  /** 设置侧边栏宽度并持久化，超出 [SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH] 时收敛。 */
+  setSidebarWidth: (width: number) => void
+  /**
+   * 挂载后从 localStorage 恢复侧边栏 UI（宽度 / 分区折叠 / 文件夹折叠）。
+   * 必须在客户端 effect 中调用，不能在 store 创建时读取：宽度会被渲染进内联 style，
+   * 而 React 水合不会修补内联 style，首帧 SSR 默认值与客户端持久值不一致就必然残留错值。
+   * 判定规则：凡会被首帧（含 SSR 输出）读取的值都要延迟到挂载后 hydrate；
+   * 只在 effect / 用户交互里读取的值（如 settings 的 theme / language）可以在创建期读取。
+   */
+  hydrateSidebarUI: () => void
   toggleTool: (toolId: string) => void
   addRightPanelTab: (tab: Tab) => void
   removeRightPanelTab: (tabId: string) => void
@@ -98,6 +125,7 @@ type UISliceData = Pick<
   UISlice,
   | 'isSidebarOpen'
   | 'isRightPanelOpen'
+  | 'sidebarWidth'
   | 'mcpTools'
   | 'rightPanelTabs'
   | 'activeRightPanelTab'
@@ -118,6 +146,7 @@ export function createDefaultUISliceData(): UISliceData {
   return {
     isSidebarOpen: true,
     isRightPanelOpen: false,
+    sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
     mcpTools: defaultTools,
     rightPanelTabs: [],
     activeRightPanelTab: null,
@@ -132,7 +161,6 @@ export function createDefaultUISliceData(): UISliceData {
 }
 
 export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
-  const persisted = loadSidebarUI()
   const defaults = createDefaultUISliceData()
 
   /** 幂等追加面板 tab（元信息查 PANEL_TAB_META），返回需要合并的 partial。 */
@@ -146,11 +174,33 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
 
   return {
     ...defaults,
-    sidebarSectionsCollapsed: persisted?.sections ?? defaults.sidebarSectionsCollapsed,
-    scheduledTaskFoldersCollapsed: persisted?.folders ?? defaults.scheduledTaskFoldersCollapsed,
 
     toggleSidebar: () => set(state => ({ isSidebarOpen: !state.isSidebarOpen })),
     toggleRightPanel: () => set(state => ({ isRightPanelOpen: !state.isRightPanelOpen })),
+    // 挂载后应用持久化值：首帧保持默认，避免 SSR/水合不一致。
+    hydrateSidebarUI: () => {
+      const persisted = loadSidebarUI()
+      if (!persisted) return
+      set(state => ({
+        sidebarWidth: clampSidebarWidth(persisted.width ?? state.sidebarWidth),
+        sidebarSectionsCollapsed: persisted.sections,
+        scheduledTaskFoldersCollapsed: persisted.folders,
+      }))
+    },
+    // 每次调用都会同步落盘，因此只在「提交点」调用（拖拽结束 / 键盘调整），
+    // 拖拽过程中的实时宽度由组件本地持有，不要逐帧写入。
+    setSidebarWidth: width => {
+      set(state => {
+        const next = clampSidebarWidth(width)
+        if (next === state.sidebarWidth) return state
+        saveSidebarUI({
+          sections: state.sidebarSectionsCollapsed,
+          folders: state.scheduledTaskFoldersCollapsed,
+          width: next,
+        })
+        return { sidebarWidth: next }
+      })
+    },
     toggleTool: toolId => {
       set(state => ({
         mcpTools: state.mcpTools.map(t => (t.id === toolId ? { ...t, enabled: !t.enabled } : t)),
@@ -206,7 +256,11 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
           ...state.sidebarSectionsCollapsed,
           [key]: !state.sidebarSectionsCollapsed[key],
         }
-        saveSidebarUI({ sections: next, folders: state.scheduledTaskFoldersCollapsed })
+        saveSidebarUI({
+          sections: next,
+          folders: state.scheduledTaskFoldersCollapsed,
+          width: state.sidebarWidth,
+        })
         return { sidebarSectionsCollapsed: next }
       })
     },
@@ -216,7 +270,11 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
           ...state.scheduledTaskFoldersCollapsed,
           [taskId]: !state.scheduledTaskFoldersCollapsed[taskId],
         }
-        saveSidebarUI({ sections: state.sidebarSectionsCollapsed, folders: next })
+        saveSidebarUI({
+          sections: state.sidebarSectionsCollapsed,
+          folders: next,
+          width: state.sidebarWidth,
+        })
         return { scheduledTaskFoldersCollapsed: next }
       })
     },
@@ -228,7 +286,11 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
         if (!(taskId in state.scheduledTaskFoldersCollapsed)) return state
         const next = { ...state.scheduledTaskFoldersCollapsed }
         delete next[taskId]
-        saveSidebarUI({ sections: state.sidebarSectionsCollapsed, folders: next })
+        saveSidebarUI({
+          sections: state.sidebarSectionsCollapsed,
+          folders: next,
+          width: state.sidebarWidth,
+        })
         return { scheduledTaskFoldersCollapsed: next }
       })
     },

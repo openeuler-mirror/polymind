@@ -35,7 +35,7 @@ export function CodePreview({ artifact, agentId }: { artifact: Artifact; agentId
           }}
           customStyle={{
             margin: 0,
-            padding: '1rem',
+            padding: '1rem 1.25rem',
             background: 'transparent',
             fontSize: '0.875rem',
             lineHeight: '1.5',

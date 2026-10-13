@@ -43,6 +43,7 @@
   "header": {
     "newConversation": "新对话",
     "expandSidebar": "展开侧边栏",
+    "resizeSidebar": "调整侧边栏宽度",
     "share": "分享对话",
     "theme": "主题",
     "themeLight": "浅色",

@@ -336,9 +336,9 @@ export function ConversationSidebar() {
   }
 
   return (
-    <div className="flex h-full w-72 flex-col border-r border-border bg-sidebar overflow-hidden">
-      {/* Header：高度与 chat-header（h-16）保持一致，两栏顶线对齐 */}
-      <div className="flex h-16 shrink-0 items-center justify-between pl-4 pr-3">
+    <div className="flex h-full w-full flex-col bg-sidebar overflow-hidden">
+      {/* Header：高度与 chat-header（h-14 / 56px）保持一致，两栏顶线对齐 */}
+      <div className="flex h-14 shrink-0 items-center justify-between pl-6 pr-3">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
             <CustomIcon src="/icon.svg" size={24} className="h-6 w-6 text-primary" alt="Logo" />

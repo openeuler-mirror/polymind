@@ -1242,6 +1242,8 @@
     "emptyHint": "使用工具，扩展更多能力",
     "toggle": "切换工具面板",
     "closeTab": "关闭 {{name}}",
+    "collapse": "收起工具面板",
+    "expand": "展开工具面板",
     "tools": {
       "agent": "智能体",
       "insight": "监测系统",

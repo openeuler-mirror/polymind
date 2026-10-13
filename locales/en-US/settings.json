@@ -362,7 +362,7 @@
     "loadErrorTitle": "Unable to load model configurations",
     "loadErrorDescription": "A network or service error occurred. Please try again later.",
     "emptyTitle": "No models configured yet",
-    "emptyDescription": "Add a model configuration first so agents can chat and execute tasks properly.",
+    "emptyDescription": "Once added, you can set it as the default model.",
     "noEnabledTitle": "No enabled models available",
     "noEnabledDescription": "Enable or add a model in settings before setting a default model.",
     "currentDefault": "Current default",

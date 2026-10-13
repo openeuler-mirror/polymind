@@ -6,10 +6,9 @@ import { Copy, Check, Download, RefreshCw, Package, FileWarning } from 'lucide-r
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Skeleton } from '@/components/ui/skeleton'
-import { cn } from '@/lib/utils'
 import type { Artifact, Conversation } from '@/lib/types'
 import { useChatStore } from '@/lib/store'
-import { isInlineArtifact, downloadArtifact, formatSize } from '@/lib/artifacts'
+import { isInlineArtifact, downloadArtifact } from '@/lib/artifacts'
 import { ARTIFACT_TYPE_META } from './artifact-meta'
 import { UnsupportedHint } from './artifact-common'
 import { HtmlPreview } from './artifact-html-preview'
@@ -72,7 +71,7 @@ export function ArtifactPreviewPanel() {
   if (!artifact) return <ArtifactEmptyState />
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col bg-card">
       <ArtifactToolbar
         artifact={artifact}
         agentId={agentId}
@@ -105,9 +104,6 @@ function ArtifactToolbar({
   const { t } = useTranslation('artifact')
   const inline = isInlineArtifact(artifact)
   const canDownload = inline || !!(agentId && artifact.relativePath)
-  const typeMeta = ARTIFACT_TYPE_META[artifact.type] || ARTIFACT_TYPE_META.unknown
-  const typeLabel = t(`type.${ARTIFACT_TYPE_META[artifact.type] ? artifact.type : 'unknown'}`)
-  const sizeText = formatSize(artifact.size)
 
   const handleCopy = async () => {
     if (!inline || artifact.content == null) return
@@ -121,62 +117,53 @@ function ArtifactToolbar({
   }
 
   return (
-    <div className="flex flex-shrink-0 items-center gap-2.5 border-b border-border bg-card/40 px-3 py-2">
-      <div
-        className={cn(
-          'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
-          typeMeta.chip
-        )}
-      >
-        <typeMeta.icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium">{artifact.name}</span>
-        </div>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span>{typeLabel}</span>
-          {sizeText && (
-            <>
-              <span>·</span>
-              <span>{sizeText}</span>
-            </>
-          )}
-          {artifact.version > 1 && (
-            <>
-              <span>·</span>
-              <span>v{artifact.version}</span>
-            </>
-          )}
-        </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
+    <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2">
+      <span className="min-w-0 truncate text-sm font-medium">{artifact.name}</span>
+      <div className="flex shrink-0 items-center gap-0.5">
         {showRefresh && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={onRefresh} aria-label={t('preview.reload')}>
-                <RefreshCw className="h-3.5 w-3.5" />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onRefresh}
+                aria-label={t('preview.reload')}
+              >
+                <RefreshCw className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t('preview.reload')}</TooltipContent>
           </Tooltip>
         )}
         {inline && (
-          <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={handleCopy}>
-            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            {copied ? t('preview.copied') : t('preview.copy')}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleCopy}
+                aria-label={copied ? t('preview.copied') : t('preview.copy')}
+              >
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{copied ? t('preview.copied') : t('preview.copy')}</TooltipContent>
+          </Tooltip>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 gap-1.5 text-xs"
-          disabled={!canDownload}
-          onClick={() => downloadArtifact(artifact, agentId)}
-        >
-          <Download className="h-3.5 w-3.5" />
-          {t('preview.download')}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled={!canDownload}
+              onClick={() => downloadArtifact(artifact, agentId)}
+              aria-label={t('preview.download')}
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t('preview.download')}</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   )
@@ -187,12 +174,8 @@ function ArtifactLoading({ artifact }: { artifact: Artifact }) {
   const typeMeta = ARTIFACT_TYPE_META[artifact.type] || ARTIFACT_TYPE_META.unknown
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-border px-4 py-3">
-        <Skeleton className="h-8 w-8 rounded-md" />
-        <div className="space-y-1.5">
-          <Skeleton className="h-3.5 w-40" />
-          <Skeleton className="h-3 w-24" />
-        </div>
+      <div className="flex items-center px-4 py-2">
+        <Skeleton className="h-4 w-48" />
       </div>
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8">
         <typeMeta.icon className="h-8 w-8 text-muted-foreground/30" />

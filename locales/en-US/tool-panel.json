@@ -1224,6 +1224,8 @@
     "emptyHint": "Use tools to unlock more capabilities",
     "toggle": "Toggle tool panel",
     "closeTab": "Close {{name}}",
+    "collapse": "Collapse tool panel",
+    "expand": "Expand tool panel",
     "tools": {
       "agent": "Agents",
       "insight": "Monitoring",

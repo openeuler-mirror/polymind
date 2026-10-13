@@ -362,7 +362,7 @@
     "loadErrorTitle": "无法加载模型配置",
     "loadErrorDescription": "网络或服务异常，请稍后重试。",
     "emptyTitle": "尚未配置任何模型",
-    "emptyDescription": "先添加一个模型配置，智能体才能正常对话与执行任务。",
+    "emptyDescription": "添加后即可将其设为默认模型。",
     "noEnabledTitle": "没有可用的已启用模型",
     "noEnabledDescription": "请在设置中启用或添加一个模型，才能设置默认模型。",
     "currentDefault": "当前默认",
