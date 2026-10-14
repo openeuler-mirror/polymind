@@ -68,13 +68,22 @@ export function MessageList({ messages, onRegenerate, agentName, agentId }: Mess
     return null
   }
 
+  // 只给最后一条助手回复挂重新生成：后端按会话取目标，指定更早的回复无从表达。
+  let lastAssistantIndex = -1
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].role === 'assistant') {
+      lastAssistantIndex = i
+      break
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
-      {messages.map(message => (
+      {messages.map((message, index) => (
         <MessageItem
           key={message.id}
           message={message}
-          onRegenerate={onRegenerate}
+          onRegenerate={index === lastAssistantIndex ? onRegenerate : undefined}
           agentName={agentName}
           agentId={agentId}
         />
@@ -378,7 +387,8 @@ const MessageItem = memo(function MessageItem({
                     <TooltipContent>{t('message.action.copy')}</TooltipContent>
                   </Tooltip>
 
-                  {!isUser && (
+                  {/* onRegenerate 缺省时不渲染按钮，而非渲染成点了没反应的图标 */}
+                  {!isUser && onRegenerate && (
                     <>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -386,7 +396,7 @@ const MessageItem = memo(function MessageItem({
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6"
-                            onClick={() => onRegenerate?.(message.id)}
+                            onClick={() => onRegenerate(message.id)}
                           >
                             <RefreshCw className="h-3 w-3" />
                           </Button>

@@ -679,6 +679,21 @@ flowchart TD
     style Resume fill:#c8e6c9
 ```
 
+#### 5.2.1 重新生成（Regenerate）
+
+用户点「重新生成」表示**否定上一条助手回复**，要按同一个提问重答一次。
+
+**接口契约**
+
+| 项 | 值 |
+| --- | --- |
+| 路径 | `POST /agents/{agent_id}/sessions/{session_id}/messages/regenerate` |
+| 请求体 | 无 |
+| 响应 | SSE，事件契约与 `POST .../messages/stream` 完全一致 |
+| 作用对象 | 会话中最后一条助手回复（不接受调用方指定 message_id） |
+| 失败码 | 404 `REGENERATE_TARGET_NOT_FOUND`（没有可重生成的回复）、409 `SESSION_BUSY`（同会话已有生成在飞） |
+
+
 ### 5.3 空闲检测与暂停流程
 
 ```mermaid
@@ -1425,6 +1440,7 @@ flowchart TB
 | POST   | `/agents/{agent_id}/sessions/{session_id}/messages`        | 发送消息                               |
 | POST   | `/agents/{agent_id}/sessions/{session_id}/messages/stream` | 发送消息并以 SSE 流返回                     |
 | POST   | `/agents/{agent_id}/sessions/{session_id}/messages/stream/reconnect` | SSE 流重连 |
+| POST   | `/agents/{agent_id}/sessions/{session_id}/messages/regenerate` | 重跑最后一条助手回复，以 SSE 流返回（无请求体） |
 | POST   | `/agents/{agent_id}/sessions/{session_id}/abort`           | 中止会话                               |
 | GET    | `/agents/{agent_id}/sessions/{session_id}/events`          | 查询会话事件回放                           |
 | GET    | `/agents/{agent_id}/conversations`                         | 列出会话摘要                             |

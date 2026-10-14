@@ -356,7 +356,13 @@ describe('MessageList 悬停显隐', () => {
   const usage: Message['usage'] = { inputTokens: 94460, outputTokens: 83484, totalTokens: 11862424 }
 
   it('用量徽标与复制/重新生成同层淡入淡出：悬停消息时才一起出现', () => {
-    render(<MessageList messages={[{ ...makeMessage(undefined, '正文'), usage }]} />)
+    // 只有最后一条助手回复才拿得到 onRegenerate；不传则按钮不渲染，无法断言三者同层。
+    render(
+      <MessageList
+        messages={[{ ...makeMessage(undefined, '正文'), usage }]}
+        onRegenerate={jest.fn()}
+      />
+    )
 
     const badge = screen.getByRole('button', { name: /用量 11\.9M tok/ })
     // 徽标与复制/重新生成共用具名 group 容器：一次悬停同时显隐，二者显示逻辑对称
@@ -403,6 +409,63 @@ describe('MessageList 悬停显隐', () => {
   })
 })
 
+describe('MessageList 重新生成入口', () => {
+  const onRegenerate = jest.fn()
+
+  const userMessage = (id: string): Message => ({
+    id,
+    role: 'user',
+    content: `提问 ${id}`,
+    timestamp: new Date('2026-01-01T00:00:00Z'),
+    isStreaming: false,
+    events: [],
+  })
+
+  /** 多轮对话：两条提问、两条回答。 */
+  const twoRounds: Message[] = [
+    userMessage('u1'),
+    { ...makeMessage(undefined, '第一答'), id: 'a1' },
+    userMessage('u2'),
+    { ...makeMessage(undefined, '第二答'), id: 'a2' },
+  ]
+
+  const actionRowButtonCounts = () =>
+    Array.from(document.querySelectorAll('[class*="group-hover/msg:"]')).map(
+      row => row.querySelectorAll('button').length
+    )
+
+  beforeEach(() => {
+    onRegenerate.mockClear()
+  })
+
+  it('只有最后一条助手回复多出重新生成按钮，更早的回复没有', () => {
+    render(<MessageList messages={twoRounds} onRegenerate={onRegenerate} />)
+
+    // 每条消息一个操作行（各含「复制」）；只有最后一条助手回复多出「重新生成」。
+    expect(actionRowButtonCounts()).toEqual([1, 1, 1, 2])
+  })
+
+  it('点击重新生成回传最后一条助手回复的 id', () => {
+    render(<MessageList messages={twoRounds} onRegenerate={onRegenerate} />)
+
+    const rows = document.querySelectorAll('[class*="group-hover/msg:"]')
+    const buttons = rows[rows.length - 1].querySelectorAll('button')
+    fireEvent.click(buttons[buttons.length - 1])
+
+    expect(onRegenerate).toHaveBeenCalledWith('a2')
+  })
+
+  it('生成中的回复不显示重新生成（操作行整体隐藏）', () => {
+    render(
+      <MessageList
+        messages={[{ ...makeMessage(undefined, '生成中'), isStreaming: true }]}
+        onRegenerate={onRegenerate}
+      />
+    )
+
+    expect(actionRowButtonCounts()).toEqual([])
+  })
+})
 describe('用量格式化', () => {
   it('万以下保留千分位，万/百万才缩写', () => {
     expect(formatCompactTokens(999)).toBe('999')

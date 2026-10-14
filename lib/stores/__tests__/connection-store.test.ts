@@ -5,6 +5,7 @@ import { messageService } from '@/services/message-service'
 jest.mock('@/services/message-service', () => ({
   messageService: {
     sendMessage: jest.fn(),
+    regenerateMessage: jest.fn(),
     abortMessage: jest.fn(),
     reconnectStream: jest.fn(),
     disconnectAll: jest.fn(),
@@ -80,6 +81,41 @@ describe('ConnectionSlice', () => {
 
       await expect(useTestStore.getState().rejectQuestion(...args)).rejects.toThrow('Reject failed')
       expect(consoleSpy).toHaveBeenCalledWith('Error rejecting question:', error)
+
+      consoleSpy.mockRestore()
+    })
+  })
+  describe('regenerateAnswer', () => {
+    const args: [string, string] = ['agent-1', 'session-1']
+
+    it('should throw error when called without sessionId', async () => {
+      await expect(useTestStore.getState().regenerateAnswer('agent-1', '')).rejects.toThrow(
+        'No active session for agent'
+      )
+      expect(messageService.regenerateMessage).not.toHaveBeenCalled()
+    })
+
+    it('should call messageService.regenerateMessage with correct arguments', async () => {
+      ;(messageService.regenerateMessage as jest.Mock).mockResolvedValue([])
+
+      await useTestStore.getState().regenerateAnswer(...args)
+
+      expect(messageService.regenerateMessage).toHaveBeenCalledWith(
+        'agent-1',
+        'session-1',
+        undefined
+      )
+    })
+
+    it('should re-throw with console.error on failure', async () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+      const error = new Error('Regenerate failed')
+      ;(messageService.regenerateMessage as jest.Mock).mockRejectedValue(error)
+
+      await expect(useTestStore.getState().regenerateAnswer(...args)).rejects.toThrow(
+        'Regenerate failed'
+      )
+      expect(consoleSpy).toHaveBeenCalledWith('Error regenerating answer:', error)
 
       consoleSpy.mockRestore()
     })

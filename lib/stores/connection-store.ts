@@ -15,6 +15,11 @@ export interface ConnectionSlice {
     content: string,
     onEvent?: (event: EventItem) => void
   ) => Promise<EventItem[]>
+  regenerateAnswer: (
+    agentId: string,
+    sessionId: string,
+    onEvent?: (event: EventItem) => void
+  ) => Promise<EventItem[]>
   createNewSession: (agentId: string) => Promise<Session>
   replyQuestion: (
     agentId: string,
@@ -67,6 +72,23 @@ export const createConnectionSlice: StateCreator<StoreState, [], [], ConnectionS
       return events
     } catch (error) {
       console.error('Error sending message:', error)
+      throw error
+    }
+  },
+
+  regenerateAnswer: async (
+    agentId: string,
+    sessionId: string,
+    onEvent?: (event: EventItem) => void
+  ) => {
+    if (!sessionId) {
+      throw new Error('No active session for agent')
+    }
+
+    try {
+      return await messageService.regenerateMessage(agentId, sessionId, onEvent)
+    } catch (error) {
+      console.error('Error regenerating answer:', error)
       throw error
     }
   },
