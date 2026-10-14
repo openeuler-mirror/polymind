@@ -98,6 +98,25 @@ function parseSSEStream(
   })
 }
 
+/** 非 2xx 时打印并抛出统一的流式请求错误。 */
+async function throwOnStreamError(response: Response, logLabel: string): Promise<void> {
+  if (response.ok) return
+
+  let errorDetails = ''
+  try {
+    const errorData = await response.json()
+    errorDetails = JSON.stringify(errorData, null, 2)
+  } catch {
+    errorDetails = await response.text()
+  }
+  console.error(logLabel, {
+    status: response.status,
+    statusText: response.statusText,
+    details: errorDetails,
+  })
+  throw new Error(`HTTP error! status: ${response.status}, details: ${errorDetails}`)
+}
+
 // 发送消息命令
 class SendMessageCommand implements Command {
   private agentId: string
@@ -127,23 +146,41 @@ class SendMessageCommand implements Command {
     const options = buildSSERequestOptions({ signal: this.signal }, { content: this.content })
 
     const response = await fetch(fullUrl, options)
-    if (!response.ok) {
-      let errorDetails = ''
-      try {
-        const errorData = await response.json()
-        errorDetails = JSON.stringify(errorData, null, 2)
-      } catch {
-        errorDetails = await response.text()
-      }
-      console.error('Streaming API error response:', {
-        status: response.status,
-        statusText: response.statusText,
-        details: errorDetails,
-      })
-      throw new Error(`HTTP error! status: ${response.status}, details: ${errorDetails}`)
-    }
+    await throwOnStreamError(response, 'Streaming API error response:')
 
     return parseSSEStream(response, this.onEvent, '[Stream]')
+  }
+}
+
+/** 重新生成命令：重跑会话最后一条助手回复，不携带正文。 */
+class RegenerateMessageCommand implements Command {
+  private agentId: string
+  private sessionId: string
+  private onEvent?: (event: any) => void
+  private signal?: AbortSignal
+
+  constructor(
+    agentId: string,
+    sessionId: string,
+    onEvent?: (event: any) => void,
+    signal?: AbortSignal
+  ) {
+    this.agentId = agentId
+    this.sessionId = sessionId
+    this.onEvent = onEvent
+    this.signal = signal
+  }
+
+  async execute(): Promise<any[]> {
+    const url = `/agents/${this.agentId}/sessions/${this.sessionId}/messages/regenerate`
+    const fullUrl = `${appConfig.api.baseUrl}${url}`
+
+    const options = buildSSERequestOptions({ signal: this.signal })
+
+    const response = await fetch(fullUrl, options)
+    await throwOnStreamError(response, 'Regenerate API error response:')
+
+    return parseSSEStream(response, this.onEvent, '[Regenerate]')
   }
 }
 
@@ -167,6 +204,22 @@ class MessageService {
     const controller = new AbortController()
     this.streamingControllers[agentId] = controller
     const command = new SendMessageCommand(agentId, sessionId, content, onEvent, controller.signal)
+    return command.execute().finally(() => {
+      if (this.streamingControllers[agentId] === controller) {
+        delete this.streamingControllers[agentId]
+      }
+    })
+  }
+
+  /** 重新生成：重跑会话最后一条助手回复（不新增用户消息、不携带正文）。 */
+  public regenerateMessage(
+    agentId: string,
+    sessionId: string,
+    onEvent?: (event: any) => void
+  ): Promise<any[]> {
+    const controller = new AbortController()
+    this.streamingControllers[agentId] = controller
+    const command = new RegenerateMessageCommand(agentId, sessionId, onEvent, controller.signal)
     return command.execute().finally(() => {
       if (this.streamingControllers[agentId] === controller) {
         delete this.streamingControllers[agentId]

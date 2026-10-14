@@ -349,9 +349,19 @@ export function ChatArea() {
   }
 
   const streamResponse = useCallback(
-    async (content: string, convId: string) => {
-      const { currentAgentId, sendMessageToAgent, createNewSession, initializeAgent } =
-        useChatStore.getState()
+    async (
+      content: string,
+      convId: string,
+      mode: 'send' | 'regenerate' = 'send',
+      supersededMessageId?: string
+    ) => {
+      const {
+        currentAgentId,
+        sendMessageToAgent,
+        regenerateAnswer,
+        createNewSession,
+        initializeAgent,
+      } = useChatStore.getState()
 
       let agentId = currentAgentId
 
@@ -374,6 +384,8 @@ export function ChatArea() {
       const currentConv = useChatStore.getState().conversations.find(c => c.id === convId)
       let sessionId = currentConv?.sessionId
       if (!sessionId) {
+        // 重生成必须落在既有会话上：没有会话就没有可重跑的目标。
+        if (mode === 'regenerate') return
         try {
           const session = await createNewSession(agentId)
           sessionId = session.id
@@ -404,13 +416,23 @@ export function ChatArea() {
         let assistantMessageId: string | null = null
         let assistantMessage: Message | null = null
 
-        // 发送消息到 agent，使用实时回调处理流式事件
-        const streamedEvents = await sendMessageToAgent(agentId, sessionId, content, eventData => {
+        // 实时事件回调（发送与重生成共用）
+        const onEvent = (eventData: any) => {
           // 当收到第一个事件时，删除思考中消息并创建实际的助手消息
           if (!assistantMessageId) {
             // 删除思考中消息
             deleteMessage(convId, thinkingMessageId)
             locallyCreatedMessageIds.current.delete(thinkingMessageId)
+
+            // 重生成：后端要等本轮写出第一个事件才删旧行，本地同步删掉旧回复，
+            // 让新回复原地替换。错误事件后端不改数据，旧答案保留。
+            if (
+              supersededMessageId &&
+              eventData?.type !== 'client.error' &&
+              eventData?.type !== 'stream.error'
+            ) {
+              deleteMessage(convId, supersededMessageId)
+            }
 
             // 创建新的助手消息
             assistantMessageId = generateUUID()
@@ -438,7 +460,13 @@ export function ChatArea() {
               locallyCreatedMessageIds
             )
           }
-        })
+        }
+
+        // 重生成不携带正文：提问由后端从库里取，避免指令文本落库并进入运行时上下文。
+        const streamedEvents =
+          mode === 'regenerate'
+            ? await regenerateAnswer(agentId, sessionId, onEvent)
+            : await sendMessageToAgent(agentId, sessionId, content, onEvent)
 
         // 兜底：流结束仍未收到终态事件（断连收尾 / 空流 / 后端已无活动流），
         // 不能把消息留在 isStreaming —— 否则界面永远停在"生成回复中"。
@@ -477,14 +505,11 @@ export function ChatArea() {
     async (assistantMessageId: string) => {
       if (!currentConversationId) return
 
-      // 删除当前 assistant 消息
-      deleteMessage(currentConversationId, assistantMessageId)
-
-      // 用系统提示重新发送（不创建新用户消息，对用户不可见）
-      const regenerateContent = '/regenerate'
-      await streamResponse(regenerateContent, currentConversationId)
+      // 本地旧回复不在请求前删：等首个事件到达时再删（见 streamResponse 的
+      // onEvent），请求被拒时界面不留副作用。正文留空，提问由后端按会话推导。
+      await streamResponse('', currentConversationId, 'regenerate', assistantMessageId)
     },
-    [currentConversationId, deleteMessage, streamResponse]
+    [currentConversationId, streamResponse]
   )
 
   if (!initialResolved) {

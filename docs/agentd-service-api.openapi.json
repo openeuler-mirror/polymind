@@ -1308,6 +1308,69 @@
         "security": []
       }
     },
+    "/agents/{agent_id}/sessions/{session_id}/messages/regenerate": {
+      "post": {
+        "summary": "重新生成最后一条助手回复（流式）",
+        "deprecated": false,
+        "description": "重跑会话中最后一条助手回复：不新增用户消息，先删除被替换的旧回复行，再以当初触发它的那条用户提问重跑。SSE 事件契约与 POST .../messages/stream 完全一致。没有请求体——作用对象由会话推导，因为流式生成的助手消息在客户端是本地 UUID，与服务端 id 对不上。",
+        "tags": ["Messages"],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "description": "Agent 唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "会话唯一标识",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功建立流连接",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "data: {\"sandbox_type\":\"local_process\",\"event\":{\"type\":\"message.delta\",\"session_id\":\"session-id\",\"event_id\":\"uuid\",\"ts_ms\":1775650000123,\"runtime_type\":\"openclaw\",\"payload\":{\"delta\":\"当\"}}}"
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest",
+            "description": "请求参数错误"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized",
+            "description": "未授权"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound",
+            "description": "没有可重生成的助手回复（REGENERATE_TARGET_NOT_FOUND）"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict",
+            "description": "同会话已有生成在飞（SESSION_BUSY）"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError",
+            "description": "服务器内部错误"
+          }
+        },
+        "security": []
+      }
+    },
     "/agents/{agent_id}/sessions/{session_id}/messages/stream/reconnect": {
       "post": {
         "summary": "SSE 流重连",
