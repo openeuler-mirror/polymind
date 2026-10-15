@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslation } from 'react-i18next'
-import { Bot, KeyRound, Loader2, PlugZap, Send, Settings2, Unlink } from 'lucide-react'
+import { AlertTriangle, Bot, KeyRound, Loader2, PlugZap, Settings2, Unlink } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import {
   channelDisplayName,
   instanceDisplayName,
   instanceStatusTone,
+  isAgentUnavailable,
 } from './utils'
 
 interface InstanceCardProps {
@@ -20,8 +21,9 @@ interface InstanceCardProps {
   catalog: ChannelCatalogItem[]
   busy: boolean
   onOpenDetail: (instance: ChannelInstance) => void
-  onTest: (instance: ChannelInstance) => void
   onReconnect: (instance: ChannelInstance) => void
+  /** Agent 不可用（未绑定/已删除）时的补绑入口：直接打开详情的绑定区。 */
+  onBind: (instance: ChannelInstance) => void
 }
 
 /**
@@ -35,14 +37,14 @@ export function InstanceCard({
   catalog,
   busy,
   onOpenDetail,
-  onTest,
   onReconnect,
+  onBind,
 }: InstanceCardProps) {
   const { t } = useTranslation('channel')
   const title = instanceDisplayName(instance, catalog)
   const tone = instanceStatusTone(instance.status)
   const stateKey = agentStateKey(instance.agent_state)
-  const agentUnavailable = stateKey === 'unbound' || stateKey === 'deleted'
+  const agentUnavailable = isAgentUnavailable(instance)
   const agentLabel = agentUnavailable
     ? stateKey === 'deleted' && instance.agent_name
       ? `${t('instance.agentState.deleted')}（${instance.agent_name}）`
@@ -50,7 +52,7 @@ export function InstanceCard({
     : (instance.agent_name ?? t(`instance.agentState.${stateKey}`))
 
   return (
-    <div className="flex flex-col rounded-lg border bg-card p-5 shadow-sm transition-all duration-200 hover:shadow-lg">
+    <div className="flex h-full flex-col rounded-lg border bg-card p-5 pb-4 shadow-sm transition-all duration-200 hover:shadow-lg">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -88,7 +90,7 @@ export function InstanceCard({
             {instance.credential_mask || t('common:status.notProvided')}
           </dd>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
           {instance.connected ? (
             <PlugZap className="h-4 w-4 shrink-0 text-emerald-600" />
           ) : (
@@ -98,15 +100,27 @@ export function InstanceCard({
         </div>
       </dl>
 
-      <div className="mt-4 flex items-center justify-end gap-2 border-t pt-3">
-        <Button variant="ghost" size="sm" disabled={busy} onClick={() => onReconnect(instance)}>
-          <PlugZap className="h-4 w-4" />
-          {t('actions.reconnect')}
-        </Button>
-        <Button variant="ghost" size="sm" disabled={busy} onClick={() => onTest(instance)}>
-          <Send className="h-4 w-4" />
-          {t('actions.test')}
-        </Button>
+      {/* 未绑定 agent 无法对话：提示 + 补绑入口 */}
+      {agentUnavailable ? (
+        <div className="mt-3 mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{t('instance.unboundWarning')}</span>
+        </div>
+      ) : null}
+
+      <div className="mt-auto flex items-center justify-end gap-2 border-t pt-2">
+        {agentUnavailable ? (
+          <Button size="sm" disabled={busy} onClick={() => onBind(instance)}>
+            <Bot className="h-4 w-4" />
+            {t('actions.bindAgent')}
+          </Button>
+        ) : null}
+        {!instance.connected ? (
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => onReconnect(instance)}>
+            <PlugZap className="h-4 w-4" />
+            {t('actions.reconnect')}
+          </Button>
+        ) : null}
         <Button variant="outline" size="sm" onClick={() => onOpenDetail(instance)}>
           <Settings2 className="h-4 w-4" />
           {t('actions.detail')}

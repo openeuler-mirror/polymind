@@ -1096,20 +1096,33 @@ const StreamingIndicator = memo(function StreamingIndicator({ text }: { text?: s
 function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: boolean }) {
   const { t } = useTranslation('chat')
   const scrollRef = useRef<HTMLDivElement>(null)
+  // 仅当用户停留在底部时才自动跟随，避免上翻查看历史时被拽回底部。
+  const pinnedToBottom = useRef(true)
   // 展开态由「阶段 + 用户覆盖」派生，不用 effect 同步 state，避免级联渲染：
   // - 生成中（completed=false）默认展开，思考完毕自动闭合；
   // - 用户手动开合只对当前阶段生效，阶段切换后回到自动跟随。
   const [manual, setManual] = useState<{ completed: boolean; expanded: boolean } | null>(null)
   const expanded = manual && manual.completed === completed ? manual.expanded : !completed
 
-  const toggle = () => setManual({ completed, expanded: !expanded })
+  const toggle = () => {
+    if (!expanded) pinnedToBottom.current = true
+    setManual({ completed, expanded: !expanded })
+  }
 
-  // 流式输出时保持滚动到底部
+  const handleScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    pinnedToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }
+
+  // 依赖 events 而非 events.length：思考增量追加到同一个 thinking 事件，
+  // 数组长度不变但内容在变，用 length 作依赖会导致后续增量不再触发滚动。
   useEffect(() => {
-    if (expanded && !completed && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    const el = scrollRef.current
+    if (expanded && !completed && el && pinnedToBottom.current) {
+      el.scrollTop = el.scrollHeight
     }
-  }, [events.length, expanded, completed])
+  }, [events, expanded, completed])
 
   return (
     <div>
@@ -1134,6 +1147,7 @@ function ThinkingGroup({ events, completed }: { events: EventItem[]; completed: 
       {expanded && (
         <div
           ref={scrollRef}
+          onScroll={handleScroll}
           className="mt-1.5 max-h-72 space-y-1.5 overflow-y-auto border-l border-border/50 pl-3 text-sm scrollbar-thin"
         >
           {events.map((event, index) => (
