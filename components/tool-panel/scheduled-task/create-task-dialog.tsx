@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  BookOpen,
   Bug,
   CalendarClock,
   CalendarDays,
@@ -13,6 +12,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Server,
   ShieldCheck,
   Timer,
   TrendingUp,
@@ -271,7 +271,7 @@ function TaskFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto scrollbar-thin sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
             {mode === 'create'
@@ -355,7 +355,7 @@ function TaskFormDialog({
               value={form.content}
               onChange={event => updateField('content', event.target.value)}
               placeholder={t('scheduledTask.form.contentPlaceholder')}
-              className="min-h-24"
+              className="max-h-60 min-h-24 scrollbar-thin"
             />
           </div>
 
@@ -436,8 +436,8 @@ export function EditTaskDialog({ task, open, onOpenChange, onUpdated }: EditTask
 
 /** 模板图标：按 key 映射；未命中的新模板回落到通用日历图标，保证不会缺图标。 */
 const TEMPLATE_ICONS: Record<string, LucideIcon> = {
+  unattended_ops_inspection: Server,
   daily_ai_news: Newspaper,
-  daily_english_words: BookOpen,
   daily_repo_digest: Bug,
   weekly_work_report: CalendarDays,
   weekly_dependency_check: ShieldCheck,
@@ -485,7 +485,7 @@ export function TemplatePickerDialog({ open, onOpenChange, onSelect }: TemplateP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[85vh] overflow-y-auto scrollbar-thin sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t('scheduledTask.template.pickerTitle')}</DialogTitle>
           <DialogDescription>{t('scheduledTask.template.pickerDescription')}</DialogDescription>
@@ -518,19 +518,19 @@ export function TemplatePickerDialog({ open, onOpenChange, onSelect }: TemplateP
                   type="button"
                   aria-label={t('scheduledTask.template.useAria', { name: template.name })}
                   onClick={() => onSelect(template)}
-                  className="flex items-start gap-3 rounded-lg border border-border bg-card p-3.5 text-left transition-all hover:border-primary/40 hover:shadow-sm"
+                  className="flex h-full gap-3 rounded-lg border border-border bg-card p-3.5 text-left transition-all hover:border-primary/40 hover:shadow-sm"
                 >
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                     <Icon className="h-4 w-4" />
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-foreground">
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-medium text-foreground">
                       {template.name}
                     </span>
-                    <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">
+                    <span className="mt-0.5 line-clamp-2 min-h-10 text-xs leading-relaxed text-muted-foreground mb-1">
                       {template.description}
                     </span>
-                    <span className="mt-1.5 inline-block rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                    <span className="mt-auto inline-block self-start rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                       {formatSchedule(template)}
                     </span>
                   </span>
