@@ -58,8 +58,6 @@ export function ConversationSidebar() {
     conversations,
     currentConversationId,
     isSidebarOpen,
-    isRightPanelOpen,
-    activeRightPanelTab,
     setCurrentConversation,
     toggleSidebar,
     togglePinConversation,
@@ -297,8 +295,7 @@ export function ConversationSidebar() {
     return null
   }
 
-  // 顶部导航项：映射到右侧面板 tab，高亮直接跟随面板真实状态；
-  // 「新对话」是动作，不持有选中态，避免导航高亮与真实视图不一致。
+  // 顶部导航项：映射到右侧面板 tab
   const navItems: { id: string; label: string; icon: LucideIcon; panelTabId: PanelTabId | null }[] =
     [
       { id: 'chat', label: t('sidebar.nav.newChat'), icon: MessageSquarePlus, panelTabId: null },
@@ -376,9 +373,6 @@ export function ConversationSidebar() {
       <nav className="px-3 pt-1 pb-2">
         {navItems.map(item => {
           const Icon = item.icon
-          // 面板类入口的高亮来自面板真实状态：面板关闭或切到别的 tab 时自动熄灭
-          const isActive =
-            item.panelTabId !== null && isRightPanelOpen && activeRightPanelTab === item.panelTabId
           return (
             <button
               key={item.id}
@@ -386,12 +380,10 @@ export function ConversationSidebar() {
               onClick={() => handleNavClick(item.id)}
               className={cn(
                 'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
-                isActive
-                  ? 'bg-sidebar-accent font-semibold text-sidebar-accent-foreground'
-                  : 'hover:bg-sidebar-accent/60'
+                'hover:bg-sidebar-accent/60 active:bg-sidebar-accent active:font-semibold'
               )}
             >
-              <Icon className={cn('h-4 w-4', isActive && 'text-primary')} />
+              <Icon className="h-4 w-4" />
               <span>{item.label}</span>
             </button>
           )
