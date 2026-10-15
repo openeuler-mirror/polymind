@@ -578,33 +578,38 @@ export function ChatArea() {
   return (
     <div className="flex h-full flex-col rounded-t-lg bg-background">
       <ChatHeader conversation={currentConversation} showBorder={isHeaderScrolled} />
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto scrollbar-thin"
-      >
-        {loadingMore && (
-          <div className="flex items-center justify-center py-3">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <span className="ml-2 text-xs text-muted-foreground">{t('chatArea.loadingMore')}</span>
-          </div>
-        )}
-        {currentConversation?.hasMore && !loadingMore && (
-          <div className="flex items-center justify-center py-2">
-            <button
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={loadMore}
-            >
-              {t('chatArea.viewEarlier')}
-            </button>
-          </div>
-        )}
-        <MessageList
-          messages={messages}
-          onRegenerate={handleRegenerate}
-          agentName={currentConversation?.agentName}
-          agentId={currentConversation?.agentId}
-        />
+      {/* 外层定位容器承载底部渐隐装饰层（scroll-fade-bottom，见 globals.css） */}
+      <div className="scroll-fade-bottom relative min-h-0 flex-1">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="h-full overflow-y-auto scrollbar-thin"
+        >
+          {loadingMore && (
+            <div className="flex items-center justify-center py-3">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <span className="ml-2 text-xs text-muted-foreground">
+                {t('chatArea.loadingMore')}
+              </span>
+            </div>
+          )}
+          {currentConversation?.hasMore && !loadingMore && (
+            <div className="flex items-center justify-center py-2">
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={loadMore}
+              >
+                {t('chatArea.viewEarlier')}
+              </button>
+            </div>
+          )}
+          <MessageList
+            messages={messages}
+            onRegenerate={handleRegenerate}
+            agentName={currentConversation?.agentName}
+            agentId={currentConversation?.agentId}
+          />
+        </div>
       </div>
       <div className="p-4">
         {hasActiveQuestions && activeQuestions && activeQuestionId ? (

@@ -706,7 +706,7 @@ export function AgentPage() {
                     </EmptyHeader>
                   </Empty>
                 ) : (
-                  <ScrollCarousel>
+                  <ScrollCarousel maskColor="card">
                     {templates.map(template => {
                       const instantiated = isTemplateInstantiated(agents, template)
                       const isInstantiating = instantiatingTemplate === template.name

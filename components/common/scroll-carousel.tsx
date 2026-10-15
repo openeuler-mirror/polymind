@@ -14,11 +14,16 @@ interface ScrollCarouselProps extends React.ComponentProps<'div'> {
    * 需要左右对称的场景（如输入框上方的模版墙）打开此项即可。
    */
   leftMask?: boolean
+  /** 遮罩渐隐色需匹配所在表面色：'background'（默认）或 'card'。 */
+  maskColor?: 'background' | 'card'
 }
 
-/** 边缘毛玻璃遮罩：模糊 + 背景色渐隐，让切边处过渡自然。 */
-function EdgeMask({ side }: { side: 'left' | 'right' }) {
+/** 边缘毛玻璃遮罩：轻量模糊 + 表面色渐隐，让切边处过渡自然柔和。 */
+function EdgeMask({ side, color }: { side: 'left' | 'right'; color: 'background' | 'card' }) {
   const isLeft = side === 'left'
+  // 显式写死字面量，保证 Tailwind 能扫描到（不可用 `from-${color}` 动态拼接）
+  const fadeFrom = color === 'card' ? 'from-card' : 'from-background'
+  const fadeVia = color === 'card' ? 'via-card/40' : 'via-background/40'
   return (
     <div
       aria-hidden
@@ -30,7 +35,7 @@ function EdgeMask({ side }: { side: 'left' | 'right' }) {
     >
       <div
         className={cn(
-          'absolute inset-0 backdrop-blur-md',
+          'absolute inset-0 backdrop-blur-[3px]',
           isLeft
             ? '[mask-image:linear-gradient(to_right,black,transparent)]'
             : '[mask-image:linear-gradient(to_left,black,transparent)]'
@@ -38,7 +43,9 @@ function EdgeMask({ side }: { side: 'left' | 'right' }) {
       />
       <div
         className={cn(
-          'absolute inset-0 to-transparent from-background via-background/60',
+          'absolute inset-0 to-transparent',
+          fadeFrom,
+          fadeVia,
           isLeft ? 'bg-gradient-to-r' : 'bg-gradient-to-l'
         )}
       />
@@ -63,6 +70,7 @@ function ScrollCarousel({
   children,
   className,
   leftMask = false,
+  maskColor = 'background',
   ref,
   ...props
 }: ScrollCarouselProps) {
@@ -125,8 +133,8 @@ function ScrollCarousel({
       </div>
 
       {/* 边缘毛玻璃遮罩：各自只在对应方向还有未显示内容时出现 */}
-      {leftMask && canScrollLeft && <EdgeMask side="left" />}
-      {canScrollRight && <EdgeMask side="right" />}
+      {leftMask && canScrollLeft && <EdgeMask side="left" color={maskColor} />}
+      {canScrollRight && <EdgeMask side="right" color={maskColor} />}
 
       {/* 左右翻页按钮：常驻 DOM，无未显示内容时用 visibility 隐藏（不卸载、不 disabled） */}
       <button

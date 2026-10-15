@@ -391,7 +391,7 @@ export function ConversationSidebar() {
       </nav>
 
       {/* Conversation List */}
-      <ScrollArea className="flex-1 min-h-0 px-3">
+      <ScrollArea className="scroll-fade-bottom scroll-fade-bottom--sidebar flex-1 min-h-0 px-3">
         {!isHydrated ? (
           <div className="h-full" />
         ) : totalCount === 0 ? (
@@ -471,7 +471,7 @@ export function ConversationSidebar() {
 
       {/* Footer：设置入口是动作语义（同「新对话」），点击打开设置弹窗——
           不持有选中态、不做持续高亮，仅保留点击瞬间的原生按压反馈。 */}
-      <div className="shrink-0 border-t border-border px-3 py-2">
+      <div className="shrink-0 px-3 py-2">
         <button
           type="button"
           onClick={() => useChatStore.getState().openSettingsDialog()}

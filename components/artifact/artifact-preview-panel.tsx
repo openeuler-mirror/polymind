@@ -117,7 +117,7 @@ function ArtifactToolbar({
   }
 
   return (
-    <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2">
+    <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-2">
       <span className="min-w-0 truncate text-sm font-medium">{artifact.name}</span>
       <div className="flex shrink-0 items-center gap-0.5">
         {showRefresh && (
@@ -174,7 +174,7 @@ function ArtifactLoading({ artifact }: { artifact: Artifact }) {
   const typeMeta = ARTIFACT_TYPE_META[artifact.type] || ARTIFACT_TYPE_META.unknown
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center px-4 py-2">
+      <div className="flex items-center px-5 py-2">
         <Skeleton className="h-4 w-48" />
       </div>
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8">

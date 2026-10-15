@@ -166,7 +166,7 @@ export default function Home() {
             {/* 不用实体分割线：两张卡片之间的 1px 间隙直接露出外壳灰底，顶部圆角处自然过渡，
                 不会出现「线冒出到背景」的突兀感；hover 时才高亮提示可拖拽 */}
             <ResizableHandle className="bg-transparent transition-colors hover:bg-primary/40" />
-            <ResizablePanel id="right-panel" order={2} defaultSize={50} minSize={40} maxSize={70}>
+            <ResizablePanel id="right-panel" order={2} defaultSize={50} minSize={40} maxSize={60}>
               <RightPanel />
             </ResizablePanel>
           </>

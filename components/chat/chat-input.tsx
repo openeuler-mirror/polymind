@@ -2,16 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  Send,
-  Paperclip,
-  Mic,
-  Plus,
-  Image as ImageIcon,
-  X,
-  FileText,
-  StopCircle,
-} from 'lucide-react'
+import { Send, Paperclip, Plus, Image as ImageIcon, X, FileText, StopCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useChatStore } from '@/lib/store'
 import { useScheduledTaskStore } from '@/lib/stores/scheduled-task-store'
@@ -416,21 +407,6 @@ export function ChatInput({ onSend }: ChatInputProps) {
                 <div className="flex items-center gap-2">
                   {/* 右下角选择 Agent */}
                   <AgentSelector compact />
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 rounded-full"
-                        aria-label={t('input.voiceInput')}
-                        disabled={isStreaming}
-                      >
-                        <Mic className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{t('input.voiceInput')}</TooltipContent>
-                  </Tooltip>
 
                   <Tooltip>
                     <TooltipTrigger asChild>

@@ -177,6 +177,27 @@
   opacity: 0.5;
 }
 
+/* 滚动区底部柔和渐隐：装饰层挂在外层定位容器上，不随内容滚动。
+   渐隐色由 --scroll-fade-color 覆盖（默认 background，侧栏改回 sidebar）。 */
+.scroll-fade-bottom::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2.5rem;
+  pointer-events: none;
+  background: linear-gradient(to top, var(--scroll-fade-color, var(--background)), transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 0%, transparent 100%);
+}
+
+.scroll-fade-bottom--sidebar {
+  --scroll-fade-color: var(--sidebar);
+}
+
 /* Typing animation */
 @keyframes blink {
   0%,
