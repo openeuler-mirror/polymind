@@ -25,13 +25,15 @@ import { DeleteChannelInstanceDialog } from './delete-instance-dialog'
 import { InstanceCard } from './instance-card'
 import { InstanceDetailDialog } from './instance-detail-dialog'
 import { ProvisionDialog } from './provision-dialog'
-import { channelErrorMessage, instanceDisplayName } from './utils'
+import { channelErrorMessage, instanceDisplayName, isAgentUnavailable } from './utils'
 
 type DetailTab = 'overview' | 'policy' | 'test'
 
 interface DetailState {
   instance: ChannelInstance
   tab: DetailTab
+  /** 从"未绑定"入口打开时为 true：详情内高亮绑定区。 */
+  focusAgent?: boolean
 }
 
 /** 实例卡片网格列：骨架屏与实际列表共用（与定时任务页保持一致）。 */
@@ -103,6 +105,17 @@ export function ChannelPage() {
     setInstances(prev => prev.map(item => (item.id === updated.id ? updated : item)))
     setDetail(prev => (prev ? { ...prev, instance: updated } : prev))
   }, [])
+
+  /** 接入成功收尾：刷新列表；Agent 不可用时直接打开详情并聚焦绑定区。 */
+  const handleConnected = useCallback(
+    (instance: ChannelInstance | null) => {
+      void refreshInstances()
+      if (instance && isAgentUnavailable(instance)) {
+        setDetail({ instance, tab: 'overview', focusAgent: true })
+      }
+    },
+    [refreshInstances]
+  )
 
   const handleReconnect = useCallback(
     async (instance: ChannelInstance) => {
@@ -209,8 +222,10 @@ export function ChannelPage() {
                   catalog={catalog}
                   busy={busyId === instance.id}
                   onOpenDetail={target => setDetail({ instance: target, tab: 'overview' })}
-                  onTest={target => setDetail({ instance: target, tab: 'test' })}
                   onReconnect={target => void handleReconnect(target)}
+                  onBind={target =>
+                    setDetail({ instance: target, tab: 'overview', focusAgent: true })
+                  }
                 />
               ))}
             </div>
@@ -221,7 +236,7 @@ export function ChannelPage() {
       {provisionOpen ? (
         <ProvisionDialog
           catalog={catalog}
-          onConnected={() => void refreshInstances()}
+          onConnected={handleConnected}
           onClose={() => setProvisionOpen(false)}
         />
       ) : null}
@@ -231,6 +246,7 @@ export function ChannelPage() {
           key={detail.instance.id}
           instance={detail.instance}
           initialTab={detail.tab}
+          focusAgent={detail.focusAgent}
           catalog={catalog}
           onClose={() => setDetail(null)}
           onUpdated={handleInstanceUpdated}

@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Bot, Loader2, PlugZap, Save, Trash2 } from 'lucide-react'
+import { AlertTriangle, Bot, Loader2, PlugZap, Save, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -36,13 +36,13 @@ import { AccessPolicyPanel } from './access-policy-panel'
 import { ConnectivityTestPanel } from './connectivity-test-panel'
 import {
   STATUS_TONE_CLASSES,
-  agentStateKey,
   channelErrorMessage,
   channelDisplayName,
   configEntries,
   formatChannelDateTime,
   instanceDisplayName,
   instanceStatusTone,
+  isAgentUnavailable,
 } from './utils'
 
 /** Radix Select 不允许空字符串值，用哨兵表示"解绑 / 暂不绑定"。 */
@@ -53,6 +53,8 @@ interface InstanceDetailDialogProps {
   instance: ChannelInstance
   /** 打开时定位到哪个页签（卡片上的「连通性测试」直接跳到测试页）。 */
   initialTab?: string
+  /** 从"未绑定"入口打开时，滚动到绑定区。 */
+  focusAgent?: boolean
   catalog: ChannelCatalogItem[]
   onClose: () => void
   /** 实例发生变化（绑定 / 改名 / 重连）后同步列表与详情。 */
@@ -64,6 +66,7 @@ interface InstanceDetailDialogProps {
 export function InstanceDetailDialog({
   instance,
   initialTab,
+  focusAgent,
   catalog,
   onClose,
   onUpdated,
@@ -80,6 +83,9 @@ export function InstanceDetailDialog({
   const [savingAgent, setSavingAgent] = useState(false)
   const [savingName, setSavingName] = useState(false)
   const [reconnecting, setReconnecting] = useState(false)
+  // 从"未绑定"入口打开时，滚动到绑定区
+  const focusBinding = Boolean(focusAgent) && isAgentUnavailable(instance)
+  const bindingRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -103,6 +109,12 @@ export function InstanceDetailDialog({
       cancelled = true
     }
   }, [])
+
+  // 滚动到绑定区
+  useEffect(() => {
+    if (!focusBinding) return
+    bindingRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [focusBinding])
 
   const applyUpdate = (updated: ChannelInstance) => {
     setAgentId(updated.agent_id ?? NO_AGENT)
@@ -169,8 +181,8 @@ export function InstanceDetailDialog({
     }
   }
 
-  const stateKey = agentStateKey(current.agent_state)
   const tone = instanceStatusTone(current.status)
+  const agentUnavailable = isAgentUnavailable(current)
   const infoRows: Array<[string, string]> = [
     [
       t('instance.channel'),
@@ -210,6 +222,12 @@ export function InstanceDetailDialog({
           </TabsList>
 
           <TabsContent value="overview" className="space-y-5 pt-4">
+            {agentUnavailable ? (
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{t('detail.unboundAlert')}</span>
+              </div>
+            ) : null}
             <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
               {infoRows.map(([label, value]) => (
                 <div key={label} className="flex min-w-0 flex-col">
@@ -239,7 +257,7 @@ export function InstanceDetailDialog({
 
             <Separator />
 
-            <div className="space-y-2">
+            <div ref={bindingRef} className="space-y-2">
               <Label className="flex items-center gap-1.5">
                 <Bot className="h-4 w-4" />
                 {t('detail.bindAgent')}
@@ -271,10 +289,6 @@ export function InstanceDetailDialog({
                   {t('common:action.save')}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {t('instance.boundAgent')}：{t(`instance.agentState.${stateKey}`)}
-                {current.agent_name ? ` · ${current.agent_name}` : ''}
-              </p>
             </div>
 
             <div className="space-y-2">

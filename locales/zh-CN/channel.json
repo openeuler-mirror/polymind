@@ -11,7 +11,8 @@
     "delete": "删除实例",
     "close": "关闭",
     "copyQr": "复制二维码内容",
-    "copied": "已复制"
+    "copied": "已复制",
+    "bindAgent": "绑定 Agent"
   },
   "list": {
     "loading": "加载中…",
@@ -25,6 +26,8 @@
   "instance": {
     "unbound": "未绑定",
     "deleted": "已删除",
+    "unboundWarning": "未绑定 Agent，机器人无法回复消息",
+    "bindHint": "机器人需绑定 Agent，才会把用户消息交给它处理并回复。",
     "boundAgent": "绑定 agent",
     "credential": "凭据",
     "channel": "渠道",
@@ -79,12 +82,15 @@
     },
     "succeededTitle": "接入成功",
     "succeededDescription": "机器人「{{name}}」已接入。",
+    "succeededUnboundTitle": "接入成功，请再绑定 Agent",
+    "succeededUnboundDescription": "机器人「{{name}}」已接入。绑定 Agent 后即可对话，正在为你打开绑定入口。",
     "expiredHint": "二维码有效期由平台决定，过期后重新生成即可。",
     "failedHint": "接入失败（{{code}}），请稍后重试或改用手填凭据。",
     "manualHint": "可直接提交平台凭据完成接入；它同时是凭据遗失后重新接入的唯一方式。",
     "displayNameLabel": "显示名称（可选）",
     "displayNamePlaceholder": "例如：运维助手",
-    "agentLabel": "绑定 agent（可选，可稍后绑定）",
+    "agentLabel": "绑定 Agent（决定谁能回复消息）",
+    "agentHint": "不绑定 Agent 时，该机器人暂时无法回复消息；可稍后在实例详情里绑定。",
     "agentNone": "暂不绑定",
     "ownerRefLabel": "归属标签（可选）",
     "ownerRefPlaceholder": "调用方自定义的不透明标签",
@@ -99,6 +105,7 @@
   "detail": {
     "title": "渠道实例详情",
     "bindAgent": "绑定 agent",
+    "unboundAlert": "该机器人还未绑定 Agent，收到消息时不会触发对话。请在下方选择 Agent 并保存。",
     "unbind": "解绑",
     "noAgent": "暂不绑定",
     "bindSaved": "已更新绑定关系",

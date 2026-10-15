@@ -11,7 +11,8 @@
     "delete": "Delete instance",
     "close": "Close",
     "copyQr": "Copy QR content",
-    "copied": "Copied"
+    "copied": "Copied",
+    "bindAgent": "Bind agent"
   },
   "list": {
     "loading": "Loading…",
@@ -25,6 +26,8 @@
   "instance": {
     "unbound": "Not bound",
     "deleted": "Deleted",
+    "unboundWarning": "No agent bound — the bot cannot reply yet",
+    "bindHint": "A bot needs a bound agent to hand user messages over and reply.",
     "boundAgent": "Bound agent",
     "credential": "Credential",
     "channel": "Channel",
@@ -79,12 +82,15 @@
     },
     "succeededTitle": "Connected",
     "succeededDescription": "Bot \"{{name}}\" is connected.",
+    "succeededUnboundTitle": "Connected — bind an agent to finish",
+    "succeededUnboundDescription": "Bot \"{{name}}\" is connected. Bind an agent to start chatting; opening the binding for you.",
     "expiredHint": "The QR code lifetime is decided by the platform; generate a new one to retry.",
     "failedHint": "Provisioning failed ({{code}}). Retry later or use manual credentials.",
     "manualHint": "You can submit platform credentials directly; this is also the only way back in after losing them.",
     "displayNameLabel": "Display name (optional)",
     "displayNamePlaceholder": "e.g. Ops assistant",
-    "agentLabel": "Bind agent (optional, can be done later)",
+    "agentLabel": "Bind agent (decides who can reply)",
+    "agentHint": "With no agent bound, the bot cannot reply yet. You can bind one later in the instance details.",
     "agentNone": "Do not bind yet",
     "ownerRefLabel": "Owner ref (optional)",
     "ownerRefPlaceholder": "An opaque label defined by the caller",
@@ -99,6 +105,7 @@
   "detail": {
     "title": "Channel instance details",
     "bindAgent": "Bound agent",
+    "unboundAlert": "This bot has no agent bound, so incoming messages will not start a conversation. Choose an agent below and save.",
     "unbind": "Unbind",
     "noAgent": "Do not bind",
     "bindSaved": "Binding updated",

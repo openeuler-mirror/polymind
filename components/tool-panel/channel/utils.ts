@@ -91,6 +91,12 @@ export function agentStateKey(agentState: string): string {
   return KNOWN_AGENT_STATES.includes(agentState) ? agentState : 'error'
 }
 
+/** 机器人是否「当前无法对话」：从未绑定（unbound）或绑定后被删除（deleted） */
+export function isAgentUnavailable(instance: Pick<ChannelInstance, 'agent_state'>): boolean {
+  const key = agentStateKey(instance.agent_state)
+  return key === 'unbound' || key === 'deleted'
+}
+
 /**
  * 后端时间字段是 SQLite 中的 UTC naive 时间，序列化后**不带时区后缀**。
  * `new Date('2026-09-13T04:07:55')` 会被 JS 当成本地时间，导致二维码倒计时

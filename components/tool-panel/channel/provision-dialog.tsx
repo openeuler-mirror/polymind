@@ -26,23 +26,34 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
+import { useChatStore } from '@/lib/store'
 import { agentService } from '@/services/agent-service'
 import {
   channelService,
   isTerminalProvisionStatus,
   provisionPollDelayMs,
   type ChannelCatalogItem,
+  type ChannelInstance,
   type ProvisionAttempt,
 } from '@/services/channel-service'
-import { channelErrorMessage, formatChannelTime, formatCountdown, remainingMs } from './utils'
+import {
+  channelErrorMessage,
+  formatChannelTime,
+  formatCountdown,
+  isAgentUnavailable,
+  remainingMs,
+} from './utils'
 
 /** Radix Select 不允许空字符串值，用哨兵表示"暂不绑定"。 */
 const NO_AGENT = '__none__'
 
 interface ProvisionDialogProps {
   catalog: ChannelCatalogItem[]
-  /** 接入成功后通知列表刷新。 */
-  onConnected: () => void
+  /**
+   * 接入成功后通知列表刷新并回传新建实例（供调用方决定是否引导补绑）；
+   * 无实例时为 null。
+   */
+  onConnected: (instance: ChannelInstance | null) => void
   /** 关闭对话框（组件由调用方按需挂载，关闭即卸载，因此无需重置状态）。 */
   onClose: () => void
 }
@@ -87,11 +98,18 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
     const load = async () => {
       try {
         const data = await agentService.getAgents()
-        if (!cancelled) {
-          setAgents(
-            data.filter(agent => agent.status !== 'deleted').map(a => ({ id: a.id, name: a.name }))
-          )
-        }
+        if (cancelled) return
+        const list = data
+          .filter(agent => agent.status !== 'deleted')
+          .map(agent => ({ id: agent.id, name: agent.name }))
+        setAgents(list)
+        // 默认绑定当前 agent；否则唯一 agent；都不是则"暂不绑定"
+        setAgentId(prev => {
+          if (prev !== NO_AGENT) return prev
+          const current = useChatStore.getState().currentAgentId
+          if (current && list.some(agent => agent.id === current)) return current
+          return list.length === 1 ? list[0].id : NO_AGENT
+        })
       } catch (error) {
         console.error('Failed to load agents for channel provisioning:', error)
         if (!cancelled) setAgents([])
@@ -138,13 +156,16 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
     if (handledAttemptRef.current === attempt.attempt_id) return
     handledAttemptRef.current = attempt.attempt_id
     const instance = attempt.instance
+    const name = instance?.display_name || (selected?.display_name ?? '')
+    // Agent 不可用则无法对话：文案提示并由调用方打开绑定入口
+    const unbound = !!instance && isAgentUnavailable(instance)
     toast({
-      title: t('provision.succeededTitle'),
-      description: t('provision.succeededDescription', {
-        name: instance?.display_name || (selected?.display_name ?? ''),
-      }),
+      title: unbound ? t('provision.succeededUnboundTitle') : t('provision.succeededTitle'),
+      description: unbound
+        ? t('provision.succeededUnboundDescription', { name })
+        : t('provision.succeededDescription', { name }),
     })
-    onConnected()
+    onConnected(instance)
     onClose()
   }, [attempt, onClose, onConnected, selected, t, toast])
 
@@ -231,12 +252,15 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
         owner_ref: ownerRef.trim() || null,
         agent_id: agentId === NO_AGENT ? null : agentId,
       })
+      const name = instance.display_name || selected.display_name
+      const unbound = isAgentUnavailable(instance)
       toast({
-        title: t('provision.manualSucceeded', {
-          name: instance.display_name || selected.display_name,
-        }),
+        title: unbound ? t('provision.succeededUnboundTitle') : t('provision.succeededTitle'),
+        description: unbound
+          ? t('provision.succeededUnboundDescription', { name })
+          : t('provision.manualSucceeded', { name }),
       })
-      onConnected()
+      onConnected(instance)
       onClose()
     } catch (error) {
       console.error('Failed to create channel instance manually:', error)
@@ -281,6 +305,27 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        {/* 绑定 Agent 是两种接入方式的公共前置：放 Tabs 之外，扫码与手填都能选到 */}
+        <div className="space-y-2">
+          <Label htmlFor="provision-agent">{t('provision.agentLabel')}</Label>
+          <Select value={agentId} onValueChange={setAgentId} disabled={waiting}>
+            <SelectTrigger id="provision-agent">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_AGENT}>{t('provision.agentNone')}</SelectItem>
+              {agents.map(agent => (
+                <SelectItem key={agent.id} value={agent.id}>
+                  {agent.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {agentId === NO_AGENT ? t('provision.agentHint') : t('instance.bindHint')}
+          </p>
         </div>
 
         <Tabs value={mode} onValueChange={value => setMode(value as 'qr' | 'manual')}>
@@ -442,22 +487,6 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
                 onChange={event => setOwnerRef(event.target.value)}
               />
               <p className="text-xs text-muted-foreground">{t('provision.ownerRefHint')}</p>
-            </div>
-            <div className="space-y-2">
-              <Label>{t('provision.agentLabel')}</Label>
-              <Select value={agentId} onValueChange={setAgentId}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_AGENT}>{t('provision.agentNone')}</SelectItem>
-                  {agents.map(agent => (
-                    <SelectItem key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </TabsContent>
         </Tabs>
