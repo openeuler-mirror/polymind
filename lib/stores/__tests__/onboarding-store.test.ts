@@ -21,6 +21,7 @@ function createTestStore() {
     // 用例直接写 agents，等价于「列表已经拿到」；未加载/失败的场景由用例显式覆盖。
     agentsLoadState: 'loaded',
     isDefaultModelDialogOpen: false,
+    isSettingsDialogOpen: false,
   }))
 }
 
@@ -62,6 +63,7 @@ describe('onboarding-store', () => {
       agents: [] as Agent[],
       agentsLoadState: 'loaded' as const,
       isDefaultModelDialogOpen: false,
+      isSettingsDialogOpen: false,
       hasConfiguredDefaultModel: true,
       templateWallReady: true,
       templateNames: ['issue-fixer'],
@@ -78,6 +80,12 @@ describe('onboarding-store', () => {
 
     it('默认模型弹窗打开中不展示', () => {
       expect(canShowTemplateHint({ ...base, isDefaultModelDialogOpen: true })).toBe(false)
+    })
+
+    // 首检弹窗的「去添加模型」会把用户送进设置弹窗配置默认模型，配置点在弹窗内、
+    // 弹窗仍盖在中央：此时展示会让气泡叠在弹窗上，故同为阻塞弹窗。
+    it('设置弹窗打开中不展示', () => {
+      expect(canShowTemplateHint({ ...base, isSettingsDialogOpen: true })).toBe(false)
     })
 
     it('已消费标志时不展示', () => {
@@ -166,6 +174,22 @@ describe('onboarding-store', () => {
 
       expect(store.getState().templateHintVisible).toBe(false)
       expect(readPersistedFlag()).toBeNull()
+    })
+
+    // 复刻新用户真实路径：首检弹窗 → 设置弹窗内配置默认模型。此时设置弹窗未关，
+    // 不能展示（否则叠在弹窗上），也不能消费；关闭后由气泡 effect 重判才展示。
+    it('设置弹窗打开期间配置默认模型不展示也不消费，关闭后重判才展示', () => {
+      const store = createTestStore()
+      store.setState({ isSettingsDialogOpen: true })
+      armHint(store)
+      expect(store.getState().templateHintVisible).toBe(false)
+      expect(readPersistedFlag()).toBeNull()
+
+      // 对应气泡 effect 在设置弹窗关闭后的那一次 evaluateTemplateHint
+      store.setState({ isSettingsDialogOpen: false })
+      store.getState().evaluateTemplateHint()
+      expect(store.getState().templateHintVisible).toBe(true)
+      expect(readPersistedFlag()).toEqual({ consumedAt: expect.any(String) })
     })
 
     it('模版墙就绪前不消费，就绪后仍可展示', () => {

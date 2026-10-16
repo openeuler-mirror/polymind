@@ -30,13 +30,16 @@ export function TemplateGuideBubble() {
   // 依赖只取两个标量：订阅整个 agents 数组会让每次列表写入都改引用、重跑 effect。
   const agentsLoadState = useChatStore(state => state.agentsLoadState)
   const hasTemplateAgent = useChatStore(selectHasTemplateAgent)
+  // 设置弹窗同样是阻塞弹窗：首检弹窗的「去添加模型」会把人送进设置弹窗配置默认模型，
+  // 配置完成时它仍盖在中央。订阅它的开合，关闭后再补一次判定把气泡放出来。
+  const settingsDialogOpen = useChatStore(state => state.isSettingsDialogOpen)
   // 锚点本体在模块级 ref（store 不持有 DOM 节点），仅在就绪标志为真时读取
   const anchorEl = anchorReady ? getTemplateHintAnchor() : null
 
   // 欢迎态重建（例如从会话返回）时补一次判定：条件可能已在此前齐备。
   useEffect(() => {
     evaluateTemplateHint()
-  }, [evaluateTemplateHint, hasTemplateAgent, agentsLoadState])
+  }, [evaluateTemplateHint, hasTemplateAgent, agentsLoadState, settingsDialogOpen])
 
   // 卸载（离开欢迎态）时复位可见性：气泡已不在 DOM 中，避免 store 里留下永久的 visible=true。
   // 以「锚点是否仍注册」区分真实卸载与 StrictMode 的开发期假卸载：假卸载后锚点会被立刻重新注册，

@@ -125,17 +125,20 @@ export function selectHasTemplateAgent(state: TemplateAgentContext): boolean {
 /**
  * 判定气泡是否应当展示（纯函数，便于单测）。
  * 条件：已配置过默认模型 + 未消费标志 + 模版墙就绪且锚点已注册 + agents 加载完成且可信
- *      + 尚无模版 agent + 默认模型弹窗未打开。
+ *      + 尚无模版 agent + 无阻塞弹窗（默认模型弹窗 / 设置弹窗）打开。
  *
  * agentsLoadState 必传（不用可选参数 + 缺省为「已加载」）：漏传就退回旧行为——
  * 加载完成前 agents 恒为空数组，判定会恒定得出「还没建过模版 agent」而误弹。
  */
 export function canShowTemplateHint(
   state: OnboardingSliceData &
-    Pick<StoreState, 'agents' | 'agentsLoadState' | 'isDefaultModelDialogOpen'>
+    Pick<
+      StoreState,
+      'agents' | 'agentsLoadState' | 'isDefaultModelDialogOpen' | 'isSettingsDialogOpen'
+    >
 ): boolean {
   if (state.templateHintVisible || state.templateHintConsumed) return false
-  if (state.isDefaultModelDialogOpen) return false
+  if (state.isDefaultModelDialogOpen || state.isSettingsDialogOpen) return false
   if (!state.hasConfiguredDefaultModel) return false
   if (!state.templateWallReady || !state.templateHintAnchorReady) return false
   if (state.templateNames.length === 0) return false
@@ -147,7 +150,10 @@ export function canShowTemplateHint(
 
 /** 本 slice 运行所需的跨 slice 上下文（agents 状态来自 AgentSlice，弹窗开关来自 UISlice）。 */
 export type OnboardingStoreState = OnboardingSlice &
-  Pick<StoreState, 'agents' | 'agentsLoadState' | 'isDefaultModelDialogOpen'>
+  Pick<
+    StoreState,
+    'agents' | 'agentsLoadState' | 'isDefaultModelDialogOpen' | 'isSettingsDialogOpen'
+  >
 
 export const createOnboardingSlice: StateCreator<OnboardingStoreState, [], [], OnboardingSlice> = (
   set,
