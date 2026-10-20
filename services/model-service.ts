@@ -27,7 +27,8 @@ class ModelService {
       api_base_url: request.apiBaseUrl,
       compatibility: request.compatibility,
       enabled: request.enabled ?? true,
-      max_tokens: request.maxTokens ?? 4096,
+      // 不在这里兜底 4096：否则会覆盖后端 CreateModelRequest 的默认值，
+      ...(request.maxTokens !== undefined ? { max_tokens: request.maxTokens } : {}),
       temperature: request.temperature ?? 0.7,
       is_default: request.isDefault ?? false,
     }
@@ -75,7 +76,7 @@ class ModelService {
       apiBaseUrl: model.api_base_url || model.apiBaseUrl,
       compatibility: model.compatibility,
       enabled: model.enabled ?? true,
-      maxTokens: model.max_tokens ?? model.maxTokens ?? 4096,
+      maxTokens: model.max_tokens ?? model.maxTokens ?? 32768,
       temperature: model.temperature ?? model.temperature ?? 0.7,
       isDefault: model.is_default ?? model.isDefault ?? false,
       createdAt: model.created_at || model.createdAt,
