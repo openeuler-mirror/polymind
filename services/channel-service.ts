@@ -118,6 +118,12 @@ export interface ChannelDeliveryTestRequest {
   conversation_type?: ConversationType
 }
 
+/** 曾与该实例交互过的平台用户：连通性测试的候选收件人。 */
+export interface ChannelKnownSender {
+  conversation_type: ConversationType | string
+  platform_user_id: string
+}
+
 export interface ChannelDeliveryTestResult {
   certainty: ChannelDeliveryCertainty | string
   error_code: string | null
@@ -266,6 +272,17 @@ class ChannelService {
     return httpClient.post<ChannelInstance>(
       `/channels/instances/${encodeURIComponent(instanceId)}/reconnect`
     )
+  }
+
+  /**
+   * 候选收件人：曾给该实例发过消息的平台用户（最近交互在前）。
+   * 用于连通性测试预填「接收用户 ID」，避免用户去平台后台翻找自己的标识。
+   */
+  public async listKnownSenders(instanceId: string): Promise<ChannelKnownSender[]> {
+    const response = await httpClient.get<{ senders?: ChannelKnownSender[] }>(
+      `/channels/instances/${encodeURIComponent(instanceId)}/known-senders`
+    )
+    return Array.isArray(response?.senders) ? response.senders : []
   }
 
   /**

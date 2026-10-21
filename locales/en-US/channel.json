@@ -132,6 +132,7 @@
     "description": "Send a fixed message to one user to check whether delivery works right now. It does not run a turn or write chat history.",
     "userLabel": "Recipient user ID",
     "userPlaceholder": "Platform user identifier, e.g. the WeCom userid",
+    "knownSendersLabel": "Pick a known user",
     "submit": "Send test message",
     "submitting": "Sending…",
     "failed": "Connectivity test failed",
