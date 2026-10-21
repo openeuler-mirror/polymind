@@ -23,11 +23,9 @@ export interface AgentSlice {
   agents: Agent[]
   currentAgentId: string | null
   agentStatus: Record<string, Agent['status']>
-  agentCreateFlag: number
   isAgentsLoading: boolean
   agentsLoadState: AgentsLoadState
   setCurrentAgent: (agentId: string | null) => void
-  triggerAgentCreate: () => void
   addAgent: (agent: Agent) => void
   updateAgent: (agent: Agent) => void
   removeAgent: (agentId: string) => void
@@ -71,7 +69,6 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
     agents: [],
     currentAgentId: null,
     agentStatus: {},
-    agentCreateFlag: 0,
     isAgentsLoading: false,
     agentsLoadState: 'pending',
 
@@ -82,11 +79,6 @@ export const createAgentSlice: StateCreator<StoreState, [], [], AgentSlice> = (s
         syncUrlParams(agentId || undefined, currentSessionId || undefined)
       }
     },
-
-    triggerAgentCreate: () =>
-      set(state => ({
-        agentCreateFlag: state.agentCreateFlag + 1,
-      })),
 
     addAgent: agent => {
       set(state => ({

@@ -36,7 +36,7 @@ export function AgentTemplateChips() {
       setTemplateLoadError(false)
       const data = await agentService.getAgentTemplates()
       // 展示顺序在此处定版：模版墙的渲染顺序与上报给 store 的 names 顺序同源，
-      // 置顶模版（如 os-perf-optimizer）存在时固定排第一，其余保持后端顺序。
+      // PINNED_TEMPLATE_NAMES 中的模版按声明顺序靠前，其余保持后端顺序。
       setTemplates(orderTemplatesWithPinnedFirst(data))
     } catch (err) {
       console.error('Failed to fetch agent templates:', err)

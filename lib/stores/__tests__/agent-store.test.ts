@@ -117,7 +117,6 @@ describe('AgentSlice', () => {
       agents: [],
       currentAgentId: null,
       agentStatus: {},
-      agentCreateFlag: 0,
       isAgentsLoading: false,
       agentsLoadState: 'pending',
       conversations: [],
@@ -130,19 +129,12 @@ describe('AgentSlice', () => {
     expect(state.agents).toEqual([])
     expect(state.currentAgentId).toBeNull()
     expect(state.agentStatus).toEqual({})
-    expect(state.agentCreateFlag).toBe(0)
     expect(state.isAgentsLoading).toBe(false)
   })
 
   it('should set current agent', () => {
     useTestStore.getState().setCurrentAgent('agent-1')
     expect(useTestStore.getState().currentAgentId).toBe('agent-1')
-  })
-
-  it('should trigger agent create', () => {
-    const initialFlag = useTestStore.getState().agentCreateFlag
-    useTestStore.getState().triggerAgentCreate()
-    expect(useTestStore.getState().agentCreateFlag).toBe(initialFlag + 1)
   })
 
   it('should add an agent', () => {
