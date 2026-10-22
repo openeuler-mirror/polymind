@@ -7,6 +7,7 @@ import { useChatStore } from '@/lib/store'
 import { AgentStatus } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Command,
   CommandGroup,
@@ -31,6 +32,8 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
     agents,
     currentAgentId,
     setCurrentAgent,
+    currentConversationId,
+    conversations,
     isRightPanelOpen,
     toggleRightPanel,
     addRightPanelTab,
@@ -41,6 +44,13 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
 
   const currentAgent = agents.find(a => a.id === currentAgentId)
   const availableAgents = agents.filter(a => a.status !== 'deleted')
+
+  // 会话一旦开始（已有消息或已绑定后端 session），该会话的 agent 便不可再切换：
+  // 后端不支持在同一 session 内更换 agent，前端直接锁定，避免请求报错。
+  const currentConversation = conversations.find(c => c.id === currentConversationId)
+  const isAgentLocked =
+    !!currentConversation &&
+    (currentConversation.messages.length > 0 || !!currentConversation.sessionId)
 
   const getStatusText = (status: string) => {
     switch (status) {
@@ -84,6 +94,34 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
     }
 
     setOpen(false)
+  }
+
+  // 会话进行中：只展示当前 agent，不提供切换入口
+  if (isAgentLocked) {
+    const lockedLabel = (
+      <span className={cn('truncate', !currentAgent && 'text-muted-foreground')}>
+        {currentAgent ? '@' + currentAgent.name : t('agentSelector.selectAgent')}
+      </span>
+    )
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {compact ? (
+              <span className="inline-flex h-8 max-w-[190px] cursor-not-allowed items-center rounded-full px-3 text-sm text-muted-foreground">
+                {lockedLabel}
+              </span>
+            ) : (
+              <span className="flex w-full cursor-not-allowed items-center gap-1 border-b border-border rounded-t-2xl px-4 py-2.5 text-sm text-muted-foreground">
+                <Bot className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+                <span className="flex-1 text-left">{lockedLabel}</span>
+              </span>
+            )}
+          </TooltipTrigger>
+          <TooltipContent>{t('agentSelector.locked')}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
   }
 
   return (

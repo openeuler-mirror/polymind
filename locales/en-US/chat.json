@@ -67,6 +67,7 @@
   },
   "agentSelector": {
     "selectAgent": "Select an agent",
+    "locked": "This conversation has started; the agent cannot be switched",
     "heading": "Agents",
     "loading": "Loading...",
     "empty": "No agents",
@@ -94,9 +95,7 @@
       "loadFailed": "Failed to load templates, click to retry",
       "createdAria": "Template {{name}} (created, select this Agent)",
       "createAria": "Instantiate template {{name}}",
-      "willFill": "Click to fill in this question: {{prompt}}",
-      "prefillSkippedTitle": "Template question not filled in",
-      "prefillSkippedDesc": "The input box already has content, so your draft was left untouched. Clear the input box and click the template again to fill it in."
+      "willFill": "Click to fill in this question: {{prompt}}"
     }
   },
   "rightPanel": {

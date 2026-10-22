@@ -109,16 +109,19 @@ export interface UISlice {
   /** 任务删除后清理其文件夹折叠状态，避免 localStorage 残留死键。 */
   clearScheduledTaskFolderCollapsed: (taskId: string) => void
 
-  /**
-   * 一次性待填入聊天输入框的文本（如模版墙点击后的「默认提问」）。
-   * 生命周期只有「入口写入 → 输入框消费后立即清空」一种：常驻会把输入框内容
-   * 变成全局状态，还会在输入框重挂载（切换会话、回到欢迎态）时重复灌入旧文本。
-   */
+  /** 一次性待填文本：入口写入、输入框取走后清空，避免重挂载时重复灌入。 */
   composerPrefill: string | null
-  /** 请求把一段文本填入聊天输入框（一次性，由输入框消费后清空）。 */
+  /** 请求把一段文本填入聊天输入框（一次性）。 */
   prefillComposer: (text: string) => void
-  /** 输入框取走待填文本后清空，保证同一段文本只生效一次。 */
+  /** 输入框取走待填文本后清空。 */
   consumeComposerPrefill: () => void
+  /**
+   * 输入框草稿，按会话 id 存放（欢迎态用固定 key）：输入框会随会话态 / 欢迎态切换重挂载，
+   * 放在组件内会丢；按会话隔离则切换会话不会串草稿。
+   */
+  composerDrafts: Record<string, string>
+  /** 写入指定会话的草稿（覆盖式）。 */
+  setComposerDraft: (scope: string, text: string) => void
 }
 
 type UISliceData = Pick<
@@ -136,6 +139,7 @@ type UISliceData = Pick<
   | 'sidebarSectionsCollapsed'
   | 'scheduledTaskFoldersCollapsed'
   | 'composerPrefill'
+  | 'composerDrafts'
 >
 
 /**
@@ -157,6 +161,7 @@ export function createDefaultUISliceData(): UISliceData {
     sidebarSectionsCollapsed: { pinned: false, regular: false, scheduled: false },
     scheduledTaskFoldersCollapsed: {},
     composerPrefill: null,
+    composerDrafts: {},
   }
 }
 
@@ -280,6 +285,8 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = set => {
     },
     prefillComposer: text => set({ composerPrefill: text }),
     consumeComposerPrefill: () => set({ composerPrefill: null }),
+    setComposerDraft: (scope, text) =>
+      set(state => ({ composerDrafts: { ...state.composerDrafts, [scope]: text } })),
 
     clearScheduledTaskFolderCollapsed: taskId => {
       set(state => {

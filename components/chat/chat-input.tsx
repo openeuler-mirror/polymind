@@ -12,7 +12,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import type { AgentSkill } from '@/lib/types'
 import { skillService } from '@/services/skill-service'
 import { AgentSelector } from './agent-selector'
-import { useToast } from '@/hooks/use-toast'
 
 const models = [
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
@@ -21,15 +20,16 @@ const models = [
   { id: 'llama-3', name: 'Llama 3 70B', provider: 'Meta' },
 ]
 
+/** 欢迎态（尚未创建会话）的草稿 key。 */
+const NEW_CHAT_DRAFT_SCOPE = '__new__'
+
 interface ChatInputProps {
   onSend: (content: string, attachments?: File[]) => void
 }
 
 export function ChatInput({ onSend }: ChatInputProps) {
   const { t } = useTranslation('chat')
-  const { toast } = useToast()
   const [skills, setSkills] = useState<AgentSkill[]>([])
-  const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
@@ -37,6 +37,14 @@ export function ChatInput({ onSend }: ChatInputProps) {
   const [selectedSkillIndex, setSelectedSkillIndex] = useState(0)
 
   const { currentConversationId, conversations, stopStreaming, currentAgentId } = useChatStore()
+  // 草稿按会话存放：输入框随会话态 / 欢迎态切换重挂载，按会话隔离可避免切换时串草稿
+  const draftScope = currentConversationId ?? NEW_CHAT_DRAFT_SCOPE
+  const input = useChatStore(state => state.composerDrafts[draftScope] ?? '')
+  const setComposerDraft = useChatStore(state => state.setComposerDraft)
+  const setInput = useCallback(
+    (text: string) => setComposerDraft(draftScope, text),
+    [setComposerDraft, draftScope]
+  )
   const composerPrefill = useChatStore(state => state.composerPrefill)
   const consumeComposerPrefill = useChatStore(state => state.consumeComposerPrefill)
   const refreshScheduled = useScheduledTaskStore(s => s.refresh)
@@ -113,19 +121,11 @@ export function ChatInput({ onSend }: ChatInputProps) {
     }
   }, [selectedSkillIndex])
 
-  // 消费「一次性待填文本」（模版墙的默认提问等入口写入 store）：
-  // - 无论最终填不填都立刻取走，避免输入框稍后清空/重挂载时被「迟到」灌入；
+  // 消费一次性待填文本（模版墙、Agent 详情示例提问写入）：取走即清空并覆盖当前草稿
   useEffect(() => {
     if (!composerPrefill) return
     const pending = composerPrefill
     consumeComposerPrefill()
-    if (textareaRef.current?.value) {
-      toast({
-        title: t('template.chips.prefillSkippedTitle'),
-        description: t('template.chips.prefillSkippedDesc'),
-      })
-      return
-    }
     setInput(pending)
     // 光标落到文本末尾：用户可以立刻补充条件或直接回车发送。
     // 必须等本轮提交（DOM value 已更新）后再设光标，否则会被自动重置到开头。
@@ -135,18 +135,21 @@ export function ChatInput({ onSend }: ChatInputProps) {
       el.focus()
       el.setSelectionRange(pending.length, pending.length)
     })
-  }, [composerPrefill, consumeComposerPrefill, toast, t])
+  }, [composerPrefill, consumeComposerPrefill, setInput])
 
   // 处理选择skill
-  const handleSelectSkill = useCallback((skill: AgentSkill) => {
-    setShowSkillSelector(false)
-    // 将当前正在输入的 /xxx 片段替换为完整 skill 名，后面加空格方便继续输入
-    setInput(prev => prev.replace(/(?:^|\s)\/[a-zA-Z0-9-_]*$/, ` /${skill.name} `).trimStart())
-    // 聚焦输入框，方便用户继续输入
-    setTimeout(() => {
-      textareaRef.current?.focus()
-    }, 50)
-  }, [])
+  const handleSelectSkill = useCallback(
+    (skill: AgentSkill) => {
+      setShowSkillSelector(false)
+      // 将当前正在输入的 /xxx 片段替换为完整 skill 名，后面加空格方便继续输入
+      setInput(input.replace(/(?:^|\s)\/[a-zA-Z0-9-_]*$/, ` /${skill.name} `).trimStart())
+      // 聚焦输入框，方便用户继续输入
+      setTimeout(() => {
+        textareaRef.current?.focus()
+      }, 50)
+    },
+    [input, setInput]
+  )
 
   // 渲染带高亮的内容，匹配/skill_name格式
   const renderHighlightedContent = useCallback(
@@ -177,7 +180,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
     onSend(trimmedInput, attachments.length > 0 ? attachments : undefined)
     setInput('')
     setAttachments([])
-  }, [input, attachments, isStreaming, onSend, currentAgentId])
+  }, [input, attachments, isStreaming, onSend, currentAgentId, setInput])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // 当技能选择器显示时，手动处理键盘导航
