@@ -352,11 +352,11 @@ describe('MessageList 本轮用量', () => {
   })
 })
 
-describe('MessageList 悬停显隐', () => {
+describe('MessageList 操作行常显', () => {
   const usage: Message['usage'] = { inputTokens: 94460, outputTokens: 83484, totalTokens: 11862424 }
 
-  it('用量徽标与复制/重新生成同层淡入淡出：悬停消息时才一起出现', () => {
-    // 只有最后一条助手回复才拿得到 onRegenerate；不传则按钮不渲染，无法断言三者同层。
+  it('用量徽标与复制/重新生成同排常显，不依赖悬停', () => {
+    // 只有最后一条助手回复才拿得到 onRegenerate；不传则按钮不渲染，无法断言三者同排。
     render(
       <MessageList
         messages={[{ ...makeMessage(undefined, '正文'), usage }]}
@@ -365,13 +365,33 @@ describe('MessageList 悬停显隐', () => {
     )
 
     const badge = screen.getByRole('button', { name: /用量 11\.9M tok/ })
-    // 徽标与复制/重新生成共用具名 group 容器：一次悬停同时显隐，二者显示逻辑对称
-    const hoverLayer = badge.closest('[class*="group-hover/msg:"]')
-    expect(hoverLayer).toBeTruthy()
-    expect(hoverLayer?.querySelectorAll('button').length).toBe(3)
-    expect(hoverLayer?.className).toContain('opacity-0')
+    const actionRow = badge.closest('.message-actions')
+
+    expect(actionRow).toBeTruthy()
+    expect(actionRow?.querySelectorAll('button').length).toBe(3)
+    // 常显：操作行不再挂悬停显隐用的透明度/指针事件开关
+    expect(actionRow?.className).not.toContain('opacity-0')
+    expect(actionRow?.className).not.toContain('pointer-events-none')
   })
 
+  it('用户消息的复制按钮同样常显', () => {
+    const userMessage: Message = {
+      id: 'u1',
+      role: 'user',
+      content: '提问',
+      timestamp: new Date('2026-01-01T00:00:00Z'),
+      isStreaming: false,
+      events: [],
+    }
+    render(<MessageList messages={[userMessage]} />)
+
+    const actionRow = document.querySelector('.message-actions') as HTMLElement
+    expect(actionRow.querySelectorAll('button').length).toBe(1)
+    expect(actionRow.className).not.toContain('opacity-0')
+  })
+})
+
+describe('MessageList 产物卡片按钮悬停', () => {
   const artifacts: Artifact[] = [
     {
       id: 'a1',
@@ -430,7 +450,7 @@ describe('MessageList 重新生成入口', () => {
   ]
 
   const actionRowButtonCounts = () =>
-    Array.from(document.querySelectorAll('[class*="group-hover/msg:"]')).map(
+    Array.from(document.querySelectorAll('.message-actions')).map(
       row => row.querySelectorAll('button').length
     )
 
@@ -448,7 +468,7 @@ describe('MessageList 重新生成入口', () => {
   it('点击重新生成回传最后一条助手回复的 id', () => {
     render(<MessageList messages={twoRounds} onRegenerate={onRegenerate} />)
 
-    const rows = document.querySelectorAll('[class*="group-hover/msg:"]')
+    const rows = document.querySelectorAll('.message-actions')
     const buttons = rows[rows.length - 1].querySelectorAll('button')
     fireEvent.click(buttons[buttons.length - 1])
 

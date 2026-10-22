@@ -59,7 +59,6 @@ interface UsageDetailRow {
 
 /**
  * 本轮用量徽标：与「复制 / 重新生成」同排，点击展开明细弹层。
- * 显示时机由调用方决定（与复制/重新生成共用同一层淡入淡出，悬停本条消息才出现）。
  *
  * ``usage`` 是**本轮**（跨 step 累计）的增量，不是会话累计值；
  * 流式期间不渲染（用量尚未累计完成），由调用方按 ``isStreaming`` 门控。
@@ -67,12 +66,9 @@ interface UsageDetailRow {
 export const MessageUsageBadge = memo(function MessageUsageBadge({
   usage,
   className,
-  onOpenChange,
 }: {
   usage: MessageUsage
   className?: string
-  /** 明细弹层开合通知：调用方据此在弹层展开时保持徽标可见（不随后续移出悬停而淡出） */
-  onOpenChange?: (open: boolean) => void
 }) {
   const { t } = useTranslation('chat')
 
@@ -130,7 +126,7 @@ export const MessageUsageBadge = memo(function MessageUsageBadge({
   }
 
   return (
-    <Popover onOpenChange={onOpenChange}>
+    <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
