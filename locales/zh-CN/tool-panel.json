@@ -1110,6 +1110,20 @@
       "ariaInstantiated": "模板 {{name}}（已创建，选中该 Agent）",
       "ariaInstantiate": "实例化模板 {{name}}"
     },
+    "detail": {
+      "description": "该智能体的能力概览、技能清单，以及可一键试用的示例提问。",
+      "openAria": "查看智能体 {{name}} 的详情",
+      "capabilityTitle": "能力概览",
+      "strengthTitle": "技能清单",
+      "skillLoading": "正在加载技能…",
+      "skillLoadFailed": "加载技能失败，请稍后重试。",
+      "skillEmpty": "该智能体还没有安装技能。",
+      "mcpTitle": "MCP 服务",
+      "suggestTitle": "可以这样问",
+      "genericPromptCapability": "先介绍一下你自己，以及你擅长处理什么场景？",
+      "genericPromptSkills": "列出你已安装的技能，并说明每个技能分别适合什么场景？",
+      "genericPromptPlan": "帮我拆解一个任务，并说明执行时会用到哪些技能或工具。"
+    },
     "deleteDialog": {
       "title": "确认删除 Agent",
       "description": "此操作将永久删除该 Agent，所有相关配置和运行数据都将丢失，无法恢复。",

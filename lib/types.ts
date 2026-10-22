@@ -584,6 +584,8 @@ export interface AgentTemplateInfo {
   sourceCommit: string | null
   /** 模板声明的默认使用提问（给用户直接用），对应后端 `default_prompt` */
   defaultPrompt: string | null
+  /** 模板声明的多条示例提问（「试试这样问我」），对应后端 `default_prompts` */
+  defaultPrompts: string[]
 }
 
 // ============================================

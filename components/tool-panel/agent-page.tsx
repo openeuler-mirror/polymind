@@ -55,6 +55,8 @@ import { formatDateTime } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
 import { useTemplateInstantiate } from '@/hooks/use-template-instantiate'
 import { AgentCreatePage } from './agent-create-page'
+import { AgentDetailDialog } from './agent-detail-dialog'
+import { avatarGradient, avatarLabel, coverGradient } from './agent-avatar'
 import { useChatStore } from '@/lib/store'
 
 /** 参考样式：胶囊型状态徽标（含脉冲圆点）。 */
@@ -97,42 +99,6 @@ function StatusBadge({ status, className }: { status: string; className?: string
       {config.label}
     </span>
   )
-}
-
-/** 头像渐变色板：按名称哈希稳定取色。 */
-const AVATAR_GRADIENTS = [
-  'linear-gradient(135deg,#22d3ee,#3b82f6)',
-  'linear-gradient(135deg,#34d399,#0ea5e9)',
-  'linear-gradient(135deg,#fbbf24,#f97316)',
-  'linear-gradient(135deg,#f87171,#fb7185)',
-  'linear-gradient(135deg,#a78bfa,#6366f1)',
-  'linear-gradient(135deg,#f472b6,#a78bfa)',
-]
-/** 精选智能体封面色板（更通透的纵深渐变）。 */
-const COVER_GRADIENTS = [
-  'linear-gradient(135deg,#6366f1 0%,#8b5cf6 45%,#ec4899 100%)',
-  'linear-gradient(135deg,#06b6d4 0%,#3b82f6 55%,#6366f1 100%)',
-  'linear-gradient(135deg,#f59e0b 0%,#f97316 55%,#ef4444 100%)',
-  'linear-gradient(135deg,#10b981 0%,#14b8a6 45%,#0ea5e9 100%)',
-  'linear-gradient(135deg,#f43f5e 0%,#d946ef 55%,#8b5cf6 100%)',
-  'linear-gradient(135deg,#0ea5e9 0%,#06b6d4 50%,#22d3ee 100%)',
-]
-function hashString(str: string) {
-  let h = 0
-  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0
-  return h
-}
-const avatarGradient = (name: string) =>
-  AVATAR_GRADIENTS[hashString(name || '') % AVATAR_GRADIENTS.length]
-const coverGradient = (name: string) =>
-  COVER_GRADIENTS[hashString(name || '') % COVER_GRADIENTS.length]
-
-/** 头像文本：中文取首字，英文取前两词首字母。 */
-function avatarLabel(name: string) {
-  const s = (name || '').trim()
-  if (!s) return '?'
-  if (/[\u4e00-\u9fa5]/.test(s)) return s.slice(0, 1)
-  return s.slice(0, 2).toUpperCase()
 }
 
 /** 区块标题（图标 + 主标题）。 */
@@ -272,12 +238,14 @@ function AgentCard({
   onPause,
   onResume,
   onDelete,
+  onOpen,
 }: {
   agent: Agent
   processing: boolean
   onPause: () => void
   onResume: () => void
   onDelete: () => void
+  onOpen: () => void
 }) {
   const { t } = useTranslation('tool-panel')
   const status = agent.status.toLowerCase()
@@ -289,8 +257,15 @@ function AgentCard({
   const canResume = status === 'paused' || status === 'error'
   const hasSkills = (agent.skills?.length ?? 0) > 0
   return (
-    <div className="flex flex-col rounded-2xl border bg-card p-4">
-      <div className="flex items-start gap-3">
+    <div className="relative flex flex-col rounded-2xl border bg-card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5">
+      {/* 整卡覆盖的详情入口：与内部操作按钮不嵌套，键盘事件互不干扰 */}
+      <button
+        type="button"
+        aria-label={t('agent.detail.openAria', { name: agent.name })}
+        onClick={onOpen}
+        className="absolute inset-0 cursor-pointer rounded-2xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      />
+      <div className="pointer-events-none relative flex items-start gap-3">
         <div
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-on-gradient/80"
           style={{ background: avatarGradient(agent.name) }}
@@ -308,7 +283,7 @@ function AgentCard({
         </div>
       </div>
 
-      <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-3 text-[11px] text-muted-foreground">
+      <div className="pointer-events-none relative mt-auto flex flex-wrap items-center gap-1.5 pt-3 text-[11px] text-muted-foreground">
         <span className="rounded bg-muted px-1.5 py-0.5">{agent.adapterType}</span>
         <span>·</span>
         <span>{formatDateTime(agent.createdAt)}</span>
@@ -320,7 +295,7 @@ function AgentCard({
         )}
       </div>
 
-      <div className="mt-3 flex items-center gap-2 border-t border-border/70 pt-3">
+      <div className="relative mt-3 flex items-center gap-2 border-t border-border/70 pt-3">
         {canPause && (
           <Button
             variant="ghost"
@@ -393,6 +368,8 @@ export function AgentPage() {
   const [deleteAgentId, setDeleteAgentId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [processingAgentId, setProcessingAgentId] = useState<string | null>(null)
+  // 详情弹窗只记 id，内容从 store 实时取，避免弹窗里展示的是过期快照
+  const [detailAgentId, setDetailAgentId] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [importForm, setImportForm] = useState({
@@ -412,6 +389,9 @@ export function AgentPage() {
   const agentCreateFlag = useChatStore(state => state.agentCreateFlag)
   const addAgent = useChatStore(state => state.addAgent)
   const setCurrentAgent = useChatStore(state => state.setCurrentAgent)
+  const startNewTask = useChatStore(state => state.startNewTask)
+  // 详情弹窗的示例提问点击后写入输入框（一次性，由输入框消费）
+  const prefillComposer = useChatStore(state => state.prefillComposer)
   // 实例化流程（含错误分类、选中、刷新）与模版墙共用同一实现
   const { instantiatingTemplate, instantiateTemplate } = useTemplateInstantiate()
 
@@ -610,6 +590,22 @@ export function AgentPage() {
     return matchesSearch && matchesFilter
   })
 
+  // 从 store 实时取：Agent 被删除时弹窗自动消失
+  const detailAgent = detailAgentId
+    ? (agents.find(agent => agent.id === detailAgentId) ?? null)
+    : null
+  // 一模板一实例、agent 名恒等于模板名，用名字反查来源模板；匹配不到（自建/改名）为 null
+  const detailTemplate = detailAgent
+    ? (templates.find(template => template.name === detailAgent.name) ?? null)
+    : null
+
+  /** 示例提问：切到该 Agent 的欢迎态并预填，不预先创建空会话。 */
+  const handleApplySuggestion = (agentId: string, prompt: string) => {
+    setDetailAgentId(null)
+    startNewTask(agentId)
+    prefillComposer(prompt)
+  }
+
   const filterLabel =
     filter === AgentStatus.RUNNING
       ? t('agent.status.running')
@@ -804,6 +800,7 @@ export function AgentPage() {
                         onPause={() => handleAgentAction(agent.id, 'pause')}
                         onResume={() => handleAgentAction(agent.id, 'resume')}
                         onDelete={() => setDeleteAgentId(agent.id)}
+                        onOpen={() => setDetailAgentId(agent.id)}
                       />
                     ))}
                   </div>
@@ -948,6 +945,17 @@ export function AgentPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 智能体详情：点卡片打开，只读展示已装配的能力 */}
+      {detailAgent ? (
+        <AgentDetailDialog
+          key={detailAgent.id}
+          agent={detailAgent}
+          template={detailTemplate}
+          onClose={() => setDetailAgentId(null)}
+          onApplySuggestion={prompt => handleApplySuggestion(detailAgent.id, prompt)}
+        />
+      ) : null}
     </div>
   )
 }
