@@ -268,6 +268,25 @@ describe('UISlice', () => {
     })
   })
 
+  describe('Composer draft', () => {
+    it('should default to no drafts', () => {
+      expect(useTestStore.getState().composerDrafts).toEqual({})
+    })
+
+    it('should keep drafts separate per conversation', () => {
+      const { setComposerDraft } = useTestStore.getState()
+      setComposerDraft('conv-a', '帮我做一次系统巡检')
+      setComposerDraft('conv-b', '再帮我看看磁盘')
+      expect(useTestStore.getState().composerDrafts).toEqual({
+        'conv-a': '帮我做一次系统巡检',
+        'conv-b': '再帮我看看磁盘',
+      })
+      // 覆盖式写入：入口（如示例提问）直接替换该会话的旧草稿，不做拼接
+      setComposerDraft('conv-a', '只看磁盘')
+      expect(useTestStore.getState().composerDrafts['conv-a']).toBe('只看磁盘')
+    })
+  })
+
   describe('Sidebar sections', () => {
     it('should toggle a section collapse state', () => {
       useTestStore.getState().toggleSidebarSection('scheduled')

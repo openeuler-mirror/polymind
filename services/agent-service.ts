@@ -32,11 +32,16 @@ export function normalizeDefaultPrompt(value: unknown): string | null {
   return trimmed
 }
 
-/**
- * 从 API 异常里取出「能给用户看」的信息：
- * 优先服务端给的 message，其次只附错误码，都没有才用调用方给的兜底文案。
- * （`ApiError.details` 就是失败响应体，形如 `{error: {code, message, details}}`。）
- */
+/** 归一化示例提问：空白 / 脏类型 / 超长一律丢弃，并去重。 */
+export function normalizePromptList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const prompts = value
+    .map(item => normalizeDefaultPrompt(item))
+    .filter((item): item is string => item !== null)
+  return Array.from(new Set(prompts))
+}
+
+/** 取 API 异常里可展示的信息：优先服务端 message，其次错误码，最后用兜底文案。 */
 function describeAgentActionError(err: unknown, fallback: string): string {
   const details = (err as { details?: any } | null | undefined)?.details
   const envelope = details?.error ?? details
@@ -263,6 +268,8 @@ class AgentService {
       // 空白串按「未声明」处理：后端契约里缺省就是 null，空串只可能是脏数据，
       // 前端拿到空串会填出一个「看起来没反应」的输入框。
       defaultPrompt: normalizeDefaultPrompt(template.default_prompt ?? template.defaultPrompt),
+      // 示例提问是可选展示数据：后端未升级时字段缺失也不影响详情页其余内容
+      defaultPrompts: normalizePromptList(template.default_prompts ?? template.defaultPrompts),
     }
   }
 

@@ -1092,6 +1092,20 @@
       "ariaInstantiated": "Template {{name}} (created, select this agent)",
       "ariaInstantiate": "Instantiate template {{name}}"
     },
+    "detail": {
+      "description": "An overview of what this agent can do, its skills, and example questions you can try.",
+      "openAria": "View details of agent {{name}}",
+      "capabilityTitle": "What it can do",
+      "strengthTitle": "Skills",
+      "skillLoading": "Loading skills…",
+      "skillLoadFailed": "Failed to load skills; please retry later.",
+      "skillEmpty": "No skill installed on this agent yet.",
+      "mcpTitle": "MCP servers",
+      "suggestTitle": "Ask it like this",
+      "genericPromptCapability": "Introduce yourself and the scenarios you are best at.",
+      "genericPromptSkills": "List the skills you have installed and explain what each one is good for.",
+      "genericPromptPlan": "Help me break down a task and explain which skills or tools you would use."
+    },
     "deleteDialog": {
       "title": "Delete Agent",
       "description": "This will permanently delete the agent. All related configuration and runtime data will be lost and cannot be recovered.",

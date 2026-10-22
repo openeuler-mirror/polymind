@@ -4,7 +4,7 @@ import { memo, useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { format } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
+import { enUS, zhCN } from 'date-fns/locale'
 import {
   Bot,
   Copy,
@@ -102,12 +102,11 @@ const MessageItem = memo(function MessageItem({
   agentName?: string
   agentId?: string
 }) {
-  const { t } = useTranslation('chat')
+  const { t, i18n } = useTranslation('chat')
+  const dateLocale = i18n.language.startsWith('zh') ? zhCN : enUS
   const [copied, setCopied] = useState(false)
   // 回答完毕后，过程模块（深度思考/工具调用/提问）折叠在「已完成」耗时行下
   const [processExpanded, setProcessExpanded] = useState(false)
-  // 用量弹层展开期间强制显示操作行：否则鼠标移开后徽标淡出，弹层会「悬空」
-  const [usageOpen, setUsageOpen] = useState(false)
   const isUser = message.role === 'user'
   const usage = message.usage
 
@@ -183,7 +182,7 @@ const MessageItem = memo(function MessageItem({
   }
 
   return (
-    <div className={cn('group/msg animate-message-in', isUser && 'flex flex-row-reverse')}>
+    <div className={cn('animate-message-in', isUser && 'flex flex-row-reverse')}>
       <div className={cn('flex flex-col gap-1', isUser ? 'max-w-[80%] items-end' : 'w-full')}>
         {/* 助手消息头部：头像 + 名称 */}
         {!isUser && (
@@ -318,10 +317,13 @@ const MessageItem = memo(function MessageItem({
           (isUser || message.content || (message.isStreaming && !hasPendingQuestion)) && (
             <>
               {isUser ? (
-                // 用户气泡底色走 --user-bubble 语义 token：
-                // 浅色是淡蓝、深色是主色叠加，暗色模式下正文（近白）依然可读。
                 <div className="rounded-2xl bg-user-bubble px-4 py-3">
-                  <MessageContent content={message.content} isStreaming={message.isStreaming} />
+                  <div className="whitespace-pre-wrap break-words text-[15px] leading-[1.75]">
+                    {message.content}
+                    {message.isStreaming && (
+                      <span className="ml-0.5 inline-block h-4 w-0.5 animate-blink bg-foreground" />
+                    )}
+                  </div>
                 </div>
               ) : (
                 <MessageContent content={message.content} isStreaming={message.isStreaming} />
@@ -350,29 +352,16 @@ const MessageItem = memo(function MessageItem({
           </div>
         )}
 
-        {/* Timestamp & Actions
-            mt-2 + 父级 gap-1 = 12px：与「已完成 → 正文」同量级的留白，避免操作行贴着产物卡片/正文。 */}
+        {/* 操作行：mt-2 + 父级 gap-1 = 12px；助手侧「操作 → 时间」，用户侧反转为「时间 → 复制」 */}
         <div
           className={cn(
             'mt-2 flex items-center gap-2 text-xs text-muted-foreground',
-            isUser && 'flex-row-reverse'
+            isUser && 'flex-row-reverse gap-4'
           )}
         >
-          <span suppressHydrationWarning>
-            {format(message.timestamp, 'HH:mm', { locale: zhCN })}
-          </span>
-
-          {/* 复制/重新生成与用量共用一层淡入淡出：悬停本条消息（group/msg）时才出现，
-              两者显示逻辑保持对称；键盘 Tab 聚焦（focus-within）时同样可见。
-              弹层展开期间（usageOpen）强制可见，避免鼠标移开后徽标消失、弹层「悬空」。 */}
+          {/* 复制/重新生成/用量在两侧都常显，不随悬停变化 */}
           {!message.isStreaming && (
-            <div
-              className={cn(
-                'flex items-center gap-2 transition-opacity',
-                !usageOpen &&
-                  'pointer-events-none opacity-0 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/msg:pointer-events-auto group-hover/msg:opacity-100'
-              )}
-            >
+            <div className="message-actions flex items-center gap-1">
               <div className="flex items-center gap-1">
                 <TooltipProvider delayDuration={0}>
                   <Tooltip>
@@ -407,9 +396,17 @@ const MessageItem = memo(function MessageItem({
 
               {/* 本轮用量：与复制/重新生成同排，点击展开明细。
                   流式期间不展示 —— 用量在后端跨 step 累计，收尾才完整。 */}
-              {usage && <MessageUsageBadge usage={usage} onOpenChange={setUsageOpen} />}
+              {usage && <MessageUsageBadge usage={usage} />}
             </div>
           )}
+
+          <span suppressHydrationWarning>
+            {format(
+              message.timestamp,
+              i18n.language.startsWith('zh') ? 'M月d日 HH:mm' : 'MMM d HH:mm',
+              { locale: dateLocale }
+            )}
+          </span>
         </div>
       </div>
     </div>
@@ -632,9 +629,10 @@ function ToolCallBadge({ toolCall }: { toolCall: ToolCall }) {
   const formattedOutput = rawOutput ? formatToolOutput(rawOutput) : null
   const displayOutput = formattedOutput ? formatForDisplay(formattedOutput) : null
 
-  // 工具行图标的配色只由状态决定（图标本身由工具类别决定）
+  // 工具行图标的配色只由状态决定（图标本身由工具类别决定）。
+  // 执行中不做旋转动画：整行的时间线里大量图标同时旋转会干扰阅读，配色足以表达状态。
   const statusIconClass: Record<string, string> = {
-    running: 'animate-spin text-primary',
+    running: 'text-primary',
     completed: 'text-accent',
     error: 'text-destructive',
     pending: 'text-muted-foreground',

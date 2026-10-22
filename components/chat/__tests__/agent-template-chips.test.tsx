@@ -19,6 +19,7 @@ const mockTemplates: AgentTemplateInfo[] = [
     skills: [],
     sourceCommit: null,
     defaultPrompt: null,
+    defaultPrompts: [],
   },
   {
     name: 'oeAware-os-perf-optimizer',
@@ -28,6 +29,7 @@ const mockTemplates: AgentTemplateInfo[] = [
     skills: [],
     sourceCommit: null,
     defaultPrompt: OS_DEFAULT_PROMPT,
+    defaultPrompts: [],
   },
 ]
 
