@@ -11,7 +11,9 @@
 
 PolyMind 是一个原生集成 agentd 服务的自托管 AI Agent 交互平台。它将 AI 对话、Agent 工作流编排与多模型管理融为一体，通过 agentd 服务统一调度 LLM、MCP 服务与 Agent，实现多模态认知协作与自主决策。你可以将 PolyMind 视为一个"AI Agent 的控制台"：创建 Agent → 在隔离沙箱中运行 → 通过对话交互 → 管理其生命周期。
 
-本指南将带你完成从安装、配置、启动到核心功能使用与故障排查的全流程。若只需快速跑通，请参见 [安装 PolyMind](#安装-polymind)。
+本指南将带你完成从安装、配置、启动到核心功能使用与故障排查的全流程。若只需快速跑通，请参见 [安装 PolyMind](#安装-polymind)章节或者观看以下操作视频。
+
+<video src="https://openeuler-docs.obs.ap-southeast-1.myhuaweicloud.com/video/polymind%E5%AE%89%E8%A3%85%E8%A7%86%E9%A2%91.mp4"></video>
 
 ### 核心特性
 
