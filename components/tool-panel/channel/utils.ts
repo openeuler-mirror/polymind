@@ -38,6 +38,32 @@ export function channelDisplayName(channel: string, catalog: ChannelCatalogItem[
   return catalog.find(item => item.channel === channel)?.display_name ?? channel
 }
 
+/** 渠道官方平台入口：仅用于跳转，表单字段仍由 `/channels/catalog` 提供；未登记返回 null。 */
+const CHANNEL_PLATFORM_URLS: Record<string, string> = {
+  // 官方「Agent 直连（OpenClaw）」快速开始页，与本项目扫码驱动同源
+  qq_bot: 'https://q.qq.com/qqbot/openclaw/login.html',
+  // 企微智能机器人只能在客户端/管理后台创建，没有独立公网创建页
+  wecom_bot: 'https://work.weixin.qq.com/wework_admin/frame',
+}
+
+export function channelPlatformUrl(channel: string): string | null {
+  return CHANNEL_PLATFORM_URLS[channel] ?? null
+}
+
+/** 平台侧兼容性提示，文案在 `channel` 命名空间的 `provision.platformNotice.*`；未声明返回 null。 */
+export function channelPlatformNotice(translate: Translate, channel: string): string | null {
+  const key = `provision.platformNotice.${channel}`
+  const translated = translate(key, { defaultValue: '' })
+  return translated && translated !== key ? translated : null
+}
+
+/** 手填凭据时的手动创建路径，文案在 `provision.manualGuide.*`；未声明返回 null。 */
+export function channelManualGuide(translate: Translate, channel: string): string | null {
+  const key = `provision.manualGuide.${channel}`
+  const translated = translate(key, { defaultValue: '' })
+  return translated && translated !== key ? translated : null
+}
+
 /** 实例展示名：优先调用方设置的 display_name，其次渠道展示名。 */
 export function instanceDisplayName(
   instance: ChannelInstance,

@@ -3,9 +3,34 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { QRCodeSVG } from 'qrcode.react'
-import { AlertTriangle, CheckCircle2, Copy, Loader2, RefreshCw, XCircle } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Info,
+  KeyRound,
+  Loader2,
+  QrCode,
+  RefreshCw,
+  Settings2,
+  XCircle,
+} from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -27,17 +52,22 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { useChatStore } from '@/lib/store'
+import { cn } from '@/lib/utils'
 import { agentService } from '@/services/agent-service'
 import {
   channelService,
   isTerminalProvisionStatus,
   provisionPollDelayMs,
   type ChannelCatalogItem,
+  type ChannelCredentialField,
   type ChannelInstance,
   type ProvisionAttempt,
 } from '@/services/channel-service'
 import {
   channelErrorMessage,
+  channelManualGuide,
+  channelPlatformNotice,
+  channelPlatformUrl,
   formatChannelTime,
   formatCountdown,
   isAgentUnavailable,
@@ -79,11 +109,19 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
   const [pollError, setPollError] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [manualValues, setManualValues] = useState<Record<string, string>>({})
+  const [revealedSecrets, setRevealedSecrets] = useState<Record<string, boolean>>({})
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [ownerRef, setOwnerRef] = useState('')
   const [agentId, setAgentId] = useState<string>(NO_AGENT)
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([])
+  const [agentLoadFailed, setAgentLoadFailed] = useState(false)
+  // 递增令牌触发 agent 列表重试（effect 内定义加载器，便于取消与依赖追踪）
+  const [agentReloadToken, setAgentReloadToken] = useState(0)
   const [submitting, setSubmitting] = useState(false)
+  // 扫码等待中关闭会丢掉本轮接入，因此先确认再取消。
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false)
+  const [closing, setClosing] = useState(false)
   // 「接入成功」只处理一次：effect 依赖里含有调用方回调，不能靠依赖去重。
   const handledAttemptRef = useRef<string | null>(null)
 
@@ -92,7 +130,7 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
     [catalog, channel]
   )
 
-  // agent 列表用于"可选绑定"；失败不阻塞接入流程本身。
+  // agent 列表用于"可选绑定"；失败不阻塞接入流程本身，但要给用户重试入口。
   useEffect(() => {
     let cancelled = false
     const load = async () => {
@@ -103,6 +141,7 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
           .filter(agent => agent.status !== 'deleted')
           .map(agent => ({ id: agent.id, name: agent.name }))
         setAgents(list)
+        setAgentLoadFailed(false)
         // 默认绑定当前 agent；否则唯一 agent；都不是则"暂不绑定"
         setAgentId(prev => {
           if (prev !== NO_AGENT) return prev
@@ -112,14 +151,16 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
         })
       } catch (error) {
         console.error('Failed to load agents for channel provisioning:', error)
-        if (!cancelled) setAgents([])
+        if (cancelled) return
+        setAgents([])
+        setAgentLoadFailed(true)
       }
     }
     void load()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [agentReloadToken])
 
   // 二维码倒计时：只影响展示，过期由服务端在轮询时判定。
   useEffect(() => {
@@ -169,10 +210,32 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
     onClose()
   }, [attempt, onClose, onConnected, selected, t, toast])
 
+  const waiting = attempt?.status === 'waiting'
+  const left = attempt ? remainingMs(attempt.expires_at, now) : 0
+  const fields = selected?.credential_fields ?? []
+  const requiredFields = fields.filter(field => field.required)
+  const optionalFields = fields.filter(field => !field.required)
+  // 官方入口与兼容性提示是纯展示元数据（渠道标识符仍只来自 catalog）
+  const platformUrl = selected ? channelPlatformUrl(selected.channel) : null
+  const platformNotice = selected ? channelPlatformNotice(t, selected.channel) : null
+  const manualGuide = selected ? channelManualGuide(t, selected.channel) : null
+
+  const requestClose = () => {
+    if (waiting) {
+      setConfirmCloseOpen(true)
+      return
+    }
+    onClose()
+  }
+
   const handleChannelChange = (value: string) => {
     setChannel(value)
     setAttempt(null)
     setPollError(false)
+    // 凭据字段随渠道变化，切换后保留旧值容易误提交
+    setManualValues({})
+    setRevealedSecrets({})
+    setShowAdvanced(false)
     const item = catalog.find(entry => entry.channel === value)
     if (item && !item.supports_provisioning) setMode('manual')
   }
@@ -217,6 +280,30 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
     }
   }
 
+  /** 等待扫码时关闭：先取消服务端 attempt，成功后再关闭，避免留下悬挂任务。 */
+  const handleConfirmClose = async () => {
+    if (!attempt || attempt.status !== 'waiting') {
+      setConfirmCloseOpen(false)
+      onClose()
+      return
+    }
+    setClosing(true)
+    try {
+      await channelService.cancelProvisioning(attempt.attempt_id)
+      setConfirmCloseOpen(false)
+      onClose()
+    } catch (error) {
+      console.error('Failed to cancel channel provisioning before closing:', error)
+      toast({
+        title: t('provision.cancelFailed'),
+        description: channelErrorMessage(t, error, t('common:status.error')),
+        variant: 'destructive',
+      })
+    } finally {
+      setClosing(false)
+    }
+  }
+
   const handleCopyQr = async () => {
     if (!attempt?.qr_content) return
     try {
@@ -226,8 +313,6 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
       console.error('Failed to copy QR content:', error)
     }
   }
-
-  const fields = selected?.credential_fields ?? []
 
   const handleManualSubmit = async () => {
     if (!selected) return
@@ -274,235 +359,393 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
     }
   }
 
-  const waiting = attempt?.status === 'waiting'
-  const left = attempt ? remainingMs(attempt.expires_at, now) : 0
+  const renderCredentialField = (field: ChannelCredentialField) => {
+    const revealed = !!revealedSecrets[field.name]
+    return (
+      <div key={field.name} className="space-y-2">
+        <Label htmlFor={`credential-${field.name}`}>
+          {field.label}
+          {field.required ? <span className="ml-1 text-destructive">*</span> : null}
+        </Label>
+        <div className="relative">
+          <Input
+            id={`credential-${field.name}`}
+            type={field.secret && !revealed ? 'password' : 'text'}
+            autoComplete={field.secret ? 'new-password' : 'off'}
+            className={field.secret ? 'pr-10' : undefined}
+            value={manualValues[field.name] ?? ''}
+            onChange={event =>
+              setManualValues(prev => ({ ...prev, [field.name]: event.target.value }))
+            }
+          />
+          {field.secret ? (
+            <button
+              type="button"
+              aria-label={revealed ? t('provision.hideSecret') : t('provision.showSecret')}
+              aria-pressed={revealed}
+              className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              onClick={() =>
+                setRevealedSecrets(prev => ({ ...prev, [field.name]: !prev[field.name] }))
+              }
+            >
+              {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <Dialog
-      open
-      onOpenChange={next => {
-        if (!next) onClose()
-      }}
-    >
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t('provision.title')}</DialogTitle>
-          <DialogDescription>{t('provision.description')}</DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog
+        open
+        onOpenChange={next => {
+          if (!next) requestClose()
+        }}
+      >
+        <DialogContent
+          className="grid max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:max-w-lg"
+          // 接入流程含扫码等待与手填凭据，误点遮罩会丢掉本轮输入；Esc 在等待扫码时同样二次确认
+          preventOutsideClose
+          onEscapeKeyDown={event => {
+            if (!waiting) return
+            event.preventDefault()
+            setConfirmCloseOpen(true)
+          }}
+        >
+          <DialogHeader className="border-b px-6 py-5 pr-10">
+            <DialogTitle>{t('provision.title')}</DialogTitle>
+            <DialogDescription>{t('provision.description')}</DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-2">
-          <Label htmlFor="channel-select">{t('provision.channelLabel')}</Label>
-          <Select value={channel} onValueChange={handleChannelChange}>
-            <SelectTrigger id="channel-select">
-              <SelectValue placeholder={t('provision.channelLabel')} />
-            </SelectTrigger>
-            <SelectContent>
-              {catalog.map(item => (
-                <SelectItem key={item.channel} value={item.channel}>
-                  {item.display_name}
-                  {item.supports_provisioning ? '' : ` · ${t('provision.tabManual')}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+          <div className="min-h-0 space-y-4 overflow-y-auto px-6 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="channel-select">{t('provision.channelLabel')}</Label>
+              <Select value={channel} onValueChange={handleChannelChange}>
+                <SelectTrigger id="channel-select">
+                  <SelectValue placeholder={t('provision.channelLabel')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {catalog.map(item => (
+                    <SelectItem key={item.channel} value={item.channel}>
+                      {item.display_name}
+                      {item.supports_provisioning ? '' : ` · ${t('provision.tabManual')}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        {/* 绑定 Agent 是两种接入方式的公共前置：放 Tabs 之外，扫码与手填都能选到 */}
-        <div className="space-y-2">
-          <Label htmlFor="provision-agent">{t('provision.agentLabel')}</Label>
-          <Select value={agentId} onValueChange={setAgentId} disabled={waiting}>
-            <SelectTrigger id="provision-agent">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_AGENT}>{t('provision.agentNone')}</SelectItem>
-              {agents.map(agent => (
-                <SelectItem key={agent.id} value={agent.id}>
-                  {agent.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            {agentId === NO_AGENT ? t('provision.agentHint') : t('instance.bindHint')}
-          </p>
-        </div>
+            {/* 绑定 Agent 是两种接入方式的公共前置：放 Tabs 之外，扫码与手填都能选到 */}
+            <div className="space-y-2">
+              <Label htmlFor="provision-agent">{t('provision.agentLabel')}</Label>
+              <Select value={agentId} onValueChange={setAgentId} disabled={waiting}>
+                <SelectTrigger id="provision-agent">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_AGENT}>{t('provision.agentNone')}</SelectItem>
+                  {agents.map(agent => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {agentLoadFailed ? (
+                <p className="flex items-center gap-2 text-xs text-destructive">
+                  {t('provision.agentLoadFailed')}
+                  <button
+                    type="button"
+                    className="underline underline-offset-2 hover:no-underline"
+                    onClick={() => setAgentReloadToken(token => token + 1)}
+                  >
+                    {t('common:action.retry')}
+                  </button>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {agentId === NO_AGENT ? t('provision.agentHint') : t('instance.bindHint')}
+                </p>
+              )}
+            </div>
 
-        <Tabs value={mode} onValueChange={value => setMode(value as 'qr' | 'manual')}>
-          <TabsList className="w-full">
-            <TabsTrigger value="qr" disabled={!selected?.supports_provisioning}>
-              {t('provision.tabQr')}
-            </TabsTrigger>
-            <TabsTrigger value="manual">{t('provision.tabManual')}</TabsTrigger>
-          </TabsList>
+            <Tabs value={mode} onValueChange={value => setMode(value as 'qr' | 'manual')}>
+              <TabsList className="w-full">
+                <TabsTrigger value="qr" disabled={!selected?.supports_provisioning}>
+                  <QrCode className="h-4 w-4" />
+                  {t('provision.tabQr')}
+                </TabsTrigger>
+                <TabsTrigger value="manual">
+                  <KeyRound className="h-4 w-4" />
+                  {t('provision.tabManual')}
+                </TabsTrigger>
+              </TabsList>
+              {/* 不支持扫码时 Tab 是禁用态，把原因放在 Tab 外，避免提示永远看不到 */}
+              {!selected?.supports_provisioning ? (
+                <p className="text-xs text-muted-foreground">{t('provision.unsupported')}</p>
+              ) : null}
 
-          <TabsContent value="qr" className="space-y-4 pt-4">
-            {!selected?.supports_provisioning ? (
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{t('provision.unsupported')}</AlertDescription>
-              </Alert>
-            ) : null}
-
-            {!attempt ? (
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">{t('provision.qrHint')}</p>
-                <Button onClick={() => void handleBegin()} disabled={beginning || !channel}>
-                  {beginning ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  {beginning ? t('provision.generating') : t('actions.connect')}
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex flex-col items-center gap-3 rounded-lg border bg-muted/30 p-4">
-                  {attempt.qr_content ? (
-                    <div className="rounded-md bg-white p-3">
-                      <QRCodeSVG
-                        value={attempt.qr_content}
-                        size={192}
-                        level="M"
-                        aria-label={t('provision.tabQr')}
-                      />
-                    </div>
-                  ) : (
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  )}
-                  <div className="flex items-center gap-2 text-sm">
-                    {waiting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                        <span>{t('provision.status.waiting')}</span>
-                        <span className="font-mono text-xs text-muted-foreground">
-                          {formatCountdown(left)}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        {attempt.status === 'expired' ? (
-                          <XCircle className="h-4 w-4 text-amber-600" />
-                        ) : attempt.status === 'failed' ? (
-                          <XCircle className="h-4 w-4 text-rose-600" />
-                        ) : (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                        )}
-                        <span>
-                          {t(`provision.status.${attempt.status}`, {
-                            defaultValue: attempt.status,
-                          })}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {t('provision.qrExpiresAt', { time: formatChannelTime(attempt.expires_at) })}
-                  </p>
-                  {attempt.qr_content ? (
-                    <Button variant="ghost" size="sm" onClick={() => void handleCopyQr()}>
-                      <Copy className="h-4 w-4" />
-                      {t('actions.copyQr')}
+              <TabsContent value="qr" className="space-y-4 pt-4">
+                {!attempt ? (
+                  <div className="space-y-3">
+                    {platformNotice || platformUrl ? (
+                      <div className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-blue-800">
+                        <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div className="min-w-0 space-y-1.5">
+                          <p className="text-sm font-medium">{t('provision.beforeStart')}</p>
+                          {platformNotice ? (
+                            <p className="text-xs leading-relaxed">{platformNotice}</p>
+                          ) : null}
+                          {platformUrl ? (
+                            <a
+                              href={platformUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-medium underline underline-offset-2 hover:no-underline"
+                            >
+                              {t('provision.platformOpen')}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+                    <p className="text-sm text-muted-foreground">{t('provision.qrHint')}</p>
+                    <Button onClick={() => void handleBegin()} disabled={beginning || !channel}>
+                      {beginning ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      {beginning ? t('provision.generating') : t('provision.startQr')}
                     </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex flex-col items-center gap-3 rounded-lg border bg-muted/30 p-4">
+                      {attempt.qr_content ? (
+                        <div className="rounded-md bg-white p-3">
+                          <QRCodeSVG
+                            value={attempt.qr_content}
+                            size={192}
+                            level="M"
+                            aria-label={t('provision.qrAlt', {
+                              channel: selected?.display_name ?? '',
+                            })}
+                          />
+                        </div>
+                      ) : (
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      )}
+                      {waiting ? (
+                        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm">
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          <span>{t('provision.status.waiting')}</span>
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {t('provision.qrWaitingMeta', {
+                              left: formatCountdown(left),
+                              time: formatChannelTime(attempt.expires_at),
+                            })}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-sm">
+                          {attempt.status === 'expired' ? (
+                            <XCircle className="h-4 w-4 text-amber-600" />
+                          ) : attempt.status === 'failed' ? (
+                            <XCircle className="h-4 w-4 text-rose-600" />
+                          ) : attempt.status === 'cancelled' ? (
+                            <XCircle className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          )}
+                          <span>
+                            {t(`provision.status.${attempt.status}`, {
+                              defaultValue: attempt.status,
+                            })}
+                          </span>
+                        </div>
+                      )}
+                      {attempt.qr_content ? (
+                        <Button variant="ghost" size="sm" onClick={() => void handleCopyQr()}>
+                          <Copy className="h-4 w-4" />
+                          {t('actions.copyQr')}
+                        </Button>
+                      ) : null}
+                    </div>
+
+                    {attempt.status === 'expired' ? (
+                      <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>{t('provision.expiredHint')}</span>
+                      </div>
+                    ) : null}
+                    {attempt.status === 'failed' ? (
+                      <Alert variant="destructive">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>
+                          {t('provision.failedHint', { code: attempt.error_code ?? '--' })}
+                        </AlertDescription>
+                      </Alert>
+                    ) : null}
+                    {pollError ? (
+                      <Alert variant="destructive">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription className="flex items-center justify-between gap-2">
+                          <span>{t('provision.pollFailed')}</span>
+                          <Button size="sm" variant="outline" onClick={() => setPollError(false)}>
+                            {t('common:action.retry')}
+                          </Button>
+                        </AlertDescription>
+                      </Alert>
+                    ) : null}
+
+                    <div className="flex items-center gap-2">
+                      {waiting ? (
+                        <Button variant="outline" onClick={() => void handleCancel()}>
+                          <XCircle className="h-4 w-4" />
+                          {t('provision.cancel')}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => void handleBegin()}
+                          disabled={beginning}
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          {t('provision.regenerate')}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="manual" className="space-y-4 pt-4">
+                {/* 手填凭据需要用户先去平台建机器人拿凭据：引导必须排在字段之前 */}
+                {platformUrl || platformNotice ? (
+                  <div className="rounded-lg border bg-muted/30 px-3 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-medium">{t('provision.manualGuideTitle')}</span>
+                      {platformUrl ? (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={platformUrl} target="_blank" rel="noreferrer">
+                            {t('provision.platformOpen')}
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                      ) : null}
+                    </div>
+                    {manualGuide ? (
+                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                        {manualGuide}
+                      </p>
+                    ) : null}
+                    {platformNotice ? (
+                      <p className="mt-1.5 text-xs leading-relaxed text-amber-700">
+                        {platformNotice}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <p className="text-sm text-muted-foreground">{t('provision.manualHint')}</p>
+
+                {requiredFields.length > 0 ? (
+                  <div className="space-y-4">{requiredFields.map(renderCredentialField)}</div>
+                ) : null}
+
+                <div className="space-y-2">
+                  <Label htmlFor="instance-display-name">{t('provision.displayNameLabel')}</Label>
+                  <Input
+                    id="instance-display-name"
+                    value={displayName}
+                    placeholder={t('provision.displayNamePlaceholder')}
+                    onChange={event => setDisplayName(event.target.value)}
+                  />
+                </div>
+
+                {/* 可选凭据与归属标签属于进阶配置，收起后主路径只剩必填项 */}
+                <div className="rounded-lg border">
+                  <button
+                    type="button"
+                    aria-expanded={showAdvanced}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-sm font-medium"
+                    onClick={() => setShowAdvanced(prev => !prev)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Settings2 className="h-4 w-4 text-muted-foreground" />
+                      {t('provision.advancedOptions')}
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        'h-4 w-4 text-muted-foreground transition-transform',
+                        showAdvanced && 'rotate-180'
+                      )}
+                    />
+                  </button>
+                  {showAdvanced ? (
+                    <div className="space-y-4 border-t px-3 py-3">
+                      {optionalFields.map(renderCredentialField)}
+                      <div className="space-y-2">
+                        <Label htmlFor="instance-owner-ref">{t('provision.ownerRefLabel')}</Label>
+                        <Input
+                          id="instance-owner-ref"
+                          value={ownerRef}
+                          placeholder={t('provision.ownerRefPlaceholder')}
+                          onChange={event => setOwnerRef(event.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {t('provision.ownerRefHint')}
+                        </p>
+                      </div>
+                    </div>
                   ) : null}
                 </div>
+              </TabsContent>
+            </Tabs>
+          </div>
 
-                {attempt.status === 'expired' ? (
-                  <p className="text-sm text-amber-700">{t('provision.expiredHint')}</p>
-                ) : null}
-                {attempt.status === 'failed' ? (
-                  <p className="text-sm text-rose-700">
-                    {t('provision.failedHint', { code: attempt.error_code ?? '--' })}
-                  </p>
-                ) : null}
-                {pollError ? (
-                  <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription className="flex items-center justify-between gap-2">
-                      <span>{t('provision.pollFailed')}</span>
-                      <Button size="sm" variant="outline" onClick={() => setPollError(false)}>
-                        {t('common:action.retry')}
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-
-                <div className="flex items-center gap-2">
-                  {waiting ? (
-                    <Button variant="outline" onClick={() => void handleCancel()}>
-                      <XCircle className="h-4 w-4" />
-                      {t('provision.cancel')}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      onClick={() => void handleBegin()}
-                      disabled={beginning}
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      {t('provision.regenerate')}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="manual" className="space-y-4 pt-4">
-            <p className="text-sm text-muted-foreground">{t('provision.manualHint')}</p>
-            {fields.map(field => (
-              <div key={field.name} className="space-y-2">
-                <Label htmlFor={`credential-${field.name}`}>
-                  {field.label}
-                  {field.required ? <span className="ml-1 text-destructive">*</span> : null}
-                </Label>
-                <Input
-                  id={`credential-${field.name}`}
-                  type={field.secret ? 'password' : 'text'}
-                  autoComplete={field.secret ? 'new-password' : 'off'}
-                  value={manualValues[field.name] ?? ''}
-                  placeholder={field.label}
-                  onChange={event =>
-                    setManualValues(prev => ({ ...prev, [field.name]: event.target.value }))
-                  }
-                />
-              </div>
-            ))}
-            <div className="space-y-2">
-              <Label htmlFor="instance-display-name">{t('provision.displayNameLabel')}</Label>
-              <Input
-                id="instance-display-name"
-                value={displayName}
-                placeholder={t('provision.displayNamePlaceholder')}
-                onChange={event => setDisplayName(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="instance-owner-ref">{t('provision.ownerRefLabel')}</Label>
-              <Input
-                id="instance-owner-ref"
-                value={ownerRef}
-                placeholder={t('provision.ownerRefPlaceholder')}
-                onChange={event => setOwnerRef(event.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">{t('provision.ownerRefHint')}</p>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            {t('common:action.close')}
-          </Button>
-          {mode === 'manual' ? (
-            <Button onClick={() => void handleManualSubmit()} disabled={submitting || !selected}>
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {submitting ? t('provision.submitting') : t('provision.submit')}
+          <DialogFooter className="border-t px-6 py-4">
+            <Button variant="outline" onClick={requestClose}>
+              {t('common:action.close')}
             </Button>
-          ) : null}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            {mode === 'manual' ? (
+              <Button onClick={() => void handleManualSubmit()} disabled={submitting || !selected}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {submitting ? t('provision.submitting') : t('provision.submit')}
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={confirmCloseOpen} onOpenChange={setConfirmCloseOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('provision.closeWaitingTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('provision.closeWaitingDescription')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('provision.closeWaitingKeep')}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={closing}
+              onClick={event => {
+                // 保持外层对话框打开，等取消接口返回后再关闭
+                event.preventDefault()
+                void handleConfirmClose()
+              }}
+            >
+              {closing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {t('provision.closeWaitingConfirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
