@@ -3979,7 +3979,7 @@ export function BackportPage() {
         open={repositoryDialogRole !== null}
         onOpenChange={open => !open && closeRepositoryDialog()}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl" preventOutsideClose>
           <DialogHeader>
             <DialogTitle>
               {repositoryMode === 'recent'
