@@ -271,7 +271,10 @@ function TaskFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto scrollbar-thin sm:max-w-xl">
+      <DialogContent
+        className="max-h-[90vh] overflow-y-auto scrollbar-thin sm:max-w-xl"
+        preventOutsideClose
+      >
         <DialogHeader>
           <DialogTitle>
             {mode === 'create'

@@ -415,7 +415,10 @@ export function SkillRepoManagement() {
                       />
                       <CompactMetaRow>
                         {repo.source_type === 'git' ? (
-                          <CompactMeta label={t('skill.repo.branch')} value={repo.branch || t('skill.repo.defaultBranch')} />
+                          <CompactMeta
+                            label={t('skill.repo.branch')}
+                            value={repo.branch || t('skill.repo.defaultBranch')}
+                          />
                         ) : null}
                         {statusDisplay.mode === 'discovering' ? (
                           <CompactStatus
@@ -460,7 +463,7 @@ export function SkillRepoManagement() {
       </Card>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl" preventOutsideClose>
           <DialogHeader>
             <DialogTitle>
               {createForm.source_type === 'git'
@@ -622,7 +625,7 @@ export function SkillRepoManagement() {
       </Dialog>
 
       <Dialog open={!!editingRepo} onOpenChange={open => !open && setEditingRepo(null)}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-xl" preventOutsideClose>
           <DialogHeader>
             <DialogTitle>{t('skill.repo.editTitle')}</DialogTitle>
             <DialogDescription>{t('skill.repo.editDescription')}</DialogDescription>
@@ -685,10 +688,7 @@ function buildFormStateFromRepository(repo: SkillRepositoryResponse): RepoFormSt
   }
 }
 
-function getRepositoryLocation(
-  repo: SkillRepositoryResponse,
-  t: TFunction
-): RepositoryLocation {
+function getRepositoryLocation(repo: SkillRepositoryResponse, t: TFunction): RepositoryLocation {
   if (repo.source_type === 'git') {
     return {
       label: t('skill.repo.location.gitUrl'),

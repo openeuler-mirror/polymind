@@ -350,7 +350,7 @@ export function ModelPage() {
         <p className="text-sm text-muted-foreground mt-1">{t('model.description')}</p>
       </div>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px]" preventOutsideClose>
           <DialogHeader>
             <DialogTitle>
               {editingModel ? t('model.dialog.editTitle') : t('model.dialog.addTitle')}

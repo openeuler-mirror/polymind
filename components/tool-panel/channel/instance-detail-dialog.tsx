@@ -203,7 +203,7 @@ export function InstanceDetailDialog({
         if (!next) onClose()
       }}
     >
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl" preventOutsideClose>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="truncate">{instanceDisplayName(current, catalog)}</span>

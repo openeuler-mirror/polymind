@@ -331,7 +331,7 @@ export function McpPage() {
                 {t('mcp.addServer')}
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[600px]" preventOutsideClose>
               <DialogHeader>
                 <DialogTitle>
                   {editingServer ? t('mcp.dialog.editTitle') : t('mcp.dialog.addTitle')}
@@ -540,7 +540,9 @@ export function McpPage() {
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            {installedServers.has(server.id) ? t('mcp.uninstall') : t('mcp.install')}
+                            {installedServers.has(server.id)
+                              ? t('mcp.uninstall')
+                              : t('mcp.install')}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -564,7 +566,9 @@ export function McpPage() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>{t('mcp.deleteDialog.title')}</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    {t('mcp.deleteDialog.description', { name: deleteTarget?.name })}
+                                    {t('mcp.deleteDialog.description', {
+                                      name: deleteTarget?.name,
+                                    })}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>

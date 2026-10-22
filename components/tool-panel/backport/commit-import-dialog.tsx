@@ -58,7 +58,11 @@ function validateEntries(
     if (!title) {
       issues.push({ row, field: 'commit_title', message: t('backport.import.issue.titleEmpty') })
     } else if (/\r|\n/.test(title)) {
-      issues.push({ row, field: 'commit_title', message: t('backport.import.issue.titleSingleLine') })
+      issues.push({
+        row,
+        field: 'commit_title',
+        message: t('backport.import.issue.titleSingleLine'),
+      })
     }
     const previous = titlesByCommit.get(commit.toLowerCase())
     if (previous !== undefined && previous !== title) {
@@ -177,7 +181,7 @@ export function CommitImportDialog({ open, onOpenChange, onConfirm }: CommitImpo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto" preventOutsideClose>
         <DialogHeader>
           <DialogTitle>{t('backport.import.title')}</DialogTitle>
           <DialogDescription>{t('backport.import.description')}</DialogDescription>
