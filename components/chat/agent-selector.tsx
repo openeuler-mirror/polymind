@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import { Bot, Check, ChevronDown, Settings, Loader2 } from 'lucide-react'
 import { useChatStore } from '@/lib/store'
 import { AgentStatus } from '@/lib/types'
-import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -38,7 +37,6 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
     toggleRightPanel,
     addRightPanelTab,
     setActiveRightPanelTab,
-    triggerAgentCreate,
     isAgentsLoading,
   } = useChatStore()
 
@@ -77,10 +75,9 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
     setOpen(false)
   }
 
-  const handleCreateAgent = () => {
-    localStorage.setItem('agentIsCreating', 'true')
-    triggerAgentCreate()
-
+  // 只把用户带到智能体面板（列表页），由列表页的「创建」入口决定是否进入创建表单，
+  // 避免点这里就直接落入创建页。
+  const handleOpenAgentPage = () => {
     addRightPanelTab({
       id: 'agent',
       name: t('sidebar.panelTab.agent'),
@@ -229,7 +226,7 @@ export function AgentSelector({ compact = false }: AgentSelectorProps) {
             </CommandGroup>
             <CommandSeparator />
             <CommandGroup>
-              <CommandItem onSelect={handleCreateAgent} className="flex items-center gap-1.5">
+              <CommandItem onSelect={handleOpenAgentPage} className="flex items-center gap-1.5">
                 <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="flex-1 truncate min-w-0">{t('agentSelector.createAgent')}</span>
               </CommandItem>

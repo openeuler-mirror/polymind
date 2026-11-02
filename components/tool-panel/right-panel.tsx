@@ -16,7 +16,6 @@ import { getPanelTabMeta, PANEL_TAB_META, PANEL_TAB_IDS } from '@/lib/panel-tabs
 import { AgentPage } from './agent-page'
 import { CvePage } from './cve-page'
 import { BackportPage } from './backport-page'
-import { InsightPage } from './insight-page'
 import { ScheduledTaskPage } from './scheduled-task'
 import { ChannelPage } from './channel'
 import { SkillPage } from './skill-page'
@@ -26,7 +25,6 @@ import { ArtifactPreviewPanel } from '@/components/artifact/artifact-preview-pan
 /** 右侧面板注册表：新增面板只需在这里注册一行，避免逐层嵌套三元。 */
 const PANEL_PAGES: Record<string, ComponentType> = {
   agent: AgentPage,
-  insight: InsightPage,
   cve: CvePage,
   backport: BackportPage,
   'scheduled-tasks': ScheduledTaskPage,

@@ -1251,7 +1251,6 @@
     "expand": "Expand tool panel",
     "tools": {
       "agent": "Agents",
-      "insight": "Monitoring",
       "scheduledTasks": "Scheduled Tasks",
       "artifacts": "Artifacts",
       "skills": "Skills",

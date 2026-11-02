@@ -31,6 +31,24 @@ const mockTemplates: AgentTemplateInfo[] = [
     defaultPrompt: OS_DEFAULT_PROMPT,
     defaultPrompts: [],
   },
+  {
+    name: 'security-cve-agent',
+    description: 'CVE 分析与修复建议',
+    version: '1.0.0',
+    skillCount: 7,
+    skills: [],
+    sourceCommit: null,
+    defaultPrompt: null,
+  },
+  {
+    name: 'system-lifecycle-agent',
+    description: '系统生命周期管理',
+    version: '1.0.0',
+    skillCount: 4,
+    skills: [],
+    sourceCommit: null,
+    defaultPrompt: null,
+  },
 ]
 
 const mockAgents: Agent[] = [
@@ -144,7 +162,7 @@ describe('AgentTemplateChips 与全局 store 的模版状态一致性', () => {
     })
   })
 
-  it('oeAware-os-perf-optimizer 存在时排在模版墙第一位（后端顺序中它在最后）', async () => {
+  it('置顶模版按声明顺序排在最前，其余保持后端返回顺序', async () => {
     renderChips()
 
     const track = await waitFor(() => {
@@ -153,11 +171,16 @@ describe('AgentTemplateChips 与全局 store 的模版状态一致性', () => {
       return node as HTMLElement
     })
 
-    // 后端返回顺序为 [oeAware-app-perf-optimizer, oeAware-os-perf-optimizer]，置顶后应反转
+    // 后端顺序为 [app, os, security-cve, system-lifecycle]，两个置顶模版按 PINNED_TEMPLATE_NAMES 提前
     const chipNames = within(track)
       .getAllByRole('button')
       .map(button => button.textContent)
-    expect(chipNames).toEqual(['oeAware-os-perf-optimizer', 'oeAware-app-perf-optimizer'])
+    expect(chipNames).toEqual([
+      'security-cve-agent',
+      'system-lifecycle-agent',
+      'oeAware-app-perf-optimizer',
+      'oeAware-os-perf-optimizer',
+    ])
   })
 
   // 切到 en-US：翻页按钮文案由 ScrollCarousel 内部取 common 命名空间

@@ -1,15 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import {
-  Bot,
-  Activity,
-  Bug,
-  Wrench,
-  Clock,
-  MessagesSquare,
-  Package,
-  Sparkles,
-  Plug,
-} from 'lucide-react'
+import { Bot, Bug, Wrench, Clock, MessagesSquare, Package, Sparkles, Plug } from 'lucide-react'
 
 /**
  * 右侧面板 tab 的共享注册表。
@@ -27,7 +17,6 @@ export interface PanelTabMeta {
 /** 已注册的 tab id 联合类型：作为注册表键与新 tab 的唯一约束来源。 */
 export type PanelTabId =
   | 'agent'
-  | 'insight'
   | 'cve'
   | 'backport'
   | 'scheduled-tasks'
@@ -38,7 +27,6 @@ export type PanelTabId =
 
 export const PANEL_TAB_META: Record<PanelTabId, PanelTabMeta> = {
   agent: { icon: Bot, color: 'text-cyan-500', i18nKey: 'rightPanel.tools.agent' },
-  insight: { icon: Activity, color: 'text-emerald-500', i18nKey: 'rightPanel.tools.insight' },
   cve: { icon: Bug, color: 'text-rose-500', i18nKey: 'rightPanel.tools.cve' },
   backport: { icon: Wrench, color: 'text-blue-500', i18nKey: 'rightPanel.tools.backport' },
   'scheduled-tasks': {
@@ -59,13 +47,12 @@ export const PANEL_TAB_META: Record<PanelTabId, PanelTabMeta> = {
 /** 全部 tab id：决定「+」下拉与空态网格的展示顺序。 */
 export const PANEL_TAB_IDS: PanelTabId[] = [
   'agent',
+  'skills',
   'channels',
   'scheduled-tasks',
-  'insight',
   'cve',
   'backport',
   'artifacts',
-  'skills',
   'mcp',
 ]
 

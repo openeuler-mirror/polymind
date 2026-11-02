@@ -545,7 +545,7 @@ export function ChatArea() {
             <WelcomeScreen />
             <div className="w-full">
               {/* 模版墙由页面按「欢迎态」决定是否挂载，输入框组件本身不感知页面状态 */}
-              <div className="mb-3 w-full">
+              <div className="mb-1 w-full">
                 <AgentTemplateChips />
               </div>
               <ChatInput onSend={handleSendMessage} />

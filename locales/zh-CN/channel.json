@@ -151,6 +151,7 @@
     "description": "向指定用户发送一条固定文案，用来确认当前能不能发出去。它不触发回合、不写入会话历史。",
     "userLabel": "接收用户 ID",
     "userPlaceholder": "平台侧的用户标识，例如企微 userid",
+    "knownSendersLabel": "选择已知用户",
     "submit": "发送测试消息",
     "submitting": "发送中…",
     "failed": "连通性测试失败",

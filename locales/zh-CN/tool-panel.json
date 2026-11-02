@@ -1269,7 +1269,6 @@
     "expand": "展开工具面板",
     "tools": {
       "agent": "智能体",
-      "insight": "监测系统",
       "scheduledTasks": "定时任务",
       "artifacts": "产物",
       "skills": "技能",

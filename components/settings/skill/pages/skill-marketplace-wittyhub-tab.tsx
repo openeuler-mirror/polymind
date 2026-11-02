@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search } from 'lucide-react'
+import { Loader2, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { extractApiErrorMessage } from '@/lib/error-handler'
@@ -40,7 +40,9 @@ export function WittyHubMarketplaceTab({
 }) {
   const { t } = useTranslation('settings')
   const [skills, setSkills] = useState<SkillResponse[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  // 已提交的关键词：只有敲回车才会更新，避免逐字请求（远端检索本身就要 2~5s）。
+  const [keyword, setKeyword] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [total, setTotal] = useState(0)
@@ -80,7 +82,6 @@ export function WittyHubMarketplaceTab({
 
   const loadPage = useCallback(
     async (skip: number, reset: boolean) => {
-      const keyword = searchTerm.trim()
       const setLoadingState = reset ? setLoading : setLoadingMore
 
       try {
@@ -114,7 +115,7 @@ export function WittyHubMarketplaceTab({
         setLoadingState(false)
       }
     },
-    [searchTerm, t, toast]
+    [keyword, t, toast]
   )
 
   const { containerRef } = useAutoLoadOnScroll({
@@ -142,7 +143,7 @@ export function WittyHubMarketplaceTab({
     return () => {
       window.clearTimeout(timer)
     }
-  }, [loadPage, searchTerm])
+  }, [loadPage])
 
   return (
     <div className="space-y-4">
@@ -150,16 +151,24 @@ export function WittyHubMarketplaceTab({
         <div className="relative min-w-0 flex-1 lg:max-w-xl">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            value={searchTerm}
-            onChange={event => setSearchTerm(event.target.value)}
+            value={searchInput}
+            onChange={event => setSearchInput(event.target.value)}
+            onKeyDown={event => {
+              if (event.key !== 'Enter') return
+              event.preventDefault()
+              setKeyword(searchInput.trim())
+            }}
             placeholder={t('skill.marketplace.searchWittyhub')}
             className="pl-9"
           />
         </div>
       </div>
 
-      {loading && skills.length === 0 ? (
-        <EmptyState text={t('skill.marketplace.loadingWittyhub')} />
+      {loading ? (
+        <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          <span>{t('skill.marketplace.loadingWittyhub')}</span>
+        </div>
       ) : skills.length === 0 ? (
         <EmptyState text={t('skill.marketplace.emptyWittyhub')} />
       ) : (

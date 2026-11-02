@@ -360,11 +360,7 @@ export function AgentPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filter, setFilter] = useState('all')
-  const [isCreating, setIsCreating] = useState(() => {
-    // 从localStorage中获取状态，默认为false
-    const storedState = localStorage.getItem('agentIsCreating')
-    return storedState ? JSON.parse(storedState) : false
-  })
+  const [isCreating, setIsCreating] = useState(false)
   const [deleteAgentId, setDeleteAgentId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [processingAgentId, setProcessingAgentId] = useState<string | null>(null)
@@ -386,7 +382,6 @@ export function AgentPage() {
   const { toast } = useToast()
   const removeAgent = useChatStore(state => state.removeAgent)
   const updateAgent = useChatStore(state => state.updateAgent)
-  const agentCreateFlag = useChatStore(state => state.agentCreateFlag)
   const addAgent = useChatStore(state => state.addAgent)
   const setCurrentAgent = useChatStore(state => state.setCurrentAgent)
   const startNewTask = useChatStore(state => state.startNewTask)
@@ -394,11 +389,6 @@ export function AgentPage() {
   const prefillComposer = useChatStore(state => state.prefillComposer)
   // 实例化流程（含错误分类、选中、刷新）与模版墙共用同一实现
   const { instantiatingTemplate, instantiateTemplate } = useTemplateInstantiate()
-
-  // 监听isCreating状态变化，保存到localStorage
-  useEffect(() => {
-    localStorage.setItem('agentIsCreating', JSON.stringify(isCreating))
-  }, [isCreating])
 
   // 获取智能体列表
   const fetchAgents = async () => {
@@ -440,13 +430,6 @@ export function AgentPage() {
     fetchAgents()
     fetchTemplates()
   }, [])
-
-  // 响应来自 AgentSelector 的创建信号
-  useEffect(() => {
-    if (agentCreateFlag > 0) {
-      setIsCreating(true)
-    }
-  }, [agentCreateFlag])
 
   // 加载模型列表（当打开导入对话框时）
   useEffect(() => {
