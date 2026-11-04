@@ -41,7 +41,7 @@ export function InstanceCard({
   onBind,
 }: InstanceCardProps) {
   const { t } = useTranslation('channel')
-  const title = instanceDisplayName(instance, catalog)
+  const title = instanceDisplayName(t, instance, catalog)
   const tone = instanceStatusTone(instance.status)
   const stateKey = agentStateKey(instance.agent_state)
   const agentUnavailable = isAgentUnavailable(instance)
@@ -62,7 +62,7 @@ export function InstanceCard({
             </Badge>
           </div>
           <p className="mt-1 truncate text-xs text-muted-foreground">
-            {channelDisplayName(instance.channel, catalog)}
+            {channelDisplayName(t, instance.channel, catalog)}
           </p>
         </div>
         {busy ? (

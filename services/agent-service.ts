@@ -176,12 +176,22 @@ class AgentService {
     return response.map(t => this.transformTemplate(t))
   }
 
-  /** 一键实例化预置模板，返回创建好的 Agent（含 process_port）。 */
-  public async instantiateAgentTemplate(name: string, modelId: string): Promise<Agent> {
+  /**
+   * 一键实例化预置模板，返回创建好的 Agent（含 process_port）。
+   *
+   * `locale` 显式声明写入 agent 的 description 语言，是创建瞬间的语言快照；
+   * 不走 Accept-Language 隐式协商，避免实例化结果随请求头漂移。
+   */
+  public async instantiateAgentTemplate(
+    name: string,
+    modelId: string,
+    locale: string
+  ): Promise<Agent> {
     const backendRequest: Record<string, any> = {
       model_id: modelId,
       // 不暴露 sandbox 选择；恒默认本地进程沙箱
       sandbox_type: SandboxType.LOCAL_PROCESS,
+      locale,
     }
 
     const response = await httpClient.post<Agent>(

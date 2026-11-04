@@ -31,6 +31,7 @@
     "boundAgent": "Bound agent",
     "credential": "Credential",
     "channel": "Channel",
+    "channelValue": "{{name}} ({{id}})",
     "instanceId": "Instance ID",
     "ownerRef": "Owner ref",
     "generation": "Generation",
@@ -194,6 +195,25 @@
     "saved": "Access policy updated and effective immediately",
     "saveFailed": "Failed to save the access policy",
     "loadFailed": "Failed to load the access policy"
+  },
+  "channels": {
+    "qq_bot": {
+      "displayName": "QQ Bot",
+      "fields": {
+        "app_id": "Bot AppID",
+        "secret": "Bot AppSecret",
+        "use_markdown": "Use markdown messages (must be enabled on the platform; leave empty for plain text)",
+        "sandbox": "Sandbox environment (enter true to use the sandbox domain)"
+      }
+    },
+    "wecom_bot": {
+      "displayName": "WeCom Bot",
+      "fields": {
+        "bot_id": "Bot ID",
+        "secret": "Bot Secret",
+        "ws_url": "WebSocket URL (leave empty to use the default)"
+      }
+    }
   },
   "errors": {
     "CHANNEL_GATEWAY_DISABLED": "The channel gateway is not running (multiple workers or a missing encryption key). Check the deployment.",

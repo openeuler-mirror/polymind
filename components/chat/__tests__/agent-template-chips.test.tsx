@@ -4,6 +4,7 @@ import { I18nextProvider } from 'react-i18next'
 import { AgentTemplateChips } from '@/components/chat/agent-template-chips'
 import i18n from '@/lib/i18n/config'
 import { useChatStore } from '@/lib/store'
+import { agentService } from '@/services/agent-service'
 import { modelService } from '@/services/model-service'
 import type { Agent, AgentTemplateInfo } from '@/lib/types'
 
@@ -39,6 +40,7 @@ const mockTemplates: AgentTemplateInfo[] = [
     skills: [],
     sourceCommit: null,
     defaultPrompt: null,
+    defaultPrompts: [],
   },
   {
     name: 'system-lifecycle-agent',
@@ -48,6 +50,7 @@ const mockTemplates: AgentTemplateInfo[] = [
     skills: [],
     sourceCommit: null,
     defaultPrompt: null,
+    defaultPrompts: [],
   },
 ]
 
@@ -181,6 +184,38 @@ describe('AgentTemplateChips 与全局 store 的模版状态一致性', () => {
       'oeAware-app-perf-optimizer',
       'oeAware-os-perf-optimizer',
     ])
+  })
+
+  it('切换语言时只采用最新一次模板请求的响应', async () => {
+    const resolvers: Array<(value: AgentTemplateInfo[]) => void> = []
+    ;(agentService.getAgentTemplates as jest.Mock)
+      .mockImplementationOnce(() => new Promise(resolve => resolvers.push(resolve)))
+      .mockImplementationOnce(() => new Promise(resolve => resolvers.push(resolve)))
+    const englishTemplates = mockTemplates.map(template => ({
+      ...template,
+      description: `EN ${template.name}`,
+    }))
+
+    renderChips()
+    await waitFor(() => expect(resolvers).toHaveLength(1))
+
+    await act(async () => {
+      await i18n.changeLanguage('en-US')
+    })
+    await waitFor(() => expect(resolvers).toHaveLength(2))
+
+    // 新语言的请求先返回
+    await act(async () => {
+      resolvers[1](englishTemplates)
+    })
+    const chip = await screen.findByRole('button', { name: /oeAware-app-perf-optimizer/ })
+    expect(chip.getAttribute('title')).toContain('EN oeAware-app-perf-optimizer')
+
+    // 旧请求后返回，不得覆盖新语言的文案
+    await act(async () => {
+      resolvers[0](mockTemplates)
+    })
+    expect(chip.getAttribute('title')).toContain('EN oeAware-app-perf-optimizer')
   })
 
   // 切到 en-US：翻页按钮文案由 ScrollCarousel 内部取 common 命名空间

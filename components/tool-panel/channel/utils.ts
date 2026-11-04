@@ -11,6 +11,12 @@ import {
 /** i18n 的 t 函数最小签名（只用到 key 与 defaultValue）。 */
 type Translate = (key: string, options?: { defaultValue?: string }) => string
 
+/** 取翻译，缺键时回退调用方给的默认值（i18next 缺键会回显 key 本身）。 */
+function translateOrFallback(translate: Translate, key: string, fallback: string): string {
+  const translated = translate(key, { defaultValue: '' })
+  return translated && translated !== key ? translated : fallback
+}
+
 /**
  * 后端域错误 -> 用户可见文案。
  *
@@ -25,17 +31,32 @@ export function channelErrorMessage(
 ): string {
   const code = channelErrorCode(error)
   if (code) {
-    const key = `errors.${code}`
-    const translated = translate(key, { defaultValue: '' })
-    // i18next 在缺键时可能回显 key 本身，因此要显式排除
-    if (translated && translated !== key) return translated
+    const translated = translateOrFallback(translate, `errors.${code}`, '')
+    if (translated) return translated
   }
   return extractApiErrorMessage(error, fallback)
 }
 
-/** 渠道展示名：catalog 缺失（渠道未注册）时回退到渠道标识符本身。 */
-export function channelDisplayName(channel: string, catalog: ChannelCatalogItem[]): string {
-  return catalog.find(item => item.channel === channel)?.display_name ?? channel
+/**
+ * 渠道展示名：前端按**稳定渠道标识**翻译，缺失时回退 catalog 里适配器声明的默认值
+ * （catalog 也没有该渠道时直接用标识符）。目录接口不再承担本地化。
+ */
+export function channelDisplayName(
+  translate: Translate,
+  channel: string,
+  catalog: ChannelCatalogItem[]
+): string {
+  const fallback = catalog.find(item => item.channel === channel)?.display_name ?? channel
+  return translateOrFallback(translate, `channels.${channel}.displayName`, fallback)
+}
+
+/** 手填凭据字段标签：按 `渠道 + 字段名` 翻译，缺失时回退适配器声明的 label。 */
+export function channelFieldLabel(
+  translate: Translate,
+  channel: string,
+  field: { name: string; label: string }
+): string {
+  return translateOrFallback(translate, `channels.${channel}.fields.${field.name}`, field.label)
 }
 
 /** 渠道官方平台入口：仅用于跳转，表单字段仍由 `/channels/catalog` 提供；未登记返回 null。 */
@@ -53,25 +74,24 @@ export function channelPlatformUrl(channel: string): string | null {
 /** 平台侧兼容性提示，文案在 `channel` 命名空间的 `provision.platformNotice.*`；未声明返回 null。 */
 export function channelPlatformNotice(translate: Translate, channel: string): string | null {
   const key = `provision.platformNotice.${channel}`
-  const translated = translate(key, { defaultValue: '' })
-  return translated && translated !== key ? translated : null
+  return translateOrFallback(translate, key, '') || null
 }
 
 /** 手填凭据时的手动创建路径，文案在 `provision.manualGuide.*`；未声明返回 null。 */
 export function channelManualGuide(translate: Translate, channel: string): string | null {
   const key = `provision.manualGuide.${channel}`
-  const translated = translate(key, { defaultValue: '' })
-  return translated && translated !== key ? translated : null
+  return translateOrFallback(translate, key, '') || null
 }
 
 /** 实例展示名：优先调用方设置的 display_name，其次渠道展示名。 */
 export function instanceDisplayName(
+  translate: Translate,
   instance: ChannelInstance,
   catalog: ChannelCatalogItem[]
 ): string {
   const name = instance.display_name?.trim()
   if (name) return name
-  return channelDisplayName(instance.channel, catalog)
+  return channelDisplayName(translate, instance.channel, catalog)
 }
 
 export type InstanceStatusTone = 'ok' | 'warn' | 'error' | 'muted'

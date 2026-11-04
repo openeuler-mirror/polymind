@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { agentService } from '@/services/agent-service'
 import { modelService } from '@/services/model-service'
 import { extractApiErrorMessage } from '@/lib/error-handler'
+import { getResolvedLanguage } from '@/lib/i18n/resolved-language'
 import type { AgentTemplateInfo } from '@/lib/types'
 import { useChatStore } from '@/lib/store'
 import { useToast } from '@/hooks/use-toast'
@@ -119,7 +120,12 @@ export function useTemplateInstantiate() {
         }
 
         setInstantiatingTemplate(template.name)
-        const newAgent = await agentService.instantiateAgentTemplate(template.name, defaultModel.id)
+        // description 按点击瞬间的界面语言写入，之后可自行编辑
+        const newAgent = await agentService.instantiateAgentTemplate(
+          template.name,
+          defaultModel.id,
+          getResolvedLanguage()
+        )
         addAgent(newAgent)
         setCurrentAgent(newAgent.id)
         toast({

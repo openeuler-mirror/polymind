@@ -51,7 +51,8 @@ export function ChannelPage() {
   const [catalog, setCatalog] = useState<ChannelCatalogItem[]>([])
   const [instances, setInstances] = useState<ChannelInstance[]>([])
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  // 只存原始异常，渲染时再按当前语言翻译：把 t 挡在加载 effect 的依赖之外
+  const [loadError, setLoadError] = useState<unknown | null>(null)
   const [provisionOpen, setProvisionOpen] = useState(false)
   const [detail, setDetail] = useState<DetailState | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ChannelInstance | null>(null)
@@ -59,6 +60,8 @@ export function ChannelPage() {
   // 刷新按钮通过递增令牌触发重新加载（effect 内部定义加载器，便于取消与依赖追踪）
   const [reloadToken, setReloadToken] = useState(0)
 
+  // catalog 是纯适配器声明，instances 是业务数据：二者都不随语言变化，
+  // 因此加载 effect 不依赖 t，切换语言不会重拉。
   useEffect(() => {
     let cancelled = false
     const run = async () => {
@@ -74,7 +77,7 @@ export function ChannelPage() {
       } catch (error) {
         console.error('Failed to load channel data:', error)
         if (cancelled) return
-        setLoadError(channelErrorMessage(t, error, t('list.loadFailed')))
+        setLoadError(error)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -83,7 +86,11 @@ export function ChannelPage() {
     return () => {
       cancelled = true
     }
-  }, [reloadToken, t])
+  }, [reloadToken])
+
+  const loadErrorMessage = loadError
+    ? channelErrorMessage(t, loadError, t('list.loadFailed'))
+    : null
 
   const refreshInstances = useCallback(async () => {
     try {
@@ -140,8 +147,8 @@ export function ChannelPage() {
 
   const deleteDisplayName = useMemo(() => {
     if (!deleteTarget) return undefined
-    return instanceDisplayName(deleteTarget, catalog)
-  }, [catalog, deleteTarget])
+    return instanceDisplayName(t, deleteTarget, catalog)
+  }, [catalog, deleteTarget, t])
 
   return (
     <div className="h-full overflow-y-auto">
@@ -169,11 +176,11 @@ export function ChannelPage() {
           <p>{t('notice')}</p>
         </div>
 
-        {loadError ? (
+        {loadErrorMessage ? (
           <Alert variant="destructive" className="mt-5">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between gap-2">
-              <span>{loadError}</span>
+              <span>{loadErrorMessage}</span>
               <Button
                 size="sm"
                 variant="outline"

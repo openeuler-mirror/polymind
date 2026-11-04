@@ -31,6 +31,7 @@
     "boundAgent": "绑定 agent",
     "credential": "凭据",
     "channel": "渠道",
+    "channelValue": "{{name}}（{{id}}）",
     "instanceId": "实例 ID",
     "ownerRef": "归属标签",
     "generation": "实例世代",
@@ -194,6 +195,25 @@
     "saved": "准入策略已更新，立即生效",
     "saveFailed": "保存准入策略失败",
     "loadFailed": "加载准入策略失败"
+  },
+  "channels": {
+    "qq_bot": {
+      "displayName": "QQ 机器人",
+      "fields": {
+        "app_id": "机器人 AppID",
+        "secret": "机器人 AppSecret",
+        "use_markdown": "使用 markdown 消息（需平台已开通，留空为纯文本）",
+        "sandbox": "沙箱环境（填 true 使用沙箱域名）"
+      }
+    },
+    "wecom_bot": {
+      "displayName": "企业微信机器人",
+      "fields": {
+        "bot_id": "机器人 ID",
+        "secret": "机器人 Secret",
+        "ws_url": "长连接地址（留空用默认）"
+      }
+    }
   },
   "errors": {
     "CHANNEL_GATEWAY_DISABLED": "渠道网关未启动（多 worker 或缺少加密密钥），请检查服务端部署。",

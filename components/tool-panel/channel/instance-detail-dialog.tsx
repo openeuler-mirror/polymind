@@ -186,7 +186,10 @@ export function InstanceDetailDialog({
   const infoRows: Array<[string, string]> = [
     [
       t('instance.channel'),
-      `${channelDisplayName(current.channel, catalog)}（${current.channel}）`,
+      t('instance.channelValue', {
+        name: channelDisplayName(t, current.channel, catalog),
+        id: current.channel,
+      }),
     ],
     [t('instance.instanceId'), current.id],
     [t('instance.ownerRef'), current.owner_ref || t('common:status.notProvided')],
@@ -206,7 +209,7 @@ export function InstanceDetailDialog({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl" preventOutsideClose>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="truncate">{instanceDisplayName(current, catalog)}</span>
+            <span className="truncate">{instanceDisplayName(t, current, catalog)}</span>
             <Badge variant="outline" className={cn('shrink-0', STATUS_TONE_CLASSES[tone])}>
               {t(`instance.status.${current.status}`, { defaultValue: current.status })}
             </Badge>

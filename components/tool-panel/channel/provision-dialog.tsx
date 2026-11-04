@@ -64,7 +64,9 @@ import {
   type ProvisionAttempt,
 } from '@/services/channel-service'
 import {
+  channelDisplayName,
   channelErrorMessage,
+  channelFieldLabel,
   channelManualGuide,
   channelPlatformNotice,
   channelPlatformUrl,
@@ -197,7 +199,8 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
     if (handledAttemptRef.current === attempt.attempt_id) return
     handledAttemptRef.current = attempt.attempt_id
     const instance = attempt.instance
-    const name = instance?.display_name || (selected?.display_name ?? '')
+    const name =
+      instance?.display_name || (selected ? channelDisplayName(t, selected.channel, catalog) : '')
     // Agent 不可用则无法对话：文案提示并由调用方打开绑定入口
     const unbound = !!instance && isAgentUnavailable(instance)
     toast({
@@ -208,7 +211,7 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
     })
     onConnected(instance)
     onClose()
-  }, [attempt, onClose, onConnected, selected, t, toast])
+  }, [attempt, catalog, onClose, onConnected, selected, t, toast])
 
   const waiting = attempt?.status === 'waiting'
   const left = attempt ? remainingMs(attempt.expires_at, now) : 0
@@ -321,7 +324,9 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
       const value = (manualValues[field.name] ?? '').trim()
       if (field.required && !value) {
         toast({
-          title: t('provision.fieldRequired', { label: field.label }),
+          title: t('provision.fieldRequired', {
+            label: selected ? channelFieldLabel(t, selected.channel, field) : field.label,
+          }),
           variant: 'destructive',
         })
         return
@@ -337,7 +342,9 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
         owner_ref: ownerRef.trim() || null,
         agent_id: agentId === NO_AGENT ? null : agentId,
       })
-      const name = instance.display_name || selected.display_name
+      const name =
+        instance.display_name ||
+        (selected ? channelDisplayName(t, selected.channel, catalog) : instance.channel)
       const unbound = isAgentUnavailable(instance)
       toast({
         title: unbound ? t('provision.succeededUnboundTitle') : t('provision.succeededTitle'),
@@ -364,7 +371,7 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
     return (
       <div key={field.name} className="space-y-2">
         <Label htmlFor={`credential-${field.name}`}>
-          {field.label}
+          {selected ? channelFieldLabel(t, selected.channel, field) : field.label}
           {field.required ? <span className="ml-1 text-destructive">*</span> : null}
         </Label>
         <div className="relative">
@@ -429,7 +436,7 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
                 <SelectContent>
                   {catalog.map(item => (
                     <SelectItem key={item.channel} value={item.channel}>
-                      {item.display_name}
+                      {channelDisplayName(t, item.channel, catalog)}
                       {item.supports_provisioning ? '' : ` · ${t('provision.tabManual')}`}
                     </SelectItem>
                   ))}
@@ -532,7 +539,9 @@ export function ProvisionDialog({ catalog, onConnected, onClose }: ProvisionDial
                             size={192}
                             level="M"
                             aria-label={t('provision.qrAlt', {
-                              channel: selected?.display_name ?? '',
+                              channel: selected
+                                ? channelDisplayName(t, selected.channel, catalog)
+                                : '',
                             })}
                           />
                         </div>
