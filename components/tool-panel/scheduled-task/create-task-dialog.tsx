@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useResolvedLanguage } from '@/lib/i18n/resolved-language'
 import {
   Bug,
   CalendarClock,
@@ -462,29 +463,36 @@ interface TemplatePickerDialogProps {
  */
 export function TemplatePickerDialog({ open, onOpenChange, onSelect }: TemplatePickerDialogProps) {
   const { t } = useTranslation('tool-panel')
+  const resolvedLanguage = useResolvedLanguage()
   const [templates, setTemplates] = useState<ScheduledTaskTemplate[]>([])
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  // 语言切换会并发触发多次模板请求，只允许最新一次写状态（与模版墙一致）
+  const requestIdRef = useRef(0)
 
   const loadTemplates = useCallback(async () => {
+    const requestId = ++requestIdRef.current
     setLoading(true)
     setLoadError(false)
     try {
       const data = await scheduledTaskService.listTemplates()
+      if (requestId !== requestIdRef.current) return
       setTemplates(data)
     } catch (error) {
+      if (requestId !== requestIdRef.current) return
       console.error('Failed to load scheduled task templates:', error)
       setTemplates([])
       setLoadError(true)
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     if (!open) return
     void loadTemplates()
-  }, [open, loadTemplates])
+    // 模板文案由后端按 Accept-Language 返回，语言切换后需按新语言重取
+  }, [open, loadTemplates, resolvedLanguage])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

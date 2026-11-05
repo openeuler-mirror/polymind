@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useResolvedLanguage } from '@/lib/i18n/resolved-language'
 import {
   Search,
   Filter,
@@ -353,6 +354,7 @@ function AgentCard({
 
 export function AgentPage() {
   const { t } = useTranslation('tool-panel')
+  const resolvedLanguage = useResolvedLanguage()
   // Agent 列表以全局 store 为唯一来源：与模版墙（agent-template-chips）、侧边栏共享，
   // 任一处的新增/删除/状态变更都会立即反映到其它视图。
   const agents = useChatStore(state => state.agents)
@@ -379,6 +381,8 @@ export function AgentPage() {
   const [templates, setTemplates] = useState<AgentTemplateInfo[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [templateLoadError, setTemplateLoadError] = useState(false)
+  // 语言切换会并发触发多次模板请求，只允许最新一次写状态（与模版墙一致）
+  const templateRequestIdRef = useRef(0)
   const { toast } = useToast()
   const removeAgent = useChatStore(state => state.removeAgent)
   const updateAgent = useChatStore(state => state.updateAgent)
@@ -410,26 +414,34 @@ export function AgentPage() {
 
   // 获取预置模板列表（只读，零网络、零 DB）
   const fetchTemplates = async () => {
+    const requestId = ++templateRequestIdRef.current
     try {
       setTemplatesLoading(true)
       setTemplateLoadError(false)
       const data = await agentService.getAgentTemplates()
+      // 切换语言会并发触发多次请求，只允许最新一次写状态
+      if (requestId !== templateRequestIdRef.current) return
       // 与模版墙同源排序：置顶模版（如 os-perf-optimizer）固定排第一，
       // 否则同一个模版在「精选智能体」和输入框上方的模版墙会排在不同位置。
       setTemplates(orderTemplatesWithPinnedFirst(data))
     } catch (err) {
+      if (requestId !== templateRequestIdRef.current) return
       console.error('Failed to fetch agent templates:', err)
       setTemplateLoadError(true)
     } finally {
-      setTemplatesLoading(false)
+      if (requestId === templateRequestIdRef.current) setTemplatesLoading(false)
     }
   }
 
-  // 初始化加载
+  // 初始化加载；模板文案由后端按 Accept-Language 返回，语言切换后需重新拉取模板
+  // （agent 列表文案不来自模板，无需重拉）。
   useEffect(() => {
     fetchAgents()
-    fetchTemplates()
   }, [])
+
+  useEffect(() => {
+    fetchTemplates()
+  }, [resolvedLanguage])
 
   // 加载模型列表（当打开导入对话框时）
   useEffect(() => {

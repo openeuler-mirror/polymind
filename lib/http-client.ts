@@ -1,6 +1,7 @@
 import { RequestConfig } from './types'
 import { ApiErrorCode, ApiError, ErrorHandler } from './error-handler'
 import { appConfig } from '@/app/config/index'
+import { getResolvedLanguage } from '@/lib/i18n/resolved-language'
 
 /**
  * HTTP客户端类 - 负责处理所有HTTP请求
@@ -79,7 +80,12 @@ class HttpClient {
 
     // 构建请求选项
     const isFormData = processedConfig.data instanceof FormData
-    const baseHeaders: Record<string, string> = { ...this.defaultHeaders } as Record<string, string>
+    // 后端自带文案（agent 模板 / 定时任务模板等）按 Accept-Language 本地化；
+    // 每次请求实时读取当前解析后的语言，切换语言后新请求立即生效。
+    const baseHeaders: Record<string, string> = {
+      ...this.defaultHeaders,
+      'Accept-Language': getResolvedLanguage(),
+    } as Record<string, string>
     if (isFormData) {
       delete baseHeaders['Content-Type']
     }

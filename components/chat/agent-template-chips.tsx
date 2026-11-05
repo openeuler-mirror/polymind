@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Plus, CheckCircle2, RefreshCw } from 'lucide-react'
 import { agentService } from '@/services/agent-service'
 import { AgentTemplateInfo } from '@/lib/types'
+import { useResolvedLanguage } from '@/lib/i18n/resolved-language'
 import { isTemplateInstantiated, orderTemplatesWithPinnedFirst } from '@/lib/agent-template-utils'
 import { useTemplateInstantiate } from '@/hooks/use-template-instantiate'
 import { ScrollCarousel } from '@/components/common/scroll-carousel'
@@ -18,6 +19,7 @@ import { useChatStore } from '@/lib/store'
  */
 export function AgentTemplateChips() {
   const { t } = useTranslation('chat')
+  const resolvedLanguage = useResolvedLanguage()
   const [templates, setTemplates] = useState<AgentTemplateInfo[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [templateLoadError, setTemplateLoadError] = useState(false)
@@ -30,27 +32,38 @@ export function AgentTemplateChips() {
   const setTemplateHintAnchor = useChatStore(state => state.setTemplateHintAnchor)
   const dismissTemplateHint = useChatStore(state => state.dismissTemplateHint)
 
+  const requestIdRef = useRef(0)
+
   const fetchTemplates = useCallback(async () => {
+    const requestId = ++requestIdRef.current
     try {
       setTemplatesLoading(true)
       setTemplateLoadError(false)
       const data = await agentService.getAgentTemplates()
+      // 切换语言会并发触发多次请求，只允许最新一次写状态
+      if (requestId !== requestIdRef.current) return
       // 展示顺序在此处定版：模版墙的渲染顺序与上报给 store 的 names 顺序同源，
       // PINNED_TEMPLATE_NAMES 中的模版按声明顺序靠前，其余保持后端顺序。
       setTemplates(orderTemplatesWithPinnedFirst(data))
     } catch (err) {
+      if (requestId !== requestIdRef.current) return
       console.error('Failed to fetch agent templates:', err)
       setTemplateLoadError(true)
     } finally {
-      setTemplatesLoading(false)
+      if (requestId === requestIdRef.current) setTemplatesLoading(false)
     }
   }, [])
 
-  // 挂载时与服务端对齐一次（模版列表 + agent 列表，后者写入全局 store）
+  // 挂载时与服务端对齐一次 agent 列表（模板列表单独见下方 effect：它还需要跟随语言）。
+  // Agent 列表文案不来自模板，切换语言无需重拉。
+  useEffect(() => {
+    refreshAgents()
+  }, [refreshAgents])
+
+  // 模板文案由后端按 Accept-Language 返回，语言切换后按新语言重新拉取。
   useEffect(() => {
     fetchTemplates()
-    refreshAgents()
-  }, [fetchTemplates, refreshAgents])
+  }, [fetchTemplates, resolvedLanguage])
 
   // 向 store 上报模版墙状态：气泡据此判定「是否已有模版 agent」与「是否可指向模版墙」。
   useEffect(() => {
