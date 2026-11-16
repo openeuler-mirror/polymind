@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # ============================================================
-# PolyMind 启动脚本 (Linux)
+# PolyMind 启动脚本 (Linux / macOS)
 # 负责配置加载、端口管理和服务启停
-# 需先运行 install.sh 完成依赖安装
+# 需先运行 install-local.sh 完成依赖安装
 # ============================================================
 set -e
+
+HOST_OS="$(uname -s)"
+if [ "$HOST_OS" = "Darwin" ]; then
+  # Homebrew 安装的命令通常位于这些目录，优先于系统自带版本
+  export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:$PATH"
+fi
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -20,19 +26,42 @@ log_ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 log_err()   { echo -e "${RED}[ERR]${NC}   $*"; }
 
-# nginx 需要 root 权限绑定端口/访问系统日志时自动使用 sudo
-# （master 进程以 root 运行，worker 仍按 user 指令以普通用户运行）
+# 默认以当前用户运行 nginx：监听端口均大于 1024，配置/日志/pid/临时目录都在 $POLYMIND_DIR 下，
+# 无需 root。仅当当前用户执行失败且 sudo 可免密使用时才提权，避免因用户不在 sudoers 而直接失败。
 nginx_cmd() {
   if [ "$(id -u)" -eq 0 ]; then
     nginx "$@"
+    return $?
+  fi
+
+  local output rc=0
+  output=$(nginx "$@" 2>&1) || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    [ -n "$output" ] && echo "$output"
+    return 0
+  fi
+
+  if command -v sudo &> /dev/null && sudo -n true 2>/dev/null; then
+    sudo -n nginx "$@"
+    return $?
+  fi
+
+  echo "$output"
+  return "$rc"
+}
+
+# macOS 没有 setsid，用 nohup 让进程脱离终端
+launch_detached() {
+  if command -v setsid &> /dev/null; then
+    setsid "$@"
   else
-    sudo nginx "$@"
+    nohup "$@"
   fi
 }
 
 pid_alive() {
   local pid=$1
-  kill -0 "$pid" 2>/dev/null || sudo kill -0 "$pid" 2>/dev/null
+  kill -0 "$pid" 2>/dev/null || sudo -n kill -0 "$pid" 2>/dev/null
 }
 
 section() {
@@ -129,11 +158,11 @@ find_port_pid() {
   pid=$(get_port_pid "$port")
   if [ -z "$pid" ] && ! check_port "$port"; then
     if command -v ss &> /dev/null; then
-      pid=$(sudo ss -tulnp 2>/dev/null | grep ":$port " | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -1)
+      pid=$(sudo -n ss -tulnp 2>/dev/null | grep ":$port " | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -1)
     elif command -v lsof &> /dev/null; then
-      pid=$(sudo lsof -Pi ":$port" -sTCP:LISTEN -t 2>/dev/null | head -1)
+      pid=$(sudo -n lsof -Pi ":$port" -sTCP:LISTEN -t 2>/dev/null | head -1)
     elif command -v netstat &> /dev/null; then
-      pid=$(sudo netstat -tulnp 2>/dev/null | grep ":$port " | awk '{print $NF}' | sed 's/\/.*//' | head -1)
+      pid=$(sudo -n netstat -tulnp 2>/dev/null | grep ":$port " | awk '{print $NF}' | sed 's/\/.*//' | head -1)
     fi
   fi
   echo "$pid"
@@ -145,11 +174,11 @@ kill_port_process() {
   pid=$(find_port_pid "$port")
   if [ -n "$pid" ]; then
     log_warn "端口 $port 被进程 PID=$pid 占用，正在终止..."
-    kill "$pid" 2>/dev/null || sudo kill "$pid" 2>/dev/null || true
+    kill "$pid" 2>/dev/null || sudo -n kill "$pid" 2>/dev/null || true
     sleep 1
     if pid_alive "$pid"; then
       log_warn "进程未响应，强制终止..."
-      kill -9 "$pid" 2>/dev/null || sudo kill -9 "$pid" 2>/dev/null || true
+      kill -9 "$pid" 2>/dev/null || sudo -n kill -9 "$pid" 2>/dev/null || true
       sleep 1
     fi
     if check_port "$port"; then
@@ -186,7 +215,7 @@ load_pids() {
 generate_nginx_config() {
   if [ ! -f "$NGINX_CONF_TEMPLATE" ]; then
     log_err "nginx 配置模板不存在: $NGINX_CONF_TEMPLATE"
-    log_err "请重新运行 install.sh 生成模板"
+    log_err "请重新运行 install-local.sh 生成模板"
     return 1
   fi
 
@@ -198,14 +227,18 @@ generate_nginx_config() {
     "$NGINX_CONF_TEMPLATE" > "$NGINX_CONF"
 
   # 显式设置 nginx worker 用户
-  sed -i "1i user $(whoami);" "$NGINX_CONF"
+  # 普通用户启动 nginx 时该指令会被忽略并产生告警，仅在 root 启动时写入
+  local tmp_conf="$NGINX_CONF.tmp"
+  if [ "$(id -u)" -eq 0 ]; then
+    { echo "user $(whoami);"; cat "$NGINX_CONF"; } > "$tmp_conf" && mv "$tmp_conf" "$NGINX_CONF"
+  fi
 
   # 兜底修复旧版模板：确保 error_log/pid 指向用户目录，避免写入系统路径
   if ! grep -q '^error_log' "$NGINX_CONF"; then
-    sed -i "/^user /a error_log $POLYMIND_DIR/nginx/error.log;" "$NGINX_CONF"
+    { echo "error_log $POLYMIND_DIR/nginx/error.log;"; cat "$NGINX_CONF"; } > "$tmp_conf" && mv "$tmp_conf" "$NGINX_CONF"
   fi
   if ! grep -q '^pid ' "$NGINX_CONF"; then
-    sed -i "/^error_log /a pid $POLYMIND_DIR/nginx/nginx.pid;" "$NGINX_CONF"
+    { echo "pid $POLYMIND_DIR/nginx/nginx.pid;"; cat "$NGINX_CONF"; } > "$tmp_conf" && mv "$tmp_conf" "$NGINX_CONF"
   fi
 
   # 创建 nginx 临时目录（非 root 运行时必需）
@@ -252,10 +285,10 @@ stop_nginx() {
     nginx_cmd -c "$NGINX_CONF" -s quit 2>/dev/null || true
     sleep 1
     if pid_alive "$pid"; then
-      kill -TERM "$pid" 2>/dev/null || sudo kill -TERM "$pid" 2>/dev/null || true
+      kill -TERM "$pid" 2>/dev/null || sudo -n kill -TERM "$pid" 2>/dev/null || true
       sleep 1
       if pid_alive "$pid"; then
-        kill -9 "$pid" 2>/dev/null || sudo kill -9 "$pid" 2>/dev/null || true
+        kill -9 "$pid" 2>/dev/null || sudo -n kill -9 "$pid" 2>/dev/null || true
       fi
     fi
     log_ok "nginx 已停止 (PID=$pid)"
@@ -356,7 +389,7 @@ activate_environment() {
     export PATH="$PATH:$_saved_path"
   else
     log_warn "隔离环境配置文件不存在: $PROFILE_FILE"
-    log_warn "建议先运行 install.sh 以创建隔离环境"
+    log_warn "建议先运行 install-local.sh 以创建隔离环境"
   fi
 }
 
@@ -369,52 +402,24 @@ run_precheck() {
   local missing=0
 
   if ! command -v "$CMD_BACKEND" &> /dev/null; then
-    log_err "$CMD_BACKEND 未安装，请先运行 install.sh"
+    log_err "$CMD_BACKEND 未安装，请先运行 install-local.sh"
     missing=1
   else
     log_ok "$CMD_BACKEND 已就绪"
   fi
 
   if ! command -v "$CMD_FRONTEND" &> /dev/null; then
-    log_err "$CMD_FRONTEND 未安装，请先运行 install.sh"
+    log_err "$CMD_FRONTEND 未安装，请先运行 install-local.sh"
     missing=1
   else
     log_ok "$CMD_FRONTEND 已就绪"
   fi
 
   if ! command -v nginx &> /dev/null; then
-    log_err "nginx 未安装，请先运行 install.sh"
+    log_err "nginx 未安装，请先运行 install-local.sh"
     missing=1
   else
     log_ok "nginx $(nginx -v 2>&1 | cut -d'/' -f2) 已就绪"
-  fi
-
-  # 检查 Docker 守护进程（警告级别，不阻塞启动）
-  if command -v docker &> /dev/null; then
-    if docker info &> /dev/null; then
-      log_ok "Docker 守护进程运行中"
-    else
-      local docker_err
-      docker_err="$(docker info 2>&1 | head -3)"
-      if echo "$docker_err" | grep -qi "permission denied"; then
-        log_warn "Docker 守护进程运行中，但当前用户无权限访问 Docker 套接字"
-        if id -nG 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
-          log_warn "当前会话已在 docker 组但仍无权限，请检查套接字属组: ls -l /var/run/docker.sock"
-          log_warn "若属组不是 docker，请执行: sudo chgrp docker /var/run/docker.sock && sudo systemctl restart docker"
-        elif id -nG "$USER" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
-          log_warn "用户 $USER 已在 docker 组，但当前会话尚未生效（组在登录时加载）"
-          log_warn "请执行: newgrp docker（或重新登录终端），然后重新运行 start.sh"
-        else
-          log_warn "用户 $USER 尚未加入 docker 组，请执行: sudo usermod -aG docker $USER"
-        fi
-      else
-        log_warn "Docker 守护进程未运行，Docker 沙箱将不可用"
-        log_warn "请执行: sudo systemctl start docker"
-      fi
-    fi
-  else
-    log_warn "Docker 未安装，Docker 沙箱将不可用"
-    log_warn "请运行 install-local.sh 安装 Docker"
   fi
 
   if [ -f "$ENV_FILE" ]; then
@@ -460,7 +465,7 @@ start_backend() {
   section "2/4  启动后端"
 
   log_info "启动后端 $CMD_BACKEND (端口 $BACKEND_PORT) ..."
-  setsid $CMD_BACKEND --host 127.0.0.1 --port "$BACKEND_PORT" > "$POLYMIND_DIR/backend.log" 2>&1 &
+  launch_detached $CMD_BACKEND --host 127.0.0.1 --port "$BACKEND_PORT" > "$POLYMIND_DIR/backend.log" 2>&1 < /dev/null &
   BACKEND_PID=$!
   sleep 2
 
@@ -481,7 +486,7 @@ start_frontend() {
   BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}" \
     BACKEND_PORT="$BACKEND_PORT" \
     FRONTEND_PORT="$FRONTEND_PORT" \
-    setsid $CMD_FRONTEND --port "$NEXTJS_UPSTREAM_PORT" --host "127.0.0.1" > "$POLYMIND_DIR/frontend.log" 2>&1 &
+    launch_detached $CMD_FRONTEND --port "$NEXTJS_UPSTREAM_PORT" --host "127.0.0.1" > "$POLYMIND_DIR/frontend.log" 2>&1 < /dev/null &
   FRONTEND_PID=$!
   sleep 2
 
@@ -514,8 +519,22 @@ print_done() {
   echo ""
 }
 
+# ---------- 系统检查 ----------
+check_supported_os() {
+  case "$HOST_OS" in
+    Linux*|Darwin*) ;;
+    *)
+      log_err "当前系统 $HOST_OS 不受支持，start.sh 仅支持 Linux 和 macOS"
+      log_err "Windows 请使用 WSL2 运行，或按 README 方式二安装前端后自行启动"
+      exit 1
+      ;;
+  esac
+}
+
 # ---------- main ----------
 main() {
+  check_supported_os
+
   if $ARG_STATUS; then
     show_status
     exit 0

@@ -46,6 +46,7 @@
 
 项目提供了 `install-local.sh` 脚本，自动完成环境检测、依赖安装和环境隔离，适合非开发人员快速部署。
 
+> 一键脚本支持 Linux 与 macOS（macOS 需预装 Xcode Command Line Tools 与 Homebrew）。Windows 请使用 WSL2，或按“方式二”仅安装前端并自行部署后端。
 
 **安装步骤：**
 
@@ -66,7 +67,7 @@ bash install-local.sh
 - **环境检测** — 检查操作系统、架构，以及 Node.js、pnpm、Python、pip 是否已安装
 - **镜像源配置** — 自动配置华为云镜像加速下载
 - **环境隔离初始化** — 创建 Python 虚拟环境，生成独立的环境配置文件
-- **依赖安装** — 通过 pnpm 安装 `polymind` 前端包、`openclaw` 和 `wittyhub` CLI，通过 pip 安装 `witty-service` 后端包
+- **依赖安装** — 通过 pnpm 安装最新版 `polymind` 前端包和 `wittyhub` CLI，通过 pip 安装最新版 `witty-service` 后端包，并安装 `opencode` 用于快速体验
 - **安装验证** — 验证所有组件是否正确安装
 
 3. 安装完成后，脚本会输出安装摘要：

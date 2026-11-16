@@ -46,6 +46,8 @@ A self-hosted AI Agent interaction platform with native agentd service integrati
 
 The project provides an `install-local.sh` script that automatically completes environment detection, dependency installation, and environment isolation, suitable for non-developers to quickly deploy.
 
+> The one-click scripts support Linux and macOS (macOS requires Xcode Command Line Tools and Homebrew). On Windows, use WSL2, or follow "Option 2" to install the frontend only and deploy the backend yourself.
+
 **Installation Steps:**
 
 1. Clone the repository:
@@ -65,7 +67,7 @@ The script will automatically:
 - **Environment Detection** — Check OS, architecture, and if Node.js, pnpm, Python, pip are installed
 - **Mirror Configuration** — Automatically configure Huawei Cloud mirrors for faster downloads
 - **Environment Isolation** — Create Python virtual environment and generate isolated environment profile
-- **Dependency Installation** — Install `polymind` frontend, `openclaw`, and the `wittyhub` CLI via pnpm, `witty-service` backend via pip
+- **Dependency Installation** — Install the latest `polymind` frontend and `wittyhub` CLI via pnpm, the latest `witty-service` backend via pip, plus `opencode` for quick onboarding
 - **Installation Verification** — Verify all components are correctly installed
 
 3. After installation, the script will output an installation summary:
